@@ -12,7 +12,7 @@ export class CrmNavbarComponent {
   private readonly themePanel = inject(ThemePanelService);
   protected readonly profilePanel = inject(ProfilePanelService);
 
-  protected openTheme(): void {
+  protected openSettings(): void {
     this.profilePanel.close();
     this.themePanel.toggle();
   }

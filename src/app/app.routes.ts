@@ -33,6 +33,11 @@ export const routes: Routes = [
         path: 'tasks',
         loadChildren: () => import('./features/tasks/tasks.module').then((m) => m.TasksModule),
       },
+      {
+        path: 'reports',
+        loadComponent: () =>
+          import('./features/reports/reports.component').then((m) => m.ReportsComponent),
+      },
     ],
   },
 ];

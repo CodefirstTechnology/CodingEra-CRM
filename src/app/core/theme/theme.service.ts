@@ -15,10 +15,10 @@ interface SurfaceTokens {
 const SURFACE: Record<ThemePresetId, SurfaceTokens> = {
   light: {
     navbarText: '#0f172a',
-    sidebarText: '#334155',
-    bodyBg: '#f1f5f9',
+    sidebarText: '#94a3b8',
+    bodyBg: '#f8f9fa',
     surface: '#ffffff',
-    cardBorder: '#e2e8f0',
+    cardBorder: '#e8ecf1',
     textPrimary: '#0f172a',
     textMuted: '#64748b',
   },
@@ -46,8 +46,8 @@ const SURFACE: Record<ThemePresetId, SurfaceTokens> = {
 const PRESET_BRAND: Record<ThemePresetId, { primary: string; secondary: string; tertiary: string }> = {
   light: {
     primary: '#ffffff',
-    secondary: '#f8fafc',
-    tertiary: '#2563eb',
+    secondary: '#f8f9fa',
+    tertiary: '#007bff',
   },
   dark: {
     primary: '#0f172a',
