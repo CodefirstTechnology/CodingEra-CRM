@@ -1,0 +1,34 @@
+@if (panel.open()) {
+  <div class="pp-backdrop" role="presentation" (click)="onBackdropClick()"></div>
+}
+
+<aside class="pp-panel" [class.pp-panel--open]="panel.open()" aria-label="Profile menu">
+  <header class="pp-head">
+    <div class="pp-user">
+      <div class="pp-avatar" aria-hidden="true">JD</div>
+      <div>
+        <p class="pp-name">Jordan Doe</p>
+        <p class="pp-role">Sales · Admin</p>
+      </div>
+    </div>
+    <button type="button" class="pp-close" (click)="close()" aria-label="Close profile">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M18 6 6 18M6 6l12 12" />
+      </svg>
+    </button>
+  </header>
+
+  <div class="pp-body">
+    <p class="pp-email">jordan.doe&#64;company.example</p>
+    <ul class="pp-actions">
+      <li><button type="button" class="pp-link">Account settings</button></li>
+      <li><button type="button" class="pp-link">Preferences</button></li>
+      <li><button type="button" class="pp-link">Help &amp; docs</button></li>
+    </ul>
+  </div>
+
+  <footer class="pp-foot">
+    <button type="button" class="pp-signout">Sign out</button>
+    <button type="button" class="pp-done" (click)="close()">Close</button>
+  </footer>
+</aside>

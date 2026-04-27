@@ -1,0 +1,151 @@
+<div class="org">
+  <header class="org__head">
+    <div>
+      <h1 class="org__title">Organizations</h1>
+      <p class="org__sub">Companies you sell to and partner with.</p>
+    </div>
+    <button type="button" class="org__btn org__btn--solid" (click)="openForm()">+ New organization</button>
+  </header>
+
+  @if (formOpen()) {
+    <div class="org__modal-root" aria-modal="true" role="dialog" aria-labelledby="create-org-title">
+      <div class="org__modal-backdrop" (click)="closeForm()"></div>
+      <div class="org__modal" (click)="$event.stopPropagation()">
+        <header class="org__modal-head">
+          <h2 id="create-org-title" class="org__modal-title">Create Organization</h2>
+          <div class="org__modal-tools">
+            <button type="button" class="org__modal-icon" aria-label="Expand (demo)" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+            </button>
+            <button type="button" class="org__modal-icon" (click)="closeForm()" aria-label="Close">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <form class="org__modal-form" [formGroup]="createForm" (ngSubmit)="submitOrganization()">
+          <p class="org__form-intro">Add company details. Fields marked <span class="org__req">*</span> are required.</p>
+
+          <div class="org__form-grid">
+            <label class="org__field org__field--full">
+              <span class="org__label">Organization name <span class="org__req">*</span></span>
+              <input
+                class="org__control org__control--soft"
+                type="text"
+                formControlName="organizationName"
+                placeholder="Organization name"
+                (input)="clearNameDuplicate()"
+              />
+              @if (createForm.get('organizationName')?.errors?.['duplicate']) {
+                <span class="org__err">An organization with this name already exists.</span>
+              } @else if (fieldInvalid('organizationName')) {
+                <span class="org__err">Organization name is required.</span>
+              }
+            </label>
+
+            <label class="org__field org__field--full">
+              <span class="org__label">Website</span>
+              <input class="org__control org__control--soft" type="text" formControlName="website" placeholder="https://" />
+            </label>
+
+            <label class="org__field">
+              <span class="org__label">Industry <span class="org__req">*</span></span>
+              <select class="org__control org__control--soft" formControlName="industry">
+                @for (ind of industryOptions; track ind) {
+                  <option [value]="ind">{{ ind }}</option>
+                }
+              </select>
+              @if (fieldInvalid('industry')) {
+                <span class="org__err">Select an industry.</span>
+              }
+            </label>
+
+            <label class="org__field">
+              <span class="org__label">Annual revenue</span>
+              <input
+                class="org__control org__control--soft"
+                type="text"
+                formControlName="annualRevenue"
+                placeholder="₹ 0.00"
+              />
+            </label>
+
+            <label class="org__field">
+              <span class="org__label">No. of employees</span>
+              <select class="org__control org__control--soft" formControlName="employees">
+                @for (e of employeeOptions; track e) {
+                  <option [value]="e">{{ e }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="org__field">
+              <span class="org__label">Territory</span>
+              <select class="org__control org__control--soft" formControlName="territory">
+                @for (t of territoryOptions; track t) {
+                  <option [value]="t">{{ t === '' ? '— Select —' : t }}</option>
+                }
+              </select>
+            </label>
+          </div>
+
+          <footer class="org__modal-foot">
+            <button type="button" class="org__modal-cancel" (click)="closeForm()">Cancel</button>
+            <button type="submit" class="org__btn-create">Create</button>
+          </footer>
+        </form>
+      </div>
+    </div>
+  }
+
+  <div class="org__table-card card">
+    <div class="org__table-scroll">
+      <table class="org__table">
+        <thead>
+          <tr class="org__thead-row">
+            <th class="org__th org__th--check">
+              <input
+                type="checkbox"
+                class="org__checkbox"
+                [checked]="allSelected()"
+                (change)="toggleSelectAll()"
+                aria-label="Select all organizations"
+              />
+            </th>
+            <th class="org__th">Organization</th>
+            <th class="org__th">Website</th>
+            <th class="org__th">Industry</th>
+            <th class="org__th">Annual Revenue</th>
+            <th class="org__th org__th--divider" aria-hidden="true"></th>
+            <th class="org__th org__th--lastmod">Last Modified</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.id) {
+            <tr class="org__row">
+              <td class="org__td org__td--check">
+                <input
+                  type="checkbox"
+                  class="org__checkbox"
+                  [checked]="isRowSelected(row.id)"
+                  (change)="toggleRow(row.id, $event)"
+                  [attr.aria-label]="'Select ' + row.name"
+                />
+              </td>
+              <td class="org__td org__td--strong">{{ row.name }}</td>
+              <td class="org__td org__td--muted">{{ row.website }}</td>
+              <td class="org__td">{{ row.industry }}</td>
+              <td class="org__td">{{ row.annualRevenue }}</td>
+              <td class="org__td org__td--divider" aria-hidden="true"></td>
+              <td class="org__td org__td--muted org__td--lastmod">{{ row.lastModified }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

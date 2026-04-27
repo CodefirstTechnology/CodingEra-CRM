@@ -1,0 +1,58 @@
+.shell {
+  display: flex;
+  min-height: 100vh;
+  background: var(--body-bg);
+  color: var(--text-primary);
+  transition: var(--transition-theme);
+}
+
+.shell__sidebar {
+  flex-shrink: 0;
+  width: 260px;
+  z-index: 20;
+}
+
+.shell__main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 100vh;
+}
+
+.shell__nav {
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.shell__content {
+  flex: 1;
+  padding: 1.5rem;
+  overflow: auto;
+}
+
+@media (max-width: 900px) {
+  .shell__sidebar {
+    width: 72px;
+  }
+
+  .shell__content {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 600px) {
+  .shell {
+    flex-direction: column;
+  }
+
+  .shell__sidebar {
+    width: 100%;
+    order: 2;
+  }
+
+  .shell__main {
+    order: 1;
+    min-height: 0;
+  }
+}
