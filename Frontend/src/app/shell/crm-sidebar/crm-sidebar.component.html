@@ -1,0 +1,68 @@
+<aside class="sidebar">
+  <div class="sidebar__brand">
+    <span class="sidebar__logo">CRM</span>
+    <span class="sidebar__tag">Pro</span>
+  </div>
+  <nav class="sidebar__nav" aria-label="Main">
+    <a routerLink="/" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }" class="nav-item">
+      <span class="nav-item__icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="9" rx="1" />
+          <rect x="14" y="3" width="7" height="5" rx="1" />
+          <rect x="14" y="12" width="7" height="9" rx="1" />
+          <rect x="3" y="16" width="7" height="5" rx="1" />
+        </svg>
+      </span>
+      <span class="nav-item__label">Dashboard</span>
+    </a>
+    <a routerLink="/leads" routerLinkActive="is-active" class="nav-item">
+      <span class="nav-item__icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      </span>
+      <span class="nav-item__label">Leads</span>
+    </a>
+    <a routerLink="/deals" routerLinkActive="is-active" class="nav-item">
+      <span class="nav-item__icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        </svg>
+      </span>
+      <span class="nav-item__label">Deals</span>
+    </a>
+    <a routerLink="/contacts" routerLinkActive="is-active" class="nav-item">
+      <span class="nav-item__icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      </span>
+      <span class="nav-item__label">Contacts</span>
+    </a>
+    <a routerLink="/organizations" routerLinkActive="is-active" class="nav-item">
+      <span class="nav-item__icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4" />
+          <path d="M9 9v.01M9 12v.01M9 15v.01M9 18v.01" />
+        </svg>
+      </span>
+      <span class="nav-item__label">Organizations</span>
+    </a>
+    <a routerLink="/tasks" routerLinkActive="is-active" class="nav-item">
+      <span class="nav-item__icon" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 11l3 3L22 4" />
+          <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+        </svg>
+      </span>
+      <span class="nav-item__label">Tasks</span>
+    </a>
+  </nav>
+  <div class="sidebar__footer">
+    <p class="sidebar__hint">Colors follow your theme</p>
+  </div>
+</aside>

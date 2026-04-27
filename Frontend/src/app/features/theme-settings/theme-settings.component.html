@@ -1,0 +1,115 @@
+@if (panel.open()) {
+  <div
+    class="ts-backdrop"
+    role="presentation"
+    tabindex="-1"
+    (click)="close()"
+    (keydown)="onBackdropKeydown($event)"
+  ></div>
+}
+
+<aside
+  class="ts-panel"
+  [class.ts-panel--open]="panel.open()"
+  aria-label="Theme settings"
+>
+  <header class="ts-panel__head">
+    <div>
+      <h2 class="ts-panel__title">Theme settings</h2>
+      <p class="ts-panel__sub">Customize branding colors — updates apply instantly.</p>
+    </div>
+    <button type="button" class="ts-icon-close" (click)="close()" aria-label="Close theme settings">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M18 6 6 18M6 6l12 12" />
+      </svg>
+    </button>
+  </header>
+
+  <section class="ts-section">
+    <h3 class="ts-section__title">Quick themes</h3>
+    <div class="ts-presets">
+      @for (p of presets; track p) {
+        <button
+          type="button"
+          class="ts-preset"
+          [class.ts-preset--active]="isPresetActive(p)"
+          (click)="applyPreset(p)"
+        >
+          {{ presetLabel(p) }}
+        </button>
+      }
+    </div>
+  </section>
+
+  <section class="ts-section">
+    <h3 class="ts-section__title">Brand colors</h3>
+    <div class="ts-rows">
+      <label class="ts-row">
+        <span class="ts-row__label">Primary <small>(navbar)</small></span>
+        <span class="ts-row__ctrl">
+          <input
+            type="color"
+            class="ts-color"
+            [value]="theme.primary()"
+            (input)="pickPrimary($event)"
+            aria-label="Primary color for navbar"
+          />
+          <code class="ts-hex">{{ theme.primary() }}</code>
+        </span>
+      </label>
+      <label class="ts-row">
+        <span class="ts-row__label">Secondary <small>(sidebar)</small></span>
+        <span class="ts-row__ctrl">
+          <input
+            type="color"
+            class="ts-color"
+            [value]="theme.secondary()"
+            (input)="pickSecondary($event)"
+            aria-label="Secondary color for sidebar"
+          />
+          <code class="ts-hex">{{ theme.secondary() }}</code>
+        </span>
+      </label>
+      <label class="ts-row">
+        <span class="ts-row__label">Tertiary <small>(buttons & charts)</small></span>
+        <span class="ts-row__ctrl">
+          <input
+            type="color"
+            class="ts-color"
+            [value]="theme.tertiary()"
+            (input)="pickTertiary($event)"
+            aria-label="Tertiary accent color"
+          />
+          <code class="ts-hex">{{ theme.tertiary() }}</code>
+        </span>
+      </label>
+    </div>
+  </section>
+
+  <section class="ts-section">
+    <h3 class="ts-section__title">Live preview</h3>
+    <div class="ts-preview" aria-hidden="true">
+      <div class="ts-preview__nav" [style.background]="theme.primary()">
+        <span class="ts-preview__chip" [style.color]="theme.primary()" [style.background]="theme.tertiary()"
+          >Btn</span
+        >
+      </div>
+      <div class="ts-preview__row">
+        <div class="ts-preview__side" [style.background]="theme.secondary()"></div>
+        <div class="ts-preview__main">
+          <div class="ts-preview__card" [style.border-color]="theme.tertiary()"></div>
+          <div class="ts-preview__bars">
+            <span [style.background]="theme.tertiary()"></span>
+            <span [style.background]="theme.tertiary()" style="opacity: 0.65"></span>
+            <span [style.background]="theme.tertiary()" style="opacity: 0.4"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer class="ts-footer">
+    <button type="button" class="ts-btn ts-btn--ghost" (click)="reset()">Reset to default</button>
+    <button type="button" class="ts-btn ts-btn--primary" (click)="close()">Done</button>
+  </footer>
+</aside>

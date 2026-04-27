@@ -1,0 +1,236 @@
+<div class="deals">
+  <header class="deals__head">
+    <div>
+      <h1 class="deals__title">Deals</h1>
+      <p class="deals__sub">Track opportunities from qualification to close.</p>
+    </div>
+    <button type="button" class="deals__btn deals__btn--solid" (click)="openForm()">+ New deal</button>
+  </header>
+
+  @if (formOpen()) {
+    <div class="deals__modal-root" aria-modal="true" role="dialog" aria-labelledby="create-deal-title">
+      <div class="deals__modal-backdrop" (click)="closeForm()"></div>
+      <div class="deals__modal" (click)="$event.stopPropagation()">
+        <header class="deals__modal-head">
+          <h2 id="create-deal-title" class="deals__modal-title">Create Deal</h2>
+          <div class="deals__modal-tools">
+            <button type="button" class="deals__modal-icon" aria-label="Expand (demo)" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+              </svg>
+            </button>
+            <button type="button" class="deals__modal-icon" (click)="closeForm()" aria-label="Close">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <form class="deals__modal-form" [formGroup]="createForm" (ngSubmit)="submitDeal()">
+          <div class="deals__toggles">
+            <label class="deals__toggle">
+              <input type="checkbox" formControlName="useExistingOrg" />
+              <span class="deals__toggle-track" aria-hidden="true"></span>
+              <span class="deals__toggle-label">Choose Existing Organization</span>
+            </label>
+            <label class="deals__toggle">
+              <input type="checkbox" formControlName="useExistingContact" />
+              <span class="deals__toggle-track" aria-hidden="true"></span>
+              <span class="deals__toggle-label">Choose Existing Contact</span>
+            </label>
+          </div>
+
+          <section class="deals__form-section" aria-label="Organization details">
+            <h3 class="deals__form-section-title">Organization details</h3>
+            <div class="deals__form-grid deals__form-grid--3">
+              <label class="deals__field">
+                <span class="deals__label">Organization name <span class="deals__req">*</span></span>
+                <input class="deals__control deals__control--soft" type="text" formControlName="organizationName" />
+                @if (fieldInvalid('organizationName')) {
+                  <span class="deals__err">Organization name is required.</span>
+                }
+              </label>
+              <label class="deals__field">
+                <span class="deals__label">No. of employees</span>
+                <select class="deals__control deals__control--soft" formControlName="employees">
+                  @for (e of employeeOptions; track e) {
+                    <option [value]="e">{{ e }}</option>
+                  }
+                </select>
+              </label>
+              <label class="deals__field">
+                <span class="deals__label">Annual revenue</span>
+                <input
+                  class="deals__control deals__control--soft"
+                  type="text"
+                  formControlName="annualRevenue"
+                  placeholder="₹ 0.00"
+                />
+              </label>
+              <label class="deals__field">
+                <span class="deals__label">Website</span>
+                <input class="deals__control deals__control--soft" type="text" formControlName="website" placeholder="https://" />
+              </label>
+              <label class="deals__field">
+                <span class="deals__label">Territory</span>
+                <select class="deals__control deals__control--soft" formControlName="territory">
+                  @for (t of territoryOptions; track t) {
+                    <option [value]="t">{{ t === '' ? '— Select —' : t }}</option>
+                  }
+                </select>
+              </label>
+              <label class="deals__field">
+                <span class="deals__label">Industry <span class="deals__req">*</span></span>
+                <select class="deals__control deals__control--soft" formControlName="industry">
+                  @for (ind of industryOptions; track ind) {
+                    <option [value]="ind">{{ ind }}</option>
+                  }
+                </select>
+                @if (fieldInvalid('industry')) {
+                  <span class="deals__err">Select an industry.</span>
+                }
+              </label>
+            </div>
+          </section>
+
+          <hr class="deals__form-rule" />
+
+          <section class="deals__form-section" aria-label="Contact details">
+            <h3 class="deals__form-section-title">Contact details</h3>
+            <div class="deals__form-grid deals__form-grid--3">
+              <label class="deals__field">
+                <span class="deals__label">Salutation</span>
+                <select class="deals__control deals__control--soft" formControlName="salutation">
+                  @for (s of salutationOptions; track s) {
+                    <option [value]="s">{{ s === '' ? '— Select —' : s }}</option>
+                  }
+                </select>
+              </label>
+              <label class="deals__field">
+                <span class="deals__label">Last name</span>
+                <input class="deals__control deals__control--soft" type="text" formControlName="lastName" />
+              </label>
+              <label class="deals__field">
+                <span class="deals__label">Primary mobile no.</span>
+                <input class="deals__control deals__control--soft" type="tel" formControlName="primaryMobile" />
+              </label>
+              <label class="deals__field">
+                <span class="deals__label">First name</span>
+                <input class="deals__control deals__control--soft" type="text" formControlName="firstName" />
+              </label>
+              <label class="deals__field">
+                <span class="deals__label">Primary email</span>
+                <input
+                  class="deals__control deals__control--soft"
+                  type="email"
+                  formControlName="primaryEmail"
+                  (input)="clearEmailDuplicate()"
+                />
+                @if (createForm.get('primaryEmail')?.errors?.['duplicate']) {
+                  <span class="deals__err">This email is already used on a deal.</span>
+                } @else if (fieldInvalid('primaryEmail') && createForm.get('primaryEmail')?.errors?.['email']) {
+                  <span class="deals__err">Enter a valid email.</span>
+                }
+              </label>
+              <label class="deals__field">
+                <span class="deals__label">Gender</span>
+                <select class="deals__control deals__control--soft" formControlName="gender">
+                  @for (g of genderOptions; track g) {
+                    <option [value]="g">{{ g === '' ? '— Select —' : g }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <hr class="deals__form-rule" />
+
+          <section class="deals__form-section" aria-label="Deal assignment">
+            <h3 class="deals__form-section-title">Deal assignment</h3>
+            <div class="deals__form-grid deals__form-grid--2">
+              <label class="deals__field">
+                <span class="deals__label">Status <span class="deals__req">*</span></span>
+                <select class="deals__control deals__control--soft" formControlName="status">
+                  @for (s of dealStatuses; track s) {
+                    <option [value]="s">{{ s }}</option>
+                  }
+                </select>
+                @if (fieldInvalid('status')) {
+                  <span class="deals__err">Status is required.</span>
+                }
+              </label>
+              <label class="deals__field">
+                <span class="deals__label">Deal owner</span>
+                <select class="deals__control deals__control--soft" formControlName="dealOwner">
+                  @for (o of dealOwnerOptions; track o.id) {
+                    <option [value]="o.id">{{ o.label }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <footer class="deals__modal-foot">
+            <button type="button" class="deals__modal-cancel" (click)="closeForm()">Cancel</button>
+            <button type="submit" class="deals__btn-create">Create</button>
+          </footer>
+        </form>
+      </div>
+    </div>
+  }
+
+  <div class="deals__table-card card">
+    <div class="deals__table-scroll">
+      <table class="deals__table">
+        <thead>
+          <tr class="deals__thead-row">
+            <th class="deals__th deals__th--check">
+              <input
+                type="checkbox"
+                class="deals__checkbox"
+                [checked]="allSelected()"
+                (change)="toggleSelectAll()"
+                aria-label="Select all deals"
+              />
+            </th>
+            <th class="deals__th">Organization</th>
+            <th class="deals__th">Annual Revenue</th>
+            <th class="deals__th">Status</th>
+            <th class="deals__th deals__th--gap">Email</th>
+            <th class="deals__th">Mobile No</th>
+            <th class="deals__th">Assigned To</th>
+            <th class="deals__th">Last Modified</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.id) {
+            <tr class="deals__row">
+              <td class="deals__td deals__td--check">
+                <input
+                  type="checkbox"
+                  class="deals__checkbox"
+                  [checked]="isRowSelected(row.id)"
+                  (change)="toggleRow(row.id, $event)"
+                  [attr.aria-label]="'Select ' + row.organization"
+                />
+              </td>
+              <td class="deals__td deals__td--strong">{{ row.organization }}</td>
+              <td class="deals__td">{{ row.annualRevenue }}</td>
+              <td class="deals__td"><span [class]="statusClass(row.status)">{{ row.status }}</span></td>
+              <td class="deals__td deals__td--muted deals__td--gap">{{ row.email }}</td>
+              <td class="deals__td">{{ row.mobile }}</td>
+              <td class="deals__td">
+                <span class="deals__assign">
+                  <span class="deals__assign-avatar">{{ row.assignedInitials }}</span>
+                  <span class="deals__assign-name">{{ row.assignedTo }}</span>
+                </span>
+              </td>
+              <td class="deals__td deals__td--muted">{{ row.lastModified }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,277 @@
+<div class="leads">
+  <header class="leads__head">
+    <div>
+      <h1 class="leads__title">Leads</h1>
+      <p class="leads__sub">Capture and qualify prospects before they become deals.</p>
+    </div>
+    <div class="leads__actions">
+      <button type="button" class="leads__btn leads__btn--ghost">Import</button>
+      <button type="button" class="leads__btn leads__btn--solid" (click)="openForm()">+ New lead</button>
+    </div>
+  </header>
+
+  @if (formOpen()) {
+    <div class="leads__modal-root" aria-modal="true" role="dialog" aria-labelledby="create-lead-title">
+      <div class="leads__modal-backdrop" (click)="closeForm()"></div>
+      <div class="leads__modal" (click)="$event.stopPropagation()">
+        <header class="leads__modal-head">
+          <h2 id="create-lead-title" class="leads__modal-title">Create Lead</h2>
+          <div class="leads__modal-tools">
+            <button type="button" class="leads__modal-icon" aria-label="Edit (demo)" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
+            <button type="button" class="leads__modal-icon" (click)="closeForm()" aria-label="Close">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <form class="leads__modal-form" [formGroup]="createForm" (ngSubmit)="submitLead()">
+          <section class="leads__form-section" aria-label="Personal information">
+            <h3 class="leads__form-section-title">Personal information</h3>
+            <div class="leads__form-grid leads__form-grid--3">
+              <label class="leads__field">
+                <span class="leads__label">Salutation</span>
+                <select class="leads__control leads__control--soft" formControlName="salutation">
+                  @for (s of salutationOptions; track s) {
+                    <option [value]="s">{{ s === '' ? '— Select —' : s }}</option>
+                  }
+                </select>
+              </label>
+              <label class="leads__field">
+                <span class="leads__label">Last name</span>
+                <input class="leads__control leads__control--soft" type="text" formControlName="lastName" autocomplete="family-name" />
+              </label>
+              <label class="leads__field">
+                <span class="leads__label">Mobile no.</span>
+                <input class="leads__control leads__control--soft" type="tel" formControlName="mobile" autocomplete="tel" />
+              </label>
+              <label class="leads__field">
+                <span class="leads__label">First name <span class="leads__req">*</span></span>
+                <input class="leads__control leads__control--soft" type="text" formControlName="firstName" autocomplete="given-name" />
+                @if (fieldInvalid('firstName')) {
+                  <span class="leads__err">First name is required.</span>
+                }
+              </label>
+              <label class="leads__field">
+                <span class="leads__label">Email</span>
+                <input
+                  class="leads__control leads__control--soft"
+                  type="email"
+                  formControlName="email"
+                  autocomplete="email"
+                  (input)="clearEmailDuplicate()"
+                />
+                @if (createForm.get('email')?.errors?.['duplicate']) {
+                  <span class="leads__err">A lead with this email already exists.</span>
+                } @else if (fieldInvalid('email') && createForm.get('email')?.errors?.['email']) {
+                  <span class="leads__err">Use a valid email address.</span>
+                }
+              </label>
+              <label class="leads__field">
+                <span class="leads__label">Gender</span>
+                <select class="leads__control leads__control--soft" formControlName="gender">
+                  @for (g of genderOptions; track g) {
+                    <option [value]="g">{{ g === '' ? '— Select —' : g }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <hr class="leads__form-rule" />
+
+          <section class="leads__form-section" aria-label="Company information">
+            <h3 class="leads__form-section-title">Company information</h3>
+            <div class="leads__form-grid leads__form-grid--3">
+              <label class="leads__field">
+                <span class="leads__label">Organization <span class="leads__req">*</span></span>
+                <input class="leads__control leads__control--soft" type="text" formControlName="organization" autocomplete="organization" />
+                @if (fieldInvalid('organization')) {
+                  <span class="leads__err">Organization is required.</span>
+                }
+              </label>
+              <label class="leads__field">
+                <span class="leads__label">No. of employees</span>
+                <select class="leads__control leads__control--soft" formControlName="employees">
+                  @for (e of employeeOptions; track e) {
+                    <option [value]="e">{{ e }}</option>
+                  }
+                </select>
+              </label>
+              <label class="leads__field">
+                <span class="leads__label">Annual revenue</span>
+                <input
+                  class="leads__control leads__control--soft"
+                  type="text"
+                  formControlName="annualRevenue"
+                  placeholder="₹ 0.00"
+                />
+              </label>
+              <label class="leads__field">
+                <span class="leads__label">Website</span>
+                <input class="leads__control leads__control--soft" type="text" formControlName="website" placeholder="https://" />
+              </label>
+              <label class="leads__field">
+                <span class="leads__label">Territory</span>
+                <select class="leads__control leads__control--soft" formControlName="territory">
+                  @for (t of territoryOptions; track t) {
+                    <option [value]="t">{{ t === '' ? '— Select —' : t }}</option>
+                  }
+                </select>
+              </label>
+              <label class="leads__field">
+                <span class="leads__label">Industry <span class="leads__req">*</span></span>
+                <select class="leads__control leads__control--soft" formControlName="industry">
+                  @for (ind of industryOptions; track ind) {
+                    <option [value]="ind">{{ ind }}</option>
+                  }
+                </select>
+                @if (fieldInvalid('industry')) {
+                  <span class="leads__err">Select an industry.</span>
+                }
+              </label>
+            </div>
+          </section>
+
+          <hr class="leads__form-rule" />
+
+          <section class="leads__form-section" aria-label="Status and ownership">
+            <h3 class="leads__form-section-title">Status &amp; ownership</h3>
+            <div class="leads__form-grid leads__form-grid--3">
+              <label class="leads__field">
+                <span class="leads__label">Status <span class="leads__req">*</span></span>
+                <select class="leads__control leads__control--soft leads__control--status" formControlName="status">
+                  @for (s of statusOptions; track s) {
+                    <option [value]="s">{{ s }}</option>
+                  }
+                </select>
+                @if (fieldInvalid('status')) {
+                  <span class="leads__err">Status is required.</span>
+                }
+              </label>
+              <label class="leads__field leads__field--span2-md">
+                <span class="leads__label">Lead owner</span>
+                <select class="leads__control leads__control--soft leads__control--owner" formControlName="leadOwner">
+                  @for (o of leadOwnerOptions; track o.id) {
+                    <option [value]="o.id">{{ o.label }}</option>
+                  }
+                </select>
+              </label>
+              <label class="leads__field">
+                <span class="leads__label">Request type</span>
+                <select class="leads__control leads__control--soft" formControlName="requestType">
+                  @for (r of requestTypeOptions; track r) {
+                    <option [value]="r">{{ r === '' ? '— Select —' : r }}</option>
+                  }
+                </select>
+              </label>
+              <label class="leads__field leads__field--full">
+                <span class="leads__label">Additional details</span>
+                <input class="leads__control leads__control--soft" type="text" formControlName="customField" placeholder="Enter {0}" />
+              </label>
+            </div>
+          </section>
+
+          <footer class="leads__modal-foot">
+            <button type="button" class="leads__modal-cancel" (click)="closeForm()">Cancel</button>
+            <button type="submit" class="leads__btn-create">Create</button>
+          </footer>
+        </form>
+      </div>
+    </div>
+  }
+
+  <div class="leads__toolbar card">
+    <label class="leads__search">
+      <span class="visually-hidden">Search leads</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+      <input
+        type="search"
+        class="leads__input"
+        placeholder="Search name, email, mobile, org, owner, industry…"
+        [value]="searchQuery()"
+        (input)="onSearchInput($event)"
+      />
+      @if (searchQuery()) {
+        <button type="button" class="leads__clear" (click)="clearSearch()" aria-label="Clear search">×</button>
+      }
+    </label>
+    <div class="leads__filters" role="group" aria-label="Filter by status">
+      @for (chip of filterChips; track chip.id) {
+        <button
+          type="button"
+          class="leads__chip"
+          [class.is-active]="isChipActive(chip.id)"
+          (click)="setStatusFilter(chip.id)"
+        >
+          {{ chip.label }}
+        </button>
+      }
+    </div>
+  </div>
+
+  <div class="leads__table-wrap card">
+    <div class="leads__table-head">
+      <span class="leads__count">
+        <strong>{{ filtered().length }}</strong>
+        @if (hasActiveFilters() && filtered().length !== rows().length) {
+          <span class="leads__count-muted">of {{ rows().length }} leads</span>
+        } @else {
+          <span class="leads__count-muted">leads</span>
+        }
+      </span>
+      <button type="button" class="leads__linkish">Columns</button>
+    </div>
+    <div class="leads__scroll">
+      @if (filtered().length === 0) {
+        <p class="leads__empty">
+          No leads match your filters.
+          @if (hasActiveFilters()) {
+            <button type="button" class="leads__linkish leads__linkish--inline" (click)="resetFilters()">Clear filters</button>
+          }
+        </p>
+      } @else {
+        <table class="leads__table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th class="hide-narrow">Organization</th>
+              <th class="hide-narrow">Email</th>
+              <th>Status</th>
+              <th class="hide-md">Industry</th>
+              <th>Owner</th>
+              <th class="hide-md">Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of filtered(); track row.id) {
+              <tr>
+                <td class="leads__strong">{{ row.name }}</td>
+                <td class="hide-narrow">{{ row.organization }}</td>
+                <td class="hide-narrow leads__muted">{{ row.email || '—' }}</td>
+                <td><span [class]="statusClass(row.status)">{{ row.status }}</span></td>
+                <td class="hide-md">{{ row.industry }}</td>
+                <td>
+                  <span class="leads__owner-cell">
+                    <span class="leads__avatar">{{ row.owner }}</span>
+                    <span class="leads__owner-name hide-narrow">{{ row.leadOwnerName }}</span>
+                  </span>
+                </td>
+                <td class="hide-md leads__muted">{{ row.updated }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </div>
+  </div>
+</div>
