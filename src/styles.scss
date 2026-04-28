@@ -12,11 +12,24 @@
   --text-primary: #0f172a;
   --text-muted: #64748b;
 
-  /** Dark rail — independent of `--secondary-color` (used for charts / accents) */
-  --sidebar-rail-bg: #0f172a;
-  --sidebar-rail-border: rgb(148 163 184 / 0.14);
-  --sidebar-rail-muted: #94a3b8;
-  --sidebar-rail-strong: #f8fafc;
+  /** Light preset sidebar defaults — aligned with Light chrome before ThemeService runs */
+  --sidebar-rail-bg: #ffffff;
+  --sidebar-rail-border: #e2e8f0;
+  --sidebar-rail-muted: #64748b;
+  --sidebar-rail-strong: #0f172a;
+  /** Hover/active scrims — overridden per theme in ThemeService */
+  --sidebar-rail-hover-bg: color-mix(in srgb, var(--tertiary-color) 12%, rgb(15 23 42 / 0.06));
+  --sidebar-rail-active-bg: color-mix(in srgb, var(--tertiary-color) 20%, rgb(15 23 42 / 0.06));
+
+  /** Dashboard Monthly Target emphasis card — set per preset in ThemeService */
+  --dash-emphasis-bg: #ffffff;
+  --dash-emphasis-border: color-mix(in srgb, var(--tertiary-color) 32%, var(--card-border));
+  --dash-emphasis-text: var(--text-primary);
+  --dash-emphasis-muted: var(--text-muted);
+  --dash-emphasis-divider: color-mix(in srgb, var(--tertiary-color) 22%, var(--card-border));
+  --dash-emphasis-gauge-track: rgb(148 163 184 / 0.55);
+  --dash-export-btn-bg: var(--text-primary);
+  --dash-export-btn-fg: #ffffff;
 
   --chart-1: var(--tertiary-color);
   --chart-2: color-mix(in srgb, var(--tertiary-color) 70%, var(--primary-color) 30%);
@@ -40,6 +53,7 @@ html,
 body {
   height: 100%;
   margin: 0;
+  overflow: hidden;
 }
 
 body {

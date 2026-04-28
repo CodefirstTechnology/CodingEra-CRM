@@ -12,16 +12,16 @@ interface SurfaceTokens {
   textMuted: string;
 }
 
-/** Sidebar rail colors (dark strip); not tied to brand `--secondary-color`. */
+/** Sidebar rail — keyed per preset (Light uses bright chrome; Dark/Blue use tinted rails). */
 const SIDEBAR_RAIL: Record<
   ThemePresetId,
   { bg: string; border: string; muted: string; strong: string }
 > = {
   light: {
-    bg: '#0f172a',
-    border: 'rgb(148 163 184 / 0.14)',
-    muted: '#94a3b8',
-    strong: '#f8fafc',
+    bg: '#ffffff',
+    border: '#e2e8f0',
+    muted: '#64748b',
+    strong: '#0f172a',
   },
   dark: {
     bg: '#020617',
@@ -196,11 +196,8 @@ export class ThemeService {
     root.style.setProperty('--text-primary', s.textPrimary);
     root.style.setProperty('--text-muted', s.textMuted);
 
-    const rail = SIDEBAR_RAIL[this.surfaceMode()];
-    root.style.setProperty('--sidebar-rail-bg', rail.bg);
-    root.style.setProperty('--sidebar-rail-border', rail.border);
-    root.style.setProperty('--sidebar-rail-muted', rail.muted);
-    root.style.setProperty('--sidebar-rail-strong', rail.strong);
+    this.flushSidebarRailTokens(root);
+    this.flushDashboardAccentTokens(root);
 
     root.style.setProperty('--chart-1', this.tertiary());
     root.style.setProperty(
@@ -211,5 +208,107 @@ export class ThemeService {
       '--chart-3',
       `color-mix(in srgb, ${this.tertiary()} 40%, ${this.secondary()} 60%)`,
     );
+  }
+
+  /** Sidebar rail: preset base colors + accent-aware hover/active (tracks tertiary / brand). */
+  private flushSidebarRailTokens(root: HTMLElement): void {
+    const mode = this.surfaceMode();
+    const rail = SIDEBAR_RAIL[mode];
+    const tertiary = this.tertiary();
+    const secondary = this.secondary();
+    const primary = this.primary();
+
+    let bg = rail.bg;
+    if (mode === 'dark') {
+      bg = `color-mix(in srgb, ${secondary} 94%, ${tertiary} 6%)`;
+    } else if (mode === 'blue') {
+      bg = `color-mix(in srgb, ${secondary} 82%, ${primary} 18%)`;
+    }
+
+    root.style.setProperty('--sidebar-rail-bg', bg);
+    if (mode === 'light') {
+      root.style.setProperty(
+        '--sidebar-rail-border',
+        `color-mix(in srgb, ${tertiary} 22%, #cbd5e1)`,
+      );
+    } else {
+      root.style.setProperty('--sidebar-rail-border', rail.border);
+    }
+    root.style.setProperty('--sidebar-rail-muted', rail.muted);
+    root.style.setProperty('--sidebar-rail-strong', rail.strong);
+
+    if (mode === 'light') {
+      root.style.setProperty(
+        '--sidebar-rail-hover-bg',
+        `color-mix(in srgb, ${tertiary} 12%, rgb(15 23 42 / 0.06))`,
+      );
+      root.style.setProperty(
+        '--sidebar-rail-active-bg',
+        `color-mix(in srgb, ${tertiary} 20%, rgb(15 23 42 / 0.06))`,
+      );
+    } else {
+      root.style.setProperty(
+        '--sidebar-rail-hover-bg',
+        `color-mix(in srgb, ${tertiary} 13%, rgb(255 255 255 / 0.05))`,
+      );
+      root.style.setProperty(
+        '--sidebar-rail-active-bg',
+        `color-mix(in srgb, ${tertiary} 26%, transparent)`,
+      );
+    }
+  }
+
+  /** Monthly target KPI card + export button — follows surface mode + accent color */
+  private flushDashboardAccentTokens(root: HTMLElement): void {
+    const mode = this.surfaceMode();
+    const s = SURFACE[mode];
+    const t = this.tertiary();
+
+    if (mode === 'light') {
+      root.style.setProperty('--dash-emphasis-bg', '#ffffff');
+      root.style.setProperty(
+        '--dash-emphasis-border',
+        `color-mix(in srgb, ${t} 32%, ${s.cardBorder})`,
+      );
+      root.style.setProperty('--dash-emphasis-text', s.textPrimary);
+      root.style.setProperty('--dash-emphasis-muted', s.textMuted);
+      root.style.setProperty(
+        '--dash-emphasis-divider',
+        `color-mix(in srgb, ${t} 22%, ${s.cardBorder})`,
+      );
+      root.style.setProperty('--dash-emphasis-gauge-track', 'rgb(148 163 184 / 0.55)');
+      root.style.setProperty('--dash-export-btn-bg', s.textPrimary);
+      root.style.setProperty('--dash-export-btn-fg', '#ffffff');
+    } else if (mode === 'dark') {
+      root.style.setProperty(
+        '--dash-emphasis-bg',
+        `color-mix(in srgb, ${t} 22%, #111827)`,
+      );
+      root.style.setProperty(
+        '--dash-emphasis-border',
+        `color-mix(in srgb, ${t} 38%, #475569)`,
+      );
+      root.style.setProperty('--dash-emphasis-text', '#ffffff');
+      root.style.setProperty('--dash-emphasis-muted', 'rgb(255 255 255 / 0.62)');
+      root.style.setProperty('--dash-emphasis-divider', 'rgb(255 255 255 / 0.12)');
+      root.style.setProperty('--dash-emphasis-gauge-track', '#52525b');
+      root.style.setProperty('--dash-export-btn-bg', '#f1f5f9');
+      root.style.setProperty('--dash-export-btn-fg', '#0f172a');
+    } else {
+      root.style.setProperty(
+        '--dash-emphasis-bg',
+        `color-mix(in srgb, ${t} 42%, #172554)`,
+      );
+      root.style.setProperty(
+        '--dash-emphasis-border',
+        `color-mix(in srgb, ${t} 45%, #1e40af)`,
+      );
+      root.style.setProperty('--dash-emphasis-text', '#eff6ff');
+      root.style.setProperty('--dash-emphasis-muted', 'rgb(255 255 255 / 0.68)');
+      root.style.setProperty('--dash-emphasis-divider', 'rgb(191 219 254 / 0.28)');
+      root.style.setProperty('--dash-emphasis-gauge-track', 'rgb(71 85 105 / 0.95)');
+      root.style.setProperty('--dash-export-btn-bg', '#eff6ff');
+      root.style.setProperty('--dash-export-btn-fg', '#1e3a8a');
+    }
   }
 }

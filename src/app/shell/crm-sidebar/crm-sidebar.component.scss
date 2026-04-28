@@ -1,3 +1,9 @@
+:host {
+  display: block;
+  box-sizing: border-box;
+  height: 100%;
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -106,12 +112,12 @@
     box-shadow 0.15s ease;
 
   &:hover {
-    background: rgb(255 255 255 / 0.06);
+    background: var(--sidebar-rail-hover-bg);
     color: var(--sidebar-rail-strong);
   }
 
   &.is-active {
-    background: color-mix(in srgb, var(--tertiary-color) 18%, transparent);
+    background: var(--sidebar-rail-active-bg);
     color: var(--tertiary-color);
     font-weight: 600;
     box-shadow: inset -3px 0 0 0 var(--tertiary-color);
