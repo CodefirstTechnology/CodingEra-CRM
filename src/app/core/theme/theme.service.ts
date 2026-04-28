@@ -12,6 +12,31 @@ interface SurfaceTokens {
   textMuted: string;
 }
 
+/** Sidebar rail colors (dark strip); not tied to brand `--secondary-color`. */
+const SIDEBAR_RAIL: Record<
+  ThemePresetId,
+  { bg: string; border: string; muted: string; strong: string }
+> = {
+  light: {
+    bg: '#0f172a',
+    border: 'rgb(148 163 184 / 0.14)',
+    muted: '#94a3b8',
+    strong: '#f8fafc',
+  },
+  dark: {
+    bg: '#020617',
+    border: 'rgb(148 163 184 / 0.12)',
+    muted: '#94a3b8',
+    strong: '#f1f5f9',
+  },
+  blue: {
+    bg: '#172554',
+    border: 'rgb(191 219 254 / 0.16)',
+    muted: '#93c5fd',
+    strong: '#eff6ff',
+  },
+};
+
 const SURFACE: Record<ThemePresetId, SurfaceTokens> = {
   light: {
     navbarText: '#0f172a',
@@ -170,6 +195,12 @@ export class ThemeService {
     root.style.setProperty('--card-border', s.cardBorder);
     root.style.setProperty('--text-primary', s.textPrimary);
     root.style.setProperty('--text-muted', s.textMuted);
+
+    const rail = SIDEBAR_RAIL[this.surfaceMode()];
+    root.style.setProperty('--sidebar-rail-bg', rail.bg);
+    root.style.setProperty('--sidebar-rail-border', rail.border);
+    root.style.setProperty('--sidebar-rail-muted', rail.muted);
+    root.style.setProperty('--sidebar-rail-strong', rail.strong);
 
     root.style.setProperty('--chart-1', this.tertiary());
     root.style.setProperty(

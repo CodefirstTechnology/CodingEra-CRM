@@ -12,6 +12,12 @@
   --text-primary: #0f172a;
   --text-muted: #64748b;
 
+  /** Dark rail — independent of `--secondary-color` (used for charts / accents) */
+  --sidebar-rail-bg: #0f172a;
+  --sidebar-rail-border: rgb(148 163 184 / 0.14);
+  --sidebar-rail-muted: #94a3b8;
+  --sidebar-rail-strong: #f8fafc;
+
   --chart-1: var(--tertiary-color);
   --chart-2: color-mix(in srgb, var(--tertiary-color) 70%, var(--primary-color) 30%);
   --chart-3: color-mix(in srgb, var(--tertiary-color) 45%, var(--secondary-color) 55%);
