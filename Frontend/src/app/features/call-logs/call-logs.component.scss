@@ -1,0 +1,128 @@
+.calls {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding-bottom: 2rem;
+}
+
+.calls__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.calls__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.calls__sub {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+  max-width: 520px;
+}
+
+.calls__btn {
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: var(--tertiary-color);
+  color: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  transition: var(--transition-theme);
+
+  &:hover {
+    filter: brightness(1.06);
+  }
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.calls__scroll {
+  overflow-x: auto;
+}
+
+.calls__table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
+}
+
+.calls__thead-row {
+  background: color-mix(in srgb, var(--text-muted) 8%, var(--body-bg));
+}
+
+.calls__th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--card-border);
+  white-space: nowrap;
+}
+
+.calls__th--narrow {
+  min-width: 88px;
+}
+
+.calls__th--when {
+  min-width: 120px;
+}
+
+.calls__row:hover .calls__td {
+  background: color-mix(in srgb, var(--tertiary-color) 5%, transparent);
+}
+
+.calls__td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--card-border);
+  vertical-align: middle;
+  color: var(--text-primary);
+}
+
+.calls__td--strong {
+  font-weight: 600;
+}
+
+.calls__td--muted {
+  color: var(--text-muted);
+}
+
+.calls__row:last-child .calls__td {
+  border-bottom: none;
+}
+
+.calls__pill {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.calls__pill--in {
+  background: color-mix(in srgb, #15803d 16%, transparent);
+  color: #15803d;
+}
+
+.calls__pill--out {
+  background: color-mix(in srgb, var(--tertiary-color) 18%, transparent);
+  color: color-mix(in srgb, var(--tertiary-color) 70%, #0f172a);
+}

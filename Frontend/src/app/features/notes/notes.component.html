@@ -1,0 +1,34 @@
+<div class="notes">
+  <header class="notes__head">
+    <div>
+      <h1 class="notes__title">Notes</h1>
+      <p class="notes__sub">Capture context on leads, deals, contacts, and organizations.</p>
+    </div>
+    <button type="button" class="notes__btn">+ New note</button>
+  </header>
+
+  <div class="notes__card card">
+    <div class="notes__scroll">
+      <table class="notes__table">
+        <thead>
+          <tr class="notes__thead-row">
+            <th class="notes__th">Note</th>
+            <th class="notes__th notes__th--narrow">Record</th>
+            <th class="notes__th notes__th--narrow">Author</th>
+            <th class="notes__th notes__th--when">When</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows; track row.id) {
+            <tr class="notes__row">
+              <td class="notes__td notes__td--title">{{ row.title }}</td>
+              <td class="notes__td notes__td--muted">{{ row.record }}</td>
+              <td class="notes__td">{{ row.author }}</td>
+              <td class="notes__td notes__td--muted">{{ row.when }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,44 @@
+<div class="calls">
+  <header class="calls__head">
+    <div>
+      <h1 class="calls__title">Call logs</h1>
+      <p class="calls__sub">Inbound and outbound calls linked to your records.</p>
+    </div>
+    <button type="button" class="calls__btn">Log a call</button>
+  </header>
+
+  <div class="calls__card card">
+    <div class="calls__scroll">
+      <table class="calls__table">
+        <thead>
+          <tr class="calls__thead-row">
+            <th class="calls__th">Direction</th>
+            <th class="calls__th">Contact / party</th>
+            <th class="calls__th">Number</th>
+            <th class="calls__th calls__th--narrow">Duration</th>
+            <th class="calls__th calls__th--when">When</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows; track row.id) {
+            <tr class="calls__row">
+              <td class="calls__td">
+                <span
+                  class="calls__pill"
+                  [class.calls__pill--in]="row.direction === 'Inbound'"
+                  [class.calls__pill--out]="row.direction === 'Outbound'"
+                >
+                  {{ row.direction }}
+                </span>
+              </td>
+              <td class="calls__td calls__td--strong">{{ row.contact }}</td>
+              <td class="calls__td calls__td--muted">{{ row.number }}</td>
+              <td class="calls__td">{{ row.duration }}</td>
+              <td class="calls__td calls__td--muted">{{ row.when }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
