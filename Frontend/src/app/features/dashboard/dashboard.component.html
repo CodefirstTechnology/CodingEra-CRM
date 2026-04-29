@@ -62,9 +62,11 @@
         <span class="sales-dash__pill sales-dash__pill--pos">{{ conversion.delta }}</span>
       </div>
       <div class="sales-dash__mini-chart" role="img" aria-label="Conversion by weekday">
-        @for (h of conversion.weeklyBars; track $index) {
+        @for (pct of conversion.weeklyBarHeights; track $index) {
         <div class="sales-dash__mini-chart-col">
-          <div class="sales-dash__mini-bar" [style.height.%]="h"></div>
+          <div class="sales-dash__mini-bar-track">
+            <div class="sales-dash__mini-bar" [style.height.%]="pct"></div>
+          </div>
           <span class="sales-dash__mini-day">{{ conversion.days[$index] }}</span>
         </div>
         }

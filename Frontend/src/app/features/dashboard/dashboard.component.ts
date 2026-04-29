@@ -21,8 +21,8 @@ export class DashboardComponent {
   protected readonly conversion = {
     rate: '24.8%',
     delta: '+4.2%',
-    /** Heights 0–100 for Mon–Sun bars */
-    weeklyBars: [72, 48, 88, 56, 92, 64, 78],
+    /** Mon–Sun bar heights (% of track); all different, intentionally not sorted. */
+    weeklyBarHeights: [84, 29, 71, 45, 93, 38, 56],
     days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
   };
 

@@ -33,6 +33,19 @@ export const routes: Routes = [
         path: 'tasks',
         loadChildren: () => import('./features/tasks/tasks.module').then((m) => m.TasksModule),
       },
+      {
+        path: 'notes',
+        loadChildren: () => import('./features/notes/notes.module').then((m) => m.NotesModule),
+      },
+      {
+        path: 'call-logs',
+        loadChildren: () =>
+          import('./features/call-logs/call-logs.module').then((m) => m.CallLogsModule),
+      },
+      {
+        path: 'help',
+        loadChildren: () => import('./features/help/help.module').then((m) => m.HelpModule),
+      },
     ],
   },
 ];
