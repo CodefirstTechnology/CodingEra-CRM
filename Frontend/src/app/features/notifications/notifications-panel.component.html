@@ -1,0 +1,84 @@
+@if (panel.open()) {
+  <div class="np-backdrop" role="presentation" (click)="onBackdropClick()"></div>
+}
+
+<div
+  class="np-popover"
+  [class.np-popover--open]="panel.open()"
+  role="dialog"
+  aria-label="Notifications"
+  [attr.aria-hidden]="!panel.open()"
+>
+  <header class="np-head">
+    <div>
+      <h2 class="np-title">Notifications</h2>
+      <p class="np-sub">Stay on top of deals, tasks, and team activity</p>
+    </div>
+    <div class="np-head-actions">
+      @if (panel.unreadCount() > 0) {
+        <button type="button" class="np-text-btn" (click)="markAllRead()">Mark all read</button>
+      }
+      <button type="button" class="np-icon-btn" (click)="close()" aria-label="Close notifications">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 6 6 18M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="np-list-wrap">
+    <ul class="np-list" role="list">
+      @for (n of panel.notifications(); track n.id) {
+        <li>
+          <button
+            type="button"
+            class="np-item"
+            [class.np-item--unread]="!n.read"
+            (click)="onItemClick(n.id)"
+          >
+            <span class="np-item-icon np-item-icon--{{ n.category }}" aria-hidden="true">
+              @switch (n.category) {
+                @case ('deal') {
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+                  </svg>
+                }
+                @case ('task') {
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 11l3 3L22 4" />
+                    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+                  </svg>
+                }
+                @case ('message') {
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                }
+                @default {
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 16v-4M12 8h.01" />
+                  </svg>
+                }
+              }
+            </span>
+            <span class="np-item-body">
+              <span class="np-item-top">
+                <span class="np-item-title">{{ n.title }}</span>
+                <span class="np-item-time">{{ n.timeLabel }}</span>
+              </span>
+              <span class="np-item-msg">{{ n.body }}</span>
+            </span>
+            @if (!n.read) {
+              <span class="np-dot" aria-hidden="true"></span>
+            }
+          </button>
+        </li>
+      }
+    </ul>
+  </div>
+
+  <footer class="np-foot">
+    <button type="button" class="np-foot-link">View all activity</button>
+  </footer>
+</div>
