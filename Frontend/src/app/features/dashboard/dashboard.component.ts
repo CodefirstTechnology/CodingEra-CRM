@@ -10,7 +10,7 @@ type StreamTab = 'all' | 'calls' | 'meetings';
   styleUrl: './dashboard.component.scss',
 })
 export class DashboardComponent {
-  protected readonly periodLabel = 'Q3 2024';
+  protected readonly periodLabel = 'Q4 2024';
 
   protected readonly monthlyTarget = {
     achievedPct: 75,
@@ -55,47 +55,47 @@ export class DashboardComponent {
     time: string;
     rep: string;
   }[] = [
-    {
-      type: 'call',
-      title: 'Call with',
-      company: 'Global Logistics Corp',
-      description: 'Initial discovery call — 45 mins',
-      time: '10:24 AM',
-      rep: 'Alex Rivera',
-    },
-    {
-      type: 'meeting',
-      title: 'Quarterly review',
-      company: 'Northwind Trading',
-      description: 'Executive alignment — quarterly targets',
-      time: 'Yesterday',
-      rep: 'Jordan Lee',
-    },
-    {
-      type: 'email',
-      title: 'Proposal sent',
-      company: 'Acme Industries',
-      description: 'Enterprise licensing package',
-      time: 'Yesterday',
-      rep: 'Sam Carter',
-    },
-    {
-      type: 'task',
-      title: 'Follow-up task',
-      company: 'Globex Systems',
-      description: 'Pricing approval checkpoint',
-      time: 'Mon',
-      rep: 'Alex Rivera',
-    },
-    {
-      type: 'call',
-      title: 'Call with',
-      company: 'Initech Partners',
-      description: 'Renewal discussion — 30 mins',
-      time: 'Mon',
-      rep: 'Priya Shah',
-    },
-  ];
+      {
+        type: 'call',
+        title: 'Call with',
+        company: 'Global Logistics Corp',
+        description: 'Initial discovery call — 45 mins',
+        time: '10:24 AM',
+        rep: 'Alex Rivera',
+      },
+      {
+        type: 'meeting',
+        title: 'Quarterly review',
+        company: 'Northwind Trading',
+        description: 'Executive alignment — quarterly targets',
+        time: 'Yesterday',
+        rep: 'Jordan Lee',
+      },
+      {
+        type: 'email',
+        title: 'Proposal sent',
+        company: 'Acme Industries',
+        description: 'Enterprise licensing package',
+        time: 'Yesterday',
+        rep: 'Sam Carter',
+      },
+      {
+        type: 'task',
+        title: 'Follow-up task',
+        company: 'Globex Systems',
+        description: 'Pricing approval checkpoint',
+        time: 'Mon',
+        rep: 'Alex Rivera',
+      },
+      {
+        type: 'call',
+        title: 'Call with',
+        company: 'Initech Partners',
+        description: 'Renewal discussion — 30 mins',
+        time: 'Mon',
+        rep: 'Priya Shah',
+      },
+    ];
 
   protected get filteredActivities(): typeof this.activities {
     if (this.streamTab === 'all') return this.activities;

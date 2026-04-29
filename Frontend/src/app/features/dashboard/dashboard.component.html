@@ -5,12 +5,6 @@
       <p class="sales-dash__eyebrow">Executive overview</p>
       <div class="sales-dash__toolbar-row">
         <h1 class="sales-dash__title">Performance Ledger</h1>
-        <div class="sales-dash__quarterly" aria-label="Quarterly target summary">
-          <span class="sales-dash__quarterly-label">Quarterly target</span>
-          <span class="sales-dash__quarterly-values">
-            {{ quarterlyProgress.current }} / {{ quarterlyProgress.goal }}
-          </span>
-        </div>
       </div>
     </div>
     <div class="sales-dash__toolbar-actions">
@@ -18,10 +12,17 @@
         <span class="visually-hidden">Reporting period</span>
         <select class="sales-dash__select" [attr.aria-label]="'Period ' + periodLabel">
           <option [value]="periodLabel">{{ periodLabel }}</option>
+          <option value="Q3 2024">Q3 2024</option>
           <option value="Q2 2024">Q2 2024</option>
           <option value="Q1 2024">Q1 2024</option>
         </select>
       </label>
+      <div class="sales-dash__quarterly" aria-label="Quarterly target summary">
+        <span class="sales-dash__quarterly-label">Quarterly target</span>
+        <span class="sales-dash__quarterly-values">
+          {{ quarterlyProgress.current }} / {{ quarterlyProgress.goal }}
+        </span>
+      </div>
       <button type="button" class="sales-dash__btn sales-dash__btn--export">Export Ledger</button>
     </div>
   </header>
@@ -33,18 +34,9 @@
       <div class="sales-dash__gauge-wrap">
         <svg class="sales-dash__gauge-svg" viewBox="0 0 120 120" aria-hidden="true">
           <circle class="sales-dash__gauge-track" cx="60" cy="60" r="46" fill="none" stroke-width="12" />
-          <circle
-            class="sales-dash__gauge-fill"
-            cx="60"
-            cy="60"
-            r="46"
-            fill="none"
-            stroke-width="12"
-            stroke-linecap="round"
-            transform="rotate(-90 60 60)"
-            [attr.stroke-dasharray]="gaugeCircumference"
-            [attr.stroke-dashoffset]="gaugeDashOffset()"
-          />
+          <circle class="sales-dash__gauge-fill" cx="60" cy="60" r="46" fill="none" stroke-width="12"
+            stroke-linecap="round" transform="rotate(-90 60 60)" [attr.stroke-dasharray]="gaugeCircumference"
+            [attr.stroke-dashoffset]="gaugeDashOffset()" />
         </svg>
         <div class="sales-dash__gauge-label">
           <span class="sales-dash__gauge-pct">{{ monthlyTarget.achievedPct }}%</span>
@@ -71,10 +63,10 @@
       </div>
       <div class="sales-dash__mini-chart" role="img" aria-label="Conversion by weekday">
         @for (h of conversion.weeklyBars; track $index) {
-          <div class="sales-dash__mini-chart-col">
-            <div class="sales-dash__mini-bar" [style.height.%]="h"></div>
-            <span class="sales-dash__mini-day">{{ conversion.days[$index] }}</span>
-          </div>
+        <div class="sales-dash__mini-chart-col">
+          <div class="sales-dash__mini-bar" [style.height.%]="h"></div>
+          <span class="sales-dash__mini-day">{{ conversion.days[$index] }}</span>
+        </div>
         }
       </div>
     </article>
@@ -84,15 +76,15 @@
       <p class="sales-dash__forecast-total">{{ revenueForecast.total }}</p>
       <ul class="sales-dash__forecast-list">
         @for (seg of revenueForecast.segments; track seg.label) {
-          <li class="sales-dash__forecast-row">
-            <div class="sales-dash__forecast-meta">
-              <span class="sales-dash__forecast-label">{{ seg.label }}</span>
-              <span class="sales-dash__forecast-value">{{ seg.value }}</span>
-            </div>
-            <div class="sales-dash__forecast-track">
-              <span class="sales-dash__forecast-bar" [style.width.%]="seg.pct"></span>
-            </div>
-          </li>
+        <li class="sales-dash__forecast-row">
+          <div class="sales-dash__forecast-meta">
+            <span class="sales-dash__forecast-label">{{ seg.label }}</span>
+            <span class="sales-dash__forecast-value">{{ seg.value }}</span>
+          </div>
+          <div class="sales-dash__forecast-track">
+            <span class="sales-dash__forecast-bar" [style.width.%]="seg.pct"></span>
+          </div>
+        </li>
         }
       </ul>
       <p class="sales-dash__forecast-confidence">
@@ -107,82 +99,64 @@
       <div class="sales-dash__stream-head">
         <h2 id="stream-heading" class="sales-dash__card-title">Activity Stream</h2>
         <div class="sales-dash__tabs" role="tablist" aria-label="Filter activities">
-          <button
-            type="button"
-            role="tab"
-            class="sales-dash__tab"
-            [attr.aria-selected]="streamTab === 'all'"
-            [class.sales-dash__tab--active]="streamTab === 'all'"
-            (click)="setStreamTab('all')"
-          >
+          <button type="button" role="tab" class="sales-dash__tab" [attr.aria-selected]="streamTab === 'all'"
+            [class.sales-dash__tab--active]="streamTab === 'all'" (click)="setStreamTab('all')">
             All Activities
           </button>
-          <button
-            type="button"
-            role="tab"
-            class="sales-dash__tab"
-            [attr.aria-selected]="streamTab === 'calls'"
-            [class.sales-dash__tab--active]="streamTab === 'calls'"
-            (click)="setStreamTab('calls')"
-          >
+          <button type="button" role="tab" class="sales-dash__tab" [attr.aria-selected]="streamTab === 'calls'"
+            [class.sales-dash__tab--active]="streamTab === 'calls'" (click)="setStreamTab('calls')">
             Calls
           </button>
-          <button
-            type="button"
-            role="tab"
-            class="sales-dash__tab"
-            [attr.aria-selected]="streamTab === 'meetings'"
-            [class.sales-dash__tab--active]="streamTab === 'meetings'"
-            (click)="setStreamTab('meetings')"
-          >
+          <button type="button" role="tab" class="sales-dash__tab" [attr.aria-selected]="streamTab === 'meetings'"
+            [class.sales-dash__tab--active]="streamTab === 'meetings'" (click)="setStreamTab('meetings')">
             Meetings
           </button>
         </div>
       </div>
       <ul class="sales-dash__stream-list">
         @for (item of filteredActivities; track item.description + item.time) {
-          <li class="sales-dash__stream-item">
-            <span class="sales-dash__stream-icon" aria-hidden="true">
-              @switch (item.type) {
-                @case ('call') {
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path
-                      d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
-                    />
-                  </svg>
-                }
-                @case ('meeting') {
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                }
-                @case ('email') {
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                    <polyline points="22,6 12,13 2,6" />
-                  </svg>
-                }
-                @default {
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                }
-              }
-            </span>
-            <div class="sales-dash__stream-body">
-              <p class="sales-dash__stream-title">
-                {{ item.title }}
-                <button type="button" class="sales-dash__link">{{ item.company }}</button>
-              </p>
-              <p class="sales-dash__stream-desc">{{ item.description }}</p>
-            </div>
-            <div class="sales-dash__stream-aside">
-              <time class="sales-dash__stream-time">{{ item.time }}</time>
-              <span class="sales-dash__stream-rep">{{ item.rep }}</span>
-            </div>
-          </li>
+        <li class="sales-dash__stream-item">
+          <span class="sales-dash__stream-icon" aria-hidden="true">
+            @switch (item.type) {
+            @case ('call') {
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path
+                d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+            </svg>
+            }
+            @case ('meeting') {
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            }
+            @case ('email') {
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            }
+            @default {
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            }
+            }
+          </span>
+          <div class="sales-dash__stream-body">
+            <p class="sales-dash__stream-title">
+              {{ item.title }}
+              <button type="button" class="sales-dash__link">{{ item.company }}</button>
+            </p>
+            <p class="sales-dash__stream-desc">{{ item.description }}</p>
+          </div>
+          <div class="sales-dash__stream-aside">
+            <time class="sales-dash__stream-time">{{ item.time }}</time>
+            <span class="sales-dash__stream-rep">{{ item.rep }}</span>
+          </div>
+        </li>
         }
       </ul>
       <div class="sales-dash__stream-footer">
@@ -205,17 +179,17 @@
         </div>
         <ul class="sales-dash__stuck-list">
           @for (deal of stuckDeals; track deal.company) {
-            <li class="sales-dash__stuck-item">
-              <div class="sales-dash__stuck-top">
-                <span class="sales-dash__stuck-co">{{ deal.company }}</span>
-                <span class="sales-dash__stuck-val">{{ deal.value }}</span>
-              </div>
-              <p class="sales-dash__stuck-stage">{{ deal.stage }}</p>
-              <div class="sales-dash__stuck-meta">
-                <span class="sales-dash__inactive">{{ deal.inactiveDays }} days inactive</span>
-                <button type="button" class="sales-dash__stuck-action">{{ deal.action }}</button>
-              </div>
-            </li>
+          <li class="sales-dash__stuck-item">
+            <div class="sales-dash__stuck-top">
+              <span class="sales-dash__stuck-co">{{ deal.company }}</span>
+              <span class="sales-dash__stuck-val">{{ deal.value }}</span>
+            </div>
+            <p class="sales-dash__stuck-stage">{{ deal.stage }}</p>
+            <div class="sales-dash__stuck-meta">
+              <span class="sales-dash__inactive">{{ deal.inactiveDays }} days inactive</span>
+              <button type="button" class="sales-dash__stuck-action">{{ deal.action }}</button>
+            </div>
+          </li>
           }
         </ul>
       </section>

@@ -4,6 +4,7 @@ import { CrmNavbarComponent } from '../crm-navbar/crm-navbar.component';
 import { CrmSidebarComponent } from '../crm-sidebar/crm-sidebar.component';
 import { ThemeSettingsComponent } from '../../features/theme-settings/theme-settings.component';
 import { ProfilePanelComponent } from '../../features/profile/profile-panel.component';
+import { NotificationsPanelComponent } from '../../features/notifications/notifications-panel.component';
 
 @Component({
   selector: 'app-crm-shell',
@@ -13,6 +14,7 @@ import { ProfilePanelComponent } from '../../features/profile/profile-panel.comp
     CrmSidebarComponent,
     ThemeSettingsComponent,
     ProfilePanelComponent,
+    NotificationsPanelComponent,
   ],
   templateUrl: './crm-shell.component.html',
   styleUrl: './crm-shell.component.scss',
