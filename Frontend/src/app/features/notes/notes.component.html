@@ -4,8 +4,93 @@
       <h1 class="notes__title">Notes</h1>
       <p class="notes__sub">Capture context on leads, deals, contacts, and organizations.</p>
     </div>
-    <button type="button" class="notes__btn">+ New note</button>
+    <button type="button" class="notes__btn" (click)="openForm()">+ New note</button>
   </header>
+
+  @if (formOpen()) {
+    <div class="notes__modal-root" aria-modal="true" role="dialog" aria-labelledby="notes-modal-title">
+      <div class="notes__modal-backdrop" (click)="closeForm()"></div>
+      <div class="notes__modal" (click)="$event.stopPropagation()">
+        <header class="notes__modal-head">
+          <h2 id="notes-modal-title" class="notes__modal-title">Add note</h2>
+          <button type="button" class="notes__modal-close" (click)="closeForm()" aria-label="Close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </header>
+
+        <form class="notes__modal-form" [formGroup]="noteForm" (ngSubmit)="submitNote()">
+          <p class="notes__form-intro">Link this note to a record so your team can find it in context.</p>
+
+          <div class="notes__form-grid">
+            <label class="notes__field">
+              <span class="notes__label">Related record type</span>
+              <select class="notes__control" formControlName="relatedType" aria-required="true">
+                @for (opt of relatedTypeOptions; track opt.value) {
+                  <option [value]="opt.value">{{ opt.label }}</option>
+                }
+              </select>
+            </label>
+
+            <label class="notes__field">
+              <span class="notes__label">Record name <span class="notes__req">*</span></span>
+              <input
+                class="notes__control"
+                type="text"
+                formControlName="relatedName"
+                placeholder="e.g. Acme Corp renewal"
+                autocomplete="off"
+              />
+              @if (fieldInvalid('relatedName')) {
+                <span class="notes__err">Enter the lead, deal, contact, or organization this note belongs to.</span>
+              }
+            </label>
+
+            <label class="notes__field notes__field--full">
+              <span class="notes__label">Title <span class="notes__req">*</span></span>
+              <input
+                class="notes__control"
+                type="text"
+                formControlName="title"
+                placeholder="Short subject for the timeline"
+                autocomplete="off"
+              />
+              @if (fieldInvalid('title')) {
+                <span class="notes__err">Title is required.</span>
+              }
+            </label>
+
+            <label class="notes__field notes__field--full">
+              <span class="notes__label">Note <span class="notes__req">*</span></span>
+              <textarea
+                class="notes__control notes__control--textarea"
+                formControlName="body"
+                rows="5"
+                placeholder="What happened, next steps, objections, or internal context…"
+              ></textarea>
+              @if (fieldInvalid('body')) {
+                <span class="notes__err">Enter the note content.</span>
+              }
+            </label>
+
+            <label class="notes__field notes__field--full">
+              <span class="notes__label">Visibility</span>
+              <select class="notes__control" formControlName="visibility">
+                <option value="team">Visible to my team</option>
+                <option value="private">Private to me</option>
+              </select>
+            </label>
+          </div>
+
+          <footer class="notes__modal-foot">
+            <button type="button" class="notes__btn-foot notes__btn-foot--ghost" (click)="closeForm()">Cancel</button>
+            <button type="submit" class="notes__btn-foot notes__btn-foot--primary">Save note</button>
+          </footer>
+        </form>
+      </div>
+    </div>
+  }
 
   <div class="notes__card card">
     <div class="notes__scroll">
@@ -19,9 +104,14 @@
           </tr>
         </thead>
         <tbody>
-          @for (row of rows; track row.id) {
+          @for (row of rows(); track row.id) {
             <tr class="notes__row">
-              <td class="notes__td notes__td--title">{{ row.title }}</td>
+              <td class="notes__td notes__td--title">
+                <span class="notes__td-title-text">{{ row.title }}</span>
+                @if (row.bodyPreview) {
+                  <span class="notes__td-snippet">{{ row.bodyPreview }}</span>
+                }
+              </td>
               <td class="notes__td notes__td--muted">{{ row.record }}</td>
               <td class="notes__td">{{ row.author }}</td>
               <td class="notes__td notes__td--muted">{{ row.when }}</td>
