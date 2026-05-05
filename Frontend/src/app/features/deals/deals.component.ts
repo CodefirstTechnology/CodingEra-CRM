@@ -1,5 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 
 export type DealPipelineStatus =
   | 'Qualification'
@@ -34,6 +36,7 @@ export interface DealRow {
 })
 export class DealsComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly createRowBus = inject(CreateRowBusService);
 
   protected readonly formOpen = signal(false);
   protected readonly selectedIds = signal<Set<string>>(new Set());
@@ -103,6 +106,21 @@ export class DealsComponent {
       lastModified: '1w ago',
     },
   ]);
+
+  constructor() {
+    this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
+      if (e.kind !== 'deal') return;
+      const row = e.row as DealRow;
+      if (
+        row.email &&
+        row.email !== '—' &&
+        this.rows().some((r) => r.email.toLowerCase() === row.email.toLowerCase())
+      ) {
+        return;
+      }
+      this.rows.update((list) => [row, ...list]);
+    });
+  }
 
   protected readonly allSelected = computed(() => {
     const ids = this.rows().map((r) => r.id);

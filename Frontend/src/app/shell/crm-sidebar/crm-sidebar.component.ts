@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { SidebarCollapseService } from '../../core/layout/sidebar-collapse.service';
 
 @Component({
@@ -10,8 +11,13 @@ import { SidebarCollapseService } from '../../core/layout/sidebar-collapse.servi
 })
 export class CrmSidebarComponent {
   protected readonly sidebarCollapse = inject(SidebarCollapseService);
+  private readonly createFlow = inject(CreateFlowService);
 
   protected toggleCollapse(): void {
     this.sidebarCollapse.toggle();
+  }
+
+  protected openCreateMenu(): void {
+    this.createFlow.openPicker();
   }
 }

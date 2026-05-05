@@ -1,5 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 
 export type TaskStatus = 'Backlog' | 'Todo' | 'In Progress' | 'Done' | 'Canceled';
 export type TaskPriority = 'Low' | 'Medium' | 'High';
@@ -30,6 +32,7 @@ export interface TaskRow {
 })
 export class TasksComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly createRowBus = inject(CreateRowBusService);
 
   private localDatetimeInputValue(d = new Date()): string {
     const p = (n: number) => String(n).padStart(2, '0');
@@ -106,6 +109,13 @@ export class TasksComponent {
       lastModified: '1w ago',
     },
   ]);
+
+  constructor() {
+    this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
+      if (e.kind !== 'task') return;
+      this.rows.update((list) => [e.row as TaskRow, ...list]);
+    });
+  }
 
   protected readonly allSelected = computed(() => {
     const ids = this.rows().map((r) => r.id);

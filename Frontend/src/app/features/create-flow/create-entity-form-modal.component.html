@@ -1,0 +1,411 @@
+<app-crm-modal
+  [open]="flow.formModalOpen()"
+  [title]="flow.formTitle()"
+  [size]="'lg'"
+  (dismiss)="close()"
+>
+  @if (flow.formKind() === 'lead') {
+    <form class="create-form" [formGroup]="leadForm" (ngSubmit)="submitLead()">
+      <div class="create-form__grid create-form__grid--3">
+        <label class="create-form__field">
+          <span class="create-form__label">Salutation</span>
+          <select class="create-form__control" formControlName="salutation">
+            @for (s of salutationOptions; track s) {
+              <option [value]="s">{{ s === '' ? '—' : s }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">First name <span class="create-form__req">*</span></span>
+          <input class="create-form__control" type="text" formControlName="firstName" autocomplete="given-name" />
+          @if (fieldInvalid('lead', 'firstName')) {
+            <span class="create-form__err">First name is required.</span>
+          }
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Last name</span>
+          <input class="create-form__control" type="text" formControlName="lastName" autocomplete="family-name" />
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Email</span>
+          <input
+            class="create-form__control"
+            type="email"
+            formControlName="email"
+            autocomplete="email"
+            (input)="clearLeadEmailDuplicate()"
+          />
+          @if (fieldInvalid('lead', 'email') && leadForm.get('email')?.errors?.['email']) {
+            <span class="create-form__err">Use a valid email.</span>
+          }
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Mobile</span>
+          <input class="create-form__control" type="tel" formControlName="mobile" />
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Gender</span>
+          <select class="create-form__control" formControlName="gender">
+            @for (g of genderOptions; track g) {
+              <option [value]="g">{{ g === '' ? '—' : g }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field create-form__field--span2">
+          <span class="create-form__label">Organization <span class="create-form__req">*</span></span>
+          <input class="create-form__control" type="text" formControlName="organization" />
+          @if (fieldInvalid('lead', 'organization')) {
+            <span class="create-form__err">Organization is required.</span>
+          }
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Employees</span>
+          <select class="create-form__control" formControlName="employees">
+            @for (e of employeeOptions; track e) {
+              <option [value]="e">{{ e }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Industry <span class="create-form__req">*</span></span>
+          <select class="create-form__control" formControlName="industry">
+            @for (ind of industryOptions; track ind) {
+              <option [value]="ind">{{ ind }}</option>
+            }
+          </select>
+          @if (fieldInvalid('lead', 'industry')) {
+            <span class="create-form__err">Select an industry.</span>
+          }
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Status <span class="create-form__req">*</span></span>
+          <select class="create-form__control" formControlName="status">
+            @for (s of leadStatusOptions; track s) {
+              <option [value]="s">{{ s }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Lead owner</span>
+          <select class="create-form__control" formControlName="leadOwner">
+            @for (o of leadOwnerOptions; track o.id) {
+              <option [value]="o.id">{{ o.label }}</option>
+            }
+          </select>
+        </label>
+      </div>
+      <footer class="create-form__foot">
+        <button type="button" class="create-form__btn create-form__btn--ghost" (click)="close()">Cancel</button>
+        <button type="submit" class="create-form__btn create-form__btn--primary">Save</button>
+      </footer>
+    </form>
+  } @else if (flow.formKind() === 'deal') {
+    <form class="create-form" [formGroup]="dealForm" (ngSubmit)="submitDeal()">
+      <div class="create-form__grid create-form__grid--3">
+        <label class="create-form__field create-form__field--span3">
+          <span class="create-form__label">Organization name <span class="create-form__req">*</span></span>
+          <input class="create-form__control" type="text" formControlName="organizationName" />
+          @if (fieldInvalid('deal', 'organizationName')) {
+            <span class="create-form__err">Organization name is required.</span>
+          }
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Industry <span class="create-form__req">*</span></span>
+          <select class="create-form__control" formControlName="industry">
+            @for (ind of industryOptions; track ind) {
+              <option [value]="ind">{{ ind }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Status <span class="create-form__req">*</span></span>
+          <select class="create-form__control" formControlName="status">
+            @for (s of dealStatuses; track s) {
+              <option [value]="s">{{ s }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Deal owner</span>
+          <select class="create-form__control" formControlName="dealOwner">
+            @for (o of dealOwnerOptions; track o.id) {
+              <option [value]="o.id">{{ o.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Primary email</span>
+          <input
+            class="create-form__control"
+            type="email"
+            formControlName="primaryEmail"
+            (input)="clearDealEmailDuplicate()"
+          />
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Primary mobile</span>
+          <input class="create-form__control" type="tel" formControlName="primaryMobile" />
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">First name</span>
+          <input class="create-form__control" type="text" formControlName="firstName" />
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Last name</span>
+          <input class="create-form__control" type="text" formControlName="lastName" />
+        </label>
+      </div>
+      <footer class="create-form__foot">
+        <button type="button" class="create-form__btn create-form__btn--ghost" (click)="close()">Cancel</button>
+        <button type="submit" class="create-form__btn create-form__btn--primary">Save</button>
+      </footer>
+    </form>
+  } @else if (flow.formKind() === 'contact') {
+    <form class="create-form" [formGroup]="contactForm" (ngSubmit)="submitContact()">
+      <div class="create-form__grid create-form__grid--2">
+        <label class="create-form__field">
+          <span class="create-form__label">Salutation</span>
+          <select class="create-form__control" formControlName="salutation">
+            @for (s of salutationOptions; track s) {
+              <option [value]="s">{{ s === '' ? '—' : s }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Gender</span>
+          <select class="create-form__control" formControlName="gender">
+            @for (g of genderOptions; track g) {
+              <option [value]="g">{{ g === '' ? '—' : g }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">First name <span class="create-form__req">*</span></span>
+          <input class="create-form__control" type="text" formControlName="firstName" />
+          @if (fieldInvalid('contact', 'firstName')) {
+            <span class="create-form__err">Required.</span>
+          }
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Last name <span class="create-form__req">*</span></span>
+          <input class="create-form__control" type="text" formControlName="lastName" />
+          @if (fieldInvalid('contact', 'lastName')) {
+            <span class="create-form__err">Required.</span>
+          }
+        </label>
+        <label class="create-form__field create-form__field--span2">
+          <span class="create-form__label">Email <span class="create-form__req">*</span></span>
+          <input
+            class="create-form__control"
+            type="email"
+            formControlName="email"
+            (input)="clearContactEmailDuplicate()"
+          />
+          @if (fieldInvalid('contact', 'email')) {
+            <span class="create-form__err">Valid email required.</span>
+          }
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Mobile</span>
+          <input class="create-form__control" type="tel" formControlName="mobile" />
+        </label>
+        <label class="create-form__field create-form__field--span2">
+          <span class="create-form__label">Company <span class="create-form__req">*</span></span>
+          <input class="create-form__control" type="text" formControlName="companyName" />
+          @if (fieldInvalid('contact', 'companyName')) {
+            <span class="create-form__err">Required.</span>
+          }
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Designation</span>
+          <input class="create-form__control" type="text" formControlName="designation" />
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Address</span>
+          <select class="create-form__control" formControlName="address">
+            @for (a of addressOptions; track a) {
+              <option [value]="a">{{ a === '' ? '—' : a }}</option>
+            }
+          </select>
+        </label>
+      </div>
+      <footer class="create-form__foot">
+        <button type="button" class="create-form__btn create-form__btn--ghost" (click)="close()">Cancel</button>
+        <button type="submit" class="create-form__btn create-form__btn--primary">Save</button>
+      </footer>
+    </form>
+  } @else if (flow.formKind() === 'organization') {
+    <form class="create-form" [formGroup]="orgForm" (ngSubmit)="submitOrganization()">
+      <div class="create-form__grid create-form__grid--2">
+        <label class="create-form__field create-form__field--span2">
+          <span class="create-form__label">Organization name <span class="create-form__req">*</span></span>
+          <input
+            class="create-form__control"
+            type="text"
+            formControlName="organizationName"
+            (input)="clearOrgNameDuplicate()"
+          />
+          @if (fieldInvalid('org', 'organizationName')) {
+            <span class="create-form__err">Name is required.</span>
+          }
+        </label>
+        <label class="create-form__field create-form__field--span2">
+          <span class="create-form__label">Website</span>
+          <input class="create-form__control" type="text" formControlName="website" placeholder="https://" />
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Industry <span class="create-form__req">*</span></span>
+          <select class="create-form__control" formControlName="industry">
+            @for (ind of industryOptions; track ind) {
+              <option [value]="ind">{{ ind }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Employees</span>
+          <select class="create-form__control" formControlName="employees">
+            @for (e of employeeOptions; track e) {
+              <option [value]="e">{{ e }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Annual revenue</span>
+          <input class="create-form__control" type="text" formControlName="annualRevenue" />
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Territory</span>
+          <select class="create-form__control" formControlName="territory">
+            @for (t of territoryOptions; track t) {
+              <option [value]="t">{{ t === '' ? '—' : t }}</option>
+            }
+          </select>
+        </label>
+      </div>
+      <footer class="create-form__foot">
+        <button type="button" class="create-form__btn create-form__btn--ghost" (click)="close()">Cancel</button>
+        <button type="submit" class="create-form__btn create-form__btn--primary">Save</button>
+      </footer>
+    </form>
+  } @else if (flow.formKind() === 'task') {
+    <form class="create-form" [formGroup]="taskForm" (ngSubmit)="submitTask()">
+      <label class="create-form__field">
+        <span class="create-form__label">Title <span class="create-form__req">*</span></span>
+        <input class="create-form__control" type="text" formControlName="title" />
+        @if (fieldInvalid('task', 'title')) {
+          <span class="create-form__err">Title is required.</span>
+        }
+      </label>
+      <label class="create-form__field">
+        <span class="create-form__label">Description</span>
+        <textarea class="create-form__control create-form__textarea" rows="3" formControlName="description"></textarea>
+      </label>
+      <div class="create-form__grid create-form__grid--2">
+        <label class="create-form__field">
+          <span class="create-form__label">Status</span>
+          <select class="create-form__control" formControlName="status">
+            @for (s of taskStatusOptions; track s.value) {
+              <option [value]="s.value">{{ s.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Priority</span>
+          <select class="create-form__control" formControlName="priority">
+            @for (p of priorityOptions; track p.value) {
+              <option [value]="p.value">{{ p.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Assignee</span>
+          <select class="create-form__control" formControlName="assignee">
+            @for (a of assigneeOptions; track a.id) {
+              <option [value]="a.id">{{ a.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Due date</span>
+          <input class="create-form__control" type="datetime-local" formControlName="dueDate" />
+        </label>
+      </div>
+      <footer class="create-form__foot">
+        <button type="button" class="create-form__btn create-form__btn--ghost" (click)="close()">Cancel</button>
+        <button type="submit" class="create-form__btn create-form__btn--primary">Save</button>
+      </footer>
+    </form>
+  } @else if (flow.formKind() === 'callLog') {
+    <form class="create-form" [formGroup]="callForm" (ngSubmit)="submitCall()">
+      <fieldset class="create-form__fieldset">
+        <legend class="create-form__legend">Direction</legend>
+        <div class="create-form__radio-row">
+          <label class="create-form__radio">
+            <input type="radio" formControlName="direction" value="outbound" />
+            <span>Outbound</span>
+          </label>
+          <label class="create-form__radio">
+            <input type="radio" formControlName="direction" value="inbound" />
+            <span>Inbound</span>
+          </label>
+        </div>
+      </fieldset>
+      <div class="create-form__grid create-form__grid--2">
+        <label class="create-form__field">
+          <span class="create-form__label">Phone <span class="create-form__req">*</span></span>
+          <input class="create-form__control" type="tel" formControlName="phoneNumber" />
+          @if (fieldInvalid('call', 'phoneNumber')) {
+            <span class="create-form__err">Required.</span>
+          }
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Contact / company <span class="create-form__req">*</span></span>
+          <input class="create-form__control" type="text" formControlName="contactName" />
+          @if (fieldInvalid('call', 'contactName')) {
+            <span class="create-form__err">Required.</span>
+          }
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Started <span class="create-form__req">*</span></span>
+          <input class="create-form__control" type="datetime-local" formControlName="startedAt" />
+        </label>
+        <div class="create-form__field">
+          <span class="create-form__label">Duration <span class="create-form__req">*</span></span>
+          <div class="create-form__dur">
+            <label class="create-form__dur-part">
+              <span class="visually-hidden">Minutes</span>
+              <input class="create-form__control" type="number" formControlName="durationMin" min="0" max="99" />
+              <span class="create-form__dur-hint">min</span>
+            </label>
+            <label class="create-form__dur-part">
+              <span class="visually-hidden">Seconds</span>
+              <input class="create-form__control" type="number" formControlName="durationSec" min="0" max="59" />
+              <span class="create-form__dur-hint">sec</span>
+            </label>
+          </div>
+          @if (fieldInvalid('call', 'durationMin') || fieldInvalid('call', 'durationSec')) {
+            <span class="create-form__err">Use valid duration.</span>
+          }
+        </div>
+        <label class="create-form__field create-form__field--span2">
+          <span class="create-form__label">Outcome</span>
+          <select class="create-form__control" formControlName="outcome">
+            <option value="connected">Connected</option>
+            <option value="voicemail">Voicemail</option>
+            <option value="no_answer">No answer</option>
+            <option value="busy">Busy</option>
+            <option value="wrong_number">Wrong number</option>
+          </select>
+        </label>
+        <label class="create-form__field create-form__field--span2">
+          <span class="create-form__label">Summary</span>
+          <textarea class="create-form__control create-form__textarea" rows="2" formControlName="summary"></textarea>
+        </label>
+      </div>
+      <footer class="create-form__foot">
+        <button type="button" class="create-form__btn create-form__btn--ghost" (click)="close()">Cancel</button>
+        <button type="submit" class="create-form__btn create-form__btn--primary">Save</button>
+      </footer>
+    </form>
+  }
+</app-crm-modal>

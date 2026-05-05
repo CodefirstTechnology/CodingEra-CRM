@@ -1,5 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 
 export interface OrganizationRow {
   id: string;
@@ -18,6 +20,7 @@ export interface OrganizationRow {
 })
 export class OrganizationsComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly createRowBus = inject(CreateRowBusService);
 
   protected readonly formOpen = signal(false);
   protected readonly selectedIds = signal<Set<string>>(new Set());
@@ -68,6 +71,17 @@ export class OrganizationsComponent {
       lastModified: '1w ago',
     },
   ]);
+
+  constructor() {
+    this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
+      if (e.kind !== 'organization') return;
+      const row = e.row as OrganizationRow;
+      if (this.rows().some((r) => r.name.toLowerCase() === row.name.toLowerCase())) {
+        return;
+      }
+      this.rows.update((list) => [row, ...list]);
+    });
+  }
 
   protected readonly allSelected = computed(() => {
     const ids = this.rows().map((r) => r.id);

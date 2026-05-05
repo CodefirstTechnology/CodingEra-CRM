@@ -1,5 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 
 export type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost';
 
@@ -42,6 +44,7 @@ export type StatusFilter = 'all' | LeadStatus;
 })
 export class LeadsComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly createRowBus = inject(CreateRowBusService);
 
   protected readonly formOpen = signal(false);
   protected readonly searchQuery = signal('');
@@ -145,6 +148,17 @@ export class LeadsComponent {
       updated: '3d ago',
     },
   ]);
+
+  constructor() {
+    this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
+      if (e.kind !== 'lead') return;
+      const row = e.row as LeadRow;
+      if (row.email && this.rows().some((r) => r.email.toLowerCase() === row.email.toLowerCase())) {
+        return;
+      }
+      this.rows.update((list) => [row, ...list]);
+    });
+  }
 
   protected readonly filtered = computed(() => {
     const q = this.searchQuery().trim().toLowerCase();
