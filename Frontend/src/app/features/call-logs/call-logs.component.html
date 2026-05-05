@@ -1,0 +1,166 @@
+<div class="calls">
+  <header class="calls__head">
+    <div>
+      <h1 class="calls__title">Call logs</h1>
+      <p class="calls__sub">Inbound and outbound calls linked to your records.</p>
+    </div>
+    <button type="button" class="calls__btn" (click)="openForm()">Log a call</button>
+  </header>
+
+  @if (formOpen()) {
+    <div class="calls__modal-root" aria-modal="true" role="dialog" aria-labelledby="calls-modal-title">
+      <div class="calls__modal-backdrop" (click)="closeForm()"></div>
+      <div class="calls__modal" (click)="$event.stopPropagation()">
+        <header class="calls__modal-head">
+          <h2 id="calls-modal-title" class="calls__modal-title">Log a call</h2>
+          <button type="button" class="calls__modal-close" (click)="closeForm()" aria-label="Close">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </header>
+
+        <form class="calls__modal-form" [formGroup]="callForm" (ngSubmit)="submitCall()">
+          <p class="calls__form-intro">Capture who you spoke with, outcome, and duration for reporting.</p>
+
+          <div class="calls__form-grid">
+            <fieldset class="calls__fieldset calls__field--full">
+              <legend class="calls__legend">Direction</legend>
+              <div class="calls__radio-row">
+                <label class="calls__radio">
+                  <input type="radio" formControlName="direction" value="outbound" />
+                  <span>Outbound</span>
+                </label>
+                <label class="calls__radio">
+                  <input type="radio" formControlName="direction" value="inbound" />
+                  <span>Inbound</span>
+                </label>
+              </div>
+            </fieldset>
+
+            <label class="calls__field">
+              <span class="calls__label">Phone number <span class="calls__req">*</span></span>
+              <input
+                class="calls__control"
+                type="tel"
+                formControlName="phoneNumber"
+                placeholder="+1 (555) 000-0000"
+                autocomplete="tel"
+              />
+              @if (fieldInvalid('phoneNumber')) {
+                <span class="calls__err">Phone number is required.</span>
+              }
+            </label>
+
+            <label class="calls__field">
+              <span class="calls__label">Contact / company <span class="calls__req">*</span></span>
+              <input
+                class="calls__control"
+                type="text"
+                formControlName="contactName"
+                placeholder="Who did you call or who called?"
+                autocomplete="off"
+              />
+              @if (fieldInvalid('contactName')) {
+                <span class="calls__err">Enter a contact or company name.</span>
+              }
+            </label>
+
+            <label class="calls__field">
+              <span class="calls__label">Call started <span class="calls__req">*</span></span>
+              <input class="calls__control" type="datetime-local" formControlName="startedAt" />
+              @if (fieldInvalid('startedAt')) {
+                <span class="calls__err">Pick date and time.</span>
+              }
+            </label>
+
+            <div class="calls__field calls__duration">
+              <span class="calls__label">Duration <span class="calls__req">*</span></span>
+              <div class="calls__duration-row">
+                <label class="calls__duration-part">
+                  <span class="visually-hidden">Minutes</span>
+                  <input class="calls__control" type="number" formControlName="durationMin" min="0" max="99" />
+                  <span class="calls__duration-hint">min</span>
+                </label>
+                <label class="calls__duration-part">
+                  <span class="visually-hidden">Seconds</span>
+                  <input class="calls__control" type="number" formControlName="durationSec" min="0" max="59" />
+                  <span class="calls__duration-hint">sec</span>
+                </label>
+              </div>
+              @if (fieldInvalid('durationMin') || fieldInvalid('durationSec')) {
+                <span class="calls__err">Use valid minutes (0–99) and seconds (0–59).</span>
+              }
+            </div>
+
+            <label class="calls__field calls__field--full">
+              <span class="calls__label">Outcome</span>
+              <select class="calls__control" formControlName="outcome">
+                <option value="connected">Connected</option>
+                <option value="voicemail">Voicemail</option>
+                <option value="no_answer">No answer</option>
+                <option value="busy">Busy</option>
+                <option value="wrong_number">Wrong number</option>
+              </select>
+            </label>
+
+            <label class="calls__field calls__field--full">
+              <span class="calls__label">Call summary <span class="calls__optional">(optional)</span></span>
+              <textarea
+                class="calls__control calls__control--textarea"
+                formControlName="summary"
+                rows="3"
+                placeholder="Topics discussed, objections, follow-up promised…"
+              ></textarea>
+              @if (fieldInvalid('summary')) {
+                <span class="calls__err">Summary is too long.</span>
+              }
+            </label>
+          </div>
+
+          <footer class="calls__modal-foot">
+            <button type="button" class="calls__btn-foot calls__btn-foot--ghost" (click)="closeForm()">Cancel</button>
+            <button type="submit" class="calls__btn-foot calls__btn-foot--primary">Save call log</button>
+          </footer>
+        </form>
+      </div>
+    </div>
+  }
+
+  <div class="calls__card card">
+    <div class="calls__scroll">
+      <table class="calls__table">
+        <thead>
+          <tr class="calls__thead-row">
+            <th class="calls__th">Direction</th>
+            <th class="calls__th">Contact / party</th>
+            <th class="calls__th">Number</th>
+            <th class="calls__th calls__th--narrow">Duration</th>
+            <th class="calls__th calls__th--outcome">Outcome</th>
+            <th class="calls__th calls__th--when">When</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of rows(); track row.id) {
+            <tr class="calls__row">
+              <td class="calls__td">
+                <span
+                  class="calls__pill"
+                  [class.calls__pill--in]="row.direction === 'Inbound'"
+                  [class.calls__pill--out]="row.direction === 'Outbound'"
+                >
+                  {{ row.direction }}
+                </span>
+              </td>
+              <td class="calls__td calls__td--strong">{{ row.contact }}</td>
+              <td class="calls__td calls__td--muted">{{ row.number }}</td>
+              <td class="calls__td">{{ row.duration }}</td>
+              <td class="calls__td calls__td--muted">{{ row.outcome }}</td>
+              <td class="calls__td calls__td--muted">{{ row.when }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

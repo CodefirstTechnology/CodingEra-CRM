@@ -1,5 +1,6 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { SidebarCollapseService } from '../../core/layout/sidebar-collapse.service';
 
 @Component({
   selector: 'app-crm-sidebar',
@@ -7,4 +8,10 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
   templateUrl: './crm-sidebar.component.html',
   styleUrl: './crm-sidebar.component.scss',
 })
-export class CrmSidebarComponent {}
+export class CrmSidebarComponent {
+  protected readonly sidebarCollapse = inject(SidebarCollapseService);
+
+  protected toggleCollapse(): void {
+    this.sidebarCollapse.toggle();
+  }
+}

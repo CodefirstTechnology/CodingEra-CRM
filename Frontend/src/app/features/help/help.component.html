@@ -1,0 +1,47 @@
+<div class="help">
+  <header class="help__head">
+    <h1 class="help__title">Help center</h1>
+    <p class="help__sub">Documentation, shortcuts, and ways to get support.</p>
+  </header>
+
+  <div class="help__grid">
+    <section class="help__card card" aria-labelledby="help-docs">
+      <h2 id="help-docs" class="help__card-title">Popular guides</h2>
+      <ul class="help__list">
+        @for (a of articles; track a.title) {
+          <li>
+            <button type="button" class="help__link">
+              <span class="help__link-title">{{ a.title }}</span>
+              <span class="help__link-blurb">{{ a.blurb }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    </section>
+
+    <section class="help__card card" aria-labelledby="help-keys">
+      <h2 id="help-keys" class="help__card-title">Keyboard shortcuts</h2>
+      <ul class="help__keys">
+        @for (s of shortcuts; track s.keys) {
+          <li class="help__key-row">
+            <kbd class="help__kbd">{{ s.keys }}</kbd>
+            <span class="help__key-action">{{ s.action }}</span>
+          </li>
+        }
+      </ul>
+      <p class="help__hint">Shortcuts are illustrative for this demo build.</p>
+    </section>
+
+    <section class="help__card card help__card--wide" aria-labelledby="help-support">
+      <h2 id="help-support" class="help__card-title">Contact support</h2>
+      <p class="help__support-text">
+        For billing, security reviews, or data questions, reach your workspace admin or open a ticket
+        from your company’s support portal.
+      </p>
+      <div class="help__support-actions">
+        <a class="help__btn help__btn--primary" href="mailto:support@company.example">Email support</a>
+        <button type="button" class="help__btn help__btn--ghost">View status page</button>
+      </div>
+    </section>
+  </div>
+</div>
