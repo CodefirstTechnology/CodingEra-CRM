@@ -4,14 +4,14 @@
     <span class="sidebar__tag">Pro</span>
   </div>
   <div class="sidebar__create-wrap">
-    <a routerLink="/deals" class="sidebar__create" aria-label="Create new deal or record">
+    <button type="button" class="sidebar__create" (click)="openCreateMenu()" aria-haspopup="dialog" aria-label="Create new record">
       <span class="sidebar__create-icon" aria-hidden="true">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <path d="M12 5v14M5 12h14" />
         </svg>
       </span>
       <span class="sidebar__create-label">+ Create New</span>
-    </a>
+    </button>
   </div>
   <nav class="sidebar__nav" aria-label="Main">
     <a routerLink="/" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }" class="nav-item">

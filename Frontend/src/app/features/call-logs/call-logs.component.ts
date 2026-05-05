@@ -1,5 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 
 export interface CallLogRow {
   id: string;
@@ -67,9 +69,17 @@ const SEED: CallLogRow[] = [
 })
 export class CallLogsComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly createRowBus = inject(CreateRowBusService);
 
   protected readonly formOpen = signal(false);
   protected readonly rows = signal<CallLogRow[]>(SEED);
+
+  constructor() {
+    this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
+      if (e.kind !== 'callLog') return;
+      this.rows.update((list) => [e.row as CallLogRow, ...list]);
+    });
+  }
 
   protected readonly callForm = this.fb.nonNullable.group({
     direction: ['outbound', Validators.required],

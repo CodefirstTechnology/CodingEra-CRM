@@ -6,6 +6,8 @@ import { CrmSidebarComponent } from '../crm-sidebar/crm-sidebar.component';
 import { ThemeSettingsComponent } from '../../features/theme-settings/theme-settings.component';
 import { ProfilePanelComponent } from '../../features/profile/profile-panel.component';
 import { NotificationsPanelComponent } from '../../features/notifications/notifications-panel.component';
+import { CreateEntityFormModalComponent } from '../../features/create-flow/create-entity-form-modal.component';
+import { CreatePickerModalComponent } from '../../features/create-flow/create-picker-modal.component';
 
 @Component({
   selector: 'app-crm-shell',
@@ -16,6 +18,8 @@ import { NotificationsPanelComponent } from '../../features/notifications/notifi
     ThemeSettingsComponent,
     ProfilePanelComponent,
     NotificationsPanelComponent,
+    CreatePickerModalComponent,
+    CreateEntityFormModalComponent,
   ],
   templateUrl: './crm-shell.component.html',
   styleUrl: './crm-shell.component.scss',
