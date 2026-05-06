@@ -2,16 +2,17 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
-import { concat, concatMap, defaultIfEmpty, EMPTY, forkJoin, last, take } from 'rxjs';
+import { concat, concatMap, defaultIfEmpty, EMPTY, forkJoin, last, take, tap } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { DealsService } from '../../core/services/deals.service';
 import { LeadsService } from '../../core/services/leads.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { mapLeadToDealRow } from '../../shared/utils/mappers';
 import { createIdSelection } from '../../shared/utils/selection-manager';
-import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
+import { environment } from '../../../environments/environment';
 
-export type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost';
+export type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost' | 'Converted';
 
 export interface LeadOwnerOption {
   id: string;
@@ -68,6 +69,7 @@ export class LeadsComponent {
   protected readonly searchQuery = signal('');
   protected readonly statusFilter = signal<StatusFilter>('all');
 
+  /** Form / edit options (excludes system-only `Converted`, which is set by Convert to Deal). */
   protected readonly statusOptions: LeadStatus[] = ['New', 'Contacted', 'Qualified', 'Lost'];
   protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
@@ -356,53 +358,45 @@ export class LeadsComponent {
     });
   }
 
-  private mapLeadStatusToDealStage(s: LeadStatus): DealPipelineStatus {
-    switch (s) {
-      case 'Qualified':
-        return 'Proposal';
-      case 'Lost':
-        return 'Closed Lost';
-      case 'Contacted':
-        return 'Qualification';
-      default:
-        return 'Qualification';
-    }
-  }
-
-  private leadToDealPayload(lead: LeadRow): Omit<DealRow, 'id'> {
-    const raw = lead.annualRevenue?.trim() ?? '';
-    const displayRev = raw ? (raw.startsWith('₹') ? raw : `₹ ${raw}`) : '₹ 0.00';
-    return {
-      organization: lead.organization,
-      annualRevenue: displayRev,
-      status: this.mapLeadStatusToDealStage(lead.status),
-      email: lead.email?.trim() || '—',
-      mobile: lead.mobile?.trim() || '—',
-      assignedTo: lead.leadOwnerName || '—',
-      assignedInitials: lead.owner || '—',
-      lastModified: 'Just now',
-    };
-  }
-
-  protected onConvertToDealBulk(): void {
+  protected convertToDeal(): void {
     const ids = [...this.sel.selectedItems()];
     if (ids.length === 0) return;
-    const streams = ids.map((sid) => {
-      const lead = this.rows().find((r) => r.id === sid);
-      if (!lead) return EMPTY;
-      const idn = Number(sid);
-      const payload = this.leadToDealPayload(lead);
-      return this.dealsService.create(payload).pipe(
-        take(1),
-        concatMap(() => this.leadsService.delete(idn).pipe(take(1))),
-      );
-    });
-    if (streams.length === 0) return;
+
+    const streams = ids
+      .map((sid) => {
+        const lead = this.rows().find((r) => r.id === sid);
+        if (!lead || lead.status === 'Converted') return null;
+        const idn = Number(sid);
+        const after = environment.leadConversionAfterDeal;
+        return this.dealsService.create(mapLeadToDealRow(lead)).pipe(
+          take(1),
+          tap((created) => this.createRowBus.publish('deal', created)),
+          concatMap(() =>
+            after === 'delete'
+              ? this.leadsService.delete(idn).pipe(take(1))
+              : this.leadsService
+                  .update(idn, { status: 'Converted', updated: 'Just now' })
+                  .pipe(take(1)),
+          ),
+        );
+      })
+      .filter((s): s is NonNullable<typeof s> => s != null);
+
+    if (streams.length === 0) {
+      this.sel.clear();
+      this.refreshLeads();
+      return;
+    }
+
+    const convertedCount = streams.length;
     concat(...streams)
       .pipe(last(), defaultIfEmpty(null))
       .subscribe(() => {
         this.sel.clear();
         this.refreshLeads();
+        if (convertedCount > 0 && environment.showLeadConvertSuccessMessage) {
+          window.alert('Lead converted to deal successfully');
+        }
       });
   }
 
@@ -535,6 +529,8 @@ export class LeadsComponent {
         return 'leads__tag leads__tag--accent';
       case 'Lost':
         return 'leads__tag leads__tag--bad';
+      case 'Converted':
+        return 'leads__tag leads__tag--ok';
       default:
         return 'leads__tag leads__tag--muted';
     }
