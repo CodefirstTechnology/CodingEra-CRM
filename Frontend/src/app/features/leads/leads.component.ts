@@ -1,9 +1,15 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { take } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
+import { concat, concatMap, defaultIfEmpty, EMPTY, forkJoin, last, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { DealsService } from '../../core/services/deals.service';
 import { LeadsService } from '../../core/services/leads.service';
+import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
+import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { createIdSelection } from '../../shared/utils/selection-manager';
+import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
 
 export type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost';
 
@@ -41,7 +47,7 @@ export type StatusFilter = 'all' | LeadStatus;
 
 @Component({
   selector: 'app-leads',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, CrmSelectionBarComponent, CrmAssignPickerComponent],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
 })
@@ -49,6 +55,14 @@ export class LeadsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly leadsService = inject(LeadsService);
+  private readonly dealsService = inject(DealsService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+
+  protected readonly sel = createIdSelection();
+  protected readonly assignPickerOpen = signal(false);
+  protected readonly editingNumericId = signal<number | null>(null);
+  private lastRouteEdit = '';
 
   protected readonly formOpen = signal(false);
   protected readonly searchQuery = signal('');
@@ -71,7 +85,6 @@ export class LeadsComponent {
   protected readonly requestTypeOptions = ['', 'Sales', 'Support', 'Partnership', 'General inquiry'] as const;
 
   protected readonly leadOwnerOptions: LeadOwnerOption[] = [
-   
     { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
     { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
     { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
@@ -92,6 +105,12 @@ export class LeadsComponent {
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'lead') return;
       this.refreshLeads();
+    });
+    this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
+      const edit = q['edit'];
+      if (edit != null && edit !== '') {
+        this.beginEditFromRoute(String(edit));
+      }
     });
   }
 
@@ -123,6 +142,20 @@ export class LeadsComponent {
     });
   });
 
+  protected readonly allSelectedFiltered = computed(() =>
+    this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
+  );
+
+  protected readonly assignDefaultOwnerId = computed(() => {
+    const ids = this.sel.selectedItems();
+    const first = this.rows().find((r) => r.id === ids[0]);
+    if (!first) return 'SK';
+    return (
+      this.leadOwnerOptions.find((o) => o.initials === first.owner || o.label === first.leadOwnerName)?.id ??
+      'SK'
+    );
+  });
+
   protected readonly createForm = this.fb.nonNullable.group({
     salutation: [''],
     lastName: ['', Validators.maxLength(120)],
@@ -137,12 +170,23 @@ export class LeadsComponent {
     territory: [''],
     industry: ['Technology', Validators.required],
     status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),
-    leadOwner: ['RD', Validators.required],
+    leadOwner: ['SK', Validators.required],
     requestType: [''],
     customField: ['', Validators.maxLength(240)],
   });
 
+  private clearEditQuery(): void {
+    this.lastRouteEdit = '';
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: null },
+      queryParamsHandling: 'merge',
+    });
+  }
+
   protected openForm(): void {
+    this.editingNumericId.set(null);
+    this.clearEditQuery();
     this.createForm.reset({
       salutation: '',
       lastName: '',
@@ -157,7 +201,7 @@ export class LeadsComponent {
       territory: '',
       industry: 'Technology',
       status: 'New',
-      leadOwner: 'RD',
+      leadOwner: 'SK',
       requestType: '',
       customField: '',
     });
@@ -167,6 +211,8 @@ export class LeadsComponent {
 
   protected closeForm(): void {
     this.formOpen.set(false);
+    this.editingNumericId.set(null);
+    this.clearEditQuery();
     this.createForm.reset({
       salutation: '',
       lastName: '',
@@ -181,11 +227,183 @@ export class LeadsComponent {
       territory: '',
       industry: 'Technology',
       status: 'New',
-      leadOwner: 'RD',
+      leadOwner: 'SK',
       requestType: '',
       customField: '',
     });
     this.createForm.markAsUntouched();
+  }
+
+  private beginEditFromRoute(idStr: string): void {
+    if (this.lastRouteEdit === idStr && this.formOpen()) return;
+    const id = Number(idStr);
+    if (!Number.isFinite(id)) return;
+    this.lastRouteEdit = idStr;
+    this.leadsService
+      .getById(id)
+      .pipe(take(1))
+      .subscribe((row) => {
+        if (!row) return;
+        this.editingNumericId.set(id);
+        const ownerOpt = this.leadOwnerOptions.find(
+          (o) => o.initials === row.owner || o.label === row.leadOwnerName,
+        );
+        const ar = row.annualRevenue?.trim() ?? '';
+        const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
+        this.createForm.patchValue({
+          salutation: row.salutation ?? '',
+          lastName: row.lastName ?? '',
+          mobile: row.mobile ?? '',
+          firstName: row.firstName ?? '',
+          email: row.email ?? '',
+          gender: row.gender ?? '',
+          organization: row.organization ?? '',
+          employees: row.employees ?? '1-10',
+          annualRevenue: arInput,
+          website: row.website ?? '',
+          territory: row.territory ?? '',
+          industry: row.industry ?? 'Technology',
+          status: row.status ?? 'New',
+          leadOwner: ownerOpt?.id ?? 'SK',
+          requestType: row.requestType ?? '',
+          customField: row.notes ?? '',
+        });
+        this.formOpen.set(true);
+      });
+  }
+
+  protected toggleRowSelection(id: string, ev?: Event): void {
+    ev?.stopPropagation();
+    this.sel.toggle(id);
+  }
+
+  protected toggleSelectAllFiltered(): void {
+    this.sel.toggleSelectAll(this.filtered().map((r) => r.id));
+  }
+
+  protected onBulkEdit(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length !== 1) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: ids[0] },
+      queryParamsHandling: 'merge',
+    });
+    this.beginEditFromRoute(ids[0]);
+  }
+
+  protected onBulkDelete(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length === 0) return;
+    const streams = ids.map((sid) => this.leadsService.delete(Number(sid)).pipe(take(1)));
+    forkJoin(streams).subscribe(() => {
+      this.sel.clear();
+      this.refreshLeads();
+    });
+  }
+
+  protected onBulkDismiss(): void {
+    this.sel.clear();
+  }
+
+  protected onAssignToMenu(): void {
+    this.assignPickerOpen.set(true);
+  }
+
+  protected onAssignClosed(): void {
+    this.assignPickerOpen.set(false);
+  }
+
+  protected onAssignPicked(ownerKey: string): void {
+    const opt = this.leadOwnerOptions.find((o) => o.id === ownerKey);
+    if (!opt) {
+      this.assignPickerOpen.set(false);
+      return;
+    }
+    const ids = this.sel.selectedItems();
+    if (ids.length === 0) return;
+    const streams = ids.map((sid) =>
+      this.leadsService
+        .update(Number(sid), {
+          leadOwnerName: opt.label,
+          owner: opt.initials,
+          updated: 'Just now',
+        })
+        .pipe(take(1)),
+    );
+    forkJoin(streams).subscribe(() => {
+      this.assignPickerOpen.set(false);
+      this.sel.clear();
+      this.refreshLeads();
+    });
+  }
+
+  protected onClearAssignmentBulk(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length === 0) return;
+    const streams = ids.map((sid) =>
+      this.leadsService
+        .update(Number(sid), {
+          leadOwnerName: '—',
+          owner: '—',
+          updated: 'Just now',
+        })
+        .pipe(take(1)),
+    );
+    forkJoin(streams).subscribe(() => {
+      this.sel.clear();
+      this.refreshLeads();
+    });
+  }
+
+  private mapLeadStatusToDealStage(s: LeadStatus): DealPipelineStatus {
+    switch (s) {
+      case 'Qualified':
+        return 'Proposal';
+      case 'Lost':
+        return 'Closed Lost';
+      case 'Contacted':
+        return 'Qualification';
+      default:
+        return 'Qualification';
+    }
+  }
+
+  private leadToDealPayload(lead: LeadRow): Omit<DealRow, 'id'> {
+    const raw = lead.annualRevenue?.trim() ?? '';
+    const displayRev = raw ? (raw.startsWith('₹') ? raw : `₹ ${raw}`) : '₹ 0.00';
+    return {
+      organization: lead.organization,
+      annualRevenue: displayRev,
+      status: this.mapLeadStatusToDealStage(lead.status),
+      email: lead.email?.trim() || '—',
+      mobile: lead.mobile?.trim() || '—',
+      assignedTo: lead.leadOwnerName || '—',
+      assignedInitials: lead.owner || '—',
+      lastModified: 'Just now',
+    };
+  }
+
+  protected onConvertToDealBulk(): void {
+    const ids = [...this.sel.selectedItems()];
+    if (ids.length === 0) return;
+    const streams = ids.map((sid) => {
+      const lead = this.rows().find((r) => r.id === sid);
+      if (!lead) return EMPTY;
+      const idn = Number(sid);
+      const payload = this.leadToDealPayload(lead);
+      return this.dealsService.create(payload).pipe(
+        take(1),
+        concatMap(() => this.leadsService.delete(idn).pipe(take(1))),
+      );
+    });
+    if (streams.length === 0) return;
+    concat(...streams)
+      .pipe(last(), defaultIfEmpty(null))
+      .subscribe(() => {
+        this.sel.clear();
+        this.refreshLeads();
+      });
   }
 
   protected clearEmailDuplicate(): void {
@@ -218,11 +436,7 @@ export class LeadsComponent {
     return this.statusFilter() === id;
   }
 
-  private buildDisplayName(
-    salutation: string,
-    first: string,
-    last: string,
-  ): string {
+  private buildDisplayName(salutation: string, first: string, last: string): string {
     const parts = [salutation.trim(), first.trim(), last.trim()].filter(Boolean);
     return parts.join(' ').trim() || first.trim() || last.trim() || 'Lead';
   }
@@ -235,9 +449,13 @@ export class LeadsComponent {
     const emailTrim = raw.email.trim();
     const emailLower = emailTrim.toLowerCase();
     const emailCtrl = this.createForm.get('email');
+    const editId = this.editingNumericId();
     if (
       emailTrim &&
-      this.rows().some((r) => r.email.toLowerCase() === emailLower)
+      this.rows().some(
+        (r) =>
+          r.email.toLowerCase() === emailLower && (editId == null || Number(r.id) !== editId),
+      )
     ) {
       if (emailCtrl) {
         emailCtrl.setErrors({ ...(emailCtrl.errors ?? {}), duplicate: true });
@@ -272,13 +490,23 @@ export class LeadsComponent {
       updated: 'Just now',
     };
 
-    this.leadsService
-      .create(payload)
-      .pipe(take(1))
-      .subscribe(() => {
-        this.refreshLeads();
-        this.closeForm();
-      });
+    const done = () => {
+      this.sel.clear();
+      this.refreshLeads();
+      this.closeForm();
+    };
+
+    if (editId != null) {
+      this.leadsService
+        .update(editId, payload)
+        .pipe(take(1))
+        .subscribe(() => done());
+    } else {
+      this.leadsService
+        .create(payload)
+        .pipe(take(1))
+        .subscribe(() => done());
+    }
   }
 
   protected deleteLead(row: LeadRow, ev: Event): void {
@@ -288,7 +516,10 @@ export class LeadsComponent {
     this.leadsService
       .delete(id)
       .pipe(take(1))
-      .subscribe(() => this.refreshLeads());
+      .subscribe(() => {
+        this.sel.removeId(row.id);
+        this.refreshLeads();
+      });
   }
 
   protected fieldInvalid(name: string): boolean {

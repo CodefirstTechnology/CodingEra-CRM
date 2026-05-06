@@ -1,0 +1,78 @@
+.crm-assign-root {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.crm-assign-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.crm-assign-modal {
+  position: relative;
+  width: min(100%, 22rem);
+  padding: 1.25rem;
+  border-radius: 12px;
+  border: 1px solid var(--card-border, #e5e7eb);
+  background: var(--card-bg, #fff);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.18);
+}
+
+.crm-assign-title {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.crm-assign-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.crm-assign-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted, #6b7280);
+}
+
+.crm-assign-select {
+  border-radius: 8px;
+  border: 1px solid var(--card-border, #e5e7eb);
+  padding: 0.5rem 0.65rem;
+  font-size: 0.875rem;
+  background: var(--card-bg, #fff);
+  color: var(--text-primary, #111827);
+}
+
+.crm-assign-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+.crm-assign-btn {
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+}
+
+.crm-assign-btn--ghost {
+  background: transparent;
+  color: var(--text-muted, #6b7280);
+}
+
+.crm-assign-btn--primary {
+  background: var(--tertiary-color, #6366f1);
+  color: #fff;
+}

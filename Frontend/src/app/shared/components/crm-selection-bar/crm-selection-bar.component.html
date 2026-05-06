@@ -1,0 +1,20 @@
+@if (selectionCount() > 0) {
+  <div class="crm-sel-bar card" role="toolbar" aria-label="Bulk actions">
+    <span class="crm-sel-bar__count"><strong>{{ selectionCount() }}</strong> selected</span>
+    <details class="crm-sel-bar__menu" #menuRef (keydown.escape)="$event.preventDefault(); closeMenu()">
+      <summary class="crm-sel-bar__summary" aria-label="Open actions menu">⋯</summary>
+      <div class="crm-sel-bar__dropdown" role="menu">
+        <button type="button" role="menuitem" [disabled]="!canEdit()" (click)="onEdit()">Edit</button>
+        <button type="button" role="menuitem" (click)="onDelete()">Delete</button>
+        @if (showAssignActions()) {
+          <button type="button" role="menuitem" (click)="onAssignTo()">Assign to…</button>
+          <button type="button" role="menuitem" (click)="onClearAssignment()">Clear assignment</button>
+        }
+        @if (showConvertLead()) {
+          <button type="button" role="menuitem" (click)="onConvertToDeal()">Convert to deal</button>
+        }
+      </div>
+    </details>
+    <button type="button" class="crm-sel-bar__dismiss" (click)="onDismiss()" aria-label="Clear selection">✕</button>
+  </div>
+}

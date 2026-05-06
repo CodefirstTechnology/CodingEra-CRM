@@ -1,9 +1,12 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { take } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
+import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { OrganizationsService } from '../../core/services/organizations.service';
+import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { createIdSelection } from '../../shared/utils/selection-manager';
 
 export interface OrganizationRow {
   id: string;
@@ -16,7 +19,7 @@ export interface OrganizationRow {
 
 @Component({
   selector: 'app-organizations',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, CrmSelectionBarComponent],
   templateUrl: './organizations.component.html',
   styleUrl: './organizations.component.scss',
 })
@@ -24,9 +27,14 @@ export class OrganizationsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly organizationsService = inject(OrganizationsService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+
+  protected readonly sel = createIdSelection();
+  protected readonly editingNumericId = signal<number | null>(null);
+  private lastRouteEdit = '';
 
   protected readonly formOpen = signal(false);
-  protected readonly selectedIds = signal<Set<string>>(new Set());
 
   protected readonly employeeOptions = ['1-10', '11-50', '51-200', '201-500', '500+'] as const;
   protected readonly territoryOptions = ['', 'India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
@@ -48,6 +56,12 @@ export class OrganizationsComponent {
       if (e.kind !== 'organization') return;
       this.refreshOrganizations();
     });
+    this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
+      const edit = q['edit'];
+      if (edit != null && edit !== '') {
+        this.beginEditFromRoute(String(edit));
+      }
+    });
   }
 
   private refreshOrganizations(): void {
@@ -57,12 +71,9 @@ export class OrganizationsComponent {
       .subscribe((rows) => this.rows.set(rows));
   }
 
-  protected readonly allSelected = computed(() => {
-    const ids = this.rows().map((r) => r.id);
-    if (ids.length === 0) return false;
-    const sel = this.selectedIds();
-    return ids.every((id) => sel.has(id));
-  });
+  protected readonly allSelected = computed(() =>
+    this.sel.allSelectedIn(this.rows().map((r) => r.id)),
+  );
 
   protected readonly createForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
@@ -73,31 +84,31 @@ export class OrganizationsComponent {
     territory: [''],
   });
 
+  private clearEditQuery(): void {
+    this.lastRouteEdit = '';
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: null },
+      queryParamsHandling: 'merge',
+    });
+  }
+
   protected isRowSelected(id: string): boolean {
-    return this.selectedIds().has(id);
+    return this.sel.isSelected(id);
   }
 
   protected toggleRow(id: string, ev?: Event): void {
     ev?.stopPropagation();
-    this.selectedIds.update((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    this.sel.toggle(id);
   }
 
   protected toggleSelectAll(): void {
-    const ids = this.rows().map((r) => r.id);
-    this.selectedIds.update((prev) => {
-      if (ids.length && ids.every((id) => prev.has(id))) {
-        return new Set();
-      }
-      return new Set(ids);
-    });
+    this.sel.toggleSelectAll(this.rows().map((r) => r.id));
   }
 
   protected openForm(): void {
+    this.editingNumericId.set(null);
+    this.clearEditQuery();
     this.createForm.reset({
       organizationName: '',
       website: '',
@@ -112,6 +123,8 @@ export class OrganizationsComponent {
 
   protected closeForm(): void {
     this.formOpen.set(false);
+    this.editingNumericId.set(null);
+    this.clearEditQuery();
     this.createForm.reset({
       organizationName: '',
       website: '',
@@ -121,6 +134,58 @@ export class OrganizationsComponent {
       territory: '',
     });
     this.createForm.markAsUntouched();
+  }
+
+  private beginEditFromRoute(idStr: string): void {
+    if (this.lastRouteEdit === idStr && this.formOpen()) return;
+    const id = Number(idStr);
+    if (!Number.isFinite(id)) return;
+    this.lastRouteEdit = idStr;
+    this.organizationsService
+      .getById(id)
+      .pipe(take(1))
+      .subscribe((row) => {
+        if (!row) return;
+        this.editingNumericId.set(id);
+        const rev = row.annualRevenue?.trim() ?? '';
+        const revInput = rev.startsWith('₹') ? rev.replace(/^₹\s*/, '').trim() : rev;
+        let web = row.website === '—' ? '' : row.website;
+        if (web.startsWith('https://')) web = web.slice(8);
+        else if (web.startsWith('http://')) web = web.slice(7);
+        this.createForm.patchValue({
+          organizationName: row.name,
+          website: web,
+          industry: row.industry,
+          annualRevenue: revInput,
+        });
+        this.formOpen.set(true);
+      });
+  }
+
+  protected onBulkEdit(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length !== 1) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: ids[0] },
+      queryParamsHandling: 'merge',
+    });
+    this.beginEditFromRoute(ids[0]);
+  }
+
+  protected onBulkDelete(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length === 0) return;
+    forkJoin(ids.map((sid) => this.organizationsService.delete(Number(sid)).pipe(take(1)))).subscribe(
+      () => {
+        this.sel.clear();
+        this.refreshOrganizations();
+      },
+    );
+  }
+
+  protected onBulkDismiss(): void {
+    this.sel.clear();
   }
 
   protected fieldInvalid(name: string): boolean {
@@ -134,7 +199,14 @@ export class OrganizationsComponent {
 
     const raw = this.createForm.getRawValue();
     const nameTrim = raw.organizationName.trim();
-    if (this.rows().some((r) => r.name.toLowerCase() === nameTrim.toLowerCase())) {
+    const editId = this.editingNumericId();
+    if (
+      this.rows().some(
+        (r) =>
+          r.name.toLowerCase() === nameTrim.toLowerCase() &&
+          (editId == null || Number(r.id) !== editId),
+      )
+    ) {
       const c = this.createForm.get('organizationName');
       c?.setErrors({ ...(c.errors ?? {}), duplicate: true });
       c?.markAsTouched();
@@ -155,13 +227,23 @@ export class OrganizationsComponent {
       lastModified: 'Just now',
     };
 
-    this.organizationsService
-      .create(payload)
-      .pipe(take(1))
-      .subscribe(() => {
-        this.refreshOrganizations();
-        this.closeForm();
-      });
+    const done = () => {
+      this.sel.clear();
+      this.refreshOrganizations();
+      this.closeForm();
+    };
+
+    if (editId != null) {
+      this.organizationsService
+        .update(editId, payload)
+        .pipe(take(1))
+        .subscribe(() => done());
+    } else {
+      this.organizationsService
+        .create(payload)
+        .pipe(take(1))
+        .subscribe(() => done());
+    }
   }
 
   protected deleteOrganization(row: OrganizationRow, ev: Event): void {
@@ -172,11 +254,7 @@ export class OrganizationsComponent {
       .delete(id)
       .pipe(take(1))
       .subscribe(() => {
-        this.selectedIds.update((prev) => {
-          const next = new Set(prev);
-          next.delete(row.id);
-          return next;
-        });
+        this.sel.removeId(row.id);
         this.refreshOrganizations();
       });
   }

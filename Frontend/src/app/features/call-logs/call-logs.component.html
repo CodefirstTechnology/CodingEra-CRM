@@ -7,12 +7,24 @@
     <button type="button" class="calls__btn" (click)="openForm()">Log a call</button>
   </header>
 
+  <app-crm-selection-bar
+    [selectionCount]="sel.selectedCount()"
+    [canEdit]="sel.selectedCount() === 1"
+    [showAssignActions]="false"
+    [showConvertLead]="false"
+    (edit)="onBulkEdit()"
+    (delete)="onBulkDelete()"
+    (dismiss)="onBulkDismiss()"
+  />
+
   @if (formOpen()) {
     <div class="calls__modal-root" aria-modal="true" role="dialog" aria-labelledby="calls-modal-title">
       <div class="calls__modal-backdrop" (click)="closeForm()"></div>
       <div class="calls__modal" (click)="$event.stopPropagation()">
         <header class="calls__modal-head">
-          <h2 id="calls-modal-title" class="calls__modal-title">Log a call</h2>
+          <h2 id="calls-modal-title" class="calls__modal-title">
+            {{ editingNumericId() != null ? 'Edit call log' : 'Log a call' }}
+          </h2>
           <button type="button" class="calls__modal-close" (click)="closeForm()" aria-label="Close">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6 6 18M6 6l12 12" />
@@ -120,7 +132,9 @@
 
           <footer class="calls__modal-foot">
             <button type="button" class="calls__btn-foot calls__btn-foot--ghost" (click)="closeForm()">Cancel</button>
-            <button type="submit" class="calls__btn-foot calls__btn-foot--primary">Save call log</button>
+            <button type="submit" class="calls__btn-foot calls__btn-foot--primary">
+              {{ editingNumericId() != null ? 'Save changes' : 'Save call log' }}
+            </button>
           </footer>
         </form>
       </div>
@@ -132,6 +146,15 @@
       <table class="calls__table">
         <thead>
           <tr class="calls__thead-row">
+            <th class="calls__th calls__th--check">
+              <input
+                type="checkbox"
+                class="calls__checkbox"
+                [checked]="allSelected()"
+                (change)="toggleSelectAll()"
+                aria-label="Select all call logs"
+              />
+            </th>
             <th class="calls__th">Direction</th>
             <th class="calls__th">Contact / party</th>
             <th class="calls__th">Number</th>
@@ -144,6 +167,15 @@
         <tbody>
           @for (row of rows(); track row.id) {
             <tr class="calls__row">
+              <td class="calls__td calls__td--check">
+                <input
+                  type="checkbox"
+                  class="calls__checkbox"
+                  [checked]="isRowSelected(row.id)"
+                  (change)="toggleRow(row.id, $event)"
+                  [attr.aria-label]="'Select ' + row.contact"
+                />
+              </td>
               <td class="calls__td">
                 <span
                   class="calls__pill"

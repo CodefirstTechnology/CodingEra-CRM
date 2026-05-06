@@ -563,6 +563,9 @@ export class CreateEntityFormModalComponent {
       duration,
       when,
       outcome,
+      startedAtIso: v.startedAt,
+      contactName: v.contactName.trim(),
+      callSummary: v.summary.trim(),
     };
 
     this.callLogsService

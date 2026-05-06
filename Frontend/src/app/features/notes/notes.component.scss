@@ -84,6 +84,25 @@
   min-width: 120px;
 }
 
+.notes__th--check {
+  width: 44px;
+  padding-inline: 0.85rem;
+  text-align: center;
+}
+
+.notes__td--check {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.notes__checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  accent-color: var(--tertiary-color);
+}
+
 .notes__row:hover .notes__td {
   background: color-mix(in srgb, var(--tertiary-color) 5%, transparent);
 }

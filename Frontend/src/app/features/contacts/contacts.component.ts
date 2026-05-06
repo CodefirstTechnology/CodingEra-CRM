@@ -1,9 +1,12 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { take } from 'rxjs';
+import { ActivatedRoute, Router } from '@angular/router';
+import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { ContactsService } from '../../core/services/contacts.service';
+import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { createIdSelection } from '../../shared/utils/selection-manager';
 
 export interface ContactRow {
   id: string;
@@ -15,7 +18,7 @@ export interface ContactRow {
 
 @Component({
   selector: 'app-contacts',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, CrmSelectionBarComponent],
   templateUrl: './contacts.component.html',
   styleUrl: './contacts.component.scss',
 })
@@ -23,9 +26,14 @@ export class ContactsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly contactsService = inject(ContactsService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+
+  protected readonly sel = createIdSelection();
+  protected readonly editingNumericId = signal<number | null>(null);
+  private lastRouteEdit = '';
 
   protected readonly formOpen = signal(false);
-  protected readonly selectedIds = signal<Set<string>>(new Set());
 
   protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
@@ -48,6 +56,12 @@ export class ContactsComponent {
       if (e.kind !== 'contact') return;
       this.refreshContacts();
     });
+    this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
+      const edit = q['edit'];
+      if (edit != null && edit !== '') {
+        this.beginEditFromRoute(String(edit));
+      }
+    });
   }
 
   private refreshContacts(): void {
@@ -57,12 +71,9 @@ export class ContactsComponent {
       .subscribe((rows) => this.rows.set(rows));
   }
 
-  protected readonly allSelected = computed(() => {
-    const ids = this.rows().map((r) => r.id);
-    if (ids.length === 0) return false;
-    const sel = this.selectedIds();
-    return ids.every((id) => sel.has(id));
-  });
+  protected readonly allSelected = computed(() =>
+    this.sel.allSelectedIn(this.rows().map((r) => r.id)),
+  );
 
   protected readonly createForm = this.fb.nonNullable.group({
     salutation: [''],
@@ -76,31 +87,31 @@ export class ContactsComponent {
     address: [''],
   });
 
+  private clearEditQuery(): void {
+    this.lastRouteEdit = '';
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: null },
+      queryParamsHandling: 'merge',
+    });
+  }
+
   protected isRowSelected(id: string): boolean {
-    return this.selectedIds().has(id);
+    return this.sel.isSelected(id);
   }
 
   protected toggleRow(id: string, ev?: Event): void {
     ev?.stopPropagation();
-    this.selectedIds.update((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    this.sel.toggle(id);
   }
 
   protected toggleSelectAll(): void {
-    const ids = this.rows().map((r) => r.id);
-    this.selectedIds.update((prev) => {
-      if (ids.length && ids.every((id) => prev.has(id))) {
-        return new Set();
-      }
-      return new Set(ids);
-    });
+    this.sel.toggleSelectAll(this.rows().map((r) => r.id));
   }
 
   protected openForm(): void {
+    this.editingNumericId.set(null);
+    this.clearEditQuery();
     this.createForm.reset({
       salutation: '',
       firstName: '',
@@ -118,6 +129,8 @@ export class ContactsComponent {
 
   protected closeForm(): void {
     this.formOpen.set(false);
+    this.editingNumericId.set(null);
+    this.clearEditQuery();
     this.createForm.reset({
       salutation: '',
       firstName: '',
@@ -130,6 +143,56 @@ export class ContactsComponent {
       address: '',
     });
     this.createForm.markAsUntouched();
+  }
+
+  private beginEditFromRoute(idStr: string): void {
+    if (this.lastRouteEdit === idStr && this.formOpen()) return;
+    const id = Number(idStr);
+    if (!Number.isFinite(id)) return;
+    this.lastRouteEdit = idStr;
+    this.contactsService
+      .getById(id)
+      .pipe(take(1))
+      .subscribe((row) => {
+        if (!row) return;
+        this.editingNumericId.set(id);
+        this.createForm.patchValue({
+          email: row.email,
+          mobile: row.phone === '—' ? '' : row.phone,
+          companyName: row.organization,
+          firstName: 'Contact',
+          lastName: 'User',
+          salutation: '',
+          gender: '',
+          designation: '',
+          address: '',
+        });
+        this.formOpen.set(true);
+      });
+  }
+
+  protected onBulkEdit(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length !== 1) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: ids[0] },
+      queryParamsHandling: 'merge',
+    });
+    this.beginEditFromRoute(ids[0]);
+  }
+
+  protected onBulkDelete(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length === 0) return;
+    forkJoin(ids.map((sid) => this.contactsService.delete(Number(sid)).pipe(take(1)))).subscribe(() => {
+      this.sel.clear();
+      this.refreshContacts();
+    });
+  }
+
+  protected onBulkDismiss(): void {
+    this.sel.clear();
   }
 
   protected clearEmailDuplicate(): void {
@@ -153,7 +216,13 @@ export class ContactsComponent {
     const raw = this.createForm.getRawValue();
     const emailLower = raw.email.trim().toLowerCase();
     const emailCtrl = this.createForm.get('email');
-    if (this.rows().some((r) => r.email.toLowerCase() === emailLower)) {
+    const editId = this.editingNumericId();
+    if (
+      this.rows().some(
+        (r) =>
+          r.email.toLowerCase() === emailLower && (editId == null || Number(r.id) !== editId),
+      )
+    ) {
       emailCtrl?.setErrors({ ...(emailCtrl.errors ?? {}), duplicate: true });
       emailCtrl?.markAsTouched();
       return;
@@ -166,13 +235,23 @@ export class ContactsComponent {
       lastModified: 'Just now',
     };
 
-    this.contactsService
-      .create(payload)
-      .pipe(take(1))
-      .subscribe(() => {
-        this.refreshContacts();
-        this.closeForm();
-      });
+    const done = () => {
+      this.sel.clear();
+      this.refreshContacts();
+      this.closeForm();
+    };
+
+    if (editId != null) {
+      this.contactsService
+        .update(editId, payload)
+        .pipe(take(1))
+        .subscribe(() => done());
+    } else {
+      this.contactsService
+        .create(payload)
+        .pipe(take(1))
+        .subscribe(() => done());
+    }
   }
 
   protected deleteContact(row: ContactRow, ev: Event): void {
@@ -183,11 +262,7 @@ export class ContactsComponent {
       .delete(id)
       .pipe(take(1))
       .subscribe(() => {
-        this.selectedIds.update((prev) => {
-          const next = new Set(prev);
-          next.delete(row.id);
-          return next;
-        });
+        this.sel.removeId(row.id);
         this.refreshContacts();
       });
   }
