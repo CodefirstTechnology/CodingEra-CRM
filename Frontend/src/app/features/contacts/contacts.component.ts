@@ -6,6 +6,7 @@ import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { ContactsService } from '../../core/services/contacts.service';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { optionalPhoneValidator } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 
 export interface ContactRow {
@@ -80,7 +81,7 @@ export class ContactsComponent {
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
-    mobile: ['', [Validators.maxLength(40)]],
+    mobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
     gender: [''],
     companyName: ['', [Validators.required, Validators.maxLength(200)]],
     designation: ['', Validators.maxLength(120)],

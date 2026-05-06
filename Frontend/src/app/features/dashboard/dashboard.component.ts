@@ -1,16 +1,23 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 
 type ActivityType = 'call' | 'meeting' | 'email' | 'task';
 type StreamTab = 'all' | 'calls' | 'meetings';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [],
+  imports: [ReactiveFormsModule],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })
 export class DashboardComponent {
-  protected readonly periodLabel = 'Q4 2024';
+  private readonly fb = inject(FormBuilder);
+
+  protected readonly periodOptions = ['Q4 2024', 'Q3 2024', 'Q2 2024', 'Q1 2024'] as const;
+
+  protected readonly filterForm = this.fb.nonNullable.group({
+    period: ['Q4 2024', Validators.required],
+  });
 
   protected readonly monthlyTarget = {
     achievedPct: 75,

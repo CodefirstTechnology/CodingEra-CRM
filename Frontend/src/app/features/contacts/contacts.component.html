@@ -98,6 +98,9 @@
             <label class="contacts__field">
               <span class="contacts__label">Mobile No</span>
               <input class="contacts__control contacts__control--soft" type="tel" formControlName="mobile" placeholder="Mobile No" />
+              @if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['phone']) {
+                <span class="contacts__err">Enter a valid phone number.</span>
+              }
             </label>
             <label class="contacts__field">
               <span class="contacts__label">Gender</span>

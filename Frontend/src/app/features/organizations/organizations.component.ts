@@ -6,6 +6,7 @@ import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { OrganizationsService } from '../../core/services/organizations.service';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 
 export interface OrganizationRow {
@@ -77,7 +78,7 @@ export class OrganizationsComponent {
 
   protected readonly createForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
-    website: ['', Validators.maxLength(200)],
+    website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
     industry: ['Technology', Validators.required],
     annualRevenue: ['', Validators.maxLength(40)],
     employees: ['1-10'],

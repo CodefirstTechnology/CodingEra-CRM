@@ -16,6 +16,7 @@ import type { ContactRow } from '../contacts/contacts.component';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from '../deals/deals.component';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from '../leads/leads.component';
 import type { OrganizationRow } from '../organizations/organizations.component';
+import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
 import type { AssigneeOption, TaskPriority, TaskRow, TaskStatus } from '../tasks/tasks.component';
 
 @Component({
@@ -105,35 +106,35 @@ export class CreateEntityFormModalComponent {
 
   protected readonly leadForm = this.fb.nonNullable.group({
     salutation: [''],
-    lastName: ['', Validators.maxLength(120)],
-    mobile: ['', Validators.maxLength(40)],
+    lastName: ['', [Validators.required, Validators.maxLength(120)]],
+    mobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
-    email: ['', [Validators.email, Validators.maxLength(160)]],
+    email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
     organization: ['', [Validators.required, Validators.maxLength(160)]],
     employees: ['1-10'],
     annualRevenue: ['', Validators.maxLength(32)],
-    website: ['', Validators.maxLength(200)],
     territory: [''],
     industry: ['Technology', Validators.required],
     status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),
     leadOwner: ['SK', Validators.required],
     requestType: [''],
     customField: ['', Validators.maxLength(240)],
+    website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
   });
 
   protected readonly dealForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
     employees: ['1-10'],
     annualRevenue: ['', Validators.maxLength(40)],
-    website: ['', Validators.maxLength(200)],
+    website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
     territory: [''],
     industry: ['Technology', Validators.required],
     salutation: [''],
-    lastName: ['', Validators.maxLength(120)],
-    primaryMobile: ['', Validators.maxLength(40)],
-    firstName: ['', Validators.maxLength(80)],
-    primaryEmail: ['', [Validators.email, Validators.maxLength(160)]],
+    lastName: ['', [Validators.required, Validators.maxLength(120)]],
+    primaryMobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
+    firstName: ['', [Validators.required, Validators.maxLength(80)]],
+    primaryEmail: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
     status: this.fb.nonNullable.control<DealPipelineStatus>('Qualification', Validators.required),
     dealOwner: ['SK', Validators.required],
@@ -144,7 +145,7 @@ export class CreateEntityFormModalComponent {
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
-    mobile: ['', Validators.maxLength(40)],
+    mobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
     gender: [''],
     companyName: ['', [Validators.required, Validators.maxLength(200)]],
     designation: ['', Validators.maxLength(120)],
@@ -153,7 +154,7 @@ export class CreateEntityFormModalComponent {
 
   protected readonly orgForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
-    website: ['', Validators.maxLength(200)],
+    website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
     industry: ['Technology', Validators.required],
     annualRevenue: ['', Validators.maxLength(40)],
     employees: ['1-10'],
@@ -165,7 +166,7 @@ export class CreateEntityFormModalComponent {
     description: ['', Validators.maxLength(2000)],
     status: this.fb.nonNullable.control<TaskStatus>('Backlog', Validators.required),
     assignee: ['RD', Validators.required],
-    dueDate: [''],
+    dueDate: ['', Validators.required],
     priority: this.fb.nonNullable.control<TaskPriority>('Low', Validators.required),
   });
 

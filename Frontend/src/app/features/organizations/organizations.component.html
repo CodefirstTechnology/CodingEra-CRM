@@ -62,6 +62,9 @@
             <label class="org__field org__field--full">
               <span class="org__label">Website</span>
               <input class="org__control org__control--soft" type="text" formControlName="website" placeholder="https://" />
+              @if (fieldInvalid('website') && createForm.get('website')?.errors?.['url']) {
+                <span class="org__err">Enter a valid website URL.</span>
+              }
             </label>
 
             <label class="org__field">

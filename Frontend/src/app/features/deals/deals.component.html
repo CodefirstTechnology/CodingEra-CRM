@@ -94,6 +94,9 @@
               <label class="deals__field">
                 <span class="deals__label">Website</span>
                 <input class="deals__control deals__control--soft" type="text" formControlName="website" placeholder="https://" />
+                @if (fieldInvalid('website') && createForm.get('website')?.errors?.['url']) {
+                  <span class="deals__err">Enter a valid website URL.</span>
+                }
               </label>
               <label class="deals__field">
                 <span class="deals__label">Territory</span>
@@ -131,19 +134,28 @@
                 </select>
               </label>
               <label class="deals__field">
-                <span class="deals__label">Last name</span>
+                <span class="deals__label">Last name <span class="deals__req">*</span></span>
                 <input class="deals__control deals__control--soft" type="text" formControlName="lastName" />
+                @if (fieldInvalid('lastName')) {
+                  <span class="deals__err">Last name is required.</span>
+                }
               </label>
               <label class="deals__field">
                 <span class="deals__label">Primary mobile no.</span>
                 <input class="deals__control deals__control--soft" type="tel" formControlName="primaryMobile" />
+                @if (fieldInvalid('primaryMobile') && createForm.get('primaryMobile')?.errors?.['phone']) {
+                  <span class="deals__err">Enter a valid phone number.</span>
+                }
               </label>
               <label class="deals__field">
-                <span class="deals__label">First name</span>
+                <span class="deals__label">First name <span class="deals__req">*</span></span>
                 <input class="deals__control deals__control--soft" type="text" formControlName="firstName" />
+                @if (fieldInvalid('firstName')) {
+                  <span class="deals__err">First name is required.</span>
+                }
               </label>
               <label class="deals__field">
-                <span class="deals__label">Primary email</span>
+                <span class="deals__label">Primary email <span class="deals__req">*</span></span>
                 <input
                   class="deals__control deals__control--soft"
                   type="email"
@@ -152,6 +164,8 @@
                 />
                 @if (createForm.get('primaryEmail')?.errors?.['duplicate']) {
                   <span class="deals__err">This email is already used on a deal.</span>
+                } @else if (fieldInvalid('primaryEmail') && createForm.get('primaryEmail')?.errors?.['required']) {
+                  <span class="deals__err">Email is required.</span>
                 } @else if (fieldInvalid('primaryEmail') && createForm.get('primaryEmail')?.errors?.['email']) {
                   <span class="deals__err">Enter a valid email.</span>
                 }

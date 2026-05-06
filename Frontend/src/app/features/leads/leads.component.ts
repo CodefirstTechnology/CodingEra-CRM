@@ -9,6 +9,7 @@ import { LeadsService } from '../../core/services/leads.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
+import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { environment } from '../../../environments/environment';
 
@@ -160,15 +161,15 @@ export class LeadsComponent {
 
   protected readonly createForm = this.fb.nonNullable.group({
     salutation: [''],
-    lastName: ['', Validators.maxLength(120)],
-    mobile: ['', Validators.maxLength(40)],
+    lastName: ['', [Validators.required, Validators.maxLength(120)]],
+    mobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
-    email: ['', [Validators.email, Validators.maxLength(160)]],
+    email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
     organization: ['', [Validators.required, Validators.maxLength(160)]],
     employees: ['1-10'],
     annualRevenue: ['', Validators.maxLength(32)],
-    website: ['', Validators.maxLength(200)],
+    website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
     territory: [''],
     industry: ['Technology', Validators.required],
     status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),

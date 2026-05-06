@@ -7,6 +7,7 @@ import { CreateRowBusService } from '../../core/create-flow/create-row-bus.servi
 import { DealsService } from '../../core/services/deals.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 
 export type DealPipelineStatus =
@@ -126,14 +127,14 @@ export class DealsComponent {
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
     employees: ['1-10'],
     annualRevenue: ['', Validators.maxLength(40)],
-    website: ['', Validators.maxLength(200)],
+    website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
     territory: [''],
     industry: ['Technology', Validators.required],
     salutation: [''],
-    lastName: ['', Validators.maxLength(120)],
-    primaryMobile: ['', Validators.maxLength(40)],
-    firstName: ['', Validators.maxLength(80)],
-    primaryEmail: ['', [Validators.email, Validators.maxLength(160)]],
+    lastName: ['', [Validators.required, Validators.maxLength(120)]],
+    primaryMobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
+    firstName: ['', [Validators.required, Validators.maxLength(80)]],
+    primaryEmail: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
     status: this.fb.nonNullable.control<DealPipelineStatus>('Qualification', Validators.required),
     dealOwner: ['SK', Validators.required],
@@ -194,7 +195,20 @@ export class DealsComponent {
       status: 'Qualification',
       dealOwner: 'SK',
     });
+    this.applyPrimaryEmailValidators('create');
     this.createForm.markAsUntouched();
+  }
+
+  /** Create always requires email; edit keeps legacy rows without email valid. */
+  private applyPrimaryEmailValidators(mode: 'create' | 'edit-empty' | 'edit-filled'): void {
+    const c = this.createForm.get('primaryEmail');
+    if (!c) return;
+    if (mode === 'create' || mode === 'edit-filled') {
+      c.setValidators([Validators.required, Validators.email, Validators.maxLength(160)]);
+    } else {
+      c.setValidators([Validators.email, Validators.maxLength(160)]);
+    }
+    c.updateValueAndValidity({ emitEvent: false });
   }
 
   private beginEditFromRoute(idStr: string): void {
@@ -213,11 +227,15 @@ export class DealsComponent {
         );
         const rev = row.annualRevenue?.trim() ?? '';
         const revInput = rev.startsWith('₹') ? rev.replace(/^₹\s*/, '').trim() : rev;
+        const emailFromRow = row.email === '—' ? '' : row.email;
+        this.applyPrimaryEmailValidators(emailFromRow.trim() ? 'edit-filled' : 'edit-empty');
         this.createForm.patchValue({
           organizationName: row.organization,
           annualRevenue: revInput,
-          primaryEmail: row.email === '—' ? '' : row.email,
+          primaryEmail: emailFromRow,
           primaryMobile: row.mobile === '—' ? '' : row.mobile,
+          firstName: 'Contact',
+          lastName: 'Primary',
           status: row.status,
           dealOwner: ownerOpt?.id ?? 'SK',
         });

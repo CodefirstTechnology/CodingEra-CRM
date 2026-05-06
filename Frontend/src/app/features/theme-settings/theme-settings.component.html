@@ -43,47 +43,31 @@
 
   <section class="ts-section">
     <h3 class="ts-section__title">Brand colors</h3>
-    <div class="ts-rows">
-      <label class="ts-row">
-        <span class="ts-row__label">Primary <small>(navbar)</small></span>
-        <span class="ts-row__ctrl">
-          <input
-            type="color"
-            class="ts-color"
-            [value]="theme.primary()"
-            (input)="pickPrimary($event)"
-            aria-label="Primary color for navbar"
-          />
-          <code class="ts-hex">{{ theme.primary() }}</code>
-        </span>
-      </label>
-      <label class="ts-row">
-        <span class="ts-row__label">Secondary <small>(sidebar)</small></span>
-        <span class="ts-row__ctrl">
-          <input
-            type="color"
-            class="ts-color"
-            [value]="theme.secondary()"
-            (input)="pickSecondary($event)"
-            aria-label="Secondary color for sidebar"
-          />
-          <code class="ts-hex">{{ theme.secondary() }}</code>
-        </span>
-      </label>
-      <label class="ts-row">
-        <span class="ts-row__label">Tertiary <small>(buttons & charts)</small></span>
-        <span class="ts-row__ctrl">
-          <input
-            type="color"
-            class="ts-color"
-            [value]="theme.tertiary()"
-            (input)="pickTertiary($event)"
-            aria-label="Tertiary accent color"
-          />
-          <code class="ts-hex">{{ theme.tertiary() }}</code>
-        </span>
-      </label>
-    </div>
+    <form class="ts-brand-form" [formGroup]="brandForm" (ngSubmit)="$event.preventDefault()">
+      <div class="ts-rows">
+        <label class="ts-row">
+          <span class="ts-row__label">Primary <small>(navbar)</small></span>
+          <span class="ts-row__ctrl">
+            <input type="color" class="ts-color" formControlName="primary" aria-label="Primary color for navbar" />
+            <code class="ts-hex">{{ brandForm.controls.primary.value }}</code>
+          </span>
+        </label>
+        <label class="ts-row">
+          <span class="ts-row__label">Secondary <small>(sidebar)</small></span>
+          <span class="ts-row__ctrl">
+            <input type="color" class="ts-color" formControlName="secondary" aria-label="Secondary color for sidebar" />
+            <code class="ts-hex">{{ brandForm.controls.secondary.value }}</code>
+          </span>
+        </label>
+        <label class="ts-row">
+          <span class="ts-row__label">Tertiary <small>(buttons & charts)</small></span>
+          <span class="ts-row__ctrl">
+            <input type="color" class="ts-color" formControlName="tertiary" aria-label="Tertiary accent color" />
+            <code class="ts-hex">{{ brandForm.controls.tertiary.value }}</code>
+          </span>
+        </label>
+      </div>
+    </form>
   </section>
 
   <section class="ts-section">
