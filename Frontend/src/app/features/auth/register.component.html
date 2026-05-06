@@ -1,0 +1,98 @@
+<div class="register">
+  <div class="register__card">
+    <div class="register__brand">
+      <span class="register__logo">CRM</span>
+      <span class="register__tag">Pro</span>
+    </div>
+    <h1 class="register__title">Create account</h1>
+    <p class="register__sub">Enter your details to register. Passwords are secured on the server only.</p>
+
+    <form class="register__form" [formGroup]="form" (ngSubmit)="submit()">
+      <label class="register__field">
+        <span class="register__label">Full name <span class="register__req">*</span></span>
+        <input
+          class="register__control"
+          type="text"
+          formControlName="fullName"
+          autocomplete="name"
+          placeholder="Jordan Doe"
+        />
+        @if (fieldInvalid('fullName')) {
+          <span class="register__err">Full name is required.</span>
+        }
+      </label>
+
+      <label class="register__field">
+        <span class="register__label">Email <span class="register__req">*</span></span>
+        <input
+          class="register__control"
+          type="email"
+          formControlName="email"
+          autocomplete="email"
+          placeholder="you@company.com"
+        />
+        @if (fieldInvalid('email')) {
+          <span class="register__err">Enter a valid email.</span>
+        }
+      </label>
+
+      <div class="register__row2">
+        <label class="register__field">
+          <span class="register__label">Password <span class="register__req">*</span></span>
+          <input
+            class="register__control"
+            type="password"
+            formControlName="password"
+            autocomplete="new-password"
+            placeholder="••••••••"
+          />
+          @if (fieldInvalid('password')) {
+            <span class="register__err">At least 6 characters.</span>
+          }
+        </label>
+        <label class="register__field">
+          <span class="register__label">Confirm password <span class="register__req">*</span></span>
+          <input
+            class="register__control"
+            type="password"
+            formControlName="confirmPassword"
+            autocomplete="new-password"
+            placeholder="••••••••"
+          />
+          @if (fieldInvalid('confirmPassword')) {
+            <span class="register__err">Confirm your password.</span>
+          } @else if (confirmMismatch()) {
+            <span class="register__err">Passwords do not match.</span>
+          }
+        </label>
+      </div>
+
+      <label class="register__field">
+        <span class="register__label">Phone number <span class="register__opt">(optional)</span></span>
+        <input
+          class="register__control"
+          type="tel"
+          formControlName="phone"
+          autocomplete="tel"
+          placeholder="+1 (555) 000-0000"
+        />
+        @if (fieldInvalid('phone')) {
+          <span class="register__err">Phone is too long.</span>
+        }
+      </label>
+
+      @if (formError(); as err) {
+        <p class="register__banner" role="alert">{{ err }}</p>
+      }
+
+      <button type="submit" class="register__submit" [disabled]="submitting()">
+        {{ submitting() ? 'Creating account…' : 'Create account' }}
+      </button>
+    </form>
+
+    <p class="register__footer">
+      Already have an account?
+      <a routerLink="/login" class="register__link">Sign in</a>
+    </p>
+  </div>
+</div>

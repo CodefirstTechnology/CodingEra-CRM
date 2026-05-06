@@ -1,10 +1,22 @@
 import { Routes } from '@angular/router';
+import { authGuard, guestGuard } from './core/auth/auth.guard';
 import { CrmShellComponent } from './shell/crm-shell/crm-shell.component';
 
 export const routes: Routes = [
   {
+    path: 'login',
+    canMatch: [guestGuard],
+    loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent),
+  },
+  {
+    path: 'register',
+    canMatch: [guestGuard],
+    loadComponent: () => import('./features/auth/register.component').then((m) => m.RegisterComponent),
+  },
+  {
     path: '',
     component: CrmShellComponent,
+    canMatch: [authGuard],
     children: [
       {
         path: '',
@@ -48,4 +60,5 @@ export const routes: Routes = [
       },
     ],
   },
+  { path: '**', redirectTo: '' },
 ];
