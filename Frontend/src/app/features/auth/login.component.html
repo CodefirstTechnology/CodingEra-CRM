@@ -1,0 +1,53 @@
+<div class="login">
+  <div class="login__card">
+    <div class="login__brand">
+      <span class="login__logo">CRM</span>
+      <span class="login__tag">Pro</span>
+    </div>
+    <h1 class="login__title">Sign in</h1>
+    <p class="login__sub">Use your work email and password to continue.</p>
+
+    <form class="login__form" [formGroup]="form" (ngSubmit)="submit()">
+      <label class="login__field">
+        <span class="login__label">Email</span>
+        <input
+          class="login__control"
+          type="email"
+          formControlName="email"
+          autocomplete="username"
+          placeholder="you@company.com"
+        />
+        @if (form.get('email')?.invalid && (form.get('email')?.dirty || form.get('email')?.touched)) {
+          <span class="login__err">Enter a valid email.</span>
+        }
+      </label>
+
+      <label class="login__field">
+        <span class="login__label">Password</span>
+        <input
+          class="login__control"
+          type="password"
+          formControlName="password"
+          autocomplete="current-password"
+          placeholder="••••••••"
+        />
+        @if (form.get('password')?.invalid && (form.get('password')?.dirty || form.get('password')?.touched)) {
+          <span class="login__err">At least 6 characters.</span>
+        }
+      </label>
+
+      @if (formError(); as err) {
+        <p class="login__banner" role="alert">{{ err }}</p>
+      }
+
+      <button type="submit" class="login__submit" [disabled]="submitting()">
+        {{ submitting() ? 'Signing in…' : 'Sign in' }}
+      </button>
+    </form>
+
+    <p class="login__footer">
+      Don’t have an account?
+      <a routerLink="/register" class="login__link">Sign up</a>
+    </p>
+  </div>
+</div>
