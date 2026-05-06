@@ -1,9 +1,18 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+import { concat, concatMap, defaultIfEmpty, EMPTY, forkJoin, last, take, tap } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { DealsService } from '../../core/services/deals.service';
+import { LeadsService } from '../../core/services/leads.service';
+import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
+import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { mapLeadToDealRow } from '../../shared/utils/mappers';
+import { createIdSelection } from '../../shared/utils/selection-manager';
+import { environment } from '../../../environments/environment';
 
-export type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost';
+export type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost' | 'Converted';
 
 export interface LeadOwnerOption {
   id: string;
@@ -32,24 +41,35 @@ export interface LeadRow {
   leadOwnerName: string;
   owner: string;
   updated: string;
+  source?: string;
 }
 
 export type StatusFilter = 'all' | LeadStatus;
 
 @Component({
   selector: 'app-leads',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, CrmSelectionBarComponent, CrmAssignPickerComponent],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
 })
 export class LeadsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
+  private readonly leadsService = inject(LeadsService);
+  private readonly dealsService = inject(DealsService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+
+  protected readonly sel = createIdSelection();
+  protected readonly assignPickerOpen = signal(false);
+  protected readonly editingNumericId = signal<number | null>(null);
+  private lastRouteEdit = '';
 
   protected readonly formOpen = signal(false);
   protected readonly searchQuery = signal('');
   protected readonly statusFilter = signal<StatusFilter>('all');
 
+  /** Form / edit options (excludes system-only `Converted`, which is set by Convert to Deal). */
   protected readonly statusOptions: LeadStatus[] = ['New', 'Contacted', 'Qualified', 'Lost'];
   protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
@@ -67,7 +87,6 @@ export class LeadsComponent {
   protected readonly requestTypeOptions = ['', 'Sales', 'Support', 'Partnership', 'General inquiry'] as const;
 
   protected readonly leadOwnerOptions: LeadOwnerOption[] = [
-   
     { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
     { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
     { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
@@ -81,83 +100,27 @@ export class LeadsComponent {
     { id: 'Lost', label: 'Lost' },
   ];
 
-  protected readonly rows = signal<LeadRow[]>([
-    {
-      id: 'seed-1',
-      firstName: 'Priya',
-      lastName: 'Sharma',
-      name: 'Priya Sharma',
-      organization: 'Acme Ltd',
-      email: 'priya@acme.example',
-      status: 'Qualified',
-      industry: 'Technology',
-      owner: 'SK',
-      leadOwnerName: 'Sam Kumar',
-      updated: '2h ago',
-    },
-    {
-      id: 'seed-2',
-      firstName: 'Alex',
-      lastName: 'Rivera',
-      name: 'Alex Rivera',
-      organization: 'Globex',
-      email: 'alex@globex.example',
-      status: 'Contacted',
-      industry: 'Manufacturing',
-      owner: 'AM',
-      leadOwnerName: 'Alex Morgan',
-      updated: '5h ago',
-    },
-    {
-      id: 'seed-3',
-      firstName: 'Jordan',
-      lastName: 'Lee',
-      name: 'Jordan Lee',
-      organization: 'Initech',
-      email: 'jordan@initech.example',
-      status: 'New',
-      industry: 'Finance',
-      owner: 'JD',
-      leadOwnerName: 'Jordan Doe',
-      updated: 'Yesterday',
-    },
-    {
-      id: 'seed-4',
-      firstName: 'Sam',
-      lastName: 'Taylor',
-      name: 'Sam Taylor',
-      organization: 'Northwind',
-      email: 'sam@northwind.example',
-      status: 'New',
-      industry: 'Retail',
-      owner: 'SK',
-      leadOwnerName: 'Sam Kumar',
-      updated: 'Yesterday',
-    },
-    {
-      id: 'seed-5',
-      firstName: 'Casey',
-      lastName: 'Morgan',
-      name: 'Casey Morgan',
-      organization: 'Umbrella Corp',
-      email: 'casey@umbrella.example',
-      status: 'Lost',
-      industry: 'Other',
-      owner: 'AM',
-      leadOwnerName: 'Alex Morgan',
-      updated: '3d ago',
-    },
-  ]);
+  protected readonly rows = signal<LeadRow[]>([]);
 
   constructor() {
+    this.refreshLeads();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'lead') return;
-      const row = e.row as LeadRow;
-      if (row.email && this.rows().some((r) => r.email.toLowerCase() === row.email.toLowerCase())) {
-        return;
-      }
-      this.rows.update((list) => [row, ...list]);
+      this.refreshLeads();
     });
+    this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
+      const edit = q['edit'];
+      if (edit != null && edit !== '') {
+        this.beginEditFromRoute(String(edit));
+      }
+    });
+  }
+
+  private refreshLeads(): void {
+    this.leadsService
+      .getAll()
+      .pipe(take(1))
+      .subscribe((rows) => this.rows.set(rows));
   }
 
   protected readonly filtered = computed(() => {
@@ -181,6 +144,20 @@ export class LeadsComponent {
     });
   });
 
+  protected readonly allSelectedFiltered = computed(() =>
+    this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
+  );
+
+  protected readonly assignDefaultOwnerId = computed(() => {
+    const ids = this.sel.selectedItems();
+    const first = this.rows().find((r) => r.id === ids[0]);
+    if (!first) return 'SK';
+    return (
+      this.leadOwnerOptions.find((o) => o.initials === first.owner || o.label === first.leadOwnerName)?.id ??
+      'SK'
+    );
+  });
+
   protected readonly createForm = this.fb.nonNullable.group({
     salutation: [''],
     lastName: ['', Validators.maxLength(120)],
@@ -195,12 +172,23 @@ export class LeadsComponent {
     territory: [''],
     industry: ['Technology', Validators.required],
     status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),
-    leadOwner: ['RD', Validators.required],
+    leadOwner: ['SK', Validators.required],
     requestType: [''],
     customField: ['', Validators.maxLength(240)],
   });
 
+  private clearEditQuery(): void {
+    this.lastRouteEdit = '';
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: null },
+      queryParamsHandling: 'merge',
+    });
+  }
+
   protected openForm(): void {
+    this.editingNumericId.set(null);
+    this.clearEditQuery();
     this.createForm.reset({
       salutation: '',
       lastName: '',
@@ -215,7 +203,7 @@ export class LeadsComponent {
       territory: '',
       industry: 'Technology',
       status: 'New',
-      leadOwner: 'RD',
+      leadOwner: 'SK',
       requestType: '',
       customField: '',
     });
@@ -225,6 +213,8 @@ export class LeadsComponent {
 
   protected closeForm(): void {
     this.formOpen.set(false);
+    this.editingNumericId.set(null);
+    this.clearEditQuery();
     this.createForm.reset({
       salutation: '',
       lastName: '',
@@ -239,11 +229,175 @@ export class LeadsComponent {
       territory: '',
       industry: 'Technology',
       status: 'New',
-      leadOwner: 'RD',
+      leadOwner: 'SK',
       requestType: '',
       customField: '',
     });
     this.createForm.markAsUntouched();
+  }
+
+  private beginEditFromRoute(idStr: string): void {
+    if (this.lastRouteEdit === idStr && this.formOpen()) return;
+    const id = Number(idStr);
+    if (!Number.isFinite(id)) return;
+    this.lastRouteEdit = idStr;
+    this.leadsService
+      .getById(id)
+      .pipe(take(1))
+      .subscribe((row) => {
+        if (!row) return;
+        this.editingNumericId.set(id);
+        const ownerOpt = this.leadOwnerOptions.find(
+          (o) => o.initials === row.owner || o.label === row.leadOwnerName,
+        );
+        const ar = row.annualRevenue?.trim() ?? '';
+        const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
+        this.createForm.patchValue({
+          salutation: row.salutation ?? '',
+          lastName: row.lastName ?? '',
+          mobile: row.mobile ?? '',
+          firstName: row.firstName ?? '',
+          email: row.email ?? '',
+          gender: row.gender ?? '',
+          organization: row.organization ?? '',
+          employees: row.employees ?? '1-10',
+          annualRevenue: arInput,
+          website: row.website ?? '',
+          territory: row.territory ?? '',
+          industry: row.industry ?? 'Technology',
+          status: row.status ?? 'New',
+          leadOwner: ownerOpt?.id ?? 'SK',
+          requestType: row.requestType ?? '',
+          customField: row.notes ?? '',
+        });
+        this.formOpen.set(true);
+      });
+  }
+
+  protected toggleRowSelection(id: string, ev?: Event): void {
+    ev?.stopPropagation();
+    this.sel.toggle(id);
+  }
+
+  protected toggleSelectAllFiltered(): void {
+    this.sel.toggleSelectAll(this.filtered().map((r) => r.id));
+  }
+
+  protected onBulkEdit(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length !== 1) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: ids[0] },
+      queryParamsHandling: 'merge',
+    });
+    this.beginEditFromRoute(ids[0]);
+  }
+
+  protected onBulkDelete(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length === 0) return;
+    const streams = ids.map((sid) => this.leadsService.delete(Number(sid)).pipe(take(1)));
+    forkJoin(streams).subscribe(() => {
+      this.sel.clear();
+      this.refreshLeads();
+    });
+  }
+
+  protected onBulkDismiss(): void {
+    this.sel.clear();
+  }
+
+  protected onAssignToMenu(): void {
+    this.assignPickerOpen.set(true);
+  }
+
+  protected onAssignClosed(): void {
+    this.assignPickerOpen.set(false);
+  }
+
+  protected onAssignPicked(ownerKey: string): void {
+    const opt = this.leadOwnerOptions.find((o) => o.id === ownerKey);
+    if (!opt) {
+      this.assignPickerOpen.set(false);
+      return;
+    }
+    const ids = this.sel.selectedItems();
+    if (ids.length === 0) return;
+    const streams = ids.map((sid) =>
+      this.leadsService
+        .update(Number(sid), {
+          leadOwnerName: opt.label,
+          owner: opt.initials,
+          updated: 'Just now',
+        })
+        .pipe(take(1)),
+    );
+    forkJoin(streams).subscribe(() => {
+      this.assignPickerOpen.set(false);
+      this.sel.clear();
+      this.refreshLeads();
+    });
+  }
+
+  protected onClearAssignmentBulk(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length === 0) return;
+    const streams = ids.map((sid) =>
+      this.leadsService
+        .update(Number(sid), {
+          leadOwnerName: '—',
+          owner: '—',
+          updated: 'Just now',
+        })
+        .pipe(take(1)),
+    );
+    forkJoin(streams).subscribe(() => {
+      this.sel.clear();
+      this.refreshLeads();
+    });
+  }
+
+  protected convertToDeal(): void {
+    const ids = [...this.sel.selectedItems()];
+    if (ids.length === 0) return;
+
+    const streams = ids
+      .map((sid) => {
+        const lead = this.rows().find((r) => r.id === sid);
+        if (!lead || lead.status === 'Converted') return null;
+        const idn = Number(sid);
+        const after = environment.leadConversionAfterDeal;
+        return this.dealsService.create(mapLeadToDealRow(lead)).pipe(
+          take(1),
+          tap((created) => this.createRowBus.publish('deal', created)),
+          concatMap(() =>
+            after === 'delete'
+              ? this.leadsService.delete(idn).pipe(take(1))
+              : this.leadsService
+                  .update(idn, { status: 'Converted', updated: 'Just now' })
+                  .pipe(take(1)),
+          ),
+        );
+      })
+      .filter((s): s is NonNullable<typeof s> => s != null);
+
+    if (streams.length === 0) {
+      this.sel.clear();
+      this.refreshLeads();
+      return;
+    }
+
+    const convertedCount = streams.length;
+    concat(...streams)
+      .pipe(last(), defaultIfEmpty(null))
+      .subscribe(() => {
+        this.sel.clear();
+        this.refreshLeads();
+        if (convertedCount > 0 && environment.showLeadConvertSuccessMessage) {
+          window.alert('Lead converted to deal successfully');
+        }
+      });
   }
 
   protected clearEmailDuplicate(): void {
@@ -276,11 +430,7 @@ export class LeadsComponent {
     return this.statusFilter() === id;
   }
 
-  private buildDisplayName(
-    salutation: string,
-    first: string,
-    last: string,
-  ): string {
+  private buildDisplayName(salutation: string, first: string, last: string): string {
     const parts = [salutation.trim(), first.trim(), last.trim()].filter(Boolean);
     return parts.join(' ').trim() || first.trim() || last.trim() || 'Lead';
   }
@@ -293,9 +443,13 @@ export class LeadsComponent {
     const emailTrim = raw.email.trim();
     const emailLower = emailTrim.toLowerCase();
     const emailCtrl = this.createForm.get('email');
+    const editId = this.editingNumericId();
     if (
       emailTrim &&
-      this.rows().some((r) => r.email.toLowerCase() === emailLower)
+      this.rows().some(
+        (r) =>
+          r.email.toLowerCase() === emailLower && (editId == null || Number(r.id) !== editId),
+      )
     ) {
       if (emailCtrl) {
         emailCtrl.setErrors({ ...(emailCtrl.errors ?? {}), duplicate: true });
@@ -308,8 +462,7 @@ export class LeadsComponent {
     const initials = ownerOpt?.initials ?? raw.leadOwner;
     const leadOwnerName = ownerOpt?.label ?? raw.leadOwner;
 
-    const row: LeadRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<LeadRow, 'id'> = {
       salutation: raw.salutation || undefined,
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
@@ -331,8 +484,36 @@ export class LeadsComponent {
       updated: 'Just now',
     };
 
-    this.rows.update((list) => [row, ...list]);
-    this.closeForm();
+    const done = () => {
+      this.sel.clear();
+      this.refreshLeads();
+      this.closeForm();
+    };
+
+    if (editId != null) {
+      this.leadsService
+        .update(editId, payload)
+        .pipe(take(1))
+        .subscribe(() => done());
+    } else {
+      this.leadsService
+        .create(payload)
+        .pipe(take(1))
+        .subscribe(() => done());
+    }
+  }
+
+  protected deleteLead(row: LeadRow, ev: Event): void {
+    ev.stopPropagation();
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) return;
+    this.leadsService
+      .delete(id)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.sel.removeId(row.id);
+        this.refreshLeads();
+      });
   }
 
   protected fieldInvalid(name: string): boolean {
@@ -348,6 +529,8 @@ export class LeadsComponent {
         return 'leads__tag leads__tag--accent';
       case 'Lost':
         return 'leads__tag leads__tag--bad';
+      case 'Converted':
+        return 'leads__tag leads__tag--ok';
       default:
         return 'leads__tag leads__tag--muted';
     }

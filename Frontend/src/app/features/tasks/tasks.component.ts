@@ -1,7 +1,12 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { TasksService } from '../../core/services/tasks.service';
+import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { createIdSelection } from '../../shared/utils/selection-manager';
 
 export type TaskStatus = 'Backlog' | 'Todo' | 'In Progress' | 'Done' | 'Canceled';
 export type TaskPriority = 'Low' | 'Medium' | 'High';
@@ -26,13 +31,20 @@ export interface TaskRow {
 
 @Component({
   selector: 'app-tasks',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, CrmSelectionBarComponent],
   templateUrl: './tasks.component.html',
   styleUrl: './tasks.component.scss',
 })
 export class TasksComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
+  private readonly tasksService = inject(TasksService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+
+  protected readonly sel = createIdSelection();
+  protected readonly editingNumericId = signal<number | null>(null);
+  private lastRouteEdit = '';
 
   private localDatetimeInputValue(d = new Date()): string {
     const p = (n: number) => String(n).padStart(2, '0');
@@ -40,7 +52,6 @@ export class TasksComponent {
   }
 
   protected readonly formOpen = signal(false);
-  protected readonly selectedIds = signal<Set<string>>(new Set());
 
   protected readonly taskStatusOptions: { value: TaskStatus; label: string }[] = [
     { value: 'Backlog', label: '◌ Backlog' },
@@ -63,66 +74,32 @@ export class TasksComponent {
     { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
   ];
 
-  protected readonly rows = signal<TaskRow[]>([
-    {
-      id: 't1',
-      title: 'Follow up — Acme proposal',
-      status: 'In Progress',
-      priority: 'High',
-      dueDate: '04/01/2024, 11:30 am',
-      dueDateRaw: '2024-04-01T11:30',
-      assignedTo: 'Rohit Dhaygude',
-      assignedInitials: 'R',
-      lastModified: '2h ago',
-    },
-    {
-      id: 't2',
-      title: 'Send contract — Globex',
-      status: 'Todo',
-      priority: 'Medium',
-      dueDate: '08/04/2024, 09:00 am',
-      dueDateRaw: '2024-04-08T09:00',
-      assignedTo: 'Sam Kumar',
-      assignedInitials: 'SK',
-      lastModified: 'Yesterday',
-    },
-    {
-      id: 't3',
-      title: 'QBR prep — Northwind',
-      status: 'Backlog',
-      priority: 'Low',
-      dueDate: '15/04/2024, 03:00 pm',
-      dueDateRaw: '2024-04-15T15:00',
-      assignedTo: 'Alex Morgan',
-      assignedInitials: 'AM',
-      lastModified: '3d ago',
-    },
-    {
-      id: 't4',
-      title: 'Renewal reminder',
-      status: 'Done',
-      priority: 'Low',
-      dueDate: '—',
-      dueDateRaw: '',
-      assignedTo: 'Jordan Doe',
-      assignedInitials: 'JD',
-      lastModified: '1w ago',
-    },
-  ]);
+  protected readonly rows = signal<TaskRow[]>([]);
 
   constructor() {
+    this.refreshTasks();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'task') return;
-      this.rows.update((list) => [e.row as TaskRow, ...list]);
+      this.refreshTasks();
+    });
+    this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
+      const edit = q['edit'];
+      if (edit != null && edit !== '') {
+        this.beginEditFromRoute(String(edit));
+      }
     });
   }
 
-  protected readonly allSelected = computed(() => {
-    const ids = this.rows().map((r) => r.id);
-    if (ids.length === 0) return false;
-    const sel = this.selectedIds();
-    return ids.every((id) => sel.has(id));
-  });
+  private refreshTasks(): void {
+    this.tasksService
+      .getAll()
+      .pipe(take(1))
+      .subscribe((rows) => this.rows.set(rows));
+  }
+
+  protected readonly allSelected = computed(() =>
+    this.sel.allSelectedIn(this.rows().map((r) => r.id)),
+  );
 
   protected readonly createForm = this.fb.nonNullable.group({
     title: ['', [Validators.required, Validators.maxLength(200)]],
@@ -133,31 +110,31 @@ export class TasksComponent {
     priority: this.fb.nonNullable.control<TaskPriority>('Low', Validators.required),
   });
 
+  private clearEditQuery(): void {
+    this.lastRouteEdit = '';
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: null },
+      queryParamsHandling: 'merge',
+    });
+  }
+
   protected isRowSelected(id: string): boolean {
-    return this.selectedIds().has(id);
+    return this.sel.isSelected(id);
   }
 
   protected toggleRow(id: string, ev?: Event): void {
     ev?.stopPropagation();
-    this.selectedIds.update((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    this.sel.toggle(id);
   }
 
   protected toggleSelectAll(): void {
-    const ids = this.rows().map((r) => r.id);
-    this.selectedIds.update((prev) => {
-      if (ids.length && ids.every((id) => prev.has(id))) {
-        return new Set();
-      }
-      return new Set(ids);
-    });
+    this.sel.toggleSelectAll(this.rows().map((r) => r.id));
   }
 
   protected openForm(): void {
+    this.editingNumericId.set(null);
+    this.clearEditQuery();
     this.createForm.reset({
       title: '',
       description: '',
@@ -172,6 +149,8 @@ export class TasksComponent {
 
   protected closeForm(): void {
     this.formOpen.set(false);
+    this.editingNumericId.set(null);
+    this.clearEditQuery();
     this.createForm.reset({
       title: '',
       description: '',
@@ -181,6 +160,56 @@ export class TasksComponent {
       priority: 'Low',
     });
     this.createForm.markAsUntouched();
+  }
+
+  private beginEditFromRoute(idStr: string): void {
+    if (this.lastRouteEdit === idStr && this.formOpen()) return;
+    const id = Number(idStr);
+    if (!Number.isFinite(id)) return;
+    this.lastRouteEdit = idStr;
+    this.tasksService
+      .getById(id)
+      .pipe(take(1))
+      .subscribe((row) => {
+        if (!row) return;
+        this.editingNumericId.set(id);
+        const person = this.assigneeOptions.find(
+          (a) => a.initials === row.assignedInitials || a.label === row.assignedTo,
+        );
+        this.createForm.patchValue({
+          title: row.title,
+          description: '',
+          status: row.status,
+          assignee: person?.id ?? 'RD',
+          dueDate: row.dueDateRaw || '',
+          priority: row.priority,
+        });
+        this.formOpen.set(true);
+      });
+  }
+
+  protected onBulkEdit(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length !== 1) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: ids[0] },
+      queryParamsHandling: 'merge',
+    });
+    this.beginEditFromRoute(ids[0]);
+  }
+
+  protected onBulkDelete(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length === 0) return;
+    forkJoin(ids.map((sid) => this.tasksService.delete(Number(sid)).pipe(take(1)))).subscribe(() => {
+      this.sel.clear();
+      this.refreshTasks();
+    });
+  }
+
+  protected onBulkDismiss(): void {
+    this.sel.clear();
   }
 
   protected fieldInvalid(name: string): boolean {
@@ -211,8 +240,7 @@ export class TasksComponent {
     const dueRaw = raw.dueDate.trim();
     const dueDisplay = dueRaw ? this.formatDueDisplay(dueRaw) : '—';
 
-    const row: TaskRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<TaskRow, 'id'> = {
       title: raw.title.trim(),
       status: raw.status,
       priority: raw.priority,
@@ -223,8 +251,37 @@ export class TasksComponent {
       lastModified: 'Just now',
     };
 
-    this.rows.update((list) => [row, ...list]);
-    this.closeForm();
+    const editId = this.editingNumericId();
+    const done = () => {
+      this.sel.clear();
+      this.refreshTasks();
+      this.closeForm();
+    };
+
+    if (editId != null) {
+      this.tasksService
+        .update(editId, payload)
+        .pipe(take(1))
+        .subscribe(() => done());
+    } else {
+      this.tasksService
+        .create(payload)
+        .pipe(take(1))
+        .subscribe(() => done());
+    }
+  }
+
+  protected deleteTask(row: TaskRow, ev: Event): void {
+    ev.stopPropagation();
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) return;
+    this.tasksService
+      .delete(id)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.sel.removeId(row.id);
+        this.refreshTasks();
+      });
   }
 
   protected statusClass(status: TaskStatus): string {

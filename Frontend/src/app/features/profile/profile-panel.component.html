@@ -5,10 +5,10 @@
 <aside class="pp-panel" [class.pp-panel--open]="panel.open()" aria-label="Profile menu">
   <header class="pp-head">
     <div class="pp-user">
-      <div class="pp-avatar" aria-hidden="true">JD</div>
+      <div class="pp-avatar" aria-hidden="true">{{ avatarInitial() }}</div>
       <div>
-        <p class="pp-name">Jordan Doe</p>
-        <p class="pp-role">Sales · Admin</p>
+        <p class="pp-name">{{ auth.user()?.name ?? 'User' }}</p>
+        <p class="pp-role">{{ auth.user()?.role ?? 'Member' }}</p>
       </div>
     </div>
     <button type="button" class="pp-close" (click)="close()" aria-label="Close profile">
@@ -19,7 +19,7 @@
   </header>
 
   <div class="pp-body">
-    <p class="pp-email">jordan.doe&#64;company.example</p>
+    <p class="pp-email">{{ auth.user()?.email ?? '' }}</p>
     <ul class="pp-actions">
       <li><button type="button" class="pp-link">Account settings</button></li>
       <li><button type="button" class="pp-link">Preferences</button></li>
@@ -28,7 +28,7 @@
   </div>
 
   <footer class="pp-foot">
-    <button type="button" class="pp-signout">Sign out</button>
+    <button type="button" class="pp-signout" (click)="signOut()">Sign out</button>
     <button type="button" class="pp-done" (click)="close()">Close</button>
   </footer>
 </aside>

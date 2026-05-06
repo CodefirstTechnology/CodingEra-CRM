@@ -1,9 +1,16 @@
 import { Component, effect, inject, untracked } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { take } from 'rxjs';
 import type { CreateEntityKind } from '../../core/create-flow/create-entity-kind';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { CrmModalComponent } from '../../core/modal/crm-modal.component';
+import { CallLogsService } from '../../core/services/call-logs.service';
+import { ContactsService } from '../../core/services/contacts.service';
+import { DealsService } from '../../core/services/deals.service';
+import { LeadsService } from '../../core/services/leads.service';
+import { OrganizationsService } from '../../core/services/organizations.service';
+import { TasksService } from '../../core/services/tasks.service';
 import type { CallLogRow } from '../call-logs/call-logs.component';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from '../deals/deals.component';
@@ -22,6 +29,12 @@ export class CreateEntityFormModalComponent {
   private readonly fb = inject(FormBuilder);
   protected readonly flow = inject(CreateFlowService);
   private readonly bus = inject(CreateRowBusService);
+  private readonly leadsService = inject(LeadsService);
+  private readonly dealsService = inject(DealsService);
+  private readonly contactsService = inject(ContactsService);
+  private readonly organizationsService = inject(OrganizationsService);
+  private readonly tasksService = inject(TasksService);
+  private readonly callLogsService = inject(CallLogsService);
 
   protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
@@ -358,8 +371,7 @@ export class CreateEntityFormModalComponent {
     const initials = ownerOpt?.initials ?? raw.leadOwner;
     const leadOwnerName = ownerOpt?.label ?? raw.leadOwner;
 
-    const row: LeadRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<LeadRow, 'id'> = {
       salutation: raw.salutation || undefined,
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
@@ -381,8 +393,13 @@ export class CreateEntityFormModalComponent {
       updated: 'Just now',
     };
 
-    this.bus.publish('lead', row);
-    this.flow.closeFormModal();
+    this.leadsService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe((saved) => {
+        this.bus.publish('lead', saved);
+        this.flow.closeFormModal();
+      });
   }
 
   protected submitDeal(): void {
@@ -394,8 +411,7 @@ export class CreateEntityFormModalComponent {
     const owner = this.dealOwnerOptions.find((o) => o.id === raw.dealOwner);
     const displayRev = raw.annualRevenue.trim() ? `₹ ${raw.annualRevenue.trim()}` : '₹ 0.00';
 
-    const row: DealRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<DealRow, 'id'> = {
       organization: raw.organizationName.trim(),
       annualRevenue: displayRev,
       status: raw.status,
@@ -406,8 +422,13 @@ export class CreateEntityFormModalComponent {
       lastModified: 'Just now',
     };
 
-    this.bus.publish('deal', row);
-    this.flow.closeFormModal();
+    this.dealsService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe((saved) => {
+        this.bus.publish('deal', saved);
+        this.flow.closeFormModal();
+      });
   }
 
   protected submitContact(): void {
@@ -415,16 +436,20 @@ export class CreateEntityFormModalComponent {
     if (this.contactForm.invalid) return;
 
     const raw = this.contactForm.getRawValue();
-    const row: ContactRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<ContactRow, 'id'> = {
       email: raw.email.trim(),
       phone: raw.mobile.trim() || '—',
       organization: raw.companyName.trim(),
       lastModified: 'Just now',
     };
 
-    this.bus.publish('contact', row);
-    this.flow.closeFormModal();
+    this.contactsService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe((saved) => {
+        this.bus.publish('contact', saved);
+        this.flow.closeFormModal();
+      });
   }
 
   protected submitOrganization(): void {
@@ -439,8 +464,7 @@ export class CreateEntityFormModalComponent {
     }
     const displayRev = raw.annualRevenue.trim() ? `₹ ${raw.annualRevenue.trim()}` : '₹ 0.00';
 
-    const row: OrganizationRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<OrganizationRow, 'id'> = {
       name: nameTrim,
       website: web || '—',
       industry: raw.industry,
@@ -448,8 +472,13 @@ export class CreateEntityFormModalComponent {
       lastModified: 'Just now',
     };
 
-    this.bus.publish('organization', row);
-    this.flow.closeFormModal();
+    this.organizationsService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe((saved) => {
+        this.bus.publish('organization', saved);
+        this.flow.closeFormModal();
+      });
   }
 
   protected formatDueDisplay(iso: string): string {
@@ -475,8 +504,7 @@ export class CreateEntityFormModalComponent {
     const dueRaw = raw.dueDate.trim();
     const dueDisplay = dueRaw ? this.formatDueDisplay(dueRaw) : '—';
 
-    const row: TaskRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<TaskRow, 'id'> = {
       title: raw.title.trim(),
       status: raw.status,
       priority: raw.priority,
@@ -487,8 +515,13 @@ export class CreateEntityFormModalComponent {
       lastModified: 'Just now',
     };
 
-    this.bus.publish('task', row);
-    this.flow.closeFormModal();
+    this.tasksService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe((saved) => {
+        this.bus.publish('task', saved);
+        this.flow.closeFormModal();
+      });
   }
 
   private pad2(n: number): string {
@@ -523,18 +556,25 @@ export class CreateEntityFormModalComponent {
 
     const when = this.formatWhen(v.startedAt);
 
-    const row: CallLogRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<CallLogRow, 'id'> = {
       direction,
       contact,
       number: v.phoneNumber.trim(),
       duration,
       when,
       outcome,
+      startedAtIso: v.startedAt,
+      contactName: v.contactName.trim(),
+      callSummary: v.summary.trim(),
     };
 
-    this.bus.publish('callLog', row);
-    this.flow.closeFormModal();
+    this.callLogsService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe((saved) => {
+        this.bus.publish('callLog', saved);
+        this.flow.closeFormModal();
+      });
   }
 
   private formatWhen(isoLocal: string): string {
