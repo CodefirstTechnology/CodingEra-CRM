@@ -201,6 +201,7 @@
             <th class="deals__th">Mobile No</th>
             <th class="deals__th">Assigned To</th>
             <th class="deals__th">Last Modified</th>
+            <th class="deals__th">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -227,6 +228,9 @@
                 </span>
               </td>
               <td class="deals__td deals__td--muted">{{ row.lastModified }}</td>
+              <td class="deals__td">
+                <button type="button" class="deals__linkish" (click)="deleteDeal(row, $event)">Delete</button>
+              </td>
             </tr>
           }
         </tbody>

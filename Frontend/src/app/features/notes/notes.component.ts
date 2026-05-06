@@ -1,5 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { take } from 'rxjs';
+import { NotesService } from '../../core/services/notes.service';
 
 export interface NoteRow {
   id: string;
@@ -11,44 +13,6 @@ export interface NoteRow {
   bodyPreview?: string;
 }
 
-const SEED: NoteRow[] = [
-  {
-    id: '1',
-    title: 'Follow up after demo — interested in enterprise tier',
-    record: 'Lead · Northwind Traders',
-    author: 'Jordan Doe',
-    when: 'Today, 8:42 AM',
-  },
-  {
-    id: '2',
-    title: 'Legal requested MSA redlines before signature',
-    record: 'Deal · Acme Corp',
-    author: 'Sam Lee',
-    when: 'Yesterday, 4:18 PM',
-  },
-  {
-    id: '3',
-    title: 'Budget confirmed for Q1; waiting on procurement',
-    record: 'Organization · Contoso Ltd',
-    author: 'Maria Chen',
-    when: 'Mon, Jan 27',
-  },
-  {
-    id: '4',
-    title: 'Call summary: renewal discussion, no blockers',
-    record: 'Contact · Alex Morgan',
-    author: 'Jordan Doe',
-    when: 'Mon, Jan 27',
-  },
-  {
-    id: '5',
-    title: 'Competitor mentioned — position on integrations',
-    record: 'Deal · Fabrikam Inc',
-    author: 'Alex Rivera',
-    when: 'Fri, Jan 24',
-  },
-];
-
 @Component({
   selector: 'app-notes',
   imports: [ReactiveFormsModule],
@@ -57,9 +21,21 @@ const SEED: NoteRow[] = [
 })
 export class NotesComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly notesService = inject(NotesService);
 
   protected readonly formOpen = signal(false);
-  protected readonly rows = signal<NoteRow[]>(SEED);
+  protected readonly rows = signal<NoteRow[]>([]);
+
+  constructor() {
+    this.refreshNotes();
+  }
+
+  private refreshNotes(): void {
+    this.notesService
+      .getAll()
+      .pipe(take(1))
+      .subscribe((rows) => this.rows.set(rows));
+  }
 
   protected readonly relatedTypeOptions = [
     { value: 'lead', label: 'Lead' },
@@ -114,16 +90,30 @@ export class NotesComponent {
     const body = v.body.trim();
     const bodyPreview = body.length > 140 ? `${body.slice(0, 140)}…` : body;
 
-    const newRow: NoteRow = {
-      id: `n-${Date.now()}`,
+    const payload: Omit<NoteRow, 'id'> = {
       title: v.title.trim(),
       record,
       author: 'You',
       when: 'Just now',
       bodyPreview,
     };
-    this.rows.update((list) => [newRow, ...list]);
-    this.closeForm();
+    this.notesService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.refreshNotes();
+        this.closeForm();
+      });
+  }
+
+  protected deleteNote(row: NoteRow, ev: Event): void {
+    ev.stopPropagation();
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) return;
+    this.notesService
+      .delete(id)
+      .pipe(take(1))
+      .subscribe(() => this.refreshNotes());
   }
 
   protected fieldInvalid(name: 'relatedType' | 'relatedName' | 'title' | 'body' | 'visibility'): boolean {

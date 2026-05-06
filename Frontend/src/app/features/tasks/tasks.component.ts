@@ -1,7 +1,9 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { TasksService } from '../../core/services/tasks.service';
 
 export type TaskStatus = 'Backlog' | 'Todo' | 'In Progress' | 'Done' | 'Canceled';
 export type TaskPriority = 'Low' | 'Medium' | 'High';
@@ -33,6 +35,7 @@ export interface TaskRow {
 export class TasksComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
+  private readonly tasksService = inject(TasksService);
 
   private localDatetimeInputValue(d = new Date()): string {
     const p = (n: number) => String(n).padStart(2, '0');
@@ -63,58 +66,21 @@ export class TasksComponent {
     { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
   ];
 
-  protected readonly rows = signal<TaskRow[]>([
-    {
-      id: 't1',
-      title: 'Follow up — Acme proposal',
-      status: 'In Progress',
-      priority: 'High',
-      dueDate: '04/01/2024, 11:30 am',
-      dueDateRaw: '2024-04-01T11:30',
-      assignedTo: 'Rohit Dhaygude',
-      assignedInitials: 'R',
-      lastModified: '2h ago',
-    },
-    {
-      id: 't2',
-      title: 'Send contract — Globex',
-      status: 'Todo',
-      priority: 'Medium',
-      dueDate: '08/04/2024, 09:00 am',
-      dueDateRaw: '2024-04-08T09:00',
-      assignedTo: 'Sam Kumar',
-      assignedInitials: 'SK',
-      lastModified: 'Yesterday',
-    },
-    {
-      id: 't3',
-      title: 'QBR prep — Northwind',
-      status: 'Backlog',
-      priority: 'Low',
-      dueDate: '15/04/2024, 03:00 pm',
-      dueDateRaw: '2024-04-15T15:00',
-      assignedTo: 'Alex Morgan',
-      assignedInitials: 'AM',
-      lastModified: '3d ago',
-    },
-    {
-      id: 't4',
-      title: 'Renewal reminder',
-      status: 'Done',
-      priority: 'Low',
-      dueDate: '—',
-      dueDateRaw: '',
-      assignedTo: 'Jordan Doe',
-      assignedInitials: 'JD',
-      lastModified: '1w ago',
-    },
-  ]);
+  protected readonly rows = signal<TaskRow[]>([]);
 
   constructor() {
+    this.refreshTasks();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'task') return;
-      this.rows.update((list) => [e.row as TaskRow, ...list]);
+      this.refreshTasks();
     });
+  }
+
+  private refreshTasks(): void {
+    this.tasksService
+      .getAll()
+      .pipe(take(1))
+      .subscribe((rows) => this.rows.set(rows));
   }
 
   protected readonly allSelected = computed(() => {
@@ -211,8 +177,7 @@ export class TasksComponent {
     const dueRaw = raw.dueDate.trim();
     const dueDisplay = dueRaw ? this.formatDueDisplay(dueRaw) : '—';
 
-    const row: TaskRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<TaskRow, 'id'> = {
       title: raw.title.trim(),
       status: raw.status,
       priority: raw.priority,
@@ -223,8 +188,30 @@ export class TasksComponent {
       lastModified: 'Just now',
     };
 
-    this.rows.update((list) => [row, ...list]);
-    this.closeForm();
+    this.tasksService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.refreshTasks();
+        this.closeForm();
+      });
+  }
+
+  protected deleteTask(row: TaskRow, ev: Event): void {
+    ev.stopPropagation();
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) return;
+    this.tasksService
+      .delete(id)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.selectedIds.update((prev) => {
+          const next = new Set(prev);
+          next.delete(row.id);
+          return next;
+        });
+        this.refreshTasks();
+      });
   }
 
   protected statusClass(status: TaskStatus): string {

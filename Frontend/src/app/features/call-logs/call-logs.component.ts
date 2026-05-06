@@ -1,7 +1,9 @@
 import { Component, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { CallLogsService } from '../../core/services/call-logs.service';
 
 export interface CallLogRow {
   id: string;
@@ -13,54 +15,6 @@ export interface CallLogRow {
   outcome: string;
 }
 
-const SEED: CallLogRow[] = [
-  {
-    id: '1',
-    direction: 'Outbound',
-    contact: 'Alex Morgan',
-    number: '+1 (415) 555-0192',
-    duration: '12:04',
-    when: 'Today, 10:02 AM',
-    outcome: 'Connected',
-  },
-  {
-    id: '2',
-    direction: 'Inbound',
-    contact: 'Acme Corp — main line',
-    number: '+1 (212) 555-0147',
-    duration: '03:41',
-    when: 'Today, 9:18 AM',
-    outcome: 'Connected',
-  },
-  {
-    id: '3',
-    direction: 'Outbound',
-    contact: 'Maria Chen',
-    number: '+1 (650) 555-0163',
-    duration: '22:17',
-    when: 'Yesterday, 3:55 PM',
-    outcome: 'Voicemail',
-  },
-  {
-    id: '4',
-    direction: 'Inbound',
-    contact: 'Unknown caller',
-    number: '+1 (503) 555-0188',
-    duration: '00:48',
-    when: 'Yesterday, 11:06 AM',
-    outcome: 'No answer',
-  },
-  {
-    id: '5',
-    direction: 'Outbound',
-    contact: 'Northwind — procurement',
-    number: '+44 20 7946 0958',
-    duration: '07:29',
-    when: 'Mon, Jan 27',
-    outcome: 'Connected',
-  },
-];
-
 @Component({
   selector: 'app-call-logs',
   imports: [ReactiveFormsModule],
@@ -70,15 +24,24 @@ const SEED: CallLogRow[] = [
 export class CallLogsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
+  private readonly callLogsService = inject(CallLogsService);
 
   protected readonly formOpen = signal(false);
-  protected readonly rows = signal<CallLogRow[]>(SEED);
+  protected readonly rows = signal<CallLogRow[]>([]);
 
   constructor() {
+    this.refreshCallLogs();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'callLog') return;
-      this.rows.update((list) => [e.row as CallLogRow, ...list]);
+      this.refreshCallLogs();
     });
+  }
+
+  private refreshCallLogs(): void {
+    this.callLogsService
+      .getAll()
+      .pipe(take(1))
+      .subscribe((rows) => this.rows.set(rows));
   }
 
   protected readonly callForm = this.fb.nonNullable.group({
@@ -157,8 +120,7 @@ export class CallLogsComponent {
         ? `${v.contactName.trim()} · ${v.summary.trim().slice(0, 48)}${v.summary.trim().length > 48 ? '…' : ''}`
         : v.contactName.trim();
 
-    const newRow: CallLogRow = {
-      id: `c-${Date.now()}`,
+    const payload: Omit<CallLogRow, 'id'> = {
       direction,
       contact,
       number: v.phoneNumber.trim(),
@@ -166,8 +128,23 @@ export class CallLogsComponent {
       when: this.formatWhen(v.startedAt),
       outcome,
     };
-    this.rows.update((list) => [newRow, ...list]);
-    this.closeForm();
+    this.callLogsService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.refreshCallLogs();
+        this.closeForm();
+      });
+  }
+
+  protected deleteCallLog(row: CallLogRow, ev: Event): void {
+    ev.stopPropagation();
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) return;
+    this.callLogsService
+      .delete(id)
+      .pipe(take(1))
+      .subscribe(() => this.refreshCallLogs());
   }
 
   protected fieldInvalid(

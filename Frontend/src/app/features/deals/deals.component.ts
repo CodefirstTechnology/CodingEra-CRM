@@ -1,7 +1,9 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { DealsService } from '../../core/services/deals.service';
 
 export type DealPipelineStatus =
   | 'Qualification'
@@ -37,6 +39,7 @@ export interface DealRow {
 export class DealsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
+  private readonly dealsService = inject(DealsService);
 
   protected readonly formOpen = signal(false);
   protected readonly selectedIds = signal<Set<string>>(new Set());
@@ -70,56 +73,21 @@ export class DealsComponent {
     { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
   ];
 
-  protected readonly rows = signal<DealRow[]>([
-   
-    {
-      id: 'd2',
-      organization: 'Globex Corp',
-      annualRevenue: '₹ 45,00,000',
-      status: 'Qualification',
-      email: 'sales@globex.example',
-      mobile: '+91 91234 56789',
-      assignedTo: 'Sam Kumar',
-      assignedInitials: 'SK',
-      lastModified: 'Yesterday',
-    },
-    {
-      id: 'd3',
-      organization: 'Northwind Traders',
-      annualRevenue: '₹ 8,20,500',
-      status: 'Proposal',
-      email: 'info@northwind.example',
-      mobile: '+91 99887 76655',
-      assignedTo: 'Alex Morgan',
-      assignedInitials: 'AM',
-      lastModified: '3d ago',
-    },
-    {
-      id: 'd4',
-      organization: 'Initech',
-      annualRevenue: '₹ 2,10,000',
-      status: 'Closed Won',
-      email: 'partners@initech.example',
-      mobile: '+91 90011 22334',
-      assignedTo: 'Jordan Doe',
-      assignedInitials: 'JD',
-      lastModified: '1w ago',
-    },
-  ]);
+  protected readonly rows = signal<DealRow[]>([]);
 
   constructor() {
+    this.refreshDeals();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'deal') return;
-      const row = e.row as DealRow;
-      if (
-        row.email &&
-        row.email !== '—' &&
-        this.rows().some((r) => r.email.toLowerCase() === row.email.toLowerCase())
-      ) {
-        return;
-      }
-      this.rows.update((list) => [row, ...list]);
+      this.refreshDeals();
     });
+  }
+
+  private refreshDeals(): void {
+    this.dealsService
+      .getAll()
+      .pipe(take(1))
+      .subscribe((rows) => this.rows.set(rows));
   }
 
   protected readonly allSelected = computed(() => {
@@ -237,8 +205,7 @@ export class DealsComponent {
     const owner = this.dealOwnerOptions.find((o) => o.id === raw.dealOwner);
     const displayRev = raw.annualRevenue.trim() ? `₹ ${raw.annualRevenue.trim()}` : '₹ 0.00';
 
-    const row: DealRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<DealRow, 'id'> = {
       organization: raw.organizationName.trim(),
       annualRevenue: displayRev,
       status: raw.status,
@@ -249,8 +216,30 @@ export class DealsComponent {
       lastModified: 'Just now',
     };
 
-    this.rows.update((list) => [row, ...list]);
-    this.closeForm();
+    this.dealsService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.refreshDeals();
+        this.closeForm();
+      });
+  }
+
+  protected deleteDeal(row: DealRow, ev: Event): void {
+    ev.stopPropagation();
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) return;
+    this.dealsService
+      .delete(id)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.selectedIds.update((prev) => {
+          const next = new Set(prev);
+          next.delete(row.id);
+          return next;
+        });
+        this.refreshDeals();
+      });
   }
 
   protected statusClass(status: DealPipelineStatus): string {

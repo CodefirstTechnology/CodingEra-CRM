@@ -1,7 +1,9 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { LeadsService } from '../../core/services/leads.service';
 
 export type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost';
 
@@ -32,6 +34,7 @@ export interface LeadRow {
   leadOwnerName: string;
   owner: string;
   updated: string;
+  source?: string;
 }
 
 export type StatusFilter = 'all' | LeadStatus;
@@ -45,6 +48,7 @@ export type StatusFilter = 'all' | LeadStatus;
 export class LeadsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
+  private readonly leadsService = inject(LeadsService);
 
   protected readonly formOpen = signal(false);
   protected readonly searchQuery = signal('');
@@ -81,83 +85,21 @@ export class LeadsComponent {
     { id: 'Lost', label: 'Lost' },
   ];
 
-  protected readonly rows = signal<LeadRow[]>([
-    {
-      id: 'seed-1',
-      firstName: 'Priya',
-      lastName: 'Sharma',
-      name: 'Priya Sharma',
-      organization: 'Acme Ltd',
-      email: 'priya@acme.example',
-      status: 'Qualified',
-      industry: 'Technology',
-      owner: 'SK',
-      leadOwnerName: 'Sam Kumar',
-      updated: '2h ago',
-    },
-    {
-      id: 'seed-2',
-      firstName: 'Alex',
-      lastName: 'Rivera',
-      name: 'Alex Rivera',
-      organization: 'Globex',
-      email: 'alex@globex.example',
-      status: 'Contacted',
-      industry: 'Manufacturing',
-      owner: 'AM',
-      leadOwnerName: 'Alex Morgan',
-      updated: '5h ago',
-    },
-    {
-      id: 'seed-3',
-      firstName: 'Jordan',
-      lastName: 'Lee',
-      name: 'Jordan Lee',
-      organization: 'Initech',
-      email: 'jordan@initech.example',
-      status: 'New',
-      industry: 'Finance',
-      owner: 'JD',
-      leadOwnerName: 'Jordan Doe',
-      updated: 'Yesterday',
-    },
-    {
-      id: 'seed-4',
-      firstName: 'Sam',
-      lastName: 'Taylor',
-      name: 'Sam Taylor',
-      organization: 'Northwind',
-      email: 'sam@northwind.example',
-      status: 'New',
-      industry: 'Retail',
-      owner: 'SK',
-      leadOwnerName: 'Sam Kumar',
-      updated: 'Yesterday',
-    },
-    {
-      id: 'seed-5',
-      firstName: 'Casey',
-      lastName: 'Morgan',
-      name: 'Casey Morgan',
-      organization: 'Umbrella Corp',
-      email: 'casey@umbrella.example',
-      status: 'Lost',
-      industry: 'Other',
-      owner: 'AM',
-      leadOwnerName: 'Alex Morgan',
-      updated: '3d ago',
-    },
-  ]);
+  protected readonly rows = signal<LeadRow[]>([]);
 
   constructor() {
+    this.refreshLeads();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'lead') return;
-      const row = e.row as LeadRow;
-      if (row.email && this.rows().some((r) => r.email.toLowerCase() === row.email.toLowerCase())) {
-        return;
-      }
-      this.rows.update((list) => [row, ...list]);
+      this.refreshLeads();
     });
+  }
+
+  private refreshLeads(): void {
+    this.leadsService
+      .getAll()
+      .pipe(take(1))
+      .subscribe((rows) => this.rows.set(rows));
   }
 
   protected readonly filtered = computed(() => {
@@ -308,8 +250,7 @@ export class LeadsComponent {
     const initials = ownerOpt?.initials ?? raw.leadOwner;
     const leadOwnerName = ownerOpt?.label ?? raw.leadOwner;
 
-    const row: LeadRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<LeadRow, 'id'> = {
       salutation: raw.salutation || undefined,
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
@@ -331,8 +272,23 @@ export class LeadsComponent {
       updated: 'Just now',
     };
 
-    this.rows.update((list) => [row, ...list]);
-    this.closeForm();
+    this.leadsService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.refreshLeads();
+        this.closeForm();
+      });
+  }
+
+  protected deleteLead(row: LeadRow, ev: Event): void {
+    ev.stopPropagation();
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) return;
+    this.leadsService
+      .delete(id)
+      .pipe(take(1))
+      .subscribe(() => this.refreshLeads());
   }
 
   protected fieldInvalid(name: string): boolean {

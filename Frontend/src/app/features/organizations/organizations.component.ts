@@ -1,7 +1,9 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { OrganizationsService } from '../../core/services/organizations.service';
 
 export interface OrganizationRow {
   id: string;
@@ -21,6 +23,7 @@ export interface OrganizationRow {
 export class OrganizationsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
+  private readonly organizationsService = inject(OrganizationsService);
 
   protected readonly formOpen = signal(false);
   protected readonly selectedIds = signal<Set<string>>(new Set());
@@ -37,50 +40,21 @@ export class OrganizationsComponent {
     'Other',
   ] as const;
 
-  protected readonly rows = signal<OrganizationRow[]>([
-    {
-      id: 'o1',
-      name: 'Acme Ltd',
-      website: 'https://acme.example',
-      industry: 'Technology',
-      annualRevenue: '₹ 12,40,000',
-      lastModified: '2h ago',
-    },
-    {
-      id: 'o2',
-      name: 'Globex Corp',
-      website: 'https://globex.example',
-      industry: 'Manufacturing',
-      annualRevenue: '₹ 45,00,000',
-      lastModified: 'Yesterday',
-    },
-    {
-      id: 'o3',
-      name: 'Northwind Traders',
-      website: 'https://northwind.example',
-      industry: 'Retail',
-      annualRevenue: '₹ 8,20,500',
-      lastModified: '3d ago',
-    },
-    {
-      id: 'o4',
-      name: 'Initech',
-      website: '—',
-      industry: 'Finance',
-      annualRevenue: '₹ 2,10,000',
-      lastModified: '1w ago',
-    },
-  ]);
+  protected readonly rows = signal<OrganizationRow[]>([]);
 
   constructor() {
+    this.refreshOrganizations();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'organization') return;
-      const row = e.row as OrganizationRow;
-      if (this.rows().some((r) => r.name.toLowerCase() === row.name.toLowerCase())) {
-        return;
-      }
-      this.rows.update((list) => [row, ...list]);
+      this.refreshOrganizations();
     });
+  }
+
+  private refreshOrganizations(): void {
+    this.organizationsService
+      .getAll()
+      .pipe(take(1))
+      .subscribe((rows) => this.rows.set(rows));
   }
 
   protected readonly allSelected = computed(() => {
@@ -173,8 +147,7 @@ export class OrganizationsComponent {
       web = `https://${web}`;
     }
 
-    const row: OrganizationRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<OrganizationRow, 'id'> = {
       name: nameTrim,
       website: web || '—',
       industry: raw.industry,
@@ -182,8 +155,30 @@ export class OrganizationsComponent {
       lastModified: 'Just now',
     };
 
-    this.rows.update((list) => [row, ...list]);
-    this.closeForm();
+    this.organizationsService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.refreshOrganizations();
+        this.closeForm();
+      });
+  }
+
+  protected deleteOrganization(row: OrganizationRow, ev: Event): void {
+    ev.stopPropagation();
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) return;
+    this.organizationsService
+      .delete(id)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.selectedIds.update((prev) => {
+          const next = new Set(prev);
+          next.delete(row.id);
+          return next;
+        });
+        this.refreshOrganizations();
+      });
   }
 
   protected clearNameDuplicate(): void {

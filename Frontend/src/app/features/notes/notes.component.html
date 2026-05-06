@@ -101,6 +101,7 @@
             <th class="notes__th notes__th--narrow">Record</th>
             <th class="notes__th notes__th--narrow">Author</th>
             <th class="notes__th notes__th--when">When</th>
+            <th class="notes__th notes__th--narrow">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -115,6 +116,9 @@
               <td class="notes__td notes__td--muted">{{ row.record }}</td>
               <td class="notes__td">{{ row.author }}</td>
               <td class="notes__td notes__td--muted">{{ row.when }}</td>
+              <td class="notes__td">
+                <button type="button" class="notes__linkish" (click)="deleteNote(row, $event)">Delete</button>
+              </td>
             </tr>
           }
         </tbody>

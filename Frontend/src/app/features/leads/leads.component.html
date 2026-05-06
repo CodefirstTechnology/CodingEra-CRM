@@ -250,6 +250,7 @@
               <th class="hide-md">Industry</th>
               <th>Owner</th>
               <th class="hide-md">Updated</th>
+              <th class="hide-narrow">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -267,6 +268,9 @@
                   </span>
                 </td>
                 <td class="hide-md leads__muted">{{ row.updated }}</td>
+                <td class="hide-narrow">
+                  <button type="button" class="leads__linkish" (click)="deleteLead(row, $event)">Delete</button>
+                </td>
               </tr>
             }
           </tbody>

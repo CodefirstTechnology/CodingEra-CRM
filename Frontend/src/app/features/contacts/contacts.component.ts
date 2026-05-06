@@ -1,7 +1,9 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { ContactsService } from '../../core/services/contacts.service';
 
 export interface ContactRow {
   id: string;
@@ -20,6 +22,7 @@ export interface ContactRow {
 export class ContactsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
+  private readonly contactsService = inject(ContactsService);
 
   protected readonly formOpen = signal(false);
   protected readonly selectedIds = signal<Set<string>>(new Set());
@@ -37,46 +40,21 @@ export class ContactsComponent {
     'Other',
   ] as const;
 
-  protected readonly rows = signal<ContactRow[]>([
-    {
-      id: 'c1',
-      email: 'priya.sharma@acme.example',
-      phone: '+91 98765 43210',
-      organization: 'Acme Ltd',
-      lastModified: '2h ago',
-    },
-    {
-      id: 'c2',
-      email: 'alex.rivera@globex.example',
-      phone: '+91 91234 56789',
-      organization: 'Globex Corp',
-      lastModified: 'Yesterday',
-    },
-    {
-      id: 'c3',
-      email: 'jordan.lee@initech.example',
-      phone: '+91 99887 76655',
-      organization: 'Initech',
-      lastModified: '3d ago',
-    },
-    {
-      id: 'c4',
-      email: 'sam.taylor@northwind.example',
-      phone: '+91 90011 22334',
-      organization: 'Northwind Traders',
-      lastModified: '1w ago',
-    },
-  ]);
+  protected readonly rows = signal<ContactRow[]>([]);
 
   constructor() {
+    this.refreshContacts();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'contact') return;
-      const row = e.row as ContactRow;
-      if (this.rows().some((r) => r.email.toLowerCase() === row.email.toLowerCase())) {
-        return;
-      }
-      this.rows.update((list) => [row, ...list]);
+      this.refreshContacts();
     });
+  }
+
+  private refreshContacts(): void {
+    this.contactsService
+      .getAll()
+      .pipe(take(1))
+      .subscribe((rows) => this.rows.set(rows));
   }
 
   protected readonly allSelected = computed(() => {
@@ -181,15 +159,36 @@ export class ContactsComponent {
       return;
     }
 
-    const row: ContactRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<ContactRow, 'id'> = {
       email: raw.email.trim(),
       phone: raw.mobile.trim() || '—',
       organization: raw.companyName.trim(),
       lastModified: 'Just now',
     };
 
-    this.rows.update((list) => [row, ...list]);
-    this.closeForm();
+    this.contactsService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.refreshContacts();
+        this.closeForm();
+      });
+  }
+
+  protected deleteContact(row: ContactRow, ev: Event): void {
+    ev.stopPropagation();
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) return;
+    this.contactsService
+      .delete(id)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.selectedIds.update((prev) => {
+          const next = new Set(prev);
+          next.delete(row.id);
+          return next;
+        });
+        this.refreshContacts();
+      });
   }
 }

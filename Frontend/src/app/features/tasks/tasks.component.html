@@ -103,6 +103,7 @@
             <th class="tasks__th">Due Date</th>
             <th class="tasks__th">Assigned To</th>
             <th class="tasks__th">Last Modified</th>
+            <th class="tasks__th">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -128,6 +129,9 @@
                 </span>
               </td>
               <td class="tasks__td tasks__td--muted">{{ row.lastModified }}</td>
+              <td class="tasks__td">
+                <button type="button" class="tasks__linkish" (click)="deleteTask(row, $event)">Delete</button>
+              </td>
             </tr>
           }
         </tbody>

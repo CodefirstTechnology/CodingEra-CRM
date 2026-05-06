@@ -138,6 +138,7 @@
             <th class="calls__th calls__th--narrow">Duration</th>
             <th class="calls__th calls__th--outcome">Outcome</th>
             <th class="calls__th calls__th--when">When</th>
+            <th class="calls__th">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -157,6 +158,9 @@
               <td class="calls__td">{{ row.duration }}</td>
               <td class="calls__td calls__td--muted">{{ row.outcome }}</td>
               <td class="calls__td calls__td--muted">{{ row.when }}</td>
+              <td class="calls__td">
+                <button type="button" class="calls__linkish" (click)="deleteCallLog(row, $event)">Delete</button>
+              </td>
             </tr>
           }
         </tbody>
