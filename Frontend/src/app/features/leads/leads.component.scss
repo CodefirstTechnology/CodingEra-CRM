@@ -573,6 +573,25 @@ select.leads__control {
   border: 0;
 }
 
+.leads__th--check {
+  width: 44px;
+  padding-inline: 0.85rem;
+  text-align: center;
+}
+
+.leads__td--check {
+  text-align: center;
+  vertical-align: middle;
+}
+
+.leads__checkbox {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  accent-color: var(--tertiary-color);
+}
+
 @media (max-width: 720px) {
   .hide-md {
     display: none;

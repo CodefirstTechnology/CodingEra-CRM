@@ -1,7 +1,13 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute, Router } from '@angular/router';
+import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { DealsService } from '../../core/services/deals.service';
+import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
+import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { createIdSelection } from '../../shared/utils/selection-manager';
 
 export type DealPipelineStatus =
   | 'Qualification'
@@ -30,16 +36,23 @@ export interface DealRow {
 
 @Component({
   selector: 'app-deals',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, CrmSelectionBarComponent, CrmAssignPickerComponent],
   templateUrl: './deals.component.html',
   styleUrl: './deals.component.scss',
 })
 export class DealsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
+  private readonly dealsService = inject(DealsService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+
+  protected readonly sel = createIdSelection();
+  protected readonly assignPickerOpen = signal(false);
+  protected readonly editingNumericId = signal<number | null>(null);
+  private lastRouteEdit = '';
 
   protected readonly formOpen = signal(false);
-  protected readonly selectedIds = signal<Set<string>>(new Set());
 
   protected readonly dealStatuses: DealPipelineStatus[] = [
     'Qualification',
@@ -64,69 +77,47 @@ export class DealsComponent {
   ] as const;
 
   protected readonly dealOwnerOptions: DealOwnerOption[] = [
-    
     { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
     { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
     { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
   ];
 
-  protected readonly rows = signal<DealRow[]>([
-   
-    {
-      id: 'd2',
-      organization: 'Globex Corp',
-      annualRevenue: '₹ 45,00,000',
-      status: 'Qualification',
-      email: 'sales@globex.example',
-      mobile: '+91 91234 56789',
-      assignedTo: 'Sam Kumar',
-      assignedInitials: 'SK',
-      lastModified: 'Yesterday',
-    },
-    {
-      id: 'd3',
-      organization: 'Northwind Traders',
-      annualRevenue: '₹ 8,20,500',
-      status: 'Proposal',
-      email: 'info@northwind.example',
-      mobile: '+91 99887 76655',
-      assignedTo: 'Alex Morgan',
-      assignedInitials: 'AM',
-      lastModified: '3d ago',
-    },
-    {
-      id: 'd4',
-      organization: 'Initech',
-      annualRevenue: '₹ 2,10,000',
-      status: 'Closed Won',
-      email: 'partners@initech.example',
-      mobile: '+91 90011 22334',
-      assignedTo: 'Jordan Doe',
-      assignedInitials: 'JD',
-      lastModified: '1w ago',
-    },
-  ]);
+  protected readonly rows = signal<DealRow[]>([]);
 
   constructor() {
+    this.refreshDeals();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'deal') return;
-      const row = e.row as DealRow;
-      if (
-        row.email &&
-        row.email !== '—' &&
-        this.rows().some((r) => r.email.toLowerCase() === row.email.toLowerCase())
-      ) {
-        return;
+      this.refreshDeals();
+    });
+    this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
+      const edit = q['edit'];
+      if (edit != null && edit !== '') {
+        this.beginEditFromRoute(String(edit));
       }
-      this.rows.update((list) => [row, ...list]);
     });
   }
 
-  protected readonly allSelected = computed(() => {
-    const ids = this.rows().map((r) => r.id);
-    if (ids.length === 0) return false;
-    const sel = this.selectedIds();
-    return ids.every((id) => sel.has(id));
+  private refreshDeals(): void {
+    this.dealsService
+      .getAll()
+      .pipe(take(1))
+      .subscribe((rows) => this.rows.set(rows));
+  }
+
+  protected readonly allSelected = computed(() =>
+    this.sel.allSelectedIn(this.rows().map((r) => r.id)),
+  );
+
+  protected readonly assignDefaultOwnerId = computed(() => {
+    const ids = this.sel.selectedItems();
+    const first = this.rows().find((r) => r.id === ids[0]);
+    if (!first) return 'SK';
+    return (
+      this.dealOwnerOptions.find(
+        (o) => o.initials === first.assignedInitials || o.label === first.assignedTo,
+      )?.id ?? 'SK'
+    );
   });
 
   protected readonly createForm = this.fb.nonNullable.group({
@@ -145,40 +136,42 @@ export class DealsComponent {
     primaryEmail: ['', [Validators.email, Validators.maxLength(160)]],
     gender: [''],
     status: this.fb.nonNullable.control<DealPipelineStatus>('Qualification', Validators.required),
-    dealOwner: ['RD', Validators.required],
+    dealOwner: ['SK', Validators.required],
   });
 
+  private clearEditQuery(): void {
+    this.lastRouteEdit = '';
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: null },
+      queryParamsHandling: 'merge',
+    });
+  }
+
   protected isRowSelected(id: string): boolean {
-    return this.selectedIds().has(id);
+    return this.sel.isSelected(id);
   }
 
   protected toggleRow(id: string, ev?: Event): void {
     ev?.stopPropagation();
-    this.selectedIds.update((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    this.sel.toggle(id);
   }
 
   protected toggleSelectAll(): void {
-    const ids = this.rows().map((r) => r.id);
-    this.selectedIds.update((prev) => {
-      if (ids.length && ids.every((id) => prev.has(id))) {
-        return new Set();
-      }
-      return new Set(ids);
-    });
+    this.sel.toggleSelectAll(this.rows().map((r) => r.id));
   }
 
   protected openForm(): void {
+    this.editingNumericId.set(null);
+    this.clearEditQuery();
     this.resetCreateForm();
     this.formOpen.set(true);
   }
 
   protected closeForm(): void {
     this.formOpen.set(false);
+    this.editingNumericId.set(null);
+    this.clearEditQuery();
     this.resetCreateForm();
   }
 
@@ -199,9 +192,111 @@ export class DealsComponent {
       primaryEmail: '',
       gender: '',
       status: 'Qualification',
-      dealOwner: 'RD',
+      dealOwner: 'SK',
     });
     this.createForm.markAsUntouched();
+  }
+
+  private beginEditFromRoute(idStr: string): void {
+    if (this.lastRouteEdit === idStr && this.formOpen()) return;
+    const id = Number(idStr);
+    if (!Number.isFinite(id)) return;
+    this.lastRouteEdit = idStr;
+    this.dealsService
+      .getById(id)
+      .pipe(take(1))
+      .subscribe((row) => {
+        if (!row) return;
+        this.editingNumericId.set(id);
+        const ownerOpt = this.dealOwnerOptions.find(
+          (o) => o.initials === row.assignedInitials || o.label === row.assignedTo,
+        );
+        const rev = row.annualRevenue?.trim() ?? '';
+        const revInput = rev.startsWith('₹') ? rev.replace(/^₹\s*/, '').trim() : rev;
+        this.createForm.patchValue({
+          organizationName: row.organization,
+          annualRevenue: revInput,
+          primaryEmail: row.email === '—' ? '' : row.email,
+          primaryMobile: row.mobile === '—' ? '' : row.mobile,
+          status: row.status,
+          dealOwner: ownerOpt?.id ?? 'SK',
+        });
+        this.formOpen.set(true);
+      });
+  }
+
+  protected onBulkEdit(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length !== 1) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: ids[0] },
+      queryParamsHandling: 'merge',
+    });
+    this.beginEditFromRoute(ids[0]);
+  }
+
+  protected onBulkDelete(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length === 0) return;
+    forkJoin(ids.map((sid) => this.dealsService.delete(Number(sid)).pipe(take(1)))).subscribe(() => {
+      this.sel.clear();
+      this.refreshDeals();
+    });
+  }
+
+  protected onBulkDismiss(): void {
+    this.sel.clear();
+  }
+
+  protected onAssignToMenu(): void {
+    this.assignPickerOpen.set(true);
+  }
+
+  protected onAssignClosed(): void {
+    this.assignPickerOpen.set(false);
+  }
+
+  protected onAssignPicked(ownerKey: string): void {
+    const opt = this.dealOwnerOptions.find((o) => o.id === ownerKey);
+    if (!opt) {
+      this.assignPickerOpen.set(false);
+      return;
+    }
+    const ids = this.sel.selectedItems();
+    if (ids.length === 0) return;
+    const streams = ids.map((sid) =>
+      this.dealsService
+        .update(Number(sid), {
+          assignedTo: opt.label,
+          assignedInitials: opt.initials,
+          lastModified: 'Just now',
+        })
+        .pipe(take(1)),
+    );
+    forkJoin(streams).subscribe(() => {
+      this.assignPickerOpen.set(false);
+      this.sel.clear();
+      this.refreshDeals();
+    });
+  }
+
+  protected onClearAssignmentBulk(): void {
+    const ids = this.sel.selectedItems();
+    if (ids.length === 0) return;
+    const streams = ids.map((sid) =>
+      this.dealsService
+        .update(Number(sid), {
+          assignedTo: '—',
+          assignedInitials: '—',
+          lastModified: 'Just now',
+        })
+        .pipe(take(1)),
+    );
+    forkJoin(streams).subscribe(() => {
+      this.sel.clear();
+      this.refreshDeals();
+    });
   }
 
   protected clearEmailDuplicate(): void {
@@ -224,9 +319,14 @@ export class DealsComponent {
 
     const raw = this.createForm.getRawValue();
     const emailTrim = raw.primaryEmail.trim();
+    const editId = this.editingNumericId();
     if (
       emailTrim &&
-      this.rows().some((r) => r.email.toLowerCase() === emailTrim.toLowerCase())
+      this.rows().some(
+        (r) =>
+          r.email.toLowerCase() === emailTrim.toLowerCase() &&
+          (editId == null || Number(r.id) !== editId),
+      )
     ) {
       const c = this.createForm.get('primaryEmail');
       c?.setErrors({ ...(c.errors ?? {}), duplicate: true });
@@ -237,8 +337,7 @@ export class DealsComponent {
     const owner = this.dealOwnerOptions.find((o) => o.id === raw.dealOwner);
     const displayRev = raw.annualRevenue.trim() ? `₹ ${raw.annualRevenue.trim()}` : '₹ 0.00';
 
-    const row: DealRow = {
-      id: crypto.randomUUID(),
+    const payload: Omit<DealRow, 'id'> = {
       organization: raw.organizationName.trim(),
       annualRevenue: displayRev,
       status: raw.status,
@@ -249,8 +348,36 @@ export class DealsComponent {
       lastModified: 'Just now',
     };
 
-    this.rows.update((list) => [row, ...list]);
-    this.closeForm();
+    const done = () => {
+      this.sel.clear();
+      this.refreshDeals();
+      this.closeForm();
+    };
+
+    if (editId != null) {
+      this.dealsService
+        .update(editId, payload)
+        .pipe(take(1))
+        .subscribe(() => done());
+    } else {
+      this.dealsService
+        .create(payload)
+        .pipe(take(1))
+        .subscribe(() => done());
+    }
+  }
+
+  protected deleteDeal(row: DealRow, ev: Event): void {
+    ev.stopPropagation();
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) return;
+    this.dealsService
+      .delete(id)
+      .pipe(take(1))
+      .subscribe(() => {
+        this.sel.removeId(row.id);
+        this.refreshDeals();
+      });
   }
 
   protected statusClass(status: DealPipelineStatus): string {

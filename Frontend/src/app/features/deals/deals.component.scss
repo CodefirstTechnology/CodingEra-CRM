@@ -493,3 +493,17 @@ select.deals__control {
     background: #030712;
   }
 }
+
+.deals__linkish {
+  border: none;
+  background: none;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--tertiary-color);
+  cursor: pointer;
+  padding: 0.25rem;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
