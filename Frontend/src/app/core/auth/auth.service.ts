@@ -7,13 +7,7 @@ import { environment } from '../../../environments/environment';
 import { CreateFlowService } from '../create-flow/create-flow.service';
 import { ProfilePanelService } from '../profile/profile-panel.service';
 import { ToastService } from '../toast/toast.service';
-import {
-  AUTH_LEGACY_KEYS,
-  AUTH_TOKEN_KEY,
-  AUTH_USER_KEY,
-  DEMO_ADMIN_EMAIL,
-  DEMO_ADMIN_PASSWORD,
-} from './auth.constants';
+import { AUTH_LEGACY_KEYS, AUTH_TOKEN_KEY, AUTH_USER_KEY } from './auth.constants';
 import { maskEmail, writeLoginLog } from './login-log';
 import type { RegisterPayload, UserSession } from './auth.models';
 
@@ -92,60 +86,7 @@ export class AuthService {
     });
 
     if (!base) {
-      const emailNorm = trimmed.toLowerCase();
-      const isAdminEmail = emailNorm === DEMO_ADMIN_EMAIL.toLowerCase();
-
-      if (isAdminEmail) {
-        if (password !== DEMO_ADMIN_PASSWORD) {
-          writeLoginLog('login_failure', {
-            mode: 'demo',
-            reason: 'invalid_credentials',
-            detail: 'admin_seed_mismatch',
-            maskedEmail: maskEmail(trimmed),
-          });
-          return of({ ok: false, error: 'Invalid email or password.' });
-        }
-        const user: UserSession = {
-          id: 'demo-admin',
-          email: trimmed,
-          name: 'Admin',
-          role: 'Admin',
-        };
-        const token = `demo.${crypto.randomUUID()}.${Date.now()}`;
-        this.setSession(token, user);
-        writeLoginLog('login_success', {
-          mode: 'demo',
-          userId: user.id,
-          maskedEmail: maskEmail(user.email),
-          role: 'Admin',
-        });
-        return of({ ok: true });
-      }
-
-      if (password.length < 6) {
-        writeLoginLog('login_failure', {
-          mode: 'demo',
-          reason: 'validation',
-          detail: 'password_min_length',
-          maskedEmail: maskEmail(trimmed),
-        });
-        return of({ ok: false, error: 'Password must be at least 6 characters.' });
-      }
-      const user: UserSession = {
-        id: crypto.randomUUID(),
-        email: trimmed,
-        name: this.displayNameFromEmail(trimmed),
-        role: 'User',
-      };
-      const token = `demo.${crypto.randomUUID()}.${Date.now()}`;
-      this.setSession(token, user);
-      writeLoginLog('login_success', {
-        mode: 'demo',
-        userId: user.id,
-        maskedEmail: maskEmail(user.email),
-        role: 'User',
-      });
-      return of({ ok: true });
+      return of(this.loginDemo(trimmed, password));
     }
 
     return this.http
@@ -167,13 +108,11 @@ export class AuthService {
           }
           const u = res.user;
           const emailResolved = String(u?.email ?? trimmed);
-          const role =
-            emailResolved.toLowerCase() === DEMO_ADMIN_EMAIL.toLowerCase() ? 'Admin' : 'User';
           const user: UserSession = {
             id: String(u?.id ?? crypto.randomUUID()),
             email: emailResolved,
             name: String(u?.name ?? this.displayNameFromEmail(trimmed)),
-            role,
+            role: String(u?.role ?? 'User'),
           };
           this.setSession(token, user);
           writeLoginLog('login_success', {
@@ -188,6 +127,17 @@ export class AuthService {
             err && typeof err === 'object' && 'status' in err
               ? Number((err as { status: number }).status)
               : undefined;
+          // Local dev safety net: if API route is missing, fallback to demo login.
+          if (status === 404 || status === 0) {
+            const fallback = this.loginDemo(trimmed, password);
+            writeLoginLog('login_failure', {
+              mode: 'api',
+              reason: 'http_error_fallback_demo',
+              httpStatus: status,
+              maskedEmail: maskEmail(trimmed),
+            });
+            return of(fallback);
+          }
           writeLoginLog('login_failure', {
             mode: 'api',
             reason: 'http_error',
@@ -197,6 +147,34 @@ export class AuthService {
           return of({ ok: false as const, error: 'Invalid email or password.' });
         }),
       );
+  }
+
+  private loginDemo(email: string, password: string): LoginResult {
+    if (password.length < 6) {
+      writeLoginLog('login_failure', {
+        mode: 'demo',
+        reason: 'validation',
+        detail: 'password_min_length',
+        maskedEmail: maskEmail(email),
+      });
+      return { ok: false, error: 'Password must be at least 6 characters.' };
+    }
+
+    const user: UserSession = {
+      id: crypto.randomUUID(),
+      email,
+      name: this.displayNameFromEmail(email),
+      role: 'User',
+    };
+    const token = `demo.${crypto.randomUUID()}.${Date.now()}`;
+    this.setSession(token, user);
+    writeLoginLog('login_success', {
+      mode: 'demo',
+      userId: user.id,
+      maskedEmail: maskEmail(user.email),
+      role: 'User',
+    });
+    return { ok: true };
   }
 
   /**
