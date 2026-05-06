@@ -1,0 +1,20 @@
+@if (open()) {
+  <div class="crm-assign-root" aria-modal="true" role="dialog" [attr.aria-labelledby]="'crm-assign-title'">
+    <div class="crm-assign-backdrop" (click)="cancel()"></div>
+    <div class="crm-assign-modal" (click)="$event.stopPropagation()">
+      <h2 id="crm-assign-title" class="crm-assign-title">{{ title() }}</h2>
+      <label class="crm-assign-field">
+        <span class="crm-assign-label">Owner</span>
+        <select class="crm-assign-select" [value]="choice()" (change)="onSelectChange($event)">
+          @for (o of options(); track o.id) {
+            <option [value]="o.id">{{ o.label }}</option>
+          }
+        </select>
+      </label>
+      <footer class="crm-assign-foot">
+        <button type="button" class="crm-assign-btn crm-assign-btn--ghost" (click)="cancel()">Cancel</button>
+        <button type="button" class="crm-assign-btn crm-assign-btn--primary" (click)="apply()">Apply</button>
+      </footer>
+    </div>
+  </div>
+}

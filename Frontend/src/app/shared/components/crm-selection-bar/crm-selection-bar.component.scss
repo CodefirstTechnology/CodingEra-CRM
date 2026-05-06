@@ -1,0 +1,90 @@
+.crm-sel-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.65rem 1rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid var(--card-border, #e5e7eb);
+  background: var(--card-bg, #fff);
+}
+
+.crm-sel-bar__count {
+  font-size: 0.875rem;
+  color: var(--text-primary, #111827);
+}
+
+.crm-sel-bar__menu {
+  position: relative;
+}
+
+.crm-sel-bar__summary {
+  list-style: none;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  user-select: none;
+
+  &::-webkit-details-marker {
+    display: none;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--tertiary-color, #6366f1) 12%, transparent);
+  }
+}
+
+.crm-sel-bar__dropdown {
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  top: calc(100% + 4px);
+  min-width: 11rem;
+  padding: 0.35rem;
+  border-radius: 8px;
+  border: 1px solid var(--card-border, #e5e7eb);
+  background: var(--card-bg, #fff);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+
+  button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: none;
+    background: none;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    padding: 0.45rem 0.5rem;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-primary, #111827);
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, var(--tertiary-color, #6366f1) 10%, transparent);
+    }
+
+    &:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.crm-sel-bar__dismiss {
+  margin-left: auto;
+  border: none;
+  background: none;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-muted, #6b7280);
+  padding: 0.25rem 0.45rem;
+  border-radius: 6px;
+
+  &:hover {
+    color: var(--text-primary, #111827);
+    background: color-mix(in srgb, var(--text-muted, #6b7280) 12%, transparent);
+  }
+}

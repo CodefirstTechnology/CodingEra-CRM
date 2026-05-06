@@ -1,5 +1,9 @@
-/** Set `apiUrl` when your backend is available (e.g. `https://api.example.com`, no trailing slash). */
 export const environment = {
-  production: false,
-  apiUrl: '' as string,
+  production: true,
+  useMockData: true,
+  apiUrl: '/api',
+  /** After lead → deal: `'mark-converted'` sets lead status to Converted; `'delete'` removes the lead. */
+  leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
+  /** If true, shows `window.alert` after a successful convert (no new UI components). */
+  showLeadConvertSuccessMessage: false,
 };
