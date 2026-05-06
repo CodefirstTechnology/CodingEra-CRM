@@ -7,6 +7,7 @@ import { CreateRowBusService } from '../../core/create-flow/create-row-bus.servi
 import { OrganizationsService } from '../../core/services/organizations.service';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { optionalUrlValidator } from '../../shared/validators/crm-validators';
+import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 
 export interface OrganizationRow {
@@ -14,7 +15,9 @@ export interface OrganizationRow {
   name: string;
   website: string;
   industry: string;
-  annualRevenue: string;
+  annualRevenue: number;
+  employees: string;
+  territory: string;
   lastModified: string;
 }
 
@@ -148,16 +151,17 @@ export class OrganizationsComponent {
       .subscribe((row) => {
         if (!row) return;
         this.editingNumericId.set(id);
-        const rev = row.annualRevenue?.trim() ?? '';
-        const revInput = rev.startsWith('₹') ? rev.replace(/^₹\s*/, '').trim() : rev;
-        let web = row.website === '—' ? '' : row.website;
+        let web = !row.website || row.website === '—' ? '' : row.website;
         if (web.startsWith('https://')) web = web.slice(8);
         else if (web.startsWith('http://')) web = web.slice(7);
+        const revInput = row.annualRevenue != null && row.annualRevenue !== 0 ? String(row.annualRevenue) : '';
         this.createForm.patchValue({
           organizationName: row.name,
           website: web,
           industry: row.industry,
           annualRevenue: revInput,
+          employees: row.employees,
+          territory: row.territory,
         });
         this.formOpen.set(true);
       });
@@ -189,6 +193,11 @@ export class OrganizationsComponent {
     this.sel.clear();
   }
 
+  protected formatOrgRevenue(value: number): string {
+    if (value == null || !Number.isFinite(value) || value === 0) return '₹ 0';
+    return `₹ ${value.toLocaleString('en-IN')}`;
+  }
+
   protected fieldInvalid(name: string): boolean {
     const c = this.createForm.get(name);
     return !!c && c.invalid && (c.dirty || c.touched);
@@ -214,7 +223,6 @@ export class OrganizationsComponent {
       return;
     }
 
-    const displayRev = raw.annualRevenue.trim() ? `₹ ${raw.annualRevenue.trim()}` : '₹ 0.00';
     let web = raw.website.trim();
     if (web && !/^https?:\/\//i.test(web)) {
       web = `https://${web}`;
@@ -222,9 +230,11 @@ export class OrganizationsComponent {
 
     const payload: Omit<OrganizationRow, 'id'> = {
       name: nameTrim,
-      website: web || '—',
+      website: web || '',
       industry: raw.industry,
-      annualRevenue: displayRev,
+      annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
+      employees: raw.employees,
+      territory: raw.territory,
       lastModified: 'Just now',
     };
 

@@ -7,6 +7,7 @@ import { CreateRowBusService } from '../../core/create-flow/create-row-bus.servi
 import { DealsService } from '../../core/services/deals.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 
@@ -25,11 +26,22 @@ export interface DealOwnerOption {
 
 export interface DealRow {
   id: string;
-  organization: string;
-  annualRevenue: string;
-  status: DealPipelineStatus;
+  organizationName: string;
+  employees: string;
+  /** Stored as a plain number (no currency formatting). */
+  annualRevenue: number;
+  website: string;
+  territory: string;
+  industry: string;
+  salutation: string;
+  firstName: string;
+  lastName: string;
   email: string;
   mobile: string;
+  gender: string;
+  status: DealPipelineStatus;
+  /** Form / owner picker key (e.g. SK). */
+  dealOwnerId: string;
   assignedTo: string;
   assignedInitials: string;
   lastModified: string;
@@ -116,7 +128,10 @@ export class DealsComponent {
     if (!first) return 'SK';
     return (
       this.dealOwnerOptions.find(
-        (o) => o.initials === first.assignedInitials || o.label === first.assignedTo,
+        (o) =>
+          o.id === first.dealOwnerId ||
+          o.initials === first.assignedInitials ||
+          o.label === first.assignedTo,
       )?.id ?? 'SK'
     );
   });
@@ -223,21 +238,30 @@ export class DealsComponent {
         if (!row) return;
         this.editingNumericId.set(id);
         const ownerOpt = this.dealOwnerOptions.find(
-          (o) => o.initials === row.assignedInitials || o.label === row.assignedTo,
+          (o) =>
+            o.id === row.dealOwnerId ||
+            o.initials === row.assignedInitials ||
+            o.label === row.assignedTo,
         );
-        const rev = row.annualRevenue?.trim() ?? '';
-        const revInput = rev.startsWith('₹') ? rev.replace(/^₹\s*/, '').trim() : rev;
-        const emailFromRow = row.email === '—' ? '' : row.email;
+        const revInput =
+          row.annualRevenue != null && row.annualRevenue !== 0 ? String(row.annualRevenue) : '';
+        const emailFromRow = row.email.trim() ? row.email : '';
         this.applyPrimaryEmailValidators(emailFromRow.trim() ? 'edit-filled' : 'edit-empty');
         this.createForm.patchValue({
-          organizationName: row.organization,
+          organizationName: row.organizationName,
+          employees: row.employees,
           annualRevenue: revInput,
+          website: row.website,
+          territory: row.territory,
+          industry: row.industry,
+          salutation: row.salutation,
           primaryEmail: emailFromRow,
-          primaryMobile: row.mobile === '—' ? '' : row.mobile,
-          firstName: 'Contact',
-          lastName: 'Primary',
+          primaryMobile: row.mobile,
+          firstName: row.firstName || 'Contact',
+          lastName: row.lastName || 'Primary',
+          gender: row.gender,
           status: row.status,
-          dealOwner: ownerOpt?.id ?? 'SK',
+          dealOwner: ownerOpt?.id ?? (row.dealOwnerId || 'SK'),
         });
         this.formOpen.set(true);
       });
@@ -288,6 +312,7 @@ export class DealsComponent {
         .update(Number(sid), {
           assignedTo: opt.label,
           assignedInitials: opt.initials,
+          dealOwnerId: opt.id,
           lastModified: 'Just now',
         })
         .pipe(take(1)),
@@ -305,8 +330,9 @@ export class DealsComponent {
     const streams = ids.map((sid) =>
       this.dealsService
         .update(Number(sid), {
-          assignedTo: '—',
-          assignedInitials: '—',
+          assignedTo: '',
+          assignedInitials: '',
+          dealOwnerId: '',
           lastModified: 'Just now',
         })
         .pipe(take(1)),
@@ -353,16 +379,24 @@ export class DealsComponent {
     }
 
     const owner = this.dealOwnerOptions.find((o) => o.id === raw.dealOwner);
-    const displayRev = raw.annualRevenue.trim() ? `₹ ${raw.annualRevenue.trim()}` : '₹ 0.00';
 
     const payload: Omit<DealRow, 'id'> = {
-      organization: raw.organizationName.trim(),
-      annualRevenue: displayRev,
+      organizationName: raw.organizationName.trim(),
+      employees: raw.employees,
+      annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
+      website: raw.website.trim(),
+      territory: raw.territory,
+      industry: raw.industry,
+      salutation: raw.salutation,
+      firstName: raw.firstName.trim(),
+      lastName: raw.lastName.trim(),
+      email: emailTrim,
+      mobile: raw.primaryMobile.trim(),
+      gender: raw.gender,
       status: raw.status,
-      email: emailTrim || '—',
-      mobile: raw.primaryMobile.trim() || '—',
-      assignedTo: owner?.label ?? raw.dealOwner,
-      assignedInitials: owner?.initials ?? '—',
+      dealOwnerId: raw.dealOwner,
+      assignedTo: owner?.label ?? '',
+      assignedInitials: owner?.initials ?? '',
       lastModified: 'Just now',
     };
 
@@ -396,6 +430,12 @@ export class DealsComponent {
         this.sel.removeId(row.id);
         this.refreshDeals();
       });
+  }
+
+  /** Table display only (not persisted). */
+  protected formatDealRevenue(value: number): string {
+    if (value == null || !Number.isFinite(value) || value === 0) return '₹ 0';
+    return `₹ ${value.toLocaleString('en-IN')}`;
   }
 
   protected statusClass(status: DealPipelineStatus): string {

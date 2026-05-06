@@ -252,11 +252,11 @@
                   class="deals__checkbox"
                   [checked]="isRowSelected(row.id)"
                   (change)="toggleRow(row.id, $event)"
-                  [attr.aria-label]="'Select ' + row.organization"
+                  [attr.aria-label]="'Select ' + row.organizationName"
                 />
               </td>
-              <td class="deals__td deals__td--strong">{{ row.organization }}</td>
-              <td class="deals__td">{{ row.annualRevenue }}</td>
+              <td class="deals__td deals__td--strong">{{ row.organizationName }}</td>
+              <td class="deals__td">{{ formatDealRevenue(row.annualRevenue) }}</td>
               <td class="deals__td"><span [class]="statusClass(row.status)">{{ row.status }}</span></td>
               <td class="deals__td deals__td--muted deals__td--gap">{{ row.email }}</td>
               <td class="deals__td">{{ row.mobile }}</td>

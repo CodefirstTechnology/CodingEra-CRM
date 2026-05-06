@@ -6,14 +6,19 @@ import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { ContactsService } from '../../core/services/contacts.service';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
-import { optionalPhoneValidator } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 
 export interface ContactRow {
   id: string;
+  salutation: string;
+  firstName: string;
+  lastName: string;
   email: string;
   phone: string;
+  gender: string;
   organization: string;
+  designation: string;
+  address: string;
   lastModified: string;
 }
 
@@ -81,7 +86,7 @@ export class ContactsComponent {
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
-    mobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
+    mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
     gender: [''],
     companyName: ['', [Validators.required, Validators.maxLength(200)]],
     designation: ['', Validators.maxLength(120)],
@@ -158,15 +163,15 @@ export class ContactsComponent {
         if (!row) return;
         this.editingNumericId.set(id);
         this.createForm.patchValue({
+          salutation: row.salutation,
+          firstName: row.firstName,
+          lastName: row.lastName,
           email: row.email,
-          mobile: row.phone === '—' ? '' : row.phone,
+          mobile: row.phone.replace(/\D/g, '').slice(-10) || row.phone,
+          gender: row.gender,
           companyName: row.organization,
-          firstName: 'Contact',
-          lastName: 'User',
-          salutation: '',
-          gender: '',
-          designation: '',
-          address: '',
+          designation: row.designation,
+          address: row.address,
         });
         this.formOpen.set(true);
       });
@@ -230,9 +235,15 @@ export class ContactsComponent {
     }
 
     const payload: Omit<ContactRow, 'id'> = {
+      salutation: raw.salutation,
+      firstName: raw.firstName.trim(),
+      lastName: raw.lastName.trim(),
       email: raw.email.trim(),
-      phone: raw.mobile.trim() || '—',
+      phone: raw.mobile.trim(),
+      gender: raw.gender,
       organization: raw.companyName.trim(),
+      designation: raw.designation.trim(),
+      address: raw.address,
       lastModified: 'Just now',
     };
 

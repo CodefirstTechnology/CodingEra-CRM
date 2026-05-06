@@ -3,14 +3,11 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import type { NoteRow } from '../../features/notes/notes.component';
+import { normalizeNoteRow } from '../../shared/utils/normalize-local-rows';
 import { LocalDataService } from './local-data.service';
 
 function mapNote(row: Record<string, unknown>): NoteRow {
-  const id = row['id'];
-  return {
-    ...(row as unknown as NoteRow),
-    id: String(id),
-  };
+  return normalizeNoteRow(row);
 }
 
 @Injectable({ providedIn: 'root' })

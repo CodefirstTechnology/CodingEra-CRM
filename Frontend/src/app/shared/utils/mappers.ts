@@ -52,25 +52,30 @@ export function mapLeadStatusToDealPipelineStatus(status: LeadStatus): DealPipel
   }
 }
 
-function formatAnnualRevenueForDeal(lead: LeadRow): string {
-  const raw = lead.annualRevenue?.trim() ?? '';
-  if (!raw) return '₹ 0.00';
-  return raw.startsWith('₹') ? raw : `₹ ${raw}`;
-}
-
 /**
  * Maps a lead to the shape expected by {@link DealsService#create} / local deal rows.
+ * Carries org + contact + pipeline fields so conversion does not drop CRM data.
  */
 export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
   const draft = mapLeadToDealDraft(lead);
+  const mobile = draft.contactPhone.replace(/\D/g, '');
   return {
-    organization: draft.company,
-    annualRevenue: formatAnnualRevenueForDeal(lead),
+    organizationName: draft.company.trim(),
+    employees: (lead.employees ?? '').trim() || '1-10',
+    annualRevenue: parseLeadNumericValue(lead),
+    website: (lead.website ?? '').trim(),
+    territory: (lead.territory ?? '').trim(),
+    industry: (lead.industry ?? '').trim() || 'Other',
+    salutation: (lead.salutation ?? '').trim(),
+    firstName: (lead.firstName ?? '').trim(),
+    lastName: (lead.lastName ?? '').trim(),
+    email: draft.contactEmail.trim(),
+    mobile,
+    gender: (lead.gender ?? '').trim(),
     status: mapLeadStatusToDealPipelineStatus(lead.status),
-    email: draft.contactEmail.trim() || '—',
-    mobile: draft.contactPhone.trim() || '—',
-    assignedTo: lead.leadOwnerName || '—',
-    assignedInitials: lead.owner || '—',
+    dealOwnerId: (lead.leadOwnerId ?? lead.owner ?? '').trim(),
+    assignedTo: (lead.leadOwnerName ?? '').trim(),
+    assignedInitials: (lead.owner ?? '').trim(),
     lastModified: 'Just now',
   };
 }

@@ -9,7 +9,7 @@ import { LeadsService } from '../../core/services/leads.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
-import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
+import { optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { environment } from '../../../environments/environment';
 
@@ -43,6 +43,8 @@ export interface LeadRow {
   owner: string;
   updated: string;
   source?: string;
+  /** Owner picker key (e.g. SK), mirrors form `leadOwner`. */
+  leadOwnerId?: string;
 }
 
 export type StatusFilter = 'all' | LeadStatus;
@@ -162,7 +164,7 @@ export class LeadsComponent {
   protected readonly createForm = this.fb.nonNullable.group({
     salutation: [''],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
-    mobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
+    mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
@@ -256,7 +258,7 @@ export class LeadsComponent {
         this.createForm.patchValue({
           salutation: row.salutation ?? '',
           lastName: row.lastName ?? '',
-          mobile: row.mobile ?? '',
+          mobile: (row.mobile ?? '').replace(/\D/g, '').slice(-10) || row.mobile || '',
           firstName: row.firstName ?? '',
           email: row.email ?? '',
           gender: row.gender ?? '',
@@ -267,7 +269,7 @@ export class LeadsComponent {
           territory: row.territory ?? '',
           industry: row.industry ?? 'Technology',
           status: row.status ?? 'New',
-          leadOwner: ownerOpt?.id ?? 'SK',
+          leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? 'SK',
           requestType: row.requestType ?? '',
           customField: row.notes ?? '',
         });
@@ -468,7 +470,8 @@ export class LeadsComponent {
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
       name: this.buildDisplayName(raw.salutation, raw.firstName, raw.lastName),
-      mobile: raw.mobile.trim() || undefined,
+      mobile: raw.mobile.trim(),
+      leadOwnerId: raw.leadOwner,
       gender: raw.gender || undefined,
       email: emailTrim,
       organization: raw.organization.trim(),

@@ -173,7 +173,7 @@
                   class="calls__checkbox"
                   [checked]="isRowSelected(row.id)"
                   (change)="toggleRow(row.id, $event)"
-                  [attr.aria-label]="'Select ' + row.contact"
+                  [attr.aria-label]="'Select ' + callListContact(row)"
                 />
               </td>
               <td class="calls__td">
@@ -185,11 +185,11 @@
                   {{ row.direction }}
                 </span>
               </td>
-              <td class="calls__td calls__td--strong">{{ row.contact }}</td>
-              <td class="calls__td calls__td--muted">{{ row.number }}</td>
-              <td class="calls__td">{{ row.duration }}</td>
+              <td class="calls__td calls__td--strong">{{ callListContact(row) }}</td>
+              <td class="calls__td calls__td--muted">{{ row.phoneNumber }}</td>
+              <td class="calls__td">{{ callDurationLabel(row) }}</td>
               <td class="calls__td calls__td--muted">{{ row.outcome }}</td>
-              <td class="calls__td calls__td--muted">{{ row.when }}</td>
+              <td class="calls__td calls__td--muted">{{ callWhenLabel(row) }}</td>
               <td class="calls__td">
                 <button type="button" class="calls__linkish" (click)="deleteCallLog(row, $event)">Delete</button>
               </td>

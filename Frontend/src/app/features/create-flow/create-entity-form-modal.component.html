@@ -47,8 +47,10 @@
         <label class="create-form__field">
           <span class="create-form__label">Mobile</span>
           <input class="create-form__control" type="tel" formControlName="mobile" />
-          @if (fieldInvalid('lead', 'mobile') && leadForm.get('mobile')?.errors?.['phone']) {
-            <span class="create-form__err">Enter a valid phone number.</span>
+          @if (fieldInvalid('lead', 'mobile') && leadForm.get('mobile')?.errors?.['required']) {
+            <span class="create-form__err">Mobile is required.</span>
+          } @else if (fieldInvalid('lead', 'mobile') && leadForm.get('mobile')?.errors?.['pattern']) {
+            <span class="create-form__err">Enter exactly 10 digits.</span>
           }
         </label>
         <label class="create-form__field">
@@ -230,8 +232,10 @@
         <label class="create-form__field">
           <span class="create-form__label">Mobile</span>
           <input class="create-form__control" type="tel" formControlName="mobile" />
-          @if (fieldInvalid('contact', 'mobile') && contactForm.get('mobile')?.errors?.['phone']) {
-            <span class="create-form__err">Enter a valid phone number.</span>
+          @if (fieldInvalid('contact', 'mobile') && contactForm.get('mobile')?.errors?.['required']) {
+            <span class="create-form__err">Mobile is required.</span>
+          } @else if (fieldInvalid('contact', 'mobile') && contactForm.get('mobile')?.errors?.['pattern']) {
+            <span class="create-form__err">Enter exactly 10 digits.</span>
           }
         </label>
         <label class="create-form__field create-form__field--span2">

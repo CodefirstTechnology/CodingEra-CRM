@@ -20,6 +20,7 @@ export interface AssigneeOption {
 export interface TaskRow {
   id: string;
   title: string;
+  description: string;
   status: TaskStatus;
   priority: TaskPriority;
   dueDate: string;
@@ -178,7 +179,7 @@ export class TasksComponent {
         );
         this.createForm.patchValue({
           title: row.title,
-          description: '',
+          description: row.description ?? '',
           status: row.status,
           assignee: person?.id ?? 'RD',
           dueDate: row.dueDateRaw?.trim() || this.localDatetimeInputValue(),
@@ -242,6 +243,7 @@ export class TasksComponent {
 
     const payload: Omit<TaskRow, 'id'> = {
       title: raw.title.trim(),
+      description: raw.description.trim(),
       status: raw.status,
       priority: raw.priority,
       dueDate: dueDisplay,
