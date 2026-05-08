@@ -1,0 +1,129 @@
+@if (lead(); as row) {
+<div class="lead-detail">
+  <header class="lead-detail__top">
+    <div>
+      <p class="lead-detail__crumb"><a routerLink="/leads">Leads</a> / {{ row.name }}</p>
+      <h1 class="lead-detail__title">{{ leadCode() }}</h1>
+    </div>
+    <div class="lead-detail__top-actions">
+      <button type="button" class="lead-detail__btn">New</button>
+      <button type="button" class="lead-detail__btn lead-detail__btn--solid">Convert to Deal</button>
+    </div>
+  </header>
+
+  <nav class="lead-detail__tabs" aria-label="Lead detail sections">
+    @for (tab of tabs; track tab) {
+    <button type="button" class="lead-detail__tab" [class.is-active]="activeTab() === tab" (click)="setTab(tab)">
+      {{ tab }}
+    </button>
+    }
+  </nav>
+
+  <section class="lead-detail__layout">
+    <article class="lead-detail__main card">
+      @if (activeTab() === 'Emails') {
+      <header class="lead-detail__main-head">
+        <h2>Emails</h2>
+        <button type="button" class="lead-detail__btn lead-detail__btn--dark">+ New Email</button>
+      </header>
+      <div class="lead-detail__email-empty">
+        <span class="lead-detail__email-icon">✉</span>
+        <p>No Email Communications</p>
+        <button type="button" class="lead-detail__btn lead-detail__btn--light">New Email</button>
+      </div>
+
+      <div class="lead-detail__email-compose">
+        <div class="lead-detail__compose-top">
+          <button type="button" class="lead-detail__link is-active">Reply</button>
+          <button type="button" class="lead-detail__link">Comment</button>
+        </div>
+        <div class="lead-detail__compose-body">
+          <div class="lead-detail__mail-row">
+            <span>TO:</span>
+            <span>{{ row.email || '—' }}</span>
+          </div>
+          <div class="lead-detail__mail-row">
+            <span>SUBJECT:</span>
+            <span>{{ emailSubject() }}</span>
+          </div>
+          <textarea class="lead-detail__mail-editor" rows="4" placeholder="Can you please provide more details on this..."></textarea>
+        </div>
+        <footer class="lead-detail__compose-actions">
+          <div class="lead-detail__compose-icons">
+            <span>☺</span><span>📎</span><span>🖼</span>
+          </div>
+          <div class="lead-detail__compose-btns">
+            <button type="button" class="lead-detail__btn lead-detail__btn--light">Discard</button>
+            <button type="button" class="lead-detail__btn lead-detail__btn--solid">Send</button>
+          </div>
+        </footer>
+      </div>
+      } @else {
+      <header class="lead-detail__main-head">
+        <h2>{{ activeTab() }}</h2>
+        <span>{{ row.updated }}</span>
+      </header>
+      <ul class="lead-detail__feed">
+        <li>
+          <span class="lead-detail__dot">◎</span>
+          <p><strong>{{ row.leadOwnerName }}</strong> created this lead</p>
+          <time>{{ row.updated }}</time>
+        </li>
+        <li>
+          <span class="lead-detail__dot">○</span>
+          <p><strong>{{ row.name }}</strong> status moved to <strong>{{ row.status }}</strong></p>
+          <time>2 hours ago</time>
+        </li>
+        <li>
+          <span class="lead-detail__dot">○</span>
+          <p>Organization updated to <strong>{{ row.organization }}</strong></p>
+          <time>Today</time>
+        </li>
+      </ul>
+      <footer class="lead-detail__compose">
+        <button type="button" class="lead-detail__link">Reply</button>
+        <button type="button" class="lead-detail__link">Comment</button>
+      </footer>
+      }
+    </article>
+
+    <aside class="lead-detail__side card">
+      <header class="lead-detail__side-head">
+        <span class="lead-detail__avatar">{{ leadInitial() }}</span>
+        <div>
+          <p class="lead-detail__name">{{ row.name }}</p>
+          <p class="lead-detail__email">{{ row.email || 'No email' }}</p>
+        </div>
+      </header>
+
+      <section class="lead-detail__section">
+        <h3>Details</h3>
+        <dl class="lead-detail__kv">
+          <dt>Organization</dt><dd>{{ row.organization || '—' }}</dd>
+          <dt>Website</dt><dd>{{ row.website || '—' }}</dd>
+          <dt>Territory</dt><dd>{{ row.territory || '—' }}</dd>
+          <dt>Industry</dt><dd>{{ row.industry || '—' }}</dd>
+          <dt>Source</dt><dd>{{ row.source || '—' }}</dd>
+          <dt>Lead owner</dt>
+          <dd><span class="lead-detail__owner-badge">{{ ownerInitial() }}</span> {{ row.leadOwnerName || row.owner }}</dd>
+        </dl>
+      </section>
+
+      <section class="lead-detail__section">
+        <h3>Person</h3>
+        <dl class="lead-detail__kv">
+          <dt>Salutation</dt><dd>{{ row.salutation || '—' }}</dd>
+          <dt>First Name</dt><dd>{{ row.firstName || '—' }}</dd>
+          <dt>Last Name</dt><dd>{{ row.lastName || '—' }}</dd>
+          <dt>Mobile</dt><dd>{{ row.mobile || '—' }}</dd>
+        </dl>
+      </section>
+    </aside>
+  </section>
+</div>
+} @else {
+<div class="lead-detail lead-detail--empty">
+  <p>Lead not found.</p>
+  <a routerLink="/leads" class="lead-detail__back">Back to leads</a>
+</div>
+}

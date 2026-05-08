@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { concat, concatMap, defaultIfEmpty, EMPTY, forkJoin, last, take, tap } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { DealsService } from '../../core/services/deals.service';
@@ -48,7 +48,7 @@ export type StatusFilter = 'all' | LeadStatus;
 
 @Component({
   selector: 'app-leads',
-  imports: [ReactiveFormsModule, CrmSelectionBarComponent, CrmAssignPickerComponent],
+  imports: [ReactiveFormsModule, RouterLink, CrmSelectionBarComponent, CrmAssignPickerComponent],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
 })

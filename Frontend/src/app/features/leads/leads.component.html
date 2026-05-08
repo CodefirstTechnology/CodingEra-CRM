@@ -300,7 +300,9 @@
                     [attr.aria-label]="'Select ' + row.name"
                   />
                 </td>
-                <td class="leads__strong">{{ row.name }}</td>
+                <td class="leads__strong">
+                  <a [routerLink]="['/leads', row.id]" class="leads__name-link">{{ row.name }}</a>
+                </td>
                 <td class="hide-narrow">{{ row.organization }}</td>
                 <td class="hide-narrow leads__muted">{{ row.email || '—' }}</td>
                 <td><span [class]="statusClass(row.status)">{{ row.status }}</span></td>

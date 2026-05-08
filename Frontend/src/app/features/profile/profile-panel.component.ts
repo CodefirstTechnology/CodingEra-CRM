@@ -1,4 +1,5 @@
 import { Component, inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { ProfilePanelService } from '../../core/profile/profile-panel.service';
 
@@ -11,6 +12,7 @@ import { ProfilePanelService } from '../../core/profile/profile-panel.service';
 export class ProfilePanelComponent {
   protected readonly panel = inject(ProfilePanelService);
   protected readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
 
   protected close(): void {
     this.panel.close();
@@ -22,6 +24,11 @@ export class ProfilePanelComponent {
 
   protected signOut(): void {
     void this.auth.signOut();
+  }
+
+  protected openAdvancedSettings(): void {
+    this.close();
+    void this.router.navigateByUrl('/advanced-settings');
   }
 
   protected avatarInitial(): string {
