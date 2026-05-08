@@ -6,13 +6,20 @@
     </div>
     <div class="leads__actions">
       <button type="button" class="leads__btn leads__btn--ghost">Import</button>
+      @if (enableIndiamartLead) {
+        <button type="button" class="leads__btn leads__btn--ghost" (click)="simulateIndiaMartLead()">
+          Simulate IndiaMART lead
+        </button>
+      }
       <button type="button" class="leads__btn leads__btn--solid" (click)="openForm()">+ New lead</button>
     </div>
   </header>
 
   <app-crm-selection-bar
     [selectionCount]="sel.selectedCount()"
-    [canEdit]="sel.selectedCount() === 1"
+    [canEdit]="bulkCanEditSingleManual()"
+    [assignActionsEnabled]="bulkAssignEnabled()"
+    [convertLeadEnabled]="bulkConvertEnabled()"
     [showAssignActions]="true"
     [showConvertLead]="true"
     (edit)="onBulkEdit()"
@@ -37,9 +44,15 @@
       <div class="leads__modal-backdrop" (click)="closeForm()"></div>
       <div class="leads__modal" (click)="$event.stopPropagation()">
         <header class="leads__modal-head">
-          <h2 id="create-lead-title" class="leads__modal-title">
-            {{ editingNumericId() != null ? 'Edit lead' : 'Create lead' }}
-          </h2>
+          <div>
+            <h2 id="create-lead-title" class="leads__modal-title">
+              {{ editingNumericId() != null ? 'Edit lead' : 'Create lead' }}
+            </h2>
+            <p class="leads__modal-source">
+              Lead source:
+              <span [class]="leadSourceBadgeClass(modalLeadSource())">{{ modalLeadSource() }}</span>
+            </p>
+          </div>
           <div class="leads__modal-tools">
             <button type="button" class="leads__modal-icon" aria-label="Edit (demo)" disabled>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -236,7 +249,7 @@
       <input
         type="search"
         class="leads__input"
-        placeholder="Search name, email, mobile, org, owner, industry…"
+        placeholder="Search name, email, mobile, org, owner, industry, source…"
         [value]="searchQuery()"
         (input)="onSearchInput($event)"
       />
@@ -251,6 +264,18 @@
           class="leads__chip"
           [class.is-active]="isChipActive(chip.id)"
           (click)="setStatusFilter(chip.id)"
+        >
+          {{ chip.label }}
+        </button>
+      }
+    </div>
+    <div class="leads__filters leads__filters--sources" role="group" aria-label="Filter by lead source">
+      @for (chip of sourceFilterChips; track chip.id) {
+        <button
+          type="button"
+          class="leads__chip leads__chip--compact"
+          [class.is-active]="isSourceChipActive(chip.id)"
+          (click)="setSourceFilter(chip.id)"
         >
           {{ chip.label }}
         </button>
@@ -292,6 +317,7 @@
                 />
               </th>
               <th>Name</th>
+              <th class="hide-narrow">Source</th>
               <th class="hide-narrow">Organization</th>
               <th class="hide-narrow">Email</th>
               <th>Status</th>
@@ -314,9 +340,27 @@
                   />
                 </td>
                 <td class="leads__strong">{{ row.name }}</td>
+                <td class="hide-narrow">
+                  <span [class]="leadSourceClass(row)">{{ leadSourceLabel(row) }}</span>
+                </td>
                 <td class="hide-narrow">{{ row.organization }}</td>
                 <td class="hide-narrow leads__muted">{{ row.email || '—' }}</td>
-                <td><span [class]="statusClass(row.status)">{{ row.status }}</span></td>
+                <td>
+                  @if (leadSourceLabel(row) === 'IndiaMART') {
+                    <select
+                      class="leads__status-select"
+                      [value]="row.status"
+                      (change)="onIndiaMartStatusChange(row, $event)"
+                      [attr.aria-label]="'Status for ' + row.name"
+                    >
+                      @for (st of indiaMartStatusOptions; track st) {
+                        <option [value]="st">{{ st }}</option>
+                      }
+                    </select>
+                  } @else {
+                    <span [class]="statusClass(row.status)">{{ row.status }}</span>
+                  }
+                </td>
                 <td class="hide-md">{{ row.industry }}</td>
                 <td>
                   <span class="leads__owner-cell">
