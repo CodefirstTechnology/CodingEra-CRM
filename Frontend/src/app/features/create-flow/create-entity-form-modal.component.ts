@@ -14,7 +14,7 @@ import { TasksService } from '../../core/services/tasks.service';
 import type { CallLogRow } from '../call-logs/call-logs.component';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from '../deals/deals.component';
-import type { LeadOwnerOption, LeadRow, LeadStatus } from '../leads/leads.component';
+import type { LeadOwnerOption, LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { OrganizationRow } from '../organizations/organizations.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';

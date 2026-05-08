@@ -1,5 +1,5 @@
 import type { DealPipelineStatus, DealRow } from '../../features/deals/deals.component';
-import type { LeadRow, LeadStatus } from '../../features/leads/leads.component';
+import type { LeadRow, LeadStatus } from '../../features/leads/lead-row.model';
 
 /**
  * Backend-friendly DTO for creating a deal from a lead (reuse with HttpClient later).
