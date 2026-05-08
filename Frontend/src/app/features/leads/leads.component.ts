@@ -1,4 +1,4 @@
-import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, NgZone, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -52,6 +52,7 @@ export class LeadsComponent {
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly ngZone = inject(NgZone);
 
   protected readonly sel = createIdSelection();
   protected readonly assignPickerOpen = signal(false);
@@ -121,25 +122,15 @@ export class LeadsComponent {
     const pollMs = environment.indiamartAutoSimulateIntervalMs ?? 0;
     const durationMs = environment.indiamartAutoSimulateDurationMs ?? 0;
     if (environment.enableIndiamartLead && pollMs > 0) {
-      const intervalId = window.setInterval(() => {
-        this.indiamartLeadsService.addLead(this.indiamartLeadsService.buildRandomLead());
-        this.toast.show('New IndiaMART Lead Received');
-      }, pollMs);
-
-      let stopTimerId: ReturnType<typeof setTimeout> | undefined;
-      if (durationMs > 0) {
-        stopTimerId = window.setTimeout(() => {
-          window.clearInterval(intervalId);
-          this.indiamartLeadsService.clearAllLeads();
-          this.toast.show('IndiaMART demo simulation ended — all IndiaMART leads cleared.');
-        }, durationMs);
-      }
-
+      this.indiamartLeadsService.startDemoAutoSimulation({
+        intervalMs: pollMs,
+        durationMs,
+        onLeadAdded: () => this.toast.show('New IndiaMART Lead Received'),
+        onSessionEnd: () =>
+          this.toast.show('IndiaMART demo simulation ended — all IndiaMART leads cleared.'),
+      });
       this.destroyRef.onDestroy(() => {
-        window.clearInterval(intervalId);
-        if (stopTimerId != null) {
-          window.clearTimeout(stopTimerId);
-        }
+        this.indiamartLeadsService.stopDemoAutoSimulation('LeadsComponent destroyed');
       });
     }
   }
@@ -160,8 +151,8 @@ export class LeadsComponent {
     if (!environment.enableIndiamartLead) {
       return manual;
     }
-    this.indiamartLeadsService.leads();
-    const im = this.indiamartLeadsService.getLeads().map(mapIndiaMartLeadToLeadRow);
+    const imSnapshot = this.indiamartLeadsService.leads();
+    const im = imSnapshot.map(mapIndiaMartLeadToLeadRow);
     return [...manual, ...im].sort((a, b) => (b.sortTimestamp ?? 0) - (a.sortTimestamp ?? 0));
   }
 
@@ -647,7 +638,9 @@ export class LeadsComponent {
   }
 
   protected simulateIndiaMartLead(): void {
-    this.indiamartLeadsService.addLead(this.indiamartLeadsService.buildRandomLead());
+    this.ngZone.run(() => {
+      this.indiamartLeadsService.addLead(this.indiamartLeadsService.buildRandomLead());
+    });
   }
 
   protected fieldInvalid(name: string): boolean {

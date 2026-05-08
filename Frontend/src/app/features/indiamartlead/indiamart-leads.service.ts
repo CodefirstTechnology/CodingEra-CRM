@@ -1,4 +1,4 @@
-import { Injectable, signal } from '@angular/core';
+import { inject, Injectable, NgZone, signal } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import {
   IndiaMartLead,
@@ -61,11 +61,16 @@ const SAMPLE_PRODUCTS = [
 
 @Injectable({ providedIn: 'root' })
 export class IndiamartLeadsService {
+  private readonly zone = inject(NgZone);
+
   /** In-memory + persisted lead list. */
   private readonly leadsSignal = signal<IndiaMartLead[]>([]);
 
   /** Public read-only view for templates / computed pipelines. */
   readonly leads = this.leadsSignal.asReadonly();
+
+  private simIntervalId: ReturnType<typeof setInterval> | null = null;
+  private simStopId: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     const hadPersistedKey = localStorage.getItem(STORAGE_KEY) !== null;
@@ -87,6 +92,79 @@ export class IndiamartLeadsService {
     this.leadsSignal.update((rows) => [lead, ...rows]);
     this.persist();
     return lead;
+  }
+
+  /**
+   * Starts (or restarts) the demo auto-simulation: one interval + optional session timeout.
+   * Timers are deduped; callbacks run inside {@link NgZone} so the UI updates reliably.
+   */
+  startDemoAutoSimulation(config: {
+    intervalMs: number;
+    durationMs: number;
+    onLeadAdded?: () => void;
+    onSessionEnd?: () => void;
+  }): void {
+    this.stopDemoAutoSimulation('restart (single session)');
+    const { intervalMs, durationMs, onLeadAdded, onSessionEnd } = config;
+    if (intervalMs <= 0) {
+      console.warn('[IndiaMART sim] skipped: intervalMs must be > 0', { intervalMs });
+      return;
+    }
+
+    console.log('[IndiaMART sim] simulation started', {
+      intervalMs,
+      durationMs: durationMs > 0 ? durationMs : '∞ (until page / stop)',
+    });
+
+    this.simIntervalId = window.setInterval(() => {
+      this.zone.run(() => {
+        console.log('[IndiaMART sim] interval firing');
+        const lead = this.addLead(this.buildRandomLead());
+        console.log('[IndiaMART sim] lead generated', {
+          id: lead.id,
+          customerName: lead.customerName,
+          totalIndiaMartRows: this.leadsSignal().length,
+        });
+        try {
+          const stored = localStorage.getItem(STORAGE_KEY);
+          console.log('[IndiaMART sim] localStorage updated', {
+            key: STORAGE_KEY,
+            bytes: stored?.length ?? 0,
+            rowCount: this.leadsSignal().length,
+          });
+        } catch (e) {
+          console.warn('[IndiaMART sim] localStorage readback failed', e);
+        }
+        onLeadAdded?.();
+      });
+    }, intervalMs);
+    console.log('[IndiaMART sim] setInterval active', { handle: this.simIntervalId, everyMs: intervalMs });
+
+    if (durationMs > 0) {
+      this.simStopId = window.setTimeout(() => {
+        this.zone.run(() => {
+          console.log('[IndiaMART sim] session duration reached; stopping timers and clearing IndiaMART rows');
+          this.stopDemoAutoSimulation('session duration complete');
+          this.clearAllLeads();
+          console.log('[IndiaMART sim] simulation stopped; IndiaMART count = 0');
+          onSessionEnd?.();
+        });
+      }, durationMs);
+      console.log('[IndiaMART sim] session stop scheduled', { afterMs: durationMs, handle: this.simStopId });
+    }
+  }
+
+  /** Clears demo timers only (does not delete leads). */
+  stopDemoAutoSimulation(reason: string): void {
+    if (this.simIntervalId != null) {
+      window.clearInterval(this.simIntervalId);
+      this.simIntervalId = null;
+    }
+    if (this.simStopId != null) {
+      window.clearTimeout(this.simStopId);
+      this.simStopId = null;
+    }
+    console.log('[IndiaMART sim] timers cleared:', reason);
   }
 
   updateLeadStatus(id: number, status: IndiaMartLeadStatus): void {
@@ -234,7 +312,8 @@ export class IndiamartLeadsService {
 
   private persist(): void {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.leadsSignal()));
+      const payload = JSON.stringify(this.leadsSignal());
+      localStorage.setItem(STORAGE_KEY, payload);
     } catch {
       /* quota / private mode */
     }

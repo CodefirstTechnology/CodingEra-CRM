@@ -9,12 +9,13 @@ export const environment = {
    * Milliseconds between auto-appended demo IndiaMART leads (localStorage + Leads list).
    * Set to `0` to disable. Only runs when `enableIndiamartLead` is true.
    */
-  indiamartAutoSimulateIntervalMs: 4 * 60 * 1000,
+  /** Short interval for local testing (see production `environment.ts` for 4 minutes). */
+  indiamartAutoSimulateIntervalMs: 60000,
   /**
    * After this many ms from opening the Leads page, auto-simulation stops and all IndiaMART leads are cleared.
    * Set to `0` to run until you leave the page (no auto-clear).
    */
-  indiamartAutoSimulateDurationMs: 60 * 60 * 1000,
+  indiamartAutoSimulateDurationMs: 1800000,
   useMockData: true,
   apiUrl: '/api',
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
