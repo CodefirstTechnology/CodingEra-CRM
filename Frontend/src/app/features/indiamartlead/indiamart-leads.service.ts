@@ -101,6 +101,12 @@ export class IndiamartLeadsService {
     this.persist();
   }
 
+  /** Clears every IndiaMART row from memory and `localStorage` (e.g. end of timed demo simulation). */
+  clearAllLeads(): void {
+    this.leadsSignal.set([]);
+    this.persist();
+  }
+
   /**
    * Inserts a representative batch so the dashboard is usable before any API exists.
    * Safe to call manually; normally runs once when storage is empty.

@@ -119,12 +119,28 @@ export class LeadsComponent {
     });
 
     const pollMs = environment.indiamartAutoSimulateIntervalMs ?? 0;
+    const durationMs = environment.indiamartAutoSimulateDurationMs ?? 0;
     if (environment.enableIndiamartLead && pollMs > 0) {
       const intervalId = window.setInterval(() => {
         this.indiamartLeadsService.addLead(this.indiamartLeadsService.buildRandomLead());
         this.toast.show('New IndiaMART Lead Received');
       }, pollMs);
-      this.destroyRef.onDestroy(() => window.clearInterval(intervalId));
+
+      let stopTimerId: ReturnType<typeof setTimeout> | undefined;
+      if (durationMs > 0) {
+        stopTimerId = window.setTimeout(() => {
+          window.clearInterval(intervalId);
+          this.indiamartLeadsService.clearAllLeads();
+          this.toast.show('IndiaMART demo simulation ended — all IndiaMART leads cleared.');
+        }, durationMs);
+      }
+
+      this.destroyRef.onDestroy(() => {
+        window.clearInterval(intervalId);
+        if (stopTimerId != null) {
+          window.clearTimeout(stopTimerId);
+        }
+      });
     }
   }
 
