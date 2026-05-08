@@ -14,8 +14,10 @@ import { TasksService } from '../../core/services/tasks.service';
 import type { CallLogRow } from '../call-logs/call-logs.component';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from '../deals/deals.component';
-import type { LeadOwnerOption, LeadRow, LeadStatus } from '../leads/leads.component';
+import type { LeadOwnerOption, LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { OrganizationRow } from '../organizations/organizations.component';
+import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
+import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
 import type { AssigneeOption, TaskPriority, TaskRow, TaskStatus } from '../tasks/tasks.component';
 
 @Component({
@@ -105,35 +107,35 @@ export class CreateEntityFormModalComponent {
 
   protected readonly leadForm = this.fb.nonNullable.group({
     salutation: [''],
-    lastName: ['', Validators.maxLength(120)],
-    mobile: ['', Validators.maxLength(40)],
+    lastName: ['', [Validators.required, Validators.maxLength(120)]],
+    mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
-    email: ['', [Validators.email, Validators.maxLength(160)]],
+    email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
     organization: ['', [Validators.required, Validators.maxLength(160)]],
     employees: ['1-10'],
     annualRevenue: ['', Validators.maxLength(32)],
-    website: ['', Validators.maxLength(200)],
     territory: [''],
     industry: ['Technology', Validators.required],
     status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),
     leadOwner: ['SK', Validators.required],
     requestType: [''],
     customField: ['', Validators.maxLength(240)],
+    website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
   });
 
   protected readonly dealForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
     employees: ['1-10'],
     annualRevenue: ['', Validators.maxLength(40)],
-    website: ['', Validators.maxLength(200)],
+    website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
     territory: [''],
     industry: ['Technology', Validators.required],
     salutation: [''],
-    lastName: ['', Validators.maxLength(120)],
-    primaryMobile: ['', Validators.maxLength(40)],
-    firstName: ['', Validators.maxLength(80)],
-    primaryEmail: ['', [Validators.email, Validators.maxLength(160)]],
+    lastName: ['', [Validators.required, Validators.maxLength(120)]],
+    primaryMobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
+    firstName: ['', [Validators.required, Validators.maxLength(80)]],
+    primaryEmail: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
     status: this.fb.nonNullable.control<DealPipelineStatus>('Qualification', Validators.required),
     dealOwner: ['SK', Validators.required],
@@ -144,7 +146,7 @@ export class CreateEntityFormModalComponent {
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
-    mobile: ['', Validators.maxLength(40)],
+    mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
     gender: [''],
     companyName: ['', [Validators.required, Validators.maxLength(200)]],
     designation: ['', Validators.maxLength(120)],
@@ -153,7 +155,7 @@ export class CreateEntityFormModalComponent {
 
   protected readonly orgForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
-    website: ['', Validators.maxLength(200)],
+    website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
     industry: ['Technology', Validators.required],
     annualRevenue: ['', Validators.maxLength(40)],
     employees: ['1-10'],
@@ -165,7 +167,7 @@ export class CreateEntityFormModalComponent {
     description: ['', Validators.maxLength(2000)],
     status: this.fb.nonNullable.control<TaskStatus>('Backlog', Validators.required),
     assignee: ['RD', Validators.required],
-    dueDate: [''],
+    dueDate: ['', Validators.required],
     priority: this.fb.nonNullable.control<TaskPriority>('Low', Validators.required),
   });
 
@@ -376,7 +378,8 @@ export class CreateEntityFormModalComponent {
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
       name: this.buildDisplayName(raw.salutation, raw.firstName, raw.lastName),
-      mobile: raw.mobile.trim() || undefined,
+      mobile: raw.mobile.trim(),
+      leadOwnerId: raw.leadOwner,
       gender: raw.gender || undefined,
       email: emailTrim,
       organization: raw.organization.trim(),
@@ -409,16 +412,24 @@ export class CreateEntityFormModalComponent {
     const raw = this.dealForm.getRawValue();
     const emailTrim = raw.primaryEmail.trim();
     const owner = this.dealOwnerOptions.find((o) => o.id === raw.dealOwner);
-    const displayRev = raw.annualRevenue.trim() ? `₹ ${raw.annualRevenue.trim()}` : '₹ 0.00';
 
     const payload: Omit<DealRow, 'id'> = {
-      organization: raw.organizationName.trim(),
-      annualRevenue: displayRev,
+      organizationName: raw.organizationName.trim(),
+      employees: raw.employees,
+      annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
+      website: raw.website.trim(),
+      territory: raw.territory,
+      industry: raw.industry,
+      salutation: raw.salutation,
+      firstName: raw.firstName.trim(),
+      lastName: raw.lastName.trim(),
+      email: emailTrim,
+      mobile: raw.primaryMobile.trim(),
+      gender: raw.gender,
       status: raw.status,
-      email: emailTrim || '—',
-      mobile: raw.primaryMobile.trim() || '—',
-      assignedTo: owner?.label ?? raw.dealOwner,
-      assignedInitials: owner?.initials ?? '—',
+      dealOwnerId: raw.dealOwner,
+      assignedTo: owner?.label ?? '',
+      assignedInitials: owner?.initials ?? '',
       lastModified: 'Just now',
     };
 
@@ -437,9 +448,15 @@ export class CreateEntityFormModalComponent {
 
     const raw = this.contactForm.getRawValue();
     const payload: Omit<ContactRow, 'id'> = {
+      salutation: raw.salutation,
+      firstName: raw.firstName.trim(),
+      lastName: raw.lastName.trim(),
       email: raw.email.trim(),
-      phone: raw.mobile.trim() || '—',
+      phone: raw.mobile.trim(),
+      gender: raw.gender,
       organization: raw.companyName.trim(),
+      designation: raw.designation.trim(),
+      address: raw.address,
       lastModified: 'Just now',
     };
 
@@ -462,13 +479,13 @@ export class CreateEntityFormModalComponent {
     if (web && !/^https?:\/\//i.test(web)) {
       web = `https://${web}`;
     }
-    const displayRev = raw.annualRevenue.trim() ? `₹ ${raw.annualRevenue.trim()}` : '₹ 0.00';
-
     const payload: Omit<OrganizationRow, 'id'> = {
       name: nameTrim,
-      website: web || '—',
+      website: web || '',
       industry: raw.industry,
-      annualRevenue: displayRev,
+      annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
+      employees: raw.employees,
+      territory: raw.territory,
       lastModified: 'Just now',
     };
 
@@ -506,6 +523,7 @@ export class CreateEntityFormModalComponent {
 
     const payload: Omit<TaskRow, 'id'> = {
       title: raw.title.trim(),
+      description: raw.description.trim(),
       status: raw.status,
       priority: raw.priority,
       dueDate: dueDisplay,
@@ -547,25 +565,19 @@ export class CreateEntityFormModalComponent {
     const direction: 'Inbound' | 'Outbound' = v.direction === 'inbound' ? 'Inbound' : 'Outbound';
     const mm = Math.max(0, Math.min(99, Number(v.durationMin)));
     const ss = Math.max(0, Math.min(59, Number(v.durationSec)));
-    const duration = `${this.pad2(mm)}:${this.pad2(ss)}`;
+    const durationSeconds = mm * 60 + ss;
     const outcome = this.outcomeLabel(v.outcome);
-    const contact =
-      v.summary.trim().length > 0
-        ? `${v.contactName.trim()} · ${v.summary.trim().slice(0, 48)}${v.summary.trim().length > 48 ? '…' : ''}`
-        : v.contactName.trim();
-
-    const when = this.formatWhen(v.startedAt);
+    const summaryTrim = v.summary.trim();
 
     const payload: Omit<CallLogRow, 'id'> = {
       direction,
-      contact,
-      number: v.phoneNumber.trim(),
-      duration,
-      when,
-      outcome,
-      startedAtIso: v.startedAt,
+      phoneNumber: v.phoneNumber.trim(),
       contactName: v.contactName.trim(),
-      callSummary: v.summary.trim(),
+      startedAt: v.startedAt,
+      durationSeconds,
+      outcome,
+      summary: summaryTrim,
+      lastModified: 'Just now',
     };
 
     this.callLogsService

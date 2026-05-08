@@ -19,5 +19,5 @@ export const guestGuard: CanMatchFn = () => {
   if (!auth.isAuthenticated()) {
     return true;
   }
-  return router.parseUrl('/');
+  return router.parseUrl('/dashboard');
 };

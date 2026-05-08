@@ -2,7 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import type { LeadRow } from '../../features/leads/leads.component';
+import type { LeadRow } from '../../features/leads/lead-row.model';
 import { LocalDataService } from './local-data.service';
 
 function mapLead(row: Record<string, unknown>): LeadRow {

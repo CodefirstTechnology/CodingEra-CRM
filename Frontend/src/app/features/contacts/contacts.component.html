@@ -97,7 +97,12 @@
           <div class="contacts__row2">
             <label class="contacts__field">
               <span class="contacts__label">Mobile No</span>
-              <input class="contacts__control contacts__control--soft" type="tel" formControlName="mobile" placeholder="Mobile No" />
+              <input class="contacts__control contacts__control--soft" type="tel" formControlName="mobile" placeholder="10-digit mobile" />
+              @if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['required']) {
+                <span class="contacts__err">Mobile is required.</span>
+              } @else if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['pattern']) {
+                <span class="contacts__err">Enter exactly 10 digits.</span>
+              }
             </label>
             <label class="contacts__field">
               <span class="contacts__label">Gender</span>

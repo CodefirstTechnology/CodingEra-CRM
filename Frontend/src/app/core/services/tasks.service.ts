@@ -3,14 +3,11 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import type { TaskRow } from '../../features/tasks/tasks.component';
+import { normalizeTaskRow } from '../../shared/utils/normalize-local-rows';
 import { LocalDataService } from './local-data.service';
 
 function mapTask(row: Record<string, unknown>): TaskRow {
-  const id = row['id'];
-  return {
-    ...(row as unknown as TaskRow),
-    id: String(id),
-  };
+  return normalizeTaskRow(row);
 }
 
 @Injectable({ providedIn: 'root' })

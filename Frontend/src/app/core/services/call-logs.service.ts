@@ -3,14 +3,11 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import type { CallLogRow } from '../../features/call-logs/call-logs.component';
+import { normalizeCallLogRow } from '../../shared/utils/normalize-local-rows';
 import { LocalDataService } from './local-data.service';
 
 function mapCallLog(row: Record<string, unknown>): CallLogRow {
-  const id = row['id'];
-  return {
-    ...(row as unknown as CallLogRow),
-    id: String(id),
-  };
+  return normalizeCallLogRow(row);
 }
 
 @Injectable({ providedIn: 'root' })

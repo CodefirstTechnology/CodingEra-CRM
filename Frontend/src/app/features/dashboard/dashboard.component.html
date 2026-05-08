@@ -8,15 +8,20 @@
       </div>
     </div>
     <div class="sales-dash__toolbar-actions">
-      <label class="sales-dash__period">
-        <span class="visually-hidden">Reporting period</span>
-        <select class="sales-dash__select" [attr.aria-label]="'Period ' + periodLabel">
-          <option [value]="periodLabel">{{ periodLabel }}</option>
-          <option value="Q3 2024">Q3 2024</option>
-          <option value="Q2 2024">Q2 2024</option>
-          <option value="Q1 2024">Q1 2024</option>
-        </select>
-      </label>
+      <form class="sales-dash__period-form" [formGroup]="filterForm" (ngSubmit)="$event.preventDefault()">
+        <label class="sales-dash__period">
+          <span class="visually-hidden">Reporting period</span>
+          <select
+            class="sales-dash__select"
+            formControlName="period"
+            [attr.aria-label]="'Period ' + filterForm.controls.period.value"
+          >
+            @for (p of periodOptions; track p) {
+              <option [value]="p">{{ p }}</option>
+            }
+          </select>
+        </label>
+      </form>
       <div class="sales-dash__quarterly" aria-label="Quarterly target summary">
         <span class="sales-dash__quarterly-label">Quarterly target</span>
         <span class="sales-dash__quarterly-values">

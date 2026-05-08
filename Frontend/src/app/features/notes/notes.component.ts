@@ -7,15 +7,21 @@ import { NotesService } from '../../core/services/notes.service';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 
+export type NoteRelatedType = 'lead' | 'deal' | 'contact' | 'organization';
+export type NoteVisibility = 'team' | 'private';
+
 export interface NoteRow {
   id: string;
   title: string;
-  record: string;
+  relatedType: NoteRelatedType;
+  relatedName: string;
+  /** Optional CRM entity id when backend provides it. */
+  relatedId?: string;
+  visibility: NoteVisibility;
+  body: string;
   author: string;
   when: string;
   bodyPreview?: string;
-  /** Full body for edit round-trip (local/mock). */
-  bodyStorage?: string;
 }
 
 @Component({
@@ -49,13 +55,6 @@ export class NotesComponent {
     deal: 'Deal',
     contact: 'Contact',
     organization: 'Organization',
-  };
-
-  private readonly labelToRelatedType: Record<string, string> = {
-    Lead: 'lead',
-    Deal: 'deal',
-    Contact: 'contact',
-    Organization: 'organization',
   };
 
   protected readonly noteForm = this.fb.nonNullable.group({
@@ -109,26 +108,6 @@ export class NotesComponent {
     return this.sel.isSelected(id);
   }
 
-  private parseRecord(record: string): { relatedType: string; relatedName: string; visibility: 'team' | 'private' } {
-    let vis: 'team' | 'private' = 'team';
-    let r = record;
-    if (r.endsWith(' · Private')) {
-      vis = 'private';
-      r = r.slice(0, -' · Private'.length);
-    }
-    const idx = r.indexOf(' · ');
-    if (idx < 0) {
-      return { relatedType: 'deal', relatedName: r.trim(), visibility: vis };
-    }
-    const label = r.slice(0, idx).trim();
-    const name = r.slice(idx + 3).trim();
-    return {
-      relatedType: this.labelToRelatedType[label] ?? 'deal',
-      relatedName: name,
-      visibility: vis,
-    };
-  }
-
   protected openForm(): void {
     this.editingNumericId.set(null);
     this.clearEditQuery();
@@ -166,14 +145,13 @@ export class NotesComponent {
       .subscribe((row) => {
         if (!row) return;
         this.editingNumericId.set(id);
-        const parsed = this.parseRecord(row.record);
-        const body = row.bodyStorage ?? row.bodyPreview?.replace(/…$/, '') ?? '';
+        const body = row.body ?? '';
         this.noteForm.patchValue({
-          relatedType: parsed.relatedType,
-          relatedName: parsed.relatedName,
+          relatedType: row.relatedType,
+          relatedName: row.relatedName,
           title: row.title,
           body,
-          visibility: parsed.visibility,
+          visibility: row.visibility,
         });
         this.formOpen.set(true);
       });
@@ -209,23 +187,18 @@ export class NotesComponent {
       return;
     }
     const v = this.noteForm.getRawValue();
-    const typeLabel = this.relatedTypeLabels[v.relatedType] ?? v.relatedType;
-    const name = v.relatedName.trim();
-    const record =
-      v.visibility === 'private'
-        ? `${typeLabel} · ${name} · Private`
-        : `${typeLabel} · ${name}`;
-
     const body = v.body.trim();
     const bodyPreview = body.length > 140 ? `${body.slice(0, 140)}…` : body;
 
     const payload: Omit<NoteRow, 'id'> = {
       title: v.title.trim(),
-      record,
+      relatedType: v.relatedType as NoteRelatedType,
+      relatedName: v.relatedName.trim(),
+      visibility: v.visibility as NoteVisibility,
+      body,
       author: 'You',
       when: 'Just now',
       bodyPreview,
-      bodyStorage: body,
     };
 
     const editId = this.editingNumericId();
@@ -259,6 +232,12 @@ export class NotesComponent {
         this.sel.removeId(row.id);
         this.refreshNotes();
       });
+  }
+
+  protected noteRelatedLabel(row: NoteRow): string {
+    const label = this.relatedTypeLabels[row.relatedType] ?? row.relatedType;
+    const suffix = row.visibility === 'private' ? ' · Private' : '';
+    return `${label} · ${row.relatedName}${suffix}`;
   }
 
   protected fieldInvalid(name: 'relatedType' | 'relatedName' | 'title' | 'body' | 'visibility'): boolean {

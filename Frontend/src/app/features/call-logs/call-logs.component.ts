@@ -11,15 +11,14 @@ import { createIdSelection } from '../../shared/utils/selection-manager';
 export interface CallLogRow {
   id: string;
   direction: 'Inbound' | 'Outbound';
-  contact: string;
-  number: string;
-  duration: string;
-  when: string;
+  phoneNumber: string;
+  contactName: string;
+  /** ISO datetime string (e.g. from `<input type="datetime-local">` or API). */
+  startedAt: string;
+  durationSeconds: number;
   outcome: string;
-  /** ISO-local datetime for edit form (optional, mock persistence). */
-  startedAtIso?: string;
-  contactName?: string;
-  callSummary?: string;
+  summary: string;
+  lastModified: string;
 }
 
 @Component({
@@ -136,22 +135,6 @@ export class CallLogsComponent {
     return map[label] ?? 'connected';
   }
 
-  private parseDuration(dur: string): { m: number; s: number } {
-    const parts = dur.split(':');
-    const m = Math.max(0, Math.min(99, Number(parts[0]) || 0));
-    const s = Math.max(0, Math.min(59, Number(parts[1]) || 0));
-    return { m, s };
-  }
-
-  private splitContactDisplay(contact: string): { name: string; summary: string } {
-    const idx = contact.indexOf(' · ');
-    if (idx < 0) return { name: contact.trim(), summary: '' };
-    return {
-      name: contact.slice(0, idx).trim(),
-      summary: contact.slice(idx + 3).trim(),
-    };
-  }
-
   private beginEditFromRoute(idStr: string): void {
     if (this.lastRouteEdit === idStr && this.formOpen()) return;
     const id = Number(idStr);
@@ -163,23 +146,21 @@ export class CallLogsComponent {
       .subscribe((row) => {
         if (!row) return;
         this.editingNumericId.set(id);
-        const { m, s } = this.parseDuration(row.duration);
-        const { name, summary } =
-          row.contactName != null
-            ? { name: row.contactName, summary: row.callSummary ?? '' }
-            : this.splitContactDisplay(row.contact);
+        const total = Math.max(0, row.durationSeconds);
+        const m = Math.min(99, Math.floor(total / 60));
+        const s = total % 60;
         const p = (n: number) => String(n).padStart(2, '0');
         const d = new Date();
         const fallback = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
         this.callForm.patchValue({
           direction: row.direction === 'Inbound' ? 'inbound' : 'outbound',
-          phoneNumber: row.number,
-          contactName: name,
-          startedAt: row.startedAtIso ?? fallback,
+          phoneNumber: row.phoneNumber,
+          contactName: row.contactName,
+          startedAt: row.startedAt || fallback,
           durationMin: m,
           durationSec: s,
           outcome: this.outcomeCodeFromLabel(row.outcome),
-          summary,
+          summary: row.summary,
         });
         this.formOpen.set(true);
       });
@@ -207,6 +188,23 @@ export class CallLogsComponent {
 
   protected onBulkDismiss(): void {
     this.sel.clear();
+  }
+
+  protected callListContact(row: CallLogRow): string {
+    const sum = row.summary.trim();
+    if (!sum.length) return row.contactName;
+    return `${row.contactName} · ${sum.slice(0, 48)}${sum.length > 48 ? '…' : ''}`;
+  }
+
+  protected callDurationLabel(row: CallLogRow): string {
+    const sec = Math.max(0, row.durationSeconds);
+    const m = Math.min(99, Math.floor(sec / 60));
+    const s = sec % 60;
+    return `${this.pad2(m)}:${this.pad2(s)}`;
+  }
+
+  protected callWhenLabel(row: CallLogRow): string {
+    return this.formatWhen(row.startedAt);
   }
 
   private formatWhen(isoLocal: string): string {
@@ -245,24 +243,19 @@ export class CallLogsComponent {
     const direction: 'Inbound' | 'Outbound' = v.direction === 'inbound' ? 'Inbound' : 'Outbound';
     const mm = Math.max(0, Math.min(99, Number(v.durationMin)));
     const ss = Math.max(0, Math.min(59, Number(v.durationSec)));
-    const duration = `${this.pad2(mm)}:${this.pad2(ss)}`;
+    const durationSeconds = mm * 60 + ss;
     const outcome = this.outcomeLabel(v.outcome);
     const summaryTrim = v.summary.trim();
-    const contact =
-      summaryTrim.length > 0
-        ? `${v.contactName.trim()} · ${summaryTrim.slice(0, 48)}${summaryTrim.length > 48 ? '…' : ''}`
-        : v.contactName.trim();
 
     const payload: Omit<CallLogRow, 'id'> = {
       direction,
-      contact,
-      number: v.phoneNumber.trim(),
-      duration,
-      when: this.formatWhen(v.startedAt),
-      outcome,
-      startedAtIso: v.startedAt,
+      phoneNumber: v.phoneNumber.trim(),
       contactName: v.contactName.trim(),
-      callSummary: summaryTrim,
+      startedAt: v.startedAt,
+      durationSeconds,
+      outcome,
+      summary: summaryTrim,
+      lastModified: 'Just now',
     };
 
     const editId = this.editingNumericId();
