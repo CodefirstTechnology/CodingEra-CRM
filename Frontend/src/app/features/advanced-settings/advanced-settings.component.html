@@ -1,0 +1,196 @@
+<div class="adv-settings">
+  <aside class="adv-settings__sidebar">
+    <h1 class="adv-settings__title">Settings</h1>
+    <nav class="adv-settings__menu" aria-label="Settings sections">
+      @for (group of leftNav; track group.title) {
+        <section class="adv-settings__group">
+          <h2 class="adv-settings__group-title">{{ group.title }}</h2>
+          <ul class="adv-settings__group-list">
+            @for (item of group.items; track item) {
+              <li>
+                <button
+                  type="button"
+                  class="adv-settings__item"
+                  [class.adv-settings__item--active]="activeItem() === item"
+                  (click)="setActiveItem(item)"
+                >
+                  {{ item }}
+                </button>
+              </li>
+            }
+          </ul>
+        </section>
+      }
+    </nav>
+  </aside>
+
+  <section class="adv-settings__content">
+    @if (activeItem() === 'Users') {
+    <article class="adv-settings__card">
+      <header class="adv-users__head">
+        <div>
+          <h2 class="adv-users__title">Users</h2>
+          <p class="adv-users__sub">
+            Manage CRM users by adding or inviting them, and assign roles to control their access and permissions
+          </p>
+        </div>
+        <div class="adv-users__new-wrap">
+          <button
+            type="button"
+            class="adv-users__new-btn"
+            [attr.aria-expanded]="newMenuOpen()"
+            aria-haspopup="menu"
+            (click)="toggleNewMenu()"
+          >
+            + New
+          </button>
+          @if (newMenuOpen()) {
+          <div class="adv-users__new-menu" role="menu" aria-label="New user actions">
+            <button type="button" class="adv-users__new-item" role="menuitem" (click)="selectNewAction('add-existing')">
+              Add Existing User
+            </button>
+            <button type="button" class="adv-users__new-item" role="menuitem" (click)="selectNewAction('invite-new')">
+              Invite New User
+            </button>
+          </div>
+          }
+        </div>
+      </header>
+
+      <div class="adv-users__toolbar">
+        <label class="adv-users__search">
+          <span class="visually-hidden">Search user</span>
+          <input type="search" placeholder="Search user" />
+        </label>
+        <label class="adv-users__filter">
+          <span class="visually-hidden">Role filter</span>
+          <select (change)="setRoleFilter($event)" [value]="selectedRoleFilter()">
+            @for (role of roleFilters; track role) {
+            <option [value]="role">{{ role }}</option>
+            }
+          </select>
+        </label>
+      </div>
+
+      <ul class="adv-users__list">
+        @for (user of filteredUsers(); track user.email) {
+        <li class="adv-users__row">
+          <div class="adv-users__identity">
+            <span class="adv-users__avatar">{{ userInitial(user.name) }}</span>
+            <div>
+              <p class="adv-users__name">{{ user.name }}</p>
+              <p class="adv-users__email">{{ user.email }}</p>
+            </div>
+          </div>
+          <span class="adv-users__role">{{ user.role }}</span>
+        </li>
+        }
+      </ul>
+    </article>
+    } @else {
+    <article class="adv-settings__card">
+      <header class="adv-settings__profile-head">
+        <div class="adv-settings__identity">
+          <div class="adv-settings__avatar">{{ avatarInitial() }}</div>
+          <div>
+            <p class="adv-settings__name">{{ profile().name }}</p>
+            <p class="adv-settings__email">{{ profile().email }}</p>
+          </div>
+        </div>
+        <button type="button" class="adv-settings__pwd-btn">Change Password</button>
+      </header>
+
+      <div class="adv-settings__form-grid">
+        <label class="adv-settings__field">
+          <span>First name</span>
+          <input type="text" [value]="profile().firstName" />
+        </label>
+        <label class="adv-settings__field">
+          <span>Last name</span>
+          <input type="text" [value]="profile().lastName" />
+        </label>
+      </div>
+
+      <footer class="adv-settings__actions">
+        <button type="button" class="adv-settings__update-btn" disabled>Update</button>
+      </footer>
+    </article>
+    }
+  </section>
+</div>
+
+@if (addExistingOpen()) {
+<div class="adv-modal-backdrop" (click)="closeAddExistingModal()"></div>
+<section class="adv-modal" role="dialog" aria-modal="true" aria-label="Add Existing User">
+  <header class="adv-modal__head">
+    <h3 class="adv-modal__title">Add Existing User</h3>
+    <button type="button" class="adv-modal__close" aria-label="Close" (click)="closeAddExistingModal()">×</button>
+  </header>
+
+  <p class="adv-modal__hint">
+    Add existing system users to this CRM. Assign them a role to grant access with their current credentials.
+  </p>
+
+  <div class="adv-modal__body">
+    <label class="adv-modal__field">
+      <span>Users</span>
+      <input type="email" placeholder="john@doe.com" />
+    </label>
+
+    <label class="adv-modal__field">
+      <span>Role</span>
+      <select [value]="addExistingRole()" (change)="onAddExistingRoleChange($event)">
+        <option value="Admin">Admin</option>
+        <option value="Manager">Manager</option>
+        <option value="Sales User">Sales User</option>
+      </select>
+      <small>Can work with leads and deals and create private views (reports).</small>
+    </label>
+  </div>
+
+  <footer class="adv-modal__foot">
+    <button type="button" class="adv-modal__add" disabled>Add</button>
+  </footer>
+</section>
+}
+
+@if (inviteNewOpen()) {
+<div class="adv-modal-backdrop" (click)="closeInviteNewModal()"></div>
+<section class="adv-modal adv-modal--invite" role="dialog" aria-modal="true" aria-label="Invite New User">
+  <header class="adv-modal__head">
+    <div>
+      <h3 class="adv-modal__title">Send invites to</h3>
+      <p class="adv-modal__sub">Invite users to access CRM. Specify their roles to control access and permissions</p>
+    </div>
+    <div class="adv-modal__head-actions">
+      <button type="button" class="adv-modal__send" [disabled]="!canSendInvites()" (click)="sendInvites()">
+        Send Invites
+      </button>
+      <button type="button" class="adv-modal__close" aria-label="Close" (click)="closeInviteNewModal()">×</button>
+    </div>
+  </header>
+
+  <div class="adv-modal__body">
+    <label class="adv-modal__field">
+      <span>Invite by email</span>
+      <textarea
+        rows="2"
+        placeholder="user1@example.com, user2@example.com, ..."
+        [value]="inviteEmailsInput()"
+        (input)="onInviteEmailsInput($event)"
+      ></textarea>
+      <small>You can invite multiple users by comma separating their email addresses</small>
+    </label>
+
+    <label class="adv-modal__field">
+      <span>Invite as</span>
+      <select [value]="inviteRole()" (change)="onInviteRoleChange($event)">
+        <option value="Admin">Admin</option>
+        <option value="Manager">Manager</option>
+        <option value="Sales User">Sales User</option>
+      </select>
+      <small>Can work with leads and deals and create private views (reports).</small>
+    </label>
+  </div>
+</section>
+}

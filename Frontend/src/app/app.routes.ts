@@ -14,6 +14,14 @@ export const routes: Routes = [
     loadComponent: () => import('./features/auth/register.component').then((m) => m.RegisterComponent),
   },
   {
+    path: 'advanced-settings',
+    canMatch: [authGuard],
+    loadComponent: () =>
+      import('./features/advanced-settings/advanced-settings.component').then(
+        (m) => m.AdvancedSettingsComponent,
+      ),
+  },
+  {
     path: '',
     component: CrmShellComponent,
     canMatch: [authGuard],

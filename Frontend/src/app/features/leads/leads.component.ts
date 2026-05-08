@@ -1,8 +1,8 @@
 import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
-import { concat, concatMap, defaultIfEmpty, forkJoin, last, of, take, tap } from 'rxjs';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { concat, concatMap, defaultIfEmpty, EMPTY, forkJoin, of, last, take, tap } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { DealsService } from '../../core/services/deals.service';
 import { LeadsService } from '../../core/services/leads.service';
@@ -35,7 +35,7 @@ export type { LeadListStatusFilter as StatusFilter, LeadRow, LeadOwnerOption, Le
 
 @Component({
   selector: 'app-leads',
-  imports: [ReactiveFormsModule, CrmSelectionBarComponent, CrmAssignPickerComponent],
+  imports: [ReactiveFormsModule, RouterLink, CrmSelectionBarComponent, CrmAssignPickerComponent],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
 })
