@@ -504,6 +504,7 @@ export class IndiamartLeadsService {
     let skippedDuplicates = 0;
     const newLeads: IndiaMartLead[] = [];
     const existingKeys = new Set(this.leadsSignal().map((r) => this.naturalDedupeKeyFromStored(r)));
+    let nextGeneratedId = this.nextId();
 
     for (const input of inputs) {
       const k = this.naturalDedupeKeyFromInput(input);
@@ -516,7 +517,10 @@ export class IndiamartLeadsService {
         skippedDuplicates++;
         continue;
       }
-      const lead = this.normalizeInput(input);
+      const lead = this.normalizeInput(input, input.id ?? nextGeneratedId);
+      if (input.id == null) {
+        nextGeneratedId = Math.max(nextGeneratedId + 1, lead.id + 1);
+      }
       existingKeys.add(k);
       newLeads.push(lead);
       added++;
@@ -584,7 +588,11 @@ export class IndiamartLeadsService {
       const parsed = JSON.parse(raw) as unknown;
       if (!Array.isArray(parsed)) return;
       const rows = parsed.filter(this.isValidLead) as IndiaMartLead[];
-      this.leadsSignal.set(rows);
+      const repairedRows = this.ensureUniqueStoredIds(rows);
+      this.leadsSignal.set(repairedRows);
+      if (repairedRows.some((row, i) => row.id !== rows[i].id)) {
+        this.persist();
+      }
     } catch {
       /* ignore corrupt storage */
     }
@@ -599,8 +607,8 @@ export class IndiamartLeadsService {
     }
   }
 
-  private normalizeInput(input: IndiaMartLeadInput): IndiaMartLead {
-    const id = input.id ?? this.nextId();
+  private normalizeInput(input: IndiaMartLeadInput, idOverride?: number): IndiaMartLead {
+    const id = input.id ?? idOverride ?? this.nextId();
     const createdAt = input.createdAt ?? new Date().toISOString();
     const lead: IndiaMartLead = {
       id,
@@ -624,6 +632,28 @@ export class IndiamartLeadsService {
     const rows = this.leadsSignal();
     const max = rows.reduce((m, r) => Math.max(m, r.id), 0);
     return Math.max(max + 1, Date.now());
+  }
+
+  private ensureUniqueStoredIds(rows: readonly IndiaMartLead[]): IndiaMartLead[] {
+    const used = new Set<number>();
+    let next = Math.max(
+      Date.now(),
+      rows.reduce((max, row) => Math.max(max, row.id), 0) + 1,
+    );
+
+    return rows.map((row) => {
+      if (!used.has(row.id)) {
+        used.add(row.id);
+        return row;
+      }
+      while (used.has(next)) {
+        next++;
+      }
+      const repaired = { ...row, id: next };
+      used.add(repaired.id);
+      next++;
+      return repaired;
+    });
   }
 
   private isValidLead(value: unknown): value is IndiaMartLead {
