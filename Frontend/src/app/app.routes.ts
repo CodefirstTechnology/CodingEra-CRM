@@ -26,8 +26,9 @@ export const routes: Routes = [
     component: CrmShellComponent,
     canMatch: [authGuard],
     children: [
+      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
       {
-        path: '',
+        path: 'dashboard',
         loadChildren: () =>
           import('./features/dashboard/dashboard.module').then((m) => m.DashboardModule),
       },

@@ -11,6 +11,10 @@ export class CrmSelectionBarComponent {
   canEdit = input(false);
   showAssignActions = input(false);
   showConvertLead = input(false);
+  /** When false, Assign / Clear assignment stay visible but disabled (e.g. IndiaMART-only selection). */
+  assignActionsEnabled = input(true);
+  /** When false, Convert to deal stays visible but disabled. */
+  convertLeadEnabled = input(true);
 
   edit = output<void>();
   delete = output<void>();

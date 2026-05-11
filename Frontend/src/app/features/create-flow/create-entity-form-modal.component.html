@@ -23,11 +23,14 @@
           }
         </label>
         <label class="create-form__field">
-          <span class="create-form__label">Last name</span>
+          <span class="create-form__label">Last name <span class="create-form__req">*</span></span>
           <input class="create-form__control" type="text" formControlName="lastName" autocomplete="family-name" />
+          @if (fieldInvalid('lead', 'lastName')) {
+            <span class="create-form__err">Last name is required.</span>
+          }
         </label>
         <label class="create-form__field">
-          <span class="create-form__label">Email</span>
+          <span class="create-form__label">Email <span class="create-form__req">*</span></span>
           <input
             class="create-form__control"
             type="email"
@@ -35,13 +38,20 @@
             autocomplete="email"
             (input)="clearLeadEmailDuplicate()"
           />
-          @if (fieldInvalid('lead', 'email') && leadForm.get('email')?.errors?.['email']) {
+          @if (fieldInvalid('lead', 'email') && leadForm.get('email')?.errors?.['required']) {
+            <span class="create-form__err">Email is required.</span>
+          } @else if (fieldInvalid('lead', 'email') && leadForm.get('email')?.errors?.['email']) {
             <span class="create-form__err">Use a valid email.</span>
           }
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Mobile</span>
           <input class="create-form__control" type="tel" formControlName="mobile" />
+          @if (fieldInvalid('lead', 'mobile') && leadForm.get('mobile')?.errors?.['required']) {
+            <span class="create-form__err">Mobile is required.</span>
+          } @else if (fieldInvalid('lead', 'mobile') && leadForm.get('mobile')?.errors?.['pattern']) {
+            <span class="create-form__err">Enter exactly 10 digits.</span>
+          }
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Gender</span>
@@ -134,25 +144,39 @@
           </select>
         </label>
         <label class="create-form__field">
-          <span class="create-form__label">Primary email</span>
+          <span class="create-form__label">Primary email <span class="create-form__req">*</span></span>
           <input
             class="create-form__control"
             type="email"
             formControlName="primaryEmail"
             (input)="clearDealEmailDuplicate()"
           />
+          @if (fieldInvalid('deal', 'primaryEmail') && dealForm.get('primaryEmail')?.errors?.['required']) {
+            <span class="create-form__err">Email is required.</span>
+          } @else if (fieldInvalid('deal', 'primaryEmail') && dealForm.get('primaryEmail')?.errors?.['email']) {
+            <span class="create-form__err">Use a valid email.</span>
+          }
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Primary mobile</span>
           <input class="create-form__control" type="tel" formControlName="primaryMobile" />
+          @if (fieldInvalid('deal', 'primaryMobile') && dealForm.get('primaryMobile')?.errors?.['phone']) {
+            <span class="create-form__err">Enter a valid phone number.</span>
+          }
         </label>
         <label class="create-form__field">
-          <span class="create-form__label">First name</span>
+          <span class="create-form__label">First name <span class="create-form__req">*</span></span>
           <input class="create-form__control" type="text" formControlName="firstName" />
+          @if (fieldInvalid('deal', 'firstName')) {
+            <span class="create-form__err">First name is required.</span>
+          }
         </label>
         <label class="create-form__field">
-          <span class="create-form__label">Last name</span>
+          <span class="create-form__label">Last name <span class="create-form__req">*</span></span>
           <input class="create-form__control" type="text" formControlName="lastName" />
+          @if (fieldInvalid('deal', 'lastName')) {
+            <span class="create-form__err">Last name is required.</span>
+          }
         </label>
       </div>
       <footer class="create-form__foot">
@@ -208,6 +232,11 @@
         <label class="create-form__field">
           <span class="create-form__label">Mobile</span>
           <input class="create-form__control" type="tel" formControlName="mobile" />
+          @if (fieldInvalid('contact', 'mobile') && contactForm.get('mobile')?.errors?.['required']) {
+            <span class="create-form__err">Mobile is required.</span>
+          } @else if (fieldInvalid('contact', 'mobile') && contactForm.get('mobile')?.errors?.['pattern']) {
+            <span class="create-form__err">Enter exactly 10 digits.</span>
+          }
         </label>
         <label class="create-form__field create-form__field--span2">
           <span class="create-form__label">Company <span class="create-form__req">*</span></span>
@@ -252,6 +281,9 @@
         <label class="create-form__field create-form__field--span2">
           <span class="create-form__label">Website</span>
           <input class="create-form__control" type="text" formControlName="website" placeholder="https://" />
+          @if (fieldInvalid('org', 'website') && orgForm.get('website')?.errors?.['url']) {
+            <span class="create-form__err">Enter a valid website URL.</span>
+          }
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Industry <span class="create-form__req">*</span></span>
@@ -326,8 +358,11 @@
           </select>
         </label>
         <label class="create-form__field">
-          <span class="create-form__label">Due date</span>
+          <span class="create-form__label">Due date <span class="create-form__req">*</span></span>
           <input class="create-form__control" type="datetime-local" formControlName="dueDate" />
+          @if (fieldInvalid('task', 'dueDate')) {
+            <span class="create-form__err">Due date is required.</span>
+          }
         </label>
       </div>
       <footer class="create-form__foot">

@@ -3,14 +3,11 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import type { OrganizationRow } from '../../features/organizations/organizations.component';
+import { normalizeOrganizationRow } from '../../shared/utils/normalize-local-rows';
 import { LocalDataService } from './local-data.service';
 
 function mapOrg(row: Record<string, unknown>): OrganizationRow {
-  const id = row['id'];
-  return {
-    ...(row as unknown as OrganizationRow),
-    id: String(id),
-  };
+  return normalizeOrganizationRow(row);
 }
 
 @Injectable({ providedIn: 'root' })

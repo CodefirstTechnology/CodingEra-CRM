@@ -3,14 +3,11 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import type { ContactRow } from '../../features/contacts/contacts.component';
+import { normalizeContactRow } from '../../shared/utils/normalize-local-rows';
 import { LocalDataService } from './local-data.service';
 
 function mapContact(row: Record<string, unknown>): ContactRow {
-  const id = row['id'];
-  return {
-    ...(row as unknown as ContactRow),
-    id: String(id),
-  };
+  return normalizeContactRow(row);
 }
 
 @Injectable({ providedIn: 'root' })

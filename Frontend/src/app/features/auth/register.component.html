@@ -77,7 +77,11 @@
           placeholder="+1 (555) 000-0000"
         />
         @if (fieldInvalid('phone')) {
-          <span class="register__err">Phone is too long.</span>
+          @if (form.get('phone')?.errors?.['maxlength']) {
+            <span class="register__err">Phone is too long.</span>
+          } @else if (form.get('phone')?.errors?.['phone']) {
+            <span class="register__err">Use a valid phone number (digits and common symbols only).</span>
+          }
         }
       </label>
 

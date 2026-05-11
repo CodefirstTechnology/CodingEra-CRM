@@ -3,14 +3,11 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import type { DealRow } from '../../features/deals/deals.component';
+import { normalizeDealRow } from '../../shared/utils/normalize-local-rows';
 import { LocalDataService } from './local-data.service';
 
 function mapDeal(row: Record<string, unknown>): DealRow {
-  const id = row['id'];
-  return {
-    ...(row as unknown as DealRow),
-    id: String(id),
-  };
+  return normalizeDealRow(row);
 }
 
 @Injectable({ providedIn: 'root' })

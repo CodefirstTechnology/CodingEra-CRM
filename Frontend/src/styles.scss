@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* Global CRM theme tokens — runtime overrides set by ThemeService on :root */
 :root {
   --primary-color: #ffffff;

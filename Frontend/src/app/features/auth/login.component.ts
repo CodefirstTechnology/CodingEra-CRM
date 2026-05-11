@@ -35,7 +35,7 @@ export class LoginComponent {
       next: (res) => {
         this.submitting.set(false);
         if (res.ok) {
-          void this.router.navigateByUrl('/', { replaceUrl: true });
+          void this.router.navigateByUrl('/dashboard', { replaceUrl: true });
         } else {
           this.formError.set(res.error ?? 'Sign-in failed.');
         }

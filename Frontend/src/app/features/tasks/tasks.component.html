@@ -74,8 +74,11 @@
               </select>
             </label>
             <label class="tasks__field tasks__field--meta">
-              <span class="tasks__label">Due date</span>
+              <span class="tasks__label">Due date <span class="tasks__req">*</span></span>
               <input class="tasks__control tasks__control--soft" type="datetime-local" formControlName="dueDate" />
+              @if (fieldInvalid('dueDate')) {
+                <span class="tasks__err">Due date is required.</span>
+              }
             </label>
             <label class="tasks__field tasks__field--meta">
               <span class="tasks__label">Priority</span>

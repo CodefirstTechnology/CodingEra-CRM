@@ -10,17 +10,17 @@ import { createIdSelection } from '../../shared/utils/selection-manager';
 
 export interface ContactRow {
   id: string;
+  salutation: string;
+  firstName: string;
+  lastName: string;
   email: string;
   phone: string;
+  gender: string;
   organization: string;
+  designation: string;
+  address: string;
   lastModified: string;
-  salutation?: string;
-  firstName?: string;
-  lastName?: string;
-  gender?: string;
-  designation?: string;
-  /** City/region line (select value in forms). */
-  address?: string;
+  
 }
 
 @Component({
@@ -87,7 +87,7 @@ export class ContactsComponent {
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
-    mobile: ['', [Validators.maxLength(40)]],
+    mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
     gender: [''],
     companyName: ['', Validators.maxLength(200)],
     designation: ['', Validators.maxLength(120)],
@@ -173,6 +173,7 @@ export class ContactsComponent {
           companyName: row.organization ?? '',
           designation: row.designation ?? '',
           address: row.address ?? '',
+         
         });
         this.formOpen.set(true);
       });
@@ -236,16 +237,17 @@ export class ContactsComponent {
     }
 
     const payload: Omit<ContactRow, 'id'> = {
+      salutation: raw.salutation,
+      firstName: raw.firstName.trim(),
+      lastName: raw.lastName.trim(),
       email: raw.email.trim(),
-      phone: raw.mobile.trim() || '—',
+      phone: raw.mobile.trim(),
+      gender: raw.gender,
       organization: raw.companyName.trim(),
+      designation: raw.designation.trim(),
+      address: raw.address,
       lastModified: 'Just now',
-      salutation: raw.salutation.trim() || undefined,
-      firstName: raw.firstName.trim() || undefined,
-      lastName: raw.lastName.trim() || undefined,
-      gender: raw.gender.trim() || undefined,
-      designation: raw.designation.trim() || undefined,
-      address: raw.address.trim() || undefined,
+    
     };
 
     const done = () => {

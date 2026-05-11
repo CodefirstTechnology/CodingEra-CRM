@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { ToastService } from '../../core/toast/toast.service';
+import { optionalPhoneValidator } from '../../shared/validators/crm-validators';
 import { passwordsMatchValidator } from './passwords-match.validator';
 
 @Component({
@@ -27,7 +28,7 @@ export class RegisterComponent {
       email: ['', [Validators.required, Validators.email, Validators.maxLength(200)]],
       password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(200)]],
       confirmPassword: ['', Validators.required],
-      phone: ['', Validators.maxLength(40)],
+      phone: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
     },
     { validators: [passwordsMatchValidator()] },
   );
