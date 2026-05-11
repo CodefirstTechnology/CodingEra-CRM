@@ -27,6 +27,10 @@ export interface TaskRow {
   assignedTo: string;
   assignedInitials: string;
   lastModified: string;
+  /** When created from lead detail — used to scope tasks on the lead. */
+  relatedLeadId?: string;
+  /** When created from deal detail — used to scope tasks on the deal. */
+  relatedDealId?: string;
 }
 
 @Component({
@@ -188,15 +192,23 @@ export class TasksComponent {
       });
   }
 
+  protected openTaskForEdit(row: TaskRow, ev?: Event): void {
+    ev?.stopPropagation();
+    const idStr = row.id?.trim();
+    if (!idStr) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: idStr },
+      queryParamsHandling: 'merge',
+    });
+    this.beginEditFromRoute(idStr);
+  }
+
   protected onBulkEdit(): void {
     const ids = this.sel.selectedItems();
     if (ids.length !== 1) return;
-    void this.router.navigate([], {
-      relativeTo: this.route,
-      queryParams: { edit: ids[0] },
-      queryParamsHandling: 'merge',
-    });
-    this.beginEditFromRoute(ids[0]);
+    const row = this.rows().find((r) => r.id === ids[0]);
+    if (row) this.openTaskForEdit(row);
   }
 
   protected onBulkDelete(): void {

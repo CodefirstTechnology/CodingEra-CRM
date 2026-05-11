@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
+import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { NotesService } from '../../core/services/notes.service';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
@@ -16,6 +17,10 @@ export interface NoteRow {
   bodyPreview?: string;
   /** Full body for edit round-trip (local/mock). */
   bodyStorage?: string;
+  /** When created from lead detail — used to scope notes on the lead. */
+  relatedLeadId?: string;
+  /** When created from deal detail — used to scope notes on the deal. */
+  relatedDealId?: string;
 }
 
 @Component({
@@ -26,6 +31,7 @@ export interface NoteRow {
 })
 export class NotesComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly createRowBus = inject(CreateRowBusService);
   private readonly notesService = inject(NotesService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -68,6 +74,10 @@ export class NotesComponent {
 
   constructor() {
     this.refreshNotes();
+    this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
+      if (e.kind !== 'note') return;
+      this.refreshNotes();
+    });
     this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
       const edit = q['edit'];
       if (edit != null && edit !== '') {

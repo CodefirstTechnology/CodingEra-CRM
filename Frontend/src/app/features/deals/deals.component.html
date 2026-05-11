@@ -241,10 +241,10 @@
                   [attr.aria-label]="'Select ' + row.organization"
                 />
               </td>
-              <td class="deals__td deals__td--strong">{{ row.organization }}</td>
+              <td class="deals__td deals__td--strong"><a class="deals__name-link" [routerLink]="['/deals', row.id]">{{ row.organization }}</a></td>
               <td class="deals__td">{{ row.annualRevenue }}</td>
               <td class="deals__td"><span [class]="statusClass(row.status)">{{ row.status }}</span></td>
-              <td class="deals__td deals__td--muted deals__td--gap">{{ row.email }}</td>
+              <td class="deals__td deals__td--email deals__td--gap">{{ row.email }}</td>
               <td class="deals__td">{{ row.mobile }}</td>
               <td class="deals__td">
                 <span class="deals__assign">

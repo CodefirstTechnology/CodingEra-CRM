@@ -35,6 +35,7 @@ export interface LeadRow {
   website?: string;
   territory?: string;
   industry: string;
+  jobTitle?: string;
   status: LeadStatus;
   requestType?: string;
   notes?: string;

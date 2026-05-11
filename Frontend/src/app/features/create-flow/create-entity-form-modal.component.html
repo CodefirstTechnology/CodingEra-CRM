@@ -335,6 +335,64 @@
         <button type="submit" class="create-form__btn create-form__btn--primary">Save</button>
       </footer>
     </form>
+  } @else if (flow.formKind() === 'note') {
+    <form class="create-form" [formGroup]="noteForm" (ngSubmit)="submitModalNote()">
+      @if (!flow.noteFromLeadFormContext()) {
+      <div class="create-form__grid create-form__grid--2">
+        <label class="create-form__field">
+          <span class="create-form__label">Related record type</span>
+          <select class="create-form__control" formControlName="relatedType">
+            @for (opt of noteRelatedTypeOptions; track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Record name <span class="create-form__req">*</span></span>
+          <input class="create-form__control" type="text" formControlName="relatedName" autocomplete="off" />
+          @if (fieldInvalid('note', 'relatedName')) {
+          <span class="create-form__err">Enter the record this note belongs to.</span>
+          }
+        </label>
+      </div>
+      } @else if (flow.noteFromLeadFormContext()?.relatedLeadId) {
+      <p class="create-form__muted">
+        This note will be linked to lead <strong>{{ flow.noteFromLeadFormContext()?.leadRelatedName }}</strong>.
+      </p>
+      } @else if (flow.noteFromLeadFormContext()?.relatedDealId) {
+      <p class="create-form__muted">
+        This note will be linked to deal <strong>{{ flow.noteFromLeadFormContext()?.dealRelatedName }}</strong>.
+      </p>
+      }
+
+      <div class="create-form__grid create-form__grid--2">
+        <label class="create-form__field create-form__field--span2">
+          <span class="create-form__label">Title <span class="create-form__req">*</span></span>
+          <input class="create-form__control" type="text" formControlName="title" autocomplete="off" />
+          @if (fieldInvalid('note', 'title')) {
+          <span class="create-form__err">Title is required.</span>
+          }
+        </label>
+        <label class="create-form__field create-form__field--span2">
+          <span class="create-form__label">Note <span class="create-form__req">*</span></span>
+          <textarea class="create-form__control create-form__textarea" rows="4" formControlName="body"></textarea>
+          @if (fieldInvalid('note', 'body')) {
+          <span class="create-form__err">Enter the note body.</span>
+          }
+        </label>
+        <label class="create-form__field">
+          <span class="create-form__label">Visibility</span>
+          <select class="create-form__control" formControlName="visibility">
+            <option value="team">Team</option>
+            <option value="private">Private</option>
+          </select>
+        </label>
+      </div>
+      <footer class="create-form__foot">
+        <button type="button" class="create-form__btn create-form__btn--ghost" (click)="close()">Cancel</button>
+        <button type="submit" class="create-form__btn create-form__btn--primary">Save</button>
+      </footer>
+    </form>
   } @else if (flow.formKind() === 'callLog') {
     <form class="create-form" [formGroup]="callForm" (ngSubmit)="submitCall()">
       <fieldset class="create-form__fieldset">

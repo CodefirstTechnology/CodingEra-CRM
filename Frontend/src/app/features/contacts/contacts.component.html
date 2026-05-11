@@ -117,9 +117,6 @@
               formControlName="companyName"
               placeholder="Company Name"
             />
-            @if (fieldInvalid('companyName')) {
-              <span class="contacts__err">Company name is required.</span>
-            }
           </label>
 
           <label class="contacts__field">
@@ -165,6 +162,7 @@
                 aria-label="Select all contacts"
               />
             </th>
+            <th class="contacts__th">Name</th>
             <th class="contacts__th">Email</th>
             <th class="contacts__th">Phone</th>
             <th class="contacts__th">Organization</th>
@@ -181,10 +179,13 @@
                   class="contacts__checkbox"
                   [checked]="isRowSelected(row.id)"
                   (change)="toggleRow(row.id, $event)"
-                  [attr.aria-label]="'Select ' + row.email"
+                  [attr.aria-label]="'Select ' + contactLabel(row)"
                 />
               </td>
-              <td class="contacts__td contacts__td--strong">{{ row.email }}</td>
+              <td class="contacts__td contacts__td--strong">
+                <a class="contacts__name-link" [routerLink]="['/contacts', row.id]">{{ contactLabel(row) }}</a>
+              </td>
+              <td class="contacts__td contacts__td--muted">{{ row.email }}</td>
               <td class="contacts__td">{{ row.phone }}</td>
               <td class="contacts__td">{{ row.organization }}</td>
               <td class="contacts__td contacts__td--muted">{{ row.lastModified }}</td>

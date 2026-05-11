@@ -1,0 +1,745 @@
+@if (deal(); as row) {
+<div class="deal-detail">
+  <header class="deal-detail__top">
+    <p class="deal-detail__crumb"><a routerLink="/deals">Deals</a> / {{ row.organization }}</p>
+    <div class="deal-detail__top-actions">
+      @if (auth.user(); as session) {
+      <span class="deal-detail__user-chip" title="{{ session.name }}">
+        <span class="deal-detail__user-chip-avatar">{{ userHeaderChip() }}</span>
+        <span class="deal-detail__user-chip-name">{{ session.name }}</span>
+      </span>
+      }
+      <button type="button" class="deal-detail__btn deal-detail__btn--with-caret" (click)="openCreatePicker()">
+        New
+      </button>
+    </div>
+  </header>
+
+  <div class="deal-detail__tabs-bar">
+    <nav class="deal-detail__tabs" aria-label="Deal detail sections">
+      @for (tab of tabs; track tab) {
+      <button type="button" class="deal-detail__tab" [class.is-active]="activeTab() === tab" (click)="setTab(tab)">
+        @if (tab === 'Emails') {
+        <span class="deal-detail__tab-label">
+          <svg
+            class="deal-detail__tab-ico"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 4h16v16H4z" />
+            <path d="m22 7-10 6L2 7" />
+          </svg>
+          Emails
+        </span>
+        } @else if (tab === 'Comments') {
+        <span class="deal-detail__tab-label">
+          <svg
+            class="deal-detail__tab-ico"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+          </svg>
+          Comments
+        </span>
+        } @else {
+        {{ tab }}
+        }
+      </button>
+      }
+    </nav>
+    <span class="deal-detail__tabs-ref">{{ dealCode() }}</span>
+  </div>
+
+  <section class="deal-detail__layout">
+    <article class="deal-detail__main card">
+      @if (activeTab() === 'Emails') {
+      <header class="deal-detail__main-head deal-detail__main-head--tasks">
+        <h2>Emails</h2>
+        <button type="button" class="deal-detail__btn deal-detail__btn--dark" (click)="openNewEmailFromDeal()">+ New Email</button>
+      </header>
+      @if (emailComposerOpen()) {
+      <div class="deal-detail__email-compose deal-detail__email-compose--panel">
+        <div class="deal-detail__compose-body">
+          <div class="deal-detail__mail-row">
+            <span>TO:</span>
+            <input
+              type="email"
+              class="deal-detail__mail-input"
+              [value]="emailTo()"
+              (input)="emailTo.set($any($event.target).value)"
+              placeholder="Enter recipient"
+              autocomplete="email"
+            />
+          </div>
+          <div class="deal-detail__mail-row deal-detail__mail-row--subject">
+            <span>SUBJECT:</span>
+            <input
+              type="text"
+              class="deal-detail__mail-input"
+              [value]="emailSubject()"
+              (input)="emailSubjectText.set($any($event.target).value)"
+              placeholder="Subject"
+            />
+            <div class="deal-detail__mail-row__meta">
+              <button type="button" class="deal-detail__mail-meta-btn">CC</button>
+              <button type="button" class="deal-detail__mail-meta-btn">BCC</button>
+            </div>
+          </div>
+          <textarea
+            class="deal-detail__mail-editor"
+            rows="5"
+            [value]="emailBody()"
+            (input)="emailBody.set($any($event.target).value)"
+            placeholder="Write your email..."
+          ></textarea>
+        </div>
+        <footer class="deal-detail__compose-actions">
+          <input
+            #emailComposeFileInput
+            type="file"
+            multiple
+            class="deal-detail__email-compose-file-input"
+            (change)="onEmailComposeAttachmentsSelected($event)"
+            tabindex="-1"
+            aria-hidden="true"
+          />
+          <input
+            #emailComposeImgInput
+            type="file"
+            multiple
+            accept="image/*"
+            class="deal-detail__email-compose-file-input"
+            (change)="onEmailComposeImagesSelected($event)"
+            tabindex="-1"
+            aria-hidden="true"
+          />
+          <div class="deal-detail__compose-icons">
+              <div class="deal-detail__compose-emoji-wrap">
+                <button type="button" class="deal-detail__compose-ico-btn" aria-label="Insert emoji" title="Emoji" (click)="toggleEmailComposeEmojiPicker()">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M8 14s1.25 2.25 4 2.25 4-2.25 4-2.25" />
+                    <circle cx="9" cy="9" r=".9" fill="currentColor" stroke="none" />
+                    <circle cx="15" cy="9" r=".9" fill="currentColor" stroke="none" />
+                  </svg>
+                </button>
+                @if (emailComposeEmojiOpen()) {
+                <div class="deal-detail__emoji-popover" role="listbox" aria-label="Emoji">
+                  @for (em of emailComposeEmojiChoices; track em) {
+                  <button type="button" class="deal-detail__emoji-popover-item" (click)="insertEmailComposeEmoji(em)">{{ em }}</button>
+                  }
+                </div>
+                }
+              </div>
+              <button type="button" class="deal-detail__compose-ico-btn" aria-label="Attach files" title="Attach files" (click)="emailComposeFileInput.click()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
+                </svg>
+              </button>
+              <button type="button" class="deal-detail__compose-ico-btn" aria-label="Insert images" title="Insert images" (click)="emailComposeImgInput.click()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="15" rx="2" ry="2" />
+                  <circle cx="8.75" cy="9.75" r="1.65" />
+                  <path d="m21 16-6-6-10 11" />
+                </svg>
+              </button>
+            </div>
+          <div class="deal-detail__compose-btns">
+            <button type="button" class="deal-detail__btn deal-detail__btn--light" (click)="cancelDealEmailComposer()">Discard</button>
+            <button
+              type="button"
+              class="deal-detail__btn deal-detail__btn--compose-send"
+              [disabled]="!emailToLooksValid()"
+              (click)="submitDealDraftEmail()"
+            >
+              Send
+            </button>
+          </div>
+        </footer>
+      </div>
+      }
+      @if (dealEmails().length === 0) {
+      <div class="deal-detail__email-empty">
+        <span class="deal-detail__email-empty-icon" aria-hidden="true">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16v16H4z" />
+            <path d="m22 7-10 6L2 7" />
+          </svg>
+        </span>
+        <p>No Email Communications</p>
+        <button type="button" class="deal-detail__btn deal-detail__btn--calls-muted" (click)="openNewEmailFromDeal()">New Email</button>
+      </div>
+      } @else {
+      <div class="deal-detail__email-thread-wrap">
+        @for (m of dealEmails(); track m.id; let isLast = $last) {
+        <div class="deal-detail__email-timeline-item">
+          <div class="deal-detail__email-timeline-axis">
+            <span class="deal-detail__email-timeline-avatar">{{ m.senderInitial }}</span>
+            @if (!isLast) {
+            <span class="deal-detail__email-timeline-line" aria-hidden="true"></span>
+            }
+          </div>
+          <article class="deal-detail__email-card">
+            <div class="deal-detail__email-card-head">
+              <p class="deal-detail__email-from">{{ m.senderDisplay }}</p>
+              <div class="deal-detail__email-card-actions">
+                <button type="button" class="deal-detail__email-mini-btn" title="Reply" aria-label="Reply" (click)="openDealEmailReply(m)">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 14 4 9l5-5" />
+                    <path d="M20 20v-7a4 4 0 0 0-4-4H7" />
+                  </svg>
+                </button>
+                <button type="button" class="deal-detail__email-mini-btn" title="Reply all" aria-label="Reply all" (click)="openDealEmailReply(m)">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 10 4 5l5-5" />
+                    <path d="M20 21v-6a6 6 0 0 0-6-6H11" />
+                    <path d="M15 10a4 4 0 0 1 4 4v7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <p class="deal-detail__email-subject">{{ m.subjectLine }}</p>
+            <p class="deal-detail__email-to">To: {{ m.toAddress }}</p>
+            <div class="deal-detail__email-meta-row">
+              @if (m.status === 'Sent') {
+              <span class="deal-detail__email-status deal-detail__email-status--sent">{{ m.status }}</span>
+              } @else {
+              <span class="deal-detail__email-status deal-detail__email-status--draft">{{ m.status }}</span>
+              }
+              <time class="deal-detail__email-time">{{ m.whenLabel }}</time>
+            </div>
+            <div class="deal-detail__email-body-box">{{ m.body }}</div>
+          </article>
+        </div>
+        }
+      </div>
+      }
+      <footer class="deal-detail__compose deal-detail__compose--comments deal-detail__compose--email-tab">
+        <button type="button" class="deal-detail__link deal-detail__link--with-icon" (click)="openDealEmailComposer()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M4 4h16v16H4z" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="m22 6-10 7L2 6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Reply
+        </button>
+        <button type="button" class="deal-detail__link deal-detail__link--with-icon" (click)="openDealEmailFooterComment()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+          </svg>
+          Comment
+        </button>
+      </footer>
+      } @else if (activeTab() === 'Comments') {
+      <header class="deal-detail__main-head deal-detail__main-head--tasks">
+        <h2>Comments</h2>
+        <button type="button" class="deal-detail__btn deal-detail__btn--dark" (click)="openNewCommentFromDeal()">+ New Comment</button>
+      </header>
+      @if (commentComposerOpen()) {
+      <div class="deal-detail__comment-composer">
+        <textarea
+          class="deal-detail__comment-textarea"
+          rows="3"
+          placeholder="Write a comment…"
+          [value]="commentDraft()"
+          (input)="commentDraft.set($any($event.target).value)"
+        ></textarea>
+        <div class="deal-detail__comment-composer-actions">
+          <button type="button" class="deal-detail__btn deal-detail__btn--light" (click)="cancelDealCommentComposer()">Cancel</button>
+          <button type="button" class="deal-detail__btn deal-detail__btn--solid" (click)="postDealComment()" [disabled]="!commentDraft().trim()">Post</button>
+        </div>
+      </div>
+      }
+      @if (dealComments().length === 0) {
+      <div class="deal-detail__comments-empty">
+        <span class="deal-detail__comments-empty-icon" aria-hidden="true">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+          </svg>
+        </span>
+        <p>No comments yet</p>
+        <button type="button" class="deal-detail__btn deal-detail__btn--calls-muted" (click)="openNewCommentFromDeal()">New Comment</button>
+      </div>
+      } @else {
+      <ul class="deal-detail__comment-list" aria-label="Comments on this deal">
+        @for (c of dealComments(); track c.id) {
+        <li class="deal-detail__comment-item">
+          <span class="deal-detail__comment-rail" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+            </svg>
+          </span>
+          <div class="deal-detail__comment-core">
+            <div class="deal-detail__comment-head">
+              <span class="deal-detail__comment-avatar">{{ c.authorInitial }}</span>
+              <p class="deal-detail__comment-meta-line"><strong>{{ c.authorName }}</strong> added a comment</p>
+              <time class="deal-detail__comment-when">{{ c.whenLabel }}</time>
+            </div>
+            <div class="deal-detail__comment-bubble">{{ c.body }}</div>
+          </div>
+        </li>
+        }
+      </ul>
+      }
+      <footer class="deal-detail__compose deal-detail__compose--comments">
+        <button type="button" class="deal-detail__link deal-detail__link--with-icon" (click)="openReplyFromDealComments()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M4 4h16v16H4z" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="m22 6-10 7L2 6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Reply
+        </button>
+        <button type="button" class="deal-detail__link deal-detail__link--with-icon" (click)="openNewCommentFromDeal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+          </svg>
+          Comment
+        </button>
+      </footer>
+      } @else if (activeTab() === 'Data') {
+      <header class="deal-detail__main-head">
+        <h2>Data</h2>
+        <div class="deal-detail__data-actions">
+          <button type="button" class="deal-detail__icon-btn" aria-label="Discard unsaved edits" title="Revert" (click)="discardDataEdits()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+          <button type="button" class="deal-detail__btn deal-detail__btn--solid" [disabled]="dataSaving()" (click)="saveDataTab()">
+            Save
+          </button>
+        </div>
+      </header>
+
+      <form class="deal-detail__data-form" [formGroup]="dataForm" (ngSubmit)="saveDataTab()">
+        <fieldset class="deal-detail__fieldset">
+          <legend class="deal-detail__fieldset-legend">Details</legend>
+          <div class="deal-detail__field-grid">
+            <label class="deal-detail__field">
+              <span class="deal-detail__label">Organization<span class="deal-detail__req" aria-hidden="true">*</span></span>
+              <input type="text" class="deal-detail__input" formControlName="organization" [class.is-invalid]="dataForm.controls.organization.invalid && dataForm.controls.organization.touched" />
+            </label>
+            <label class="deal-detail__field">
+              <span class="deal-detail__label">Annual revenue</span>
+              <input type="text" class="deal-detail__input" formControlName="annualRevenue" placeholder="0.00" />
+            </label>
+            <label class="deal-detail__field">
+              <span class="deal-detail__label">Pipeline status<span class="deal-detail__req" aria-hidden="true">*</span></span>
+              <select class="deal-detail__select" formControlName="status">
+                @for (s of dealStatuses; track s) {
+                <option [value]="s">{{ s }}</option>
+                }
+              </select>
+            </label>
+            <label class="deal-detail__field">
+              <span class="deal-detail__label">Deal owner<span class="deal-detail__req" aria-hidden="true">*</span></span>
+              <select class="deal-detail__select" formControlName="dealOwner">
+                @for (o of dealOwnerOptions; track o.id) {
+                <option [value]="o.id">{{ o.label }}</option>
+                }
+              </select>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="deal-detail__fieldset">
+          <legend class="deal-detail__fieldset-legend">Contact</legend>
+          <div class="deal-detail__field-grid">
+            <label class="deal-detail__field">
+              <span class="deal-detail__label">Email</span>
+              <input type="email" class="deal-detail__input" formControlName="email" />
+            </label>
+            <label class="deal-detail__field">
+              <span class="deal-detail__label">Mobile No</span>
+              <input type="text" class="deal-detail__input" formControlName="mobile" autocomplete="tel" />
+            </label>
+          </div>
+        </fieldset>
+      </form>
+      } @else if (activeTab() === 'Calls') {
+      <header class="deal-detail__main-head">
+        <h2>Calls</h2>
+        <button type="button" class="deal-detail__btn deal-detail__btn--dark" (click)="openLogCallFromDeal()">+ Log a Call</button>
+      </header>
+
+      @if (dealCallLogs().length === 0) {
+      <div class="deal-detail__calls-empty">
+        <span class="deal-detail__calls-icon" aria-hidden="true">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path
+              d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
+            />
+          </svg>
+        </span>
+        <p>No Call Logs</p>
+        <button type="button" class="deal-detail__btn deal-detail__btn--calls-muted" (click)="openLogCallFromDeal()">Log a Call</button>
+      </div>
+      } @else {
+      <ul class="deal-detail__call-list" aria-label="Call logs for this deal">
+        @for (call of dealCallLogs(); track call.id) {
+        <li class="deal-detail__call-row">
+          <span class="deal-detail__call-dir">{{ call.direction }}</span>
+          <div class="deal-detail__call-body">
+            <p class="deal-detail__call-title">{{ call.contact }}</p>
+            <p class="deal-detail__call-meta">
+              {{ call.number }} · {{ call.duration }} · <span>{{ call.outcome }}</span>
+            </p>
+          </div>
+          <time class="deal-detail__call-when">{{ call.when }}</time>
+        </li>
+        }
+      </ul>
+      }
+      } @else if (activeTab() === 'Tasks') {
+      <header class="deal-detail__main-head deal-detail__main-head--tasks">
+        <h2>Tasks</h2>
+        <button type="button" class="deal-detail__btn deal-detail__btn--dark" (click)="openNewTaskFromDeal()">+ New Task</button>
+      </header>
+
+      @if (dealTasks().length === 0) {
+      <div class="deal-detail__tasks-empty">
+        <span class="deal-detail__tasks-icon" aria-hidden="true">
+          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11l3 3L22 4" />
+            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+          </svg>
+        </span>
+        <p>No Tasks</p>
+        <button type="button" class="deal-detail__btn deal-detail__btn--calls-muted" (click)="openNewTaskFromDeal()">New Task</button>
+      </div>
+      } @else {
+      <ul class="deal-detail__task-list" aria-label="Tasks for this deal">
+        @for (task of dealTasks(); track task.id) {
+        <li class="deal-detail__task-row">
+          <div class="deal-detail__task-body">
+            <button type="button" class="deal-detail__task-title" (click)="openTaskForEdit(task)">
+              {{ task.title }}
+            </button>
+            <p class="deal-detail__task-meta">
+              <span class="deal-detail__task-assignee-chip">{{ taskAssigneeChipInitial(task) }}</span>
+              <span>{{ task.assignedTo }}</span>
+              <span class="deal-detail__task-dot">·</span>
+              <span class="deal-detail__task-priority">{{ task.priority }}</span>
+            </p>
+          </div>
+          <div class="deal-detail__task-trail">
+            <span class="deal-detail__task-status-ico" [attr.title]="task.status" role="img" [attr.aria-label]="task.status">
+              @switch (task.status) {
+              @case ('Done') {
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+              }
+              @case ('Canceled') {
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <path d="m15 9-6 6M9 9l6 6" />
+              </svg>
+              }
+              @case ('In Progress') {
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-dasharray="2.8 3" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke-dashoffset="14" />
+              </svg>
+              }
+              @case ('Todo') {
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+              </svg>
+              }
+              @default {
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-dasharray="3 3" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+              </svg>
+              }
+              }
+            </span>
+            <button type="button" class="deal-detail__task-more" aria-label="More actions" title="More">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <circle cx="6.5" cy="12" r="1.5" />
+                <circle cx="12" cy="12" r="1.5" />
+                <circle cx="17.5" cy="12" r="1.5" />
+              </svg>
+            </button>
+          </div>
+        </li>
+        }
+      </ul>
+      }
+      } @else if (activeTab() === 'Notes') {
+      <header class="deal-detail__main-head deal-detail__main-head--tasks">
+        <h2>Notes</h2>
+        <button type="button" class="deal-detail__btn deal-detail__btn--dark" (click)="openCreateNoteFromDeal()">+ New Note</button>
+      </header>
+      @if (dealNotes().length === 0) {
+      <div class="deal-detail__notes-empty">
+        <span class="deal-detail__notes-icon" aria-hidden="true">
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <path d="M12 18h-6M12 14h-6M16 14h2M16 18h2" />
+          </svg>
+        </span>
+        <p>No Notes</p>
+        <button type="button" class="deal-detail__btn deal-detail__btn--calls-muted" (click)="openCreateNoteFromDeal()">Create Note</button>
+      </div>
+      } @else {
+      <ul class="deal-detail__note-list" aria-label="Notes for this deal">
+        @for (note of dealNotes(); track note.id) {
+        <li class="deal-detail__note-row">
+          <p class="deal-detail__note-title">{{ note.title }}</p>
+          <p class="deal-detail__note-meta">{{ note.author }} · {{ note.record }} · {{ note.when }}</p>
+          @if (note.bodyPreview?.trim()) {
+          <p class="deal-detail__note-preview">{{ note.bodyPreview }}</p>
+          }
+        </li>
+        }
+      </ul>
+      }
+      } @else if (activeTab() === 'Attachments') {
+      <input
+        #dealAttachmentPicker
+        type="file"
+        multiple
+        class="deal-detail__attachment-input"
+        aria-hidden="true"
+        tabindex="-1"
+        (change)="onDealAttachmentFilesSelected($event)"
+      />
+      <header class="deal-detail__main-head deal-detail__main-head--tasks">
+        <h2>Attachments</h2>
+        <button type="button" class="deal-detail__btn deal-detail__btn--dark" (click)="dealAttachmentPicker.click()">
+          + Upload Attachment
+        </button>
+      </header>
+      @if (dealAttachments().length === 0) {
+      <div class="deal-detail__attachments-empty">
+        <span class="deal-detail__attachments-icon" aria-hidden="true">
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
+          </svg>
+        </span>
+        <p>No Attachments</p>
+        <button type="button" class="deal-detail__btn deal-detail__btn--calls-muted" (click)="dealAttachmentPicker.click()">
+          Upload Attachment
+        </button>
+      </div>
+      } @else {
+      <ul class="deal-detail__attachment-list" aria-label="Attachments for this deal">
+        @for (a of dealAttachments(); track a.id) {
+        <li class="deal-detail__attachment-row">
+          <span class="deal-detail__attachments-icon deal-detail__attachments-icon--sm" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
+            </svg>
+          </span>
+          <div class="deal-detail__attachment-body">
+            <p class="deal-detail__attachment-name">{{ a.name }}</p>
+            <p class="deal-detail__attachment-meta">{{ a.sizeLabel }} · {{ a.uploadedAt }}</p>
+          </div>
+        </li>
+        }
+      </ul>
+      }
+      } @else {
+      <header class="deal-detail__main-head">
+        <h2>{{ activeTab() }}</h2>
+        <span>{{ row.lastModified }}</span>
+      </header>
+      <ul class="deal-detail__feed">
+        <li>
+          <span class="deal-detail__dot">◎</span>
+          <p><strong>{{ row.assignedTo }}</strong> created this deal</p>
+          <time>{{ row.lastModified }}</time>
+        </li>
+        <li>
+          <span class="deal-detail__dot">○</span>
+          <p><strong>{{ row.organization }}</strong> status moved to <strong>{{ row.status }}</strong></p>
+          <time>2 hours ago</time>
+        </li>
+        <li>
+          <span class="deal-detail__dot">○</span>
+          <p>Organization updated to <strong>{{ row.organization }}</strong></p>
+          <time>Today</time>
+        </li>
+      </ul>
+      <footer class="deal-detail__compose">
+        <button type="button" class="deal-detail__link">Reply</button>
+        <button type="button" class="deal-detail__link">Comment</button>
+      </footer>
+      }
+    </article>
+
+    <aside class="deal-detail__side card">
+      <header class="deal-detail__side-id">{{ dealCode() }}</header>
+
+      <div class="deal-detail__side-head">
+        <span class="deal-detail__avatar deal-detail__avatar--lg">{{ sidebarDealAvatarLetter(row) }}</span>
+        <div class="deal-detail__side-ident">
+          <p class="deal-detail__name">{{ sidebarDealHeadline(row) }}</p>
+          <div class="deal-detail__side-actions">
+            <button type="button" class="deal-detail__side-icon" aria-label="Email" title="Email" (click)="setTab('Emails')">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <path d="m3 7 9 6 9-6" />
+              </svg>
+            </button>
+            <button type="button" class="deal-detail__side-icon" aria-label="Copy link to this deal" title="Copy link" (click)="copyDealDetailUrl()">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 1 7.54.54 5 5 0 0 1-7.07 7.07L9 21" />
+                <path d="M14 11a5 5 0 0 1-7.54-.54 5 5 0 0 1 7.07-7.07L15 3" />
+              </svg>
+            </button>
+            <button type="button" class="deal-detail__side-icon" aria-label="Attachments" title="Attachments" (click)="setTab('Attachments')">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="deal-detail__side-icon deal-detail__side-icon--danger"
+              aria-label="Delete deal"
+              title="Delete"
+              (click)="confirmDeleteDeal()"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M19 6l-1 14H6L5 6" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <section class="deal-detail__side-section">
+        <div class="deal-detail__side-section-head">
+          <button type="button" class="deal-detail__side-toggle" (click)="toggleSidebarDetails()" [attr.aria-expanded]="sidebarDetailsOpen()">
+            <svg class="deal-detail__side-chevron" [class.is-collapsed]="!sidebarDetailsOpen()" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="deal-detail__side-toggle-text">Details</span>
+          </button>
+          <button type="button" class="deal-detail__side-edit" aria-label="Edit details on Data tab" title="Edit" (click)="setTab('Data')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+        </div>
+        @if (sidebarDetailsOpen()) {
+        <div class="deal-detail__side-section-body">
+          <dl class="deal-detail__kv deal-detail__kv--side deal-detail__kv--editable">
+            <dt>Organization</dt>
+            <dd class="deal-detail__kv-dd">
+              <input
+                type="text"
+                class="deal-detail__side-field"
+                [formControl]="dataForm.controls.organization"
+                [placeholder]="sidebarAddLabel('Organization')"
+                autocomplete="organization"
+              />
+            </dd>
+            <dt>Annual revenue</dt>
+            <dd class="deal-detail__kv-dd">
+              <input type="text" class="deal-detail__side-field" [formControl]="dataForm.controls.annualRevenue" [placeholder]="sidebarAddLabel('Annual revenue')" inputmode="decimal" />
+            </dd>
+            <dt>Status</dt>
+            <dd class="deal-detail__kv-dd">
+              <select class="deal-detail__side-field deal-detail__side-field--select" [formControl]="dataForm.controls.status" aria-label="Deal status">
+                @for (s of dealStatuses; track s) {
+                <option [value]="s">{{ s }}</option>
+                }
+              </select>
+            </dd>
+            <dt>Deal owner</dt>
+            <dd class="deal-detail__kv-owner deal-detail__kv-owner--editable">
+              <span class="deal-detail__owner-badge deal-detail__owner-badge--side">{{ sidebarOwnerChipInitial() }}</span>
+              <select class="deal-detail__side-field deal-detail__side-field--select deal-detail__side-field--owner" [formControl]="dataForm.controls.dealOwner" aria-label="Deal owner">
+                @for (o of dealOwnerOptions; track o.id) {
+                <option [value]="o.id">{{ o.label }}</option>
+                }
+              </select>
+            </dd>
+          </dl>
+        </div>
+        }
+      </section>
+
+      <section class="deal-detail__side-section deal-detail__side-section--last">
+        <div class="deal-detail__side-section-head">
+          <button type="button" class="deal-detail__side-toggle" (click)="toggleSidebarPerson()" [attr.aria-expanded]="sidebarPersonOpen()">
+            <svg class="deal-detail__side-chevron" [class.is-collapsed]="!sidebarPersonOpen()" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="deal-detail__side-toggle-text">Contact</span>
+          </button>
+        </div>
+        @if (sidebarPersonOpen()) {
+        <div class="deal-detail__side-section-body">
+          <dl class="deal-detail__kv deal-detail__kv--side deal-detail__kv--editable">
+            <dt>Email</dt>
+            <dd class="deal-detail__kv-dd">
+              <input
+                type="email"
+                class="deal-detail__side-field"
+                [formControl]="dataForm.controls.email"
+                [placeholder]="sidebarAddLabel('Email')"
+                autocomplete="email"
+              />
+            </dd>
+            <dt>Mobile No</dt>
+            <dd class="deal-detail__kv-dd">
+              <input
+                type="tel"
+                class="deal-detail__side-field"
+                [formControl]="dataForm.controls.mobile"
+                [placeholder]="sidebarAddLabel('Mobile No')"
+                autocomplete="tel"
+              />
+            </dd>
+          </dl>
+        </div>
+        }
+      </section>
+
+      @if (dataForm.dirty) {
+      <footer class="deal-detail__side-save">
+        <button type="button" class="deal-detail__btn deal-detail__btn--light deal-detail__side-save-discard" [disabled]="dataSaving()" (click)="discardDataEdits()">
+          Discard
+        </button>
+        <button
+          type="button"
+          class="deal-detail__btn deal-detail__btn--solid deal-detail__side-save-commit"
+          [disabled]="dataSaving()"
+          (click)="saveDataTab()"
+        >
+          {{ dataSaving() ? 'Saving…' : 'Save changes' }}
+        </button>
+      </footer>
+      }
+    </aside>
+  </section>
+</div>
+} @else {
+<div class="deal-detail deal-detail--empty">
+  <p>Deal not found.</p>
+  <a routerLink="/deals" class="deal-detail__back">Back to deals</a>
+</div>
+}

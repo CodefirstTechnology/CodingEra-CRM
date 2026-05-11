@@ -20,6 +20,10 @@ export interface CallLogRow {
   startedAtIso?: string;
   contactName?: string;
   callSummary?: string;
+  /** When created from lead detail — used to scope call history on the lead. */
+  relatedLeadId?: string;
+  /** When created from deal detail — used to scope call history on the deal. */
+  relatedDealId?: string;
 }
 
 @Component({
