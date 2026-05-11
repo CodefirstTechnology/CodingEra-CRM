@@ -1,8 +1,11 @@
 /** CRM pipeline status (manual leads + unified list). */
 export type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost' | 'Converted';
 
+/** Marketplace origins shown in the unified Leads view. */
+export type MarketplaceLeadSource = 'IndiaMART' | 'Justdial' | 'TradeIndia';
+
 /** Origin of the row in the unified Leads view (frontend mapping; optional on API payloads). */
-export type LeadSource = 'Manual' | 'IndiaMART' | 'Justdial';
+export type LeadSource = 'Manual' | MarketplaceLeadSource;
 
 export interface LeadOwnerOption {
   id: string;

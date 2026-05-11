@@ -39,6 +39,20 @@
           }
         </button>
       }
+      @if (tradeindiaEnabled) {
+        <button
+          type="button"
+          class="leads__btn leads__btn--ghost"
+          [disabled]="tradeindiaLoading()"
+          (click)="syncTradeIndiaFromApi()"
+        >
+          @if (tradeindiaLoading()) {
+            Syncing TradeIndia...
+          } @else {
+            Sync TradeIndia
+          }
+        </button>
+      }
       <button type="button" class="leads__btn leads__btn--solid" (click)="openForm()">+ New lead</button>
     </div>
   </header>
@@ -395,6 +409,17 @@
                       [attr.aria-label]="'Status for ' + row.name"
                     >
                       @for (st of justdialStatusOptions; track st) {
+                        <option [value]="st">{{ st }}</option>
+                      }
+                    </select>
+                  } @else if (leadSourceLabel(row) === 'TradeIndia') {
+                    <select
+                      class="leads__status-select"
+                      [value]="row.status"
+                      (change)="onTradeIndiaStatusChange(row, $event)"
+                      [attr.aria-label]="'Status for ' + row.name"
+                    >
+                      @for (st of tradeindiaStatusOptions; track st) {
                         <option [value]="st">{{ st }}</option>
                       }
                     </select>
