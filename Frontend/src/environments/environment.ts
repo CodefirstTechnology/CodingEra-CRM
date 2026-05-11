@@ -1,5 +1,5 @@
 import type { IndiamartEnvironmentConfig } from './indiamart-environment';
-import { indiamartSecrets } from './indiamart-secrets.generated';
+import { indiamartSecrets, justdialSecrets } from './indiamart-secrets.generated';
 
 export const environment = {
   production: true,
@@ -40,10 +40,10 @@ export const environment = {
    * Keep secrets out of frontend production builds; mock mode is enabled until that API exists.
    */
   justdial: {
-    enabled: true,
-    useMock: true,
-    pullApiUrl: '',
-    apiKey: '',
-    webhookToken: '',
+    enabled: justdialSecrets.enabled,
+    useMock: justdialSecrets.useMock,
+    pullApiUrl: justdialSecrets.pullApiUrl,
+    apiKey: justdialSecrets.apiKey,
+    webhookToken: justdialSecrets.webhookToken,
   },
 };

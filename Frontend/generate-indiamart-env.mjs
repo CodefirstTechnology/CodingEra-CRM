@@ -34,6 +34,11 @@ function parseDotEnv(source) {
 
 const localEnv = existsSync(envPath) ? parseDotEnv(readFileSync(envPath, 'utf8')) : {};
 
+function parseBool(value, fallback) {
+  if (value == null || value === '') return fallback;
+  return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
+}
+
 const indiamartSecrets = {
   pullApiUrl: localEnv.INDIAMART_PULL_API_URL ?? '',
   pushApiUrl: localEnv.INDIAMART_PUSH_API_URL ?? '',
@@ -41,8 +46,17 @@ const indiamartSecrets = {
   webhookToken: localEnv.INDIAMART_WEBHOOK_TOKEN ?? '',
 };
 
+const justdialSecrets = {
+  enabled: parseBool(localEnv.JUSTDIAL_ENABLED, true),
+  useMock: parseBool(localEnv.JUSTDIAL_USE_MOCK, true),
+  pullApiUrl: localEnv.JUSTDIAL_PULL_API_URL ?? '',
+  apiKey: localEnv.JUSTDIAL_API_KEY ?? '',
+  webhookToken: localEnv.JUSTDIAL_WEBHOOK_TOKEN ?? '',
+};
+
 const generated = `/* Auto-generated from Frontend/.env. Do not edit or commit real secrets. */
 export const indiamartSecrets = ${JSON.stringify(indiamartSecrets, null, 2)} as const;
+export const justdialSecrets = ${JSON.stringify(justdialSecrets, null, 2)} as const;
 `;
 
 mkdirSync(dirname(outputPath), { recursive: true });
