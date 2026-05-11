@@ -1,0 +1,26 @@
+{
+  "/indiamart-mapi": {
+    "target": "https://mapi.indiamart.com",
+    "secure": true,
+    "changeOrigin": true,
+    "pathRewrite": {
+      "^/indiamart-mapi": ""
+    }
+  },
+  "/indiamart_mapi": {
+    "target": "https://mapi.indiamart.com",
+    "secure": true,
+    "changeOrigin": true,
+    "pathRewrite": {
+      "^/indiamart_mapi": ""
+    }
+  },
+  "/indiamart mapi": {
+    "target": "https://mapi.indiamart.com",
+    "secure": true,
+    "changeOrigin": true,
+    "pathRewrite": {
+      "^/indiamart mapi": ""
+    }
+  }
+}

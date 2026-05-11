@@ -1,3 +1,5 @@
+import type { IndiamartEnvironmentConfig } from './indiamart-environment';
+
 export const environment = {
   production: true,
   /**
@@ -7,7 +9,7 @@ export const environment = {
   enableIndiamartLead: true,
   /**
    * Milliseconds between auto-appended demo IndiaMART leads (localStorage + Leads list).
-   * Set to `0` to disable. Only runs when `enableIndiamartLead` is true.
+   * Set to `0` to disable. Only runs when `enableIndiamartLead` is true and `indiamart.useMock` is true.
    */
   indiamartAutoSimulateIntervalMs: 4 * 60 * 1000,
   /**
@@ -21,4 +23,14 @@ export const environment = {
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
   /** If true, shows `window.alert` after a successful convert (no new UI components). */
   showLeadConvertSuccessMessage: false,
+  /**
+   * Lead Manager Pull API — use a reverse proxy in production (browser cannot call mapi directly).
+   */
+  indiamart: {
+    useMock: false,
+    pullApiUrl: 'https://mapi.indiamart.com/wservce/crm/crmListing/v2',
+    pushApiUrl: '',
+    apiKey: '',
+    webhookToken: '',
+  } satisfies IndiamartEnvironmentConfig,
 };

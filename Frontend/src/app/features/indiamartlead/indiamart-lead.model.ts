@@ -18,6 +18,8 @@ export function isIndiaMartLeadStatus(value: string): value is IndiaMartLeadStat
  */
 export interface IndiaMartLead {
   id: number;
+  /** Stable id from IndiaMART / middleware for deduplication when pulling from API. */
+  externalRef?: string;
   customerName: string;
   mobile: string;
   email: string;
@@ -35,3 +37,10 @@ export type IndiaMartLeadInput = Omit<IndiaMartLead, 'id' | 'createdAt'> & {
   id?: number;
   createdAt?: string;
 };
+
+/** Result of merging a pull response into the local IndiaMART cache. */
+export interface IndiamartPullResult {
+  added: number;
+  skippedDuplicates: number;
+  remoteCount: number;
+}

@@ -42,12 +42,16 @@ export type { LeadListStatusFilter as StatusFilter, LeadRow, LeadOwnerOption, Le
 export class LeadsComponent {
   /** Exposes feature flag for template (simulate + merged IndiaMART list). */
   protected readonly enableIndiamartLead = environment.enableIndiamartLead;
+  /** When true, IndiaMART uses localStorage + optional demo simulation instead of HTTP. */
+  protected readonly indiamartUseMock = environment.indiamart.useMock;
 
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly leadsService = inject(LeadsService);
   private readonly dealsService = inject(DealsService);
   private readonly indiamartLeadsService = inject(IndiamartLeadsService);
+  /** Mirrors {@link IndiamartLeadsService.pullInProgress} for the sync button. */
+  protected readonly indiamartPullLoading = this.indiamartLeadsService.pullInProgress;
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -121,7 +125,7 @@ export class LeadsComponent {
 
     const pollMs = environment.indiamartAutoSimulateIntervalMs ?? 0;
     const durationMs = environment.indiamartAutoSimulateDurationMs ?? 0;
-    if (environment.enableIndiamartLead && pollMs > 0) {
+    if (environment.enableIndiamartLead && environment.indiamart.useMock && pollMs > 0) {
       this.indiamartLeadsService.startDemoAutoSimulation({
         intervalMs: pollMs,
         durationMs,
@@ -638,9 +642,26 @@ export class LeadsComponent {
   }
 
   protected simulateIndiaMartLead(): void {
+    if (!environment.indiamart.useMock) return;
     this.ngZone.run(() => {
       this.indiamartLeadsService.addLead(this.indiamartLeadsService.buildRandomLead());
     });
+  }
+
+  /** Pulls IndiaMART leads from `environment.indiamart.pullApiUrl` (non-mock only). */
+  protected syncIndiaMartFromApi(): void {
+    if (environment.indiamart.useMock) return;
+    this.indiamartLeadsService
+      .fetchFromIndiaMartAPI()
+      .pipe(take(1))
+      .subscribe({
+        next: (r) =>
+          this.toast.show(
+            `IndiaMART sync: ${r.added} new, ${r.skippedDuplicates} skipped (duplicates or invalid), ${r.remoteCount} parsed from response.`,
+          ),
+        error: (e: unknown) =>
+          this.toast.show(e instanceof Error ? e.message : 'IndiaMART sync failed.'),
+      });
   }
 
   protected fieldInvalid(name: string): boolean {
