@@ -1,4 +1,5 @@
 import type { IndiamartEnvironmentConfig } from './indiamart-environment';
+import { indiamartSecrets } from './indiamart-secrets.generated';
 
 export const environment = {
   production: true,
@@ -28,9 +29,10 @@ export const environment = {
    */
   indiamart: {
     useMock: false,
-    pullApiUrl: 'https://mapi.indiamart.com/wservce/crm/crmListing/v2',
-    pushApiUrl: '',
-    apiKey: '',
-    webhookToken: '',
+    pullApiUrl:
+      indiamartSecrets.pullApiUrl || 'https://mapi.indiamart.com/wservce/crm/crmListing/v2',
+    pushApiUrl: indiamartSecrets.pushApiUrl,
+    apiKey: indiamartSecrets.apiKey,
+    webhookToken: indiamartSecrets.webhookToken,
   } satisfies IndiamartEnvironmentConfig,
 };
