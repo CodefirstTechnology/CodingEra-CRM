@@ -6,9 +6,23 @@
     </div>
     <div class="leads__actions">
       <button type="button" class="leads__btn leads__btn--ghost">Import</button>
-      @if (enableIndiamartLead) {
+      @if (enableIndiamartLead && indiamartUseMock) {
         <button type="button" class="leads__btn leads__btn--ghost" (click)="simulateIndiaMartLead()">
           Simulate IndiaMART lead
+        </button>
+      }
+      @if (enableIndiamartLead && !indiamartUseMock) {
+        <button
+          type="button"
+          class="leads__btn leads__btn--ghost"
+          [disabled]="indiamartPullLoading()"
+          (click)="syncIndiaMartFromApi()"
+        >
+          @if (indiamartPullLoading()) {
+            Syncing IndiaMART…
+          } @else {
+            Sync IndiaMART
+          }
         </button>
       }
       <button type="button" class="leads__btn leads__btn--solid" (click)="openForm()">+ New lead</button>

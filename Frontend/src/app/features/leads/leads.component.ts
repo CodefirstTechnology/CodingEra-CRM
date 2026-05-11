@@ -1,4 +1,4 @@
-import { Component, computed, DestroyRef, inject, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, NgZone, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -42,16 +42,21 @@ export type { LeadListStatusFilter as StatusFilter, LeadRow, LeadOwnerOption, Le
 export class LeadsComponent {
   /** Exposes feature flag for template (simulate + merged IndiaMART list). */
   protected readonly enableIndiamartLead = environment.enableIndiamartLead;
+  /** When true, IndiaMART uses localStorage + optional demo simulation instead of HTTP. */
+  protected readonly indiamartUseMock = environment.indiamart.useMock;
 
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly leadsService = inject(LeadsService);
   private readonly dealsService = inject(DealsService);
   private readonly indiamartLeadsService = inject(IndiamartLeadsService);
+  /** Mirrors {@link IndiamartLeadsService.pullInProgress} for the sync button. */
+  protected readonly indiamartPullLoading = this.indiamartLeadsService.pullInProgress;
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly ngZone = inject(NgZone);
 
   protected readonly sel = createIdSelection();
   protected readonly assignPickerOpen = signal(false);
@@ -120,26 +125,16 @@ export class LeadsComponent {
 
     const pollMs = environment.indiamartAutoSimulateIntervalMs ?? 0;
     const durationMs = environment.indiamartAutoSimulateDurationMs ?? 0;
-    if (environment.enableIndiamartLead && pollMs > 0) {
-      const intervalId = window.setInterval(() => {
-        this.indiamartLeadsService.addLead(this.indiamartLeadsService.buildRandomLead());
-        this.toast.show('New IndiaMART Lead Received');
-      }, pollMs);
-
-      let stopTimerId: ReturnType<typeof setTimeout> | undefined;
-      if (durationMs > 0) {
-        stopTimerId = window.setTimeout(() => {
-          window.clearInterval(intervalId);
-          this.indiamartLeadsService.clearAllLeads();
-          this.toast.show('IndiaMART demo simulation ended — all IndiaMART leads cleared.');
-        }, durationMs);
-      }
-
+    if (environment.enableIndiamartLead && environment.indiamart.useMock && pollMs > 0) {
+      this.indiamartLeadsService.startDemoAutoSimulation({
+        intervalMs: pollMs,
+        durationMs,
+        onLeadAdded: () => this.toast.show('New IndiaMART Lead Received'),
+        onSessionEnd: () =>
+          this.toast.show('IndiaMART demo simulation ended — all IndiaMART leads cleared.'),
+      });
       this.destroyRef.onDestroy(() => {
-        window.clearInterval(intervalId);
-        if (stopTimerId != null) {
-          window.clearTimeout(stopTimerId);
-        }
+        this.indiamartLeadsService.stopDemoAutoSimulation('LeadsComponent destroyed');
       });
     }
   }
@@ -160,8 +155,8 @@ export class LeadsComponent {
     if (!environment.enableIndiamartLead) {
       return manual;
     }
-    this.indiamartLeadsService.leads();
-    const im = this.indiamartLeadsService.getLeads().map(mapIndiaMartLeadToLeadRow);
+    const imSnapshot = this.indiamartLeadsService.leads();
+    const im = imSnapshot.map(mapIndiaMartLeadToLeadRow);
     return [...manual, ...im].sort((a, b) => (b.sortTimestamp ?? 0) - (a.sortTimestamp ?? 0));
   }
 
@@ -647,7 +642,26 @@ export class LeadsComponent {
   }
 
   protected simulateIndiaMartLead(): void {
-    this.indiamartLeadsService.addLead(this.indiamartLeadsService.buildRandomLead());
+    if (!environment.indiamart.useMock) return;
+    this.ngZone.run(() => {
+      this.indiamartLeadsService.addLead(this.indiamartLeadsService.buildRandomLead());
+    });
+  }
+
+  /** Pulls IndiaMART leads from `environment.indiamart.pullApiUrl` (non-mock only). */
+  protected syncIndiaMartFromApi(): void {
+    if (environment.indiamart.useMock) return;
+    this.indiamartLeadsService
+      .fetchFromIndiaMartAPI()
+      .pipe(take(1))
+      .subscribe({
+        next: (r) =>
+          this.toast.show(
+            `IndiaMART sync: ${r.added} new, ${r.skippedDuplicates} skipped (duplicates or invalid), ${r.remoteCount} parsed from response.`,
+          ),
+        error: (e: unknown) =>
+          this.toast.show(e instanceof Error ? e.message : 'IndiaMART sync failed.'),
+      });
   }
 
   protected fieldInvalid(name: string): boolean {
