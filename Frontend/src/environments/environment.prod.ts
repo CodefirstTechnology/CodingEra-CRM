@@ -4,7 +4,11 @@
  * Keep `indiamart` and other flags aligned with `environment.ts` when you change prod values.
  */
 import type { IndiamartEnvironmentConfig } from './indiamart-environment';
-import { indiamartSecrets, justdialSecrets } from './indiamart-secrets.generated';
+import {
+  indiamartSecrets,
+  justdialSecrets,
+  tradeindiaSecrets,
+} from './indiamart-secrets.generated';
 
 export const environment = {
   production: true,
@@ -29,5 +33,12 @@ export const environment = {
     pullApiUrl: justdialSecrets.pullApiUrl,
     apiKey: justdialSecrets.apiKey,
     webhookToken: justdialSecrets.webhookToken,
+  },
+  tradeindia: {
+    enabled: tradeindiaSecrets.enabled,
+    useMock: tradeindiaSecrets.useMock,
+    pullApiUrl: tradeindiaSecrets.pullApiUrl,
+    apiKey: tradeindiaSecrets.apiKey,
+    webhookToken: tradeindiaSecrets.webhookToken,
   },
 };

@@ -54,9 +54,18 @@ const justdialSecrets = {
   webhookToken: localEnv.JUSTDIAL_WEBHOOK_TOKEN ?? '',
 };
 
+const tradeindiaSecrets = {
+  enabled: parseBool(localEnv.TRADEINDIA_ENABLED, true),
+  useMock: parseBool(localEnv.TRADEINDIA_USE_MOCK, true),
+  pullApiUrl: localEnv.TRADEINDIA_PULL_API_URL ?? '',
+  apiKey: localEnv.TRADEINDIA_API_KEY ?? '',
+  webhookToken: localEnv.TRADEINDIA_WEBHOOK_TOKEN ?? '',
+};
+
 const generated = `/* Auto-generated from Frontend/.env. Do not edit or commit real secrets. */
 export const indiamartSecrets = ${JSON.stringify(indiamartSecrets, null, 2)} as const;
 export const justdialSecrets = ${JSON.stringify(justdialSecrets, null, 2)} as const;
+export const tradeindiaSecrets = ${JSON.stringify(tradeindiaSecrets, null, 2)} as const;
 `;
 
 mkdirSync(dirname(outputPath), { recursive: true });
