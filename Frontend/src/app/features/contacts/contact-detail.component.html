@@ -163,8 +163,8 @@
             <tr>
               <td>
                 <span class="contact-detail__org-cell">
-                  <span class="contact-detail__org-dot">{{ orgDealInitial(d.organization) }}</span>
-                  <a class="contact-detail__org-link" [routerLink]="['/deals', d.id]">{{ d.organization }}</a>
+                  <span class="contact-detail__org-dot">{{ orgDealInitial(d.organizationName) }}</span>
+                  <a class="contact-detail__org-link" [routerLink]="['/deals', d.id]">{{ d.organizationName }}</a>
                 </span>
               </td>
               <td>{{ d.annualRevenue }}</td>

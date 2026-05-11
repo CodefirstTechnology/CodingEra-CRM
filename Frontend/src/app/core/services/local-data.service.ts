@@ -267,8 +267,6 @@ function defaultDataset(): Record<LocalEntityKey, Record<string, unknown>[]> {
         employees: '201-500',
         territory: 'India',
         lastModified: 'Today',
-        employees: '201-500',
-        territory: 'India',
         address: 'Mumbai, Maharashtra',
       },
       {

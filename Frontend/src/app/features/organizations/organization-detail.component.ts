@@ -155,7 +155,7 @@ export class OrganizationDetailComponent {
           const byId = oid.length > 0 && (d.relatedOrganizationId ?? '').trim() === oid;
           const byName =
             nameKey.length > 0 &&
-            (d.organization ?? '').trim().toLowerCase() === nameKey;
+            (d.organizationName ?? '').trim().toLowerCase() === nameKey;
           return byId || byName;
         });
         this.relatedDeals.set(scoped);

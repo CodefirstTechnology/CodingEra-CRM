@@ -1,7 +1,7 @@
 @if (deal(); as row) {
 <div class="deal-detail">
   <header class="deal-detail__top">
-    <p class="deal-detail__crumb"><a routerLink="/deals">Deals</a> / {{ row.organization }}</p>
+    <p class="deal-detail__crumb"><a routerLink="/deals">Deals</a> / {{ row.organizationName }}</p>
     <div class="deal-detail__top-actions">
       @if (auth.user(); as session) {
       <span class="deal-detail__user-chip" title="{{ session.name }}">
@@ -395,12 +395,12 @@
         <li class="deal-detail__call-row">
           <span class="deal-detail__call-dir">{{ call.direction }}</span>
           <div class="deal-detail__call-body">
-            <p class="deal-detail__call-title">{{ call.contact }}</p>
+            <p class="deal-detail__call-title">{{ call.contactName }}</p>
             <p class="deal-detail__call-meta">
-              {{ call.number }} · {{ call.duration }} · <span>{{ call.outcome }}</span>
+              {{ callMetaLine(call) }}
             </p>
           </div>
-          <time class="deal-detail__call-when">{{ call.when }}</time>
+          <time class="deal-detail__call-when">{{ formatCallWhen(call) }}</time>
         </li>
         }
       </ul>
@@ -503,7 +503,7 @@
         @for (note of dealNotes(); track note.id) {
         <li class="deal-detail__note-row">
           <p class="deal-detail__note-title">{{ note.title }}</p>
-          <p class="deal-detail__note-meta">{{ note.author }} · {{ note.record }} · {{ note.when }}</p>
+          <p class="deal-detail__note-meta">{{ note.author }} · {{ noteRelatedLabel(note) }} · {{ note.when }}</p>
           @if (note.bodyPreview?.trim()) {
           <p class="deal-detail__note-preview">{{ note.bodyPreview }}</p>
           }
@@ -569,12 +569,12 @@
         </li>
         <li>
           <span class="deal-detail__dot">○</span>
-          <p><strong>{{ row.organization }}</strong> status moved to <strong>{{ row.status }}</strong></p>
+          <p><strong>{{ row.organizationName }}</strong> status moved to <strong>{{ row.status }}</strong></p>
           <time>2 hours ago</time>
         </li>
         <li>
           <span class="deal-detail__dot">○</span>
-          <p>Organization updated to <strong>{{ row.organization }}</strong></p>
+          <p>Organization updated to <strong>{{ row.organizationName }}</strong></p>
           <time>Today</time>
         </li>
       </ul>

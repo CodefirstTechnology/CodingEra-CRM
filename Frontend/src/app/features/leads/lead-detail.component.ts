@@ -15,7 +15,7 @@ import { mapLeadToDealRow } from '../../shared/utils/mappers';
 import { environment } from '../../../environments/environment';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './leads.component';
 import type { CallLogRow } from '../call-logs/call-logs.component';
-import type { NoteRow } from '../notes/notes.component';
+import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
 
 type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Calls' | 'Tasks' | 'Notes' | 'Attachments';
@@ -153,6 +153,13 @@ export class LeadDetailComponent {
     { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
     { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
   ];
+
+  private readonly noteRelatedTypeLabels: Record<NoteRelatedType, string> = {
+    lead: 'Lead',
+    deal: 'Deal',
+    contact: 'Contact',
+    organization: 'Organization',
+  };
 
   protected readonly dataForm = this.fb.nonNullable.group({
     organization: [''],
@@ -712,6 +719,36 @@ export class LeadDetailComponent {
       { emitEvent: false },
     );
     this.dataForm.markAsPristine();
+  }
+
+  protected noteRelatedLabel(note: NoteRow): string {
+    const label = this.noteRelatedTypeLabels[note.relatedType] ?? note.relatedType;
+    const suffix = note.visibility === 'private' ? ' · Private' : '';
+    return `${label} · ${note.relatedName}${suffix}`;
+  }
+
+  protected callMetaLine(call: CallLogRow): string {
+    return `${call.phoneNumber} · ${this.formatCallDuration(call)} · ${call.outcome}`;
+  }
+
+  protected formatCallDuration(call: CallLogRow): string {
+    const sec = Math.max(0, Math.floor(call.durationSeconds ?? 0));
+    const mm = Math.floor(sec / 60);
+    const ss = sec % 60;
+    return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  }
+
+  protected formatCallWhen(call: CallLogRow): string {
+    const lm = call.lastModified?.trim();
+    if (lm) return lm;
+    return this.formatStartedAtLabel(call.startedAt);
+  }
+
+  private formatStartedAtLabel(iso: string): string {
+    if (!iso?.trim()) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   }
 
   protected setTab(tab: DetailTab): void {

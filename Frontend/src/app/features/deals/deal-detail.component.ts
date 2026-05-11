@@ -11,8 +11,9 @@ import { DealsService } from '../../core/services/deals.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from './deals.component';
+import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import type { CallLogRow } from '../call-logs/call-logs.component';
-import type { NoteRow } from '../notes/notes.component';
+import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
 
 type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Calls' | 'Tasks' | 'Notes' | 'Attachments';
@@ -116,7 +117,7 @@ export class DealDetailComponent {
     if (customSubject.trim()) {
       return customSubject;
     }
-    const org = this.deal()?.organization?.trim() || 'Deal';
+    const org = this.deal()?.organizationName?.trim() || 'Deal';
     return `${org} (${this.dealCode()})`;
   });
 
@@ -136,6 +137,13 @@ export class DealDetailComponent {
     { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
     { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
   ];
+
+  private readonly noteRelatedTypeLabels: Record<NoteRelatedType, string> = {
+    lead: 'Lead',
+    deal: 'Deal',
+    contact: 'Contact',
+    organization: 'Organization',
+  };
 
   protected readonly dataForm = this.fb.nonNullable.group({
     organization: ['', Validators.required],
@@ -177,7 +185,7 @@ export class DealDetailComponent {
             this.emailTo.set(em && em !== '—' ? em : '');
             this.emailCc.set('');
             this.emailBcc.set('');
-            const org = row.organization.trim() || 'Deal';
+            const org = row.organizationName.trim() || 'Deal';
             this.emailSubjectText.set(`${org} (${this.dealCode()})`);
             this.emailBody.set('');
             this.refreshDealCallLogs();
@@ -468,7 +476,7 @@ export class DealDetailComponent {
   private loadDealEmails(dealId: string, row: DealRow): void {
     const key = this.emailsStorageKey(dealId);
     const raw = sessionStorage.getItem(key);
-    const displayName = row.organization.trim() || 'Deal';
+    const displayName = row.organizationName.trim() || 'Deal';
     const code = this.dealCode();
     const makeSeed = (): DealEmailThreadItem[] => [
       {
@@ -575,7 +583,7 @@ export class DealDetailComponent {
       .replace(/^\.+|\.+$/g, '');
     const localPart = safeLocal.length > 0 ? safeLocal : 'user';
     const senderDisplay = `${authName} <${localPart}@crm.local>`;
-    const orgName = d.organization.trim() || 'Deal';
+    const orgName = d.organizationName.trim() || 'Deal';
     const item: DealEmailThreadItem = {
       id:
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -618,7 +626,7 @@ export class DealDetailComponent {
     this.createFlow.selectEntity('callLog', {
       callLogFromLead: {
         relatedDealId: String(d.id),
-        contactName: d.organization.trim() || 'Deal',
+        contactName: d.organizationName.trim() || 'Deal',
         ...(mob && mob !== '—' ? { phoneNumber: mob } : {}),
       },
     });
@@ -641,7 +649,7 @@ export class DealDetailComponent {
   protected openCreateNoteFromDeal(): void {
     const d = this.deal();
     if (!d?.id) return;
-    const displayName = d.organization.trim() || 'Deal';
+    const displayName = d.organizationName.trim() || 'Deal';
     this.createFlow.selectEntity('note', {
       noteFromLead: {
         relatedDealId: String(d.id),
@@ -666,9 +674,9 @@ export class DealDetailComponent {
     this.sidebarPersonOpen.update((o) => !o);
   }
 
-  private stripRevenueInput(rev: string): string {
-    const t = rev?.trim() ?? '';
-    return t.startsWith('₹') ? t.replace(/^₹\s*/, '').trim() : t;
+  private revenueNumberToInputString(value: number | undefined): string {
+    if (value == null || !Number.isFinite(value) || value === 0) return '';
+    return value.toLocaleString('en-IN');
   }
 
   protected patchDataForm(row: DealRow): void {
@@ -679,8 +687,8 @@ export class DealDetailComponent {
     const mobileVal = row.mobile?.trim();
     this.dataForm.patchValue(
       {
-        organization: row.organization ?? '',
-        annualRevenue: this.stripRevenueInput(row.annualRevenue ?? ''),
+        organization: row.organizationName ?? '',
+        annualRevenue: this.revenueNumberToInputString(row.annualRevenue),
         status: row.status,
         email: emailVal && emailVal !== '—' ? emailVal : '',
         mobile: mobileVal && mobileVal !== '—' ? mobileVal : '',
@@ -689,6 +697,36 @@ export class DealDetailComponent {
       { emitEvent: false },
     );
     this.dataForm.markAsPristine();
+  }
+
+  protected noteRelatedLabel(note: NoteRow): string {
+    const label = this.noteRelatedTypeLabels[note.relatedType] ?? note.relatedType;
+    const suffix = note.visibility === 'private' ? ' · Private' : '';
+    return `${label} · ${note.relatedName}${suffix}`;
+  }
+
+  protected callMetaLine(call: CallLogRow): string {
+    return `${call.phoneNumber} · ${this.formatCallDuration(call)} · ${call.outcome}`;
+  }
+
+  protected formatCallDuration(call: CallLogRow): string {
+    const sec = Math.max(0, Math.floor(call.durationSeconds ?? 0));
+    const mm = Math.floor(sec / 60);
+    const ss = sec % 60;
+    return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
+  }
+
+  protected formatCallWhen(call: CallLogRow): string {
+    const lm = call.lastModified?.trim();
+    if (lm) return lm;
+    return this.formatStartedAtLabel(call.startedAt);
+  }
+
+  private formatStartedAtLabel(iso: string): string {
+    if (!iso?.trim()) return '—';
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   }
 
   protected setTab(tab: DetailTab): void {
@@ -716,11 +754,11 @@ export class DealDetailComponent {
 
   protected sidebarDealHeadline(row: DealRow): string {
     const org = this.dataForm.controls.organization.value?.trim();
-    return org || row.organization.trim() || 'Deal';
+    return org || row.organizationName.trim() || 'Deal';
   }
 
   protected sidebarDealAvatarLetter(row: DealRow): string {
-    const org = this.dataForm.controls.organization.value?.trim() || row.organization.trim() || 'D';
+    const org = this.dataForm.controls.organization.value?.trim() || row.organizationName.trim() || 'D';
     return org.charAt(0).toUpperCase();
   }
 
@@ -774,13 +812,12 @@ export class DealDetailComponent {
 
     const v = this.dataForm.getRawValue();
     const opt = this.dealOwnerOptions.find((o) => o.id === v.dealOwner.trim());
-    const displayRev = v.annualRevenue.trim() ? `₹ ${v.annualRevenue.trim()}` : '₹ 0.00';
     const emailTrim = v.email.trim();
 
     this.dataSaving.set(true);
     const payload: Partial<Omit<DealRow, 'id'>> = {
-      organization: v.organization.trim(),
-      annualRevenue: displayRev,
+      organizationName: v.organization.trim(),
+      annualRevenue: parseRevenueInputToNumber(v.annualRevenue),
       status: v.status,
       email: emailTrim || '—',
       mobile: v.mobile.trim() || '—',
@@ -798,7 +835,7 @@ export class DealDetailComponent {
           if (updated) {
             this.deal.set(updated);
             this.patchDataForm(updated);
-            const org = updated.organization.trim() || 'Deal';
+            const org = updated.organizationName.trim() || 'Deal';
             this.emailSubjectText.set(`${org} (${this.dealCode()})`);
           }
         },

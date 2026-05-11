@@ -435,12 +435,12 @@
         <li class="lead-detail__call-row">
           <span class="lead-detail__call-dir">{{ call.direction }}</span>
           <div class="lead-detail__call-body">
-            <p class="lead-detail__call-title">{{ call.contact }}</p>
+            <p class="lead-detail__call-title">{{ call.contactName }}</p>
             <p class="lead-detail__call-meta">
-              {{ call.number }} · {{ call.duration }} · <span>{{ call.outcome }}</span>
+              {{ callMetaLine(call) }}
             </p>
           </div>
-          <time class="lead-detail__call-when">{{ call.when }}</time>
+          <time class="lead-detail__call-when">{{ formatCallWhen(call) }}</time>
         </li>
         }
       </ul>
@@ -543,7 +543,7 @@
         @for (note of leadNotes(); track note.id) {
         <li class="lead-detail__note-row">
           <p class="lead-detail__note-title">{{ note.title }}</p>
-          <p class="lead-detail__note-meta">{{ note.author }} · {{ note.record }} · {{ note.when }}</p>
+          <p class="lead-detail__note-meta">{{ note.author }} · {{ noteRelatedLabel(note) }} · {{ note.when }}</p>
           @if (note.bodyPreview?.trim()) {
           <p class="lead-detail__note-preview">{{ note.bodyPreview }}</p>
           }
