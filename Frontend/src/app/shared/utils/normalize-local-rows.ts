@@ -53,6 +53,9 @@ export function normalizeDealRow(row: Record<string, unknown>): DealRow {
   const orgName = String(row['organizationName'] ?? row['organization'] ?? '');
   const annualRevenue = parseRevenueInputToNumber(row['annualRevenue'] as string | number);
   const status = (row['status'] as DealPipelineStatus) ?? 'Qualification';
+  const probRaw = row['probabilityPercent'];
+  const probabilityPercent =
+    probRaw != null && Number.isFinite(Number(probRaw)) ? Number(probRaw) : 10;
   return {
     id,
     organizationName: orgName,
@@ -72,6 +75,14 @@ export function normalizeDealRow(row: Record<string, unknown>): DealRow {
     assignedTo: String(row['assignedTo'] ?? ''),
     assignedInitials: String(row['assignedInitials'] ?? ''),
     lastModified: String(row['lastModified'] ?? ''),
+    ...(row['relatedContactId'] != null && row['relatedContactId'] !== ''
+      ? { relatedContactId: String(row['relatedContactId']) }
+      : {}),
+    ...(row['relatedOrganizationId'] != null && row['relatedOrganizationId'] !== ''
+      ? { relatedOrganizationId: String(row['relatedOrganizationId']) }
+      : {}),
+    probabilityPercent,
+    nextStep: String(row['nextStep'] ?? ''),
   };
 }
 

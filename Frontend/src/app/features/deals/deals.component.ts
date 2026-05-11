@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { DealsService } from '../../core/services/deals.service';
@@ -50,11 +50,14 @@ export interface DealRow {
   relatedContactId?: string;
   /** When set, deal appears on the matching organization's detail "Deals" tab (mock UX). */
   relatedOrganizationId?: string;
+  /** Win probability (e.g. 10 = 10%). */
+  probabilityPercent?: number;
+  nextStep?: string;
 }
 
 @Component({
   selector: 'app-deals',
-  imports: [ReactiveFormsModule, CrmSelectionBarComponent, CrmAssignPickerComponent],
+  imports: [ReactiveFormsModule, RouterLink, CrmSelectionBarComponent, CrmAssignPickerComponent],
   templateUrl: './deals.component.html',
   styleUrl: './deals.component.scss',
 })
@@ -404,6 +407,8 @@ export class DealsComponent {
       assignedTo: owner?.label ?? '',
       assignedInitials: owner?.initials ?? '',
       lastModified: 'Just now',
+      probabilityPercent: 10,
+      nextStep: '',
     };
 
     const done = () => {

@@ -3,15 +3,23 @@
   <header class="deal-detail__top">
     <p class="deal-detail__crumb"><a routerLink="/deals">Deals</a> / {{ row.organizationName }}</p>
     <div class="deal-detail__top-actions">
+      <button type="button" class="deal-detail__btn deal-detail__btn--quotation" (click)="onCreateQuotationDemo()">
+        Create Quotation
+      </button>
       @if (auth.user(); as session) {
       <span class="deal-detail__user-chip" title="{{ session.name }}">
         <span class="deal-detail__user-chip-avatar">{{ userHeaderChip() }}</span>
         <span class="deal-detail__user-chip-name">{{ session.name }}</span>
       </span>
       }
-      <button type="button" class="deal-detail__btn deal-detail__btn--with-caret" (click)="openCreatePicker()">
-        New
-      </button>
+      <div class="deal-detail__hdr-status">
+        <span [class]="headerStatusDotClass()" aria-hidden="true"></span>
+        <select class="deal-detail__hdr-status-select" [formControl]="dataForm.controls.status" aria-label="Pipeline status">
+          @for (s of dealStatuses; track s) {
+          <option [value]="s">{{ s }}</option>
+          }
+        </select>
+      </div>
     </div>
   </header>
 
@@ -62,12 +70,87 @@
       </button>
       }
     </nav>
-    <span class="deal-detail__tabs-ref">{{ dealCode() }}</span>
   </div>
 
   <section class="deal-detail__layout">
     <article class="deal-detail__main card">
-      @if (activeTab() === 'Emails') {
+      @if (activeTab() === 'Activity') {
+      <header class="deal-detail__main-head deal-detail__main-head--activity">
+        <h2>Activity</h2>
+        <button type="button" class="deal-detail__btn deal-detail__btn--dark deal-detail__btn--with-caret" (click)="openCreatePicker()">
+          + New
+        </button>
+      </header>
+      <ul class="deal-detail__activity-list" aria-label="Activity on this deal">
+        <li class="deal-detail__activity-item">
+          <span class="deal-detail__activity-ico deal-detail__activity-ico--people" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+          </span>
+          <div class="deal-detail__activity-body">
+            <p class="deal-detail__activity-line"><strong>{{ dealActivityActor() }}</strong> created this lead</p>
+            <time class="deal-detail__activity-when">8 months ago</time>
+          </div>
+        </li>
+        <li class="deal-detail__activity-item deal-detail__activity-item--nested">
+          <button type="button" class="deal-detail__activity-expand" (click)="toggleActivityExtras()">
+            <span class="deal-detail__activity-mini-dot" aria-hidden="true"></span>
+            <span class="deal-detail__activity-expand-main">
+              <span>Show +2 changes from {{ dealActivityActor() }}</span>
+              <svg
+                class="deal-detail__activity-expand-chev"
+                [class.is-open]="activityExtrasOpen()"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </span>
+            <time class="deal-detail__activity-when">8 months ago</time>
+          </button>
+          @if (activityExtrasOpen()) {
+          <ul class="deal-detail__activity-sub">
+            <li>{{ dealActivityActor() }} updated the organization.</li>
+            <li>{{ dealActivityActor() }} adjusted deal fields.</li>
+          </ul>
+          }
+        </li>
+        <li class="deal-detail__activity-item">
+          <span class="deal-detail__activity-ico deal-detail__activity-ico--bolt" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+            </svg>
+          </span>
+          <div class="deal-detail__activity-body">
+            <p class="deal-detail__activity-line"><strong>{{ dealActivityActor() }}</strong> converted the lead to this deal</p>
+            <time class="deal-detail__activity-when">8 months ago</time>
+          </div>
+        </li>
+      </ul>
+      <footer class="deal-detail__compose deal-detail__compose--activity">
+        <button type="button" class="deal-detail__link deal-detail__link--with-icon" (click)="setTab('Emails')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M4 4h16v16H4z" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="m22 6-10 7L2 6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Reply
+        </button>
+        <button type="button" class="deal-detail__link deal-detail__link--with-icon" (click)="setTab('Comments')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+          </svg>
+          Comment
+        </button>
+      </footer>
+      } @else if (activeTab() === 'Emails') {
       <header class="deal-detail__main-head deal-detail__main-head--tasks">
         <h2>Emails</h2>
         <button type="button" class="deal-detail__btn deal-detail__btn--dark" (click)="openNewEmailFromDeal()">+ New Email</button>
@@ -556,32 +639,6 @@
         }
       </ul>
       }
-      } @else {
-      <header class="deal-detail__main-head">
-        <h2>{{ activeTab() }}</h2>
-        <span>{{ row.lastModified }}</span>
-      </header>
-      <ul class="deal-detail__feed">
-        <li>
-          <span class="deal-detail__dot">◎</span>
-          <p><strong>{{ row.assignedTo }}</strong> created this deal</p>
-          <time>{{ row.lastModified }}</time>
-        </li>
-        <li>
-          <span class="deal-detail__dot">○</span>
-          <p><strong>{{ row.organizationName }}</strong> status moved to <strong>{{ row.status }}</strong></p>
-          <time>2 hours ago</time>
-        </li>
-        <li>
-          <span class="deal-detail__dot">○</span>
-          <p>Organization updated to <strong>{{ row.organizationName }}</strong></p>
-          <time>Today</time>
-        </li>
-      </ul>
-      <footer class="deal-detail__compose">
-        <button type="button" class="deal-detail__link">Reply</button>
-        <button type="button" class="deal-detail__link">Comment</button>
-      </footer>
       }
     </article>
 
@@ -630,13 +687,51 @@
 
       <section class="deal-detail__side-section">
         <div class="deal-detail__side-section-head">
+          <button type="button" class="deal-detail__side-toggle" (click)="toggleSidebarContacts()" [attr.aria-expanded]="sidebarContactsOpen()">
+            <svg class="deal-detail__side-chevron" [class.is-collapsed]="!sidebarContactsOpen()" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="deal-detail__side-toggle-text">Contacts</span>
+          </button>
+          <button type="button" class="deal-detail__side-edit" aria-label="Add or open contact" title="Contact" (click)="openDealContactTarget()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </button>
+        </div>
+        @if (sidebarContactsOpen()) {
+        <div class="deal-detail__side-section-body deal-detail__side-section-body--contacts">
+          <div class="deal-detail__contact-row">
+            <span class="deal-detail__contact-avatar">{{ dealPrimaryContactInitial() }}</span>
+            <div class="deal-detail__contact-core">
+              <p class="deal-detail__contact-name">{{ dealPrimaryContactName() }}</p>
+              <span class="deal-detail__contact-badge">Primary</span>
+            </div>
+            <div class="deal-detail__contact-tools">
+              <button type="button" class="deal-detail__contact-tool" aria-label="More" disabled title="Demo">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.85"/><circle cx="12" cy="12" r="1.85"/><circle cx="19" cy="12" r="1.85"/></svg>
+              </button>
+              <button type="button" class="deal-detail__contact-tool" aria-label="Open contact" title="Open contact" (click)="openDealContactTarget()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14 21 3"/></svg>
+              </button>
+              <button type="button" class="deal-detail__contact-tool" aria-label="More details" disabled title="Demo">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        }
+      </section>
+
+      <section class="deal-detail__side-section deal-detail__side-section--last">
+        <div class="deal-detail__side-section-head">
           <button type="button" class="deal-detail__side-toggle" (click)="toggleSidebarDetails()" [attr.aria-expanded]="sidebarDetailsOpen()">
             <svg class="deal-detail__side-chevron" [class.is-collapsed]="!sidebarDetailsOpen()" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
             </svg>
-            <span class="deal-detail__side-toggle-text">Details</span>
+            <span class="deal-detail__side-toggle-text">Organization Details</span>
           </button>
-          <button type="button" class="deal-detail__side-edit" aria-label="Edit details on Data tab" title="Edit" (click)="setTab('Data')">
+          <button type="button" class="deal-detail__side-edit" aria-label="Open Data tab" title="Edit" (click)="setTab('Data')">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
@@ -647,7 +742,7 @@
         <div class="deal-detail__side-section-body">
           <dl class="deal-detail__kv deal-detail__kv--side deal-detail__kv--editable">
             <dt>Organization</dt>
-            <dd class="deal-detail__kv-dd">
+            <dd class="deal-detail__kv-dd deal-detail__kv-dd--row">
               <input
                 type="text"
                 class="deal-detail__side-field"
@@ -655,18 +750,40 @@
                 [placeholder]="sidebarAddLabel('Organization')"
                 autocomplete="organization"
               />
+              @if (row.relatedOrganizationId && row.relatedOrganizationId.toString().trim() !== '') {
+              <a
+                class="deal-detail__ext-link"
+                [routerLink]="['/organizations', row.relatedOrganizationId]"
+                aria-label="Open organization"
+                title="Open organization"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14 21 3"/></svg>
+              </a>
+              }
+            </dd>
+            <dt>Website</dt>
+            <dd class="deal-detail__kv-dd">
+              <input type="text" class="deal-detail__side-field" [formControl]="dataForm.controls.website" [placeholder]="sidebarAddLabel('Website')" autocomplete="url" />
+            </dd>
+            <dt>Territory</dt>
+            <dd class="deal-detail__kv-dd">
+              <input type="text" class="deal-detail__side-field" [formControl]="dataForm.controls.territory" [placeholder]="sidebarAddLabel('Territory')" />
             </dd>
             <dt>Annual revenue</dt>
-            <dd class="deal-detail__kv-dd">
-              <input type="text" class="deal-detail__side-field" [formControl]="dataForm.controls.annualRevenue" [placeholder]="sidebarAddLabel('Annual revenue')" inputmode="decimal" />
+            <dd class="deal-detail__kv-dd deal-detail__kv-dd--muted">{{ sidebarAnnualRevenueLabel() }}</dd>
+            <dt>Probability</dt>
+            <dd class="deal-detail__kv-dd deal-detail__kv-dd--prob">
+              <input
+                type="text"
+                class="deal-detail__side-field"
+                [formControl]="dataForm.controls.probabilityPercent"
+                aria-label="Win probability percent"
+              />
+              <span class="deal-detail__kv-suffix">%</span>
             </dd>
-            <dt>Status</dt>
+            <dt>Next step</dt>
             <dd class="deal-detail__kv-dd">
-              <select class="deal-detail__side-field deal-detail__side-field--select" [formControl]="dataForm.controls.status" aria-label="Deal status">
-                @for (s of dealStatuses; track s) {
-                <option [value]="s">{{ s }}</option>
-                }
-              </select>
+              <input type="text" class="deal-detail__side-field" [formControl]="dataForm.controls.nextStep" [placeholder]="sidebarAddLabel('Next Step')" />
             </dd>
             <dt>Deal owner</dt>
             <dd class="deal-detail__kv-owner deal-detail__kv-owner--editable">
@@ -678,43 +795,19 @@
               </select>
             </dd>
           </dl>
-        </div>
-        }
-      </section>
-
-      <section class="deal-detail__side-section deal-detail__side-section--last">
-        <div class="deal-detail__side-section-head">
-          <button type="button" class="deal-detail__side-toggle" (click)="toggleSidebarPerson()" [attr.aria-expanded]="sidebarPersonOpen()">
-            <svg class="deal-detail__side-chevron" [class.is-collapsed]="!sidebarPersonOpen()" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <span class="deal-detail__side-toggle-text">Contact</span>
-          </button>
-        </div>
-        @if (sidebarPersonOpen()) {
-        <div class="deal-detail__side-section-body">
-          <dl class="deal-detail__kv deal-detail__kv--side deal-detail__kv--editable">
-            <dt>Email</dt>
-            <dd class="deal-detail__kv-dd">
-              <input
-                type="email"
-                class="deal-detail__side-field"
-                [formControl]="dataForm.controls.email"
-                [placeholder]="sidebarAddLabel('Email')"
-                autocomplete="email"
-              />
-            </dd>
-            <dt>Mobile No</dt>
-            <dd class="deal-detail__kv-dd">
-              <input
-                type="tel"
-                class="deal-detail__side-field"
-                [formControl]="dataForm.controls.mobile"
-                [placeholder]="sidebarAddLabel('Mobile No')"
-                autocomplete="tel"
-              />
-            </dd>
-          </dl>
+          <details class="deal-detail__side-contact-fields">
+            <summary>Contact email & phone</summary>
+            <dl class="deal-detail__kv deal-detail__kv--side deal-detail__kv--editable deal-detail__kv--tight">
+              <dt>Email</dt>
+              <dd class="deal-detail__kv-dd">
+                <input type="email" class="deal-detail__side-field" [formControl]="dataForm.controls.email" [placeholder]="sidebarAddLabel('Email')" autocomplete="email" />
+              </dd>
+              <dt>Mobile No</dt>
+              <dd class="deal-detail__kv-dd">
+                <input type="tel" class="deal-detail__side-field" [formControl]="dataForm.controls.mobile" [placeholder]="sidebarAddLabel('Mobile No')" autocomplete="tel" />
+              </dd>
+            </dl>
+          </details>
         </div>
         }
       </section>

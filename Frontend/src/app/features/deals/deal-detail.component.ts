@@ -64,7 +64,7 @@ export class DealDetailComponent {
 
   protected readonly numericId = signal<number | null>(null);
   protected readonly deal = signal<DealRow | null>(null);
-  protected readonly activeTab = signal<DetailTab>('Data');
+  protected readonly activeTab = signal<DetailTab>('Activity');
   protected readonly dataSaving = signal(false);
   protected readonly dealCallLogs = signal<CallLogRow[]>([]);
   protected readonly dealTasks = signal<TaskRow[]>([]);
@@ -81,7 +81,9 @@ export class DealDetailComponent {
   protected readonly emailComposeEmojiChoices = ['😊', '👍', '✅', '🙏', '🎉', '❤️'] as const;
 
   protected readonly sidebarDetailsOpen = signal(true);
-  protected readonly sidebarPersonOpen = signal(true);
+  protected readonly sidebarContactsOpen = signal(true);
+  /** Expandable timeline row (+N changes). */
+  protected readonly activityExtrasOpen = signal(false);
 
   protected readonly emailTo = signal('');
   protected readonly emailCc = signal('');
@@ -152,6 +154,10 @@ export class DealDetailComponent {
     email: ['', [Validators.email]],
     mobile: [''],
     dealOwner: ['SK', Validators.required],
+    website: [''],
+    territory: [''],
+    probabilityPercent: ['10'],
+    nextStep: [''],
   });
 
   constructor() {
@@ -670,8 +676,12 @@ export class DealDetailComponent {
     this.sidebarDetailsOpen.update((o) => !o);
   }
 
-  protected toggleSidebarPerson(): void {
-    this.sidebarPersonOpen.update((o) => !o);
+  protected toggleSidebarContacts(): void {
+    this.sidebarContactsOpen.update((o) => !o);
+  }
+
+  protected toggleActivityExtras(): void {
+    this.activityExtrasOpen.update((o) => !o);
   }
 
   private revenueNumberToInputString(value: number | undefined): string {
@@ -685,6 +695,7 @@ export class DealDetailComponent {
     );
     const emailVal = row.email?.trim();
     const mobileVal = row.mobile?.trim();
+    const prob = row.probabilityPercent ?? 10;
     this.dataForm.patchValue(
       {
         organization: row.organizationName ?? '',
@@ -693,6 +704,11 @@ export class DealDetailComponent {
         email: emailVal && emailVal !== '—' ? emailVal : '',
         mobile: mobileVal && mobileVal !== '—' ? mobileVal : '',
         dealOwner: ownerOpt?.id ?? 'SK',
+        website: row.website?.trim() ?? '',
+        territory: row.territory ?? '',
+        probabilityPercent:
+          Number.isFinite(prob) ? (Math.round(prob * 1000) / 1000).toFixed(3) : '10.000',
+        nextStep: row.nextStep ?? '',
       },
       { emitEvent: false },
     );
@@ -814,6 +830,13 @@ export class DealDetailComponent {
     const opt = this.dealOwnerOptions.find((o) => o.id === v.dealOwner.trim());
     const emailTrim = v.email.trim();
 
+    let probabilityPercent = row.probabilityPercent ?? 10;
+    const rawProb = String(v.probabilityPercent ?? '').replace(/,/g, '').trim();
+    if (rawProb !== '') {
+      const p = Number.parseFloat(rawProb);
+      if (Number.isFinite(p)) probabilityPercent = p;
+    }
+
     this.dataSaving.set(true);
     const payload: Partial<Omit<DealRow, 'id'>> = {
       organizationName: v.organization.trim(),
@@ -823,6 +846,11 @@ export class DealDetailComponent {
       mobile: v.mobile.trim() || '—',
       assignedTo: opt?.label ?? row.assignedTo,
       assignedInitials: opt?.initials ?? row.assignedInitials,
+      dealOwnerId: v.dealOwner.trim(),
+      website: v.website.trim(),
+      territory: v.territory.trim(),
+      probabilityPercent,
+      nextStep: v.nextStep.trim(),
       lastModified: 'Just now',
     };
 
@@ -845,6 +873,60 @@ export class DealDetailComponent {
 
   protected openCreatePicker(): void {
     this.createFlow.openPicker();
+  }
+
+  protected onCreateQuotationDemo(): void {
+    /* Demo: quotation builder not wired in this CRM shell. */
+  }
+
+  protected dealActivityActor(): string {
+    return this.auth.user()?.name?.trim() || 'CRM Demo';
+  }
+
+  protected sidebarAnnualRevenueLabel(): string {
+    const raw = this.dataForm.controls.annualRevenue.value?.trim() ?? '';
+    const n = parseRevenueInputToNumber(raw);
+    if (n == null || !Number.isFinite(n) || n === 0) return '₹ 0.00';
+    return `₹ ${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  protected dealPrimaryContactName(): string {
+    const d = this.deal();
+    if (!d) return 'Contact';
+    const name = [d.firstName?.trim(), d.lastName?.trim()].filter(Boolean).join(' ');
+    if (name) return name;
+    const local = d.email?.split('@')[0]?.trim();
+    return local || d.email?.trim() || 'Contact';
+  }
+
+  protected dealPrimaryContactInitial(): string {
+    const n = this.dealPrimaryContactName();
+    const c = n.replace(/[^a-zA-Z0-9]/g, '').charAt(0) || n.charAt(0);
+    return c ? c.toUpperCase() : '?';
+  }
+
+  protected headerStatusDotClass(): string {
+    const s = this.dataForm.controls.status.value;
+    switch (s) {
+      case 'Closed Won':
+        return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--won';
+      case 'Closed Lost':
+        return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--lost';
+      case 'Negotiation':
+      case 'Proposal':
+        return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--accent';
+      case 'Demo/Making':
+        return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--demo';
+      default:
+        return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--muted';
+    }
+  }
+
+  /** Contacts header + button → related contact detail or Data tab for editing. */
+  protected openDealContactTarget(): void {
+    const cid = this.deal()?.relatedContactId?.trim();
+    if (cid) void this.router.navigate(['/contacts', cid]);
+    else this.setTab('Data');
   }
 
   protected confirmDeleteDeal(): void {

@@ -496,6 +496,8 @@ export class CreateEntityFormModalComponent {
       assignedTo: owner?.label ?? '',
       assignedInitials: owner?.initials ?? '',
       lastModified: 'Just now',
+      probabilityPercent: 10,
+      nextStep: '',
     };
 
     this.dealsService
