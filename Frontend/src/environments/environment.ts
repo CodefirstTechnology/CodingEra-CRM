@@ -35,4 +35,15 @@ export const environment = {
     apiKey: indiamartSecrets.apiKey,
     webhookToken: indiamartSecrets.webhookToken,
   } satisfies IndiamartEnvironmentConfig,
+  /**
+   * Justdial should be routed through a backend/proxy before real production use.
+   * Keep secrets out of frontend production builds; mock mode is enabled until that API exists.
+   */
+  justdial: {
+    enabled: true,
+    useMock: true,
+    pullApiUrl: '',
+    apiKey: '',
+    webhookToken: '',
+  },
 };

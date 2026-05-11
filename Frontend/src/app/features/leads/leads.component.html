@@ -25,6 +25,20 @@
           }
         </button>
       }
+      @if (justdialEnabled) {
+        <button
+          type="button"
+          class="leads__btn leads__btn--ghost"
+          [disabled]="justdialLoading()"
+          (click)="syncJustdialFromApi()"
+        >
+          @if (justdialLoading()) {
+            Syncing Justdial...
+          } @else {
+            Sync Justdial
+          }
+        </button>
+      }
       <button type="button" class="leads__btn leads__btn--solid" (click)="openForm()">+ New lead</button>
     </div>
   </header>
@@ -358,7 +372,7 @@
                 </td>
                 <td class="hide-narrow">
                   <span [class]="leadSourceClass(row)">{{ leadSourceLabel(row) }}</span>
-                
+                </td>
                 <td class="hide-narrow">{{ row.organization }}</td>
                 <td class="hide-narrow leads__muted">{{ row.email || '—' }}</td>
                 <td>
@@ -370,6 +384,17 @@
                       [attr.aria-label]="'Status for ' + row.name"
                     >
                       @for (st of indiaMartStatusOptions; track st) {
+                        <option [value]="st">{{ st }}</option>
+                      }
+                    </select>
+                  } @else if (leadSourceLabel(row) === 'Justdial') {
+                    <select
+                      class="leads__status-select"
+                      [value]="row.status"
+                      (change)="onJustdialStatusChange(row, $event)"
+                      [attr.aria-label]="'Status for ' + row.name"
+                    >
+                      @for (st of justdialStatusOptions; track st) {
                         <option [value]="st">{{ st }}</option>
                       }
                     </select>

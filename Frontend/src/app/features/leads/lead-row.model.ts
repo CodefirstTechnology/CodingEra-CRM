@@ -2,7 +2,7 @@
 export type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost' | 'Converted';
 
 /** Origin of the row in the unified Leads view (frontend mapping; optional on API payloads). */
-export type LeadSource = 'Manual' | 'IndiaMART';
+export type LeadSource = 'Manual' | 'IndiaMART' | 'Justdial';
 
 export interface LeadOwnerOption {
   id: string;

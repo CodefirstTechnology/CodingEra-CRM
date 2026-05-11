@@ -21,6 +21,14 @@ import {
   parseIndiamartNumericIdFromRowId,
 } from '../indiamartlead/indiamart-lead.mapper';
 import { IndiamartLeadsService } from '../indiamartlead/indiamart-leads.service';
+import type { JustdialLeadStatus } from '../justdiallead/justdial-lead.model';
+import { JUSTDIAL_LEAD_STATUSES } from '../justdiallead/justdial-lead.model';
+import {
+  isJustdialLeadRowId,
+  mapJustdialLeadToLeadRow,
+  parseJustdialNumericIdFromRowId,
+} from '../justdiallead/justdial-lead.mapper';
+import { JustdialLeadsService } from '../justdiallead/justdial-leads.service';
 import type {
   LeadListSourceFilter,
   LeadListStatusFilter,
@@ -44,6 +52,7 @@ export class LeadsComponent {
   protected readonly enableIndiamartLead = environment.enableIndiamartLead;
   /** When true, IndiaMART uses localStorage + optional demo simulation instead of HTTP. */
   protected readonly indiamartUseMock = environment.indiamart.useMock;
+  protected readonly justdialEnabled = environment.justdial.enabled;
 
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
@@ -52,6 +61,8 @@ export class LeadsComponent {
   private readonly indiamartLeadsService = inject(IndiamartLeadsService);
   /** Mirrors {@link IndiamartLeadsService.pullInProgress} for the sync button. */
   protected readonly indiamartPullLoading = this.indiamartLeadsService.pullInProgress;
+  private readonly justdialLeadsService = inject(JustdialLeadsService);
+  protected readonly justdialLoading = this.justdialLeadsService.loading;
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -72,6 +83,7 @@ export class LeadsComponent {
 
   protected readonly statusOptions: LeadStatus[] = ['New', 'Contacted', 'Qualified', 'Lost'];
   protected readonly indiaMartStatusOptions = [...INDIA_MART_LEAD_STATUSES];
+  protected readonly justdialStatusOptions = [...JUSTDIAL_LEAD_STATUSES];
   protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
   protected readonly employeeOptions = ['1-10', '11-50', '51-200', '201-500', '500+'] as const;
@@ -105,9 +117,10 @@ export class LeadsComponent {
     { id: 'all', label: 'All' },
     { id: 'Manual', label: 'Manual' },
     { id: 'IndiaMART', label: 'IndiaMART' },
+    { id: 'Justdial', label: 'Justdial' },
   ];
 
-  /** Manual / API-backed rows only; merged with IndiaMART in {@link rows}. */
+  /** Manual / API-backed rows only; merged with marketplace lead sources in {@link rows}. */
   protected readonly manualRows = signal<LeadRow[]>([]);
 
   constructor() {
@@ -139,12 +152,13 @@ export class LeadsComponent {
     }
   }
 
-  /** Unified list: manual CRM leads + IndiaMART (when feature flag is on), sorted by recency. */
+  /** Unified list: manual CRM leads + marketplace sources, sorted by recency. */
   protected readonly rows = computed(() => this.buildMergedRows());
 
   private buildMergedRows(): LeadRow[] {
     const manual = this.manualRows().map((r) => {
-      const leadSource: LeadSource = r.leadSource === 'IndiaMART' ? 'IndiaMART' : 'Manual';
+      const leadSource: LeadSource =
+        r.leadSource === 'IndiaMART' || r.leadSource === 'Justdial' ? r.leadSource : 'Manual';
       const idNum = Number(r.id);
       return {
         ...r,
@@ -152,12 +166,13 @@ export class LeadsComponent {
         sortTimestamp: r.sortTimestamp ?? this.manualUpdatedSortKey(r.updated, idNum),
       };
     });
-    if (!environment.enableIndiamartLead) {
-      return manual;
-    }
-    const imSnapshot = this.indiamartLeadsService.leads();
-    const im = imSnapshot.map(mapIndiaMartLeadToLeadRow);
-    return [...manual, ...im].sort((a, b) => (b.sortTimestamp ?? 0) - (a.sortTimestamp ?? 0));
+    const im = environment.enableIndiamartLead
+      ? this.indiamartLeadsService.leads().map(mapIndiaMartLeadToLeadRow)
+      : [];
+    const jd = environment.justdial.enabled
+      ? this.justdialLeadsService.leads().map(mapJustdialLeadToLeadRow)
+      : [];
+    return [...manual, ...im, ...jd].sort((a, b) => (b.sortTimestamp ?? 0) - (a.sortTimestamp ?? 0));
   }
 
   private manualUpdatedSortKey(updated: string, numericId: number): number {
@@ -323,6 +338,7 @@ export class LeadsComponent {
 
   private beginEditFromRoute(idStr: string): void {
     if (isIndiamartLeadRowId(idStr)) return;
+    if (isJustdialLeadRowId(idStr)) return;
     if (this.lastRouteEdit === idStr && this.formOpen()) return;
     const id = Number(idStr);
     if (!Number.isFinite(id)) return;
@@ -389,6 +405,10 @@ export class LeadsComponent {
       const imId = parseIndiamartNumericIdFromRowId(sid);
       if (imId != null) {
         return of(null).pipe(tap(() => this.indiamartLeadsService.deleteLead(imId)));
+      }
+      const jdId = parseJustdialNumericIdFromRowId(sid);
+      if (jdId != null) {
+        return of(null).pipe(tap(() => this.justdialLeadsService.deleteLead(jdId)));
       }
       return this.leadsService.delete(Number(sid)).pipe(take(1));
     });
@@ -623,6 +643,12 @@ export class LeadsComponent {
       this.sel.removeId(row.id);
       return;
     }
+    const jdId = parseJustdialNumericIdFromRowId(row.id);
+    if (jdId != null) {
+      this.justdialLeadsService.deleteLead(jdId);
+      this.sel.removeId(row.id);
+      return;
+    }
     const id = Number(row.id);
     if (!Number.isFinite(id)) return;
     this.leadsService
@@ -639,6 +665,13 @@ export class LeadsComponent {
     const n = parseIndiamartNumericIdFromRowId(row.id);
     if (n == null) return;
     this.indiamartLeadsService.updateLeadStatus(n, v);
+  }
+
+  protected onJustdialStatusChange(row: LeadRow, ev: Event): void {
+    const v = (ev.target as HTMLSelectElement).value as JustdialLeadStatus;
+    const n = parseJustdialNumericIdFromRowId(row.id);
+    if (n == null) return;
+    this.justdialLeadsService.updateLeadStatus(n, v);
   }
 
   protected simulateIndiaMartLead(): void {
@@ -661,6 +694,21 @@ export class LeadsComponent {
           ),
         error: (e: unknown) =>
           this.toast.show(e instanceof Error ? e.message : 'IndiaMART sync failed.'),
+      });
+  }
+
+  /** Pulls Justdial leads from mock JSON or `environment.justdial.pullApiUrl`. */
+  protected syncJustdialFromApi(): void {
+    this.justdialLeadsService
+      .fetchFromAPI()
+      .pipe(take(1))
+      .subscribe({
+        next: (r) =>
+          this.toast.show(
+            `Justdial sync: ${r.added} new, ${r.skippedDuplicates} skipped, ${r.remoteCount} parsed from response.`,
+          ),
+        error: (e: unknown) =>
+          this.toast.show(e instanceof Error ? e.message : 'Justdial sync failed.'),
       });
   }
 
@@ -693,7 +741,9 @@ export class LeadsComponent {
   }
 
   protected leadSourceBadgeClass(src: LeadSource): string {
-    return src === 'IndiaMART' ? 'leads__tag leads__tag--src-im' : 'leads__tag leads__tag--src-manual';
+    if (src === 'IndiaMART') return 'leads__tag leads__tag--src-im';
+    if (src === 'Justdial') return 'leads__tag leads__tag--src-jd';
+    return 'leads__tag leads__tag--src-manual';
   }
 
   protected hasActiveFilters(): boolean {

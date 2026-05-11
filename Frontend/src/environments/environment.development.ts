@@ -36,4 +36,11 @@ export const environment = {
     apiKey: indiamartSecrets.apiKey,
     webhookToken: indiamartSecrets.webhookToken,
   } satisfies IndiamartEnvironmentConfig,
+  justdial: {
+    enabled: true,
+    useMock: true,
+    pullApiUrl: '',
+    apiKey: '',
+    webhookToken: '',
+  },
 };
