@@ -1,4 +1,9 @@
 import type { IndiamartEnvironmentConfig } from './indiamart-environment';
+import {
+  indiamartSecrets,
+  justdialSecrets,
+  tradeindiaSecrets,
+} from './indiamart-secrets.generated';
 
 export const environment = {
   production: false,
@@ -29,10 +34,24 @@ export const environment = {
    */
   indiamart: {
     useMock: false,
-    pullApiUrl: '/indiamart-mapi/wservce/crm/crmListing/v2',
-    pushApiUrl: '',
+    pullApiUrl: indiamartSecrets.pullApiUrl || '/indiamart-mapi/wservce/crm/crmListing/v2',
+    pushApiUrl: indiamartSecrets.pushApiUrl,
     /** Same Pull API key as production `environment.ts` — keep in sync or use a local-only key. */
-    apiKey: '',
-    webhookToken: '',
+    apiKey: indiamartSecrets.apiKey,
+    webhookToken: indiamartSecrets.webhookToken,
   } satisfies IndiamartEnvironmentConfig,
+  justdial: {
+    enabled: justdialSecrets.enabled,
+    useMock: justdialSecrets.useMock,
+    pullApiUrl: justdialSecrets.pullApiUrl,
+    apiKey: justdialSecrets.apiKey,
+    webhookToken: justdialSecrets.webhookToken,
+  },
+  tradeindia: {
+    enabled: tradeindiaSecrets.enabled,
+    useMock: tradeindiaSecrets.useMock,
+    pullApiUrl: tradeindiaSecrets.pullApiUrl,
+    apiKey: tradeindiaSecrets.apiKey,
+    webhookToken: tradeindiaSecrets.webhookToken,
+  },
 };

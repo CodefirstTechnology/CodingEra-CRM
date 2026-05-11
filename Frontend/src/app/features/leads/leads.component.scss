@@ -586,6 +586,11 @@ select.leads__control {
   color: #4f46e5;
 }
 
+.leads__tag--src-jd {
+  background: #ffedd5;
+  color: #c2410c;
+}
+
 .leads__tag--src-manual {
   background: color-mix(in srgb, #64748b 14%, transparent);
   color: var(--text-muted);

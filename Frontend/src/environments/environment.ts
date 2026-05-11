@@ -1,4 +1,9 @@
 import type { IndiamartEnvironmentConfig } from './indiamart-environment';
+import {
+  indiamartSecrets,
+  justdialSecrets,
+  tradeindiaSecrets,
+} from './indiamart-secrets.generated';
 
 export const environment = {
   production: true,
@@ -28,9 +33,28 @@ export const environment = {
    */
   indiamart: {
     useMock: false,
-    pullApiUrl: 'https://mapi.indiamart.com/wservce/crm/crmListing/v2',
-    pushApiUrl: '',
-    apiKey: '',
-    webhookToken: '',
+    pullApiUrl:
+      indiamartSecrets.pullApiUrl || 'https://mapi.indiamart.com/wservce/crm/crmListing/v2',
+    pushApiUrl: indiamartSecrets.pushApiUrl,
+    apiKey: indiamartSecrets.apiKey,
+    webhookToken: indiamartSecrets.webhookToken,
   } satisfies IndiamartEnvironmentConfig,
+  /**
+   * Justdial should be routed through a backend/proxy before real production use.
+   * Keep secrets out of frontend production builds; mock mode is enabled until that API exists.
+   */
+  justdial: {
+    enabled: justdialSecrets.enabled,
+    useMock: justdialSecrets.useMock,
+    pullApiUrl: justdialSecrets.pullApiUrl,
+    apiKey: justdialSecrets.apiKey,
+    webhookToken: justdialSecrets.webhookToken,
+  },
+  tradeindia: {
+    enabled: tradeindiaSecrets.enabled,
+    useMock: tradeindiaSecrets.useMock,
+    pullApiUrl: tradeindiaSecrets.pullApiUrl,
+    apiKey: tradeindiaSecrets.apiKey,
+    webhookToken: tradeindiaSecrets.webhookToken,
+  },
 };

@@ -3,9 +3,13 @@
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
+    "prestart": "node ./generate-indiamart-env.mjs",
     "start": "ng serve",
+    "prebuild": "node ./generate-indiamart-env.mjs",
     "build": "ng build",
+    "prewatch": "node ./generate-indiamart-env.mjs",
     "watch": "ng build --watch --configuration development",
+    "pretest": "node ./generate-indiamart-env.mjs",
     "test": "ng test"
   },
   "prettier": {
