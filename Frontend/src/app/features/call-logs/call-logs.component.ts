@@ -17,6 +17,14 @@ export interface CallLogRow {
   startedAt: string;
   durationSeconds: number;
   outcome: string;
+  /** ISO-local datetime for edit form (optional, mock persistence). */
+  startedAtIso?: string;
+ 
+  callSummary?: string;
+  /** When created from lead detail — used to scope call history on the lead. */
+  relatedLeadId?: string;
+  /** When created from deal detail — used to scope call history on the deal. */
+  relatedDealId?: string;
   summary: string;
   lastModified: string;
 }

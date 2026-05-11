@@ -134,6 +134,17 @@
   font-weight: 600;
 }
 
+.org__name-link {
+  color: var(--text-primary);
+  font-weight: 600;
+  text-decoration: none;
+
+  &:hover {
+    color: var(--tertiary-color);
+    text-decoration: underline;
+  }
+}
+
 .org__td--muted {
   color: var(--text-muted);
 }

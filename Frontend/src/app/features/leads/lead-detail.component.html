@@ -1,63 +1,601 @@
 @if (lead(); as row) {
 <div class="lead-detail">
   <header class="lead-detail__top">
-    <div>
-      <p class="lead-detail__crumb"><a routerLink="/leads">Leads</a> / {{ row.name }}</p>
-      <h1 class="lead-detail__title">{{ leadCode() }}</h1>
-    </div>
+    <p class="lead-detail__crumb"><a routerLink="/leads">Leads</a> / {{ row.name }}</p>
     <div class="lead-detail__top-actions">
-      <button type="button" class="lead-detail__btn">New</button>
-      <button type="button" class="lead-detail__btn lead-detail__btn--solid">Convert to Deal</button>
+      @if (auth.user(); as session) {
+      <span class="lead-detail__user-chip" title="{{ session.name }}">
+        <span class="lead-detail__user-chip-avatar">{{ userHeaderChip() }}</span>
+        <span class="lead-detail__user-chip-name">{{ session.name }}</span>
+      </span>
+      }
+      <button type="button" class="lead-detail__btn lead-detail__btn--with-caret" (click)="openCreatePicker()">
+        New
+      </button>
+      <button type="button" class="lead-detail__btn lead-detail__btn--solid" (click)="convertToDeal()">Convert to Deal</button>
     </div>
   </header>
 
-  <nav class="lead-detail__tabs" aria-label="Lead detail sections">
-    @for (tab of tabs; track tab) {
-    <button type="button" class="lead-detail__tab" [class.is-active]="activeTab() === tab" (click)="setTab(tab)">
-      {{ tab }}
-    </button>
-    }
-  </nav>
+  <div class="lead-detail__tabs-bar">
+    <nav class="lead-detail__tabs" aria-label="Lead detail sections">
+      @for (tab of tabs; track tab) {
+      <button type="button" class="lead-detail__tab" [class.is-active]="activeTab() === tab" (click)="setTab(tab)">
+        @if (tab === 'Emails') {
+        <span class="lead-detail__tab-label">
+          <svg
+            class="lead-detail__tab-ico"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M4 4h16v16H4z" />
+            <path d="m22 7-10 6L2 7" />
+          </svg>
+          Emails
+        </span>
+        } @else if (tab === 'Comments') {
+        <span class="lead-detail__tab-label">
+          <svg
+            class="lead-detail__tab-ico"
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+          </svg>
+          Comments
+        </span>
+        } @else {
+        {{ tab }}
+        }
+      </button>
+      }
+    </nav>
+    <span class="lead-detail__tabs-ref">{{ leadCode() }}</span>
+  </div>
 
   <section class="lead-detail__layout">
     <article class="lead-detail__main card">
       @if (activeTab() === 'Emails') {
-      <header class="lead-detail__main-head">
+      <header class="lead-detail__main-head lead-detail__main-head--tasks">
         <h2>Emails</h2>
-        <button type="button" class="lead-detail__btn lead-detail__btn--dark">+ New Email</button>
+        <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="openNewEmailFromLead()">+ New Email</button>
       </header>
-      <div class="lead-detail__email-empty">
-        <span class="lead-detail__email-icon">✉</span>
-        <p>No Email Communications</p>
-        <button type="button" class="lead-detail__btn lead-detail__btn--light">New Email</button>
-      </div>
-
-      <div class="lead-detail__email-compose">
-        <div class="lead-detail__compose-top">
-          <button type="button" class="lead-detail__link is-active">Reply</button>
-          <button type="button" class="lead-detail__link">Comment</button>
-        </div>
+      @if (emailComposerOpen()) {
+      <div class="lead-detail__email-compose lead-detail__email-compose--panel">
         <div class="lead-detail__compose-body">
           <div class="lead-detail__mail-row">
             <span>TO:</span>
-            <span>{{ row.email || '—' }}</span>
+            <input
+              type="email"
+              class="lead-detail__mail-input"
+              [value]="emailTo()"
+              (input)="emailTo.set($any($event.target).value)"
+              placeholder="Enter recipient"
+              autocomplete="email"
+            />
           </div>
-          <div class="lead-detail__mail-row">
+          <div class="lead-detail__mail-row lead-detail__mail-row--subject">
             <span>SUBJECT:</span>
-            <span>{{ emailSubject() }}</span>
+            <input
+              type="text"
+              class="lead-detail__mail-input"
+              [value]="emailSubject()"
+              (input)="emailSubjectText.set($any($event.target).value)"
+              placeholder="Subject"
+            />
+            <div class="lead-detail__mail-row__meta">
+              <button type="button" class="lead-detail__mail-meta-btn">CC</button>
+              <button type="button" class="lead-detail__mail-meta-btn">BCC</button>
+            </div>
           </div>
-          <textarea class="lead-detail__mail-editor" rows="4" placeholder="Can you please provide more details on this..."></textarea>
+          <textarea
+            class="lead-detail__mail-editor"
+            rows="5"
+            [value]="emailBody()"
+            (input)="emailBody.set($any($event.target).value)"
+            placeholder="Write your email..."
+          ></textarea>
         </div>
         <footer class="lead-detail__compose-actions">
+          <input
+            #emailComposeFileInput
+            type="file"
+            multiple
+            class="lead-detail__email-compose-file-input"
+            (change)="onEmailComposeAttachmentsSelected($event)"
+            tabindex="-1"
+            aria-hidden="true"
+          />
+          <input
+            #emailComposeImgInput
+            type="file"
+            multiple
+            accept="image/*"
+            class="lead-detail__email-compose-file-input"
+            (change)="onEmailComposeImagesSelected($event)"
+            tabindex="-1"
+            aria-hidden="true"
+          />
           <div class="lead-detail__compose-icons">
-            <span>☺</span><span>📎</span><span>🖼</span>
-          </div>
+              <div class="lead-detail__compose-emoji-wrap">
+                <button type="button" class="lead-detail__compose-ico-btn" aria-label="Insert emoji" title="Emoji" (click)="toggleEmailComposeEmojiPicker()">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M8 14s1.25 2.25 4 2.25 4-2.25 4-2.25" />
+                    <circle cx="9" cy="9" r=".9" fill="currentColor" stroke="none" />
+                    <circle cx="15" cy="9" r=".9" fill="currentColor" stroke="none" />
+                  </svg>
+                </button>
+                @if (emailComposeEmojiOpen()) {
+                <div class="lead-detail__emoji-popover" role="listbox" aria-label="Emoji">
+                  @for (em of emailComposeEmojiChoices; track em) {
+                  <button type="button" class="lead-detail__emoji-popover-item" (click)="insertEmailComposeEmoji(em)">{{ em }}</button>
+                  }
+                </div>
+                }
+              </div>
+              <button type="button" class="lead-detail__compose-ico-btn" aria-label="Attach files" title="Attach files" (click)="emailComposeFileInput.click()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
+                </svg>
+              </button>
+              <button type="button" class="lead-detail__compose-ico-btn" aria-label="Insert images" title="Insert images" (click)="emailComposeImgInput.click()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <rect x="3" y="4" width="18" height="15" rx="2" ry="2" />
+                  <circle cx="8.75" cy="9.75" r="1.65" />
+                  <path d="m21 16-6-6-10 11" />
+                </svg>
+              </button>
+            </div>
           <div class="lead-detail__compose-btns">
-            <button type="button" class="lead-detail__btn lead-detail__btn--light">Discard</button>
-            <button type="button" class="lead-detail__btn lead-detail__btn--solid">Send</button>
+            <button type="button" class="lead-detail__btn lead-detail__btn--light" (click)="cancelLeadEmailComposer()">Discard</button>
+            <button
+              type="button"
+              class="lead-detail__btn lead-detail__btn--compose-send"
+              [disabled]="!emailToLooksValid()"
+              (click)="submitLeadDraftEmail()"
+            >
+              Send
+            </button>
           </div>
         </footer>
       </div>
+      }
+      @if (leadEmails().length === 0) {
+      <div class="lead-detail__email-empty">
+        <span class="lead-detail__email-empty-icon" aria-hidden="true">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 4h16v16H4z" />
+            <path d="m22 7-10 6L2 7" />
+          </svg>
+        </span>
+        <p>No Email Communications</p>
+        <button type="button" class="lead-detail__btn lead-detail__btn--calls-muted" (click)="openNewEmailFromLead()">New Email</button>
+      </div>
+      } @else {
+      <div class="lead-detail__email-thread-wrap">
+        @for (m of leadEmails(); track m.id; let isLast = $last) {
+        <div class="lead-detail__email-timeline-item">
+          <div class="lead-detail__email-timeline-axis">
+            <span class="lead-detail__email-timeline-avatar">{{ m.senderInitial }}</span>
+            @if (!isLast) {
+            <span class="lead-detail__email-timeline-line" aria-hidden="true"></span>
+            }
+          </div>
+          <article class="lead-detail__email-card">
+            <div class="lead-detail__email-card-head">
+              <p class="lead-detail__email-from">{{ m.senderDisplay }}</p>
+              <div class="lead-detail__email-card-actions">
+                <button type="button" class="lead-detail__email-mini-btn" title="Reply" aria-label="Reply" (click)="openLeadEmailReply(m)">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 14 4 9l5-5" />
+                    <path d="M20 20v-7a4 4 0 0 0-4-4H7" />
+                  </svg>
+                </button>
+                <button type="button" class="lead-detail__email-mini-btn" title="Reply all" aria-label="Reply all" (click)="openLeadEmailReply(m)">
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M9 10 4 5l5-5" />
+                    <path d="M20 21v-6a6 6 0 0 0-6-6H11" />
+                    <path d="M15 10a4 4 0 0 1 4 4v7" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <p class="lead-detail__email-subject">{{ m.subjectLine }}</p>
+            <p class="lead-detail__email-to">To: {{ m.toAddress }}</p>
+            <div class="lead-detail__email-meta-row">
+              @if (m.status === 'Sent') {
+              <span class="lead-detail__email-status lead-detail__email-status--sent">{{ m.status }}</span>
+              } @else {
+              <span class="lead-detail__email-status lead-detail__email-status--draft">{{ m.status }}</span>
+              }
+              <time class="lead-detail__email-time">{{ m.whenLabel }}</time>
+            </div>
+            <div class="lead-detail__email-body-box">{{ m.body }}</div>
+          </article>
+        </div>
+        }
+      </div>
+      }
+      <footer class="lead-detail__compose lead-detail__compose--comments lead-detail__compose--email-tab">
+        <button type="button" class="lead-detail__link lead-detail__link--with-icon" (click)="openLeadEmailComposer()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M4 4h16v16H4z" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="m22 6-10 7L2 6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Reply
+        </button>
+        <button type="button" class="lead-detail__link lead-detail__link--with-icon" (click)="openLeadEmailFooterComment()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+          </svg>
+          Comment
+        </button>
+      </footer>
+      } @else if (activeTab() === 'Comments') {
+      <header class="lead-detail__main-head lead-detail__main-head--tasks">
+        <h2>Comments</h2>
+        <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="openNewCommentFromLead()">+ New Comment</button>
+      </header>
+      @if (commentComposerOpen()) {
+      <div class="lead-detail__comment-composer">
+        <textarea
+          class="lead-detail__comment-textarea"
+          rows="3"
+          placeholder="Write a comment…"
+          [value]="commentDraft()"
+          (input)="commentDraft.set($any($event.target).value)"
+        ></textarea>
+        <div class="lead-detail__comment-composer-actions">
+          <button type="button" class="lead-detail__btn lead-detail__btn--light" (click)="cancelLeadCommentComposer()">Cancel</button>
+          <button type="button" class="lead-detail__btn lead-detail__btn--solid" (click)="postLeadComment()" [disabled]="!commentDraft().trim()">Post</button>
+        </div>
+      </div>
+      }
+      @if (leadComments().length === 0) {
+      <div class="lead-detail__comments-empty">
+        <span class="lead-detail__comments-empty-icon" aria-hidden="true">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+          </svg>
+        </span>
+        <p>No comments yet</p>
+        <button type="button" class="lead-detail__btn lead-detail__btn--calls-muted" (click)="openNewCommentFromLead()">New Comment</button>
+      </div>
+      } @else {
+      <ul class="lead-detail__comment-list" aria-label="Comments on this lead">
+        @for (c of leadComments(); track c.id) {
+        <li class="lead-detail__comment-item">
+          <span class="lead-detail__comment-rail" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+            </svg>
+          </span>
+          <div class="lead-detail__comment-core">
+            <div class="lead-detail__comment-head">
+              <span class="lead-detail__comment-avatar">{{ c.authorInitial }}</span>
+              <p class="lead-detail__comment-meta-line"><strong>{{ c.authorName }}</strong> added a comment</p>
+              <time class="lead-detail__comment-when">{{ c.whenLabel }}</time>
+            </div>
+            <div class="lead-detail__comment-bubble">{{ c.body }}</div>
+          </div>
+        </li>
+        }
+      </ul>
+      }
+      <footer class="lead-detail__compose lead-detail__compose--comments">
+        <button type="button" class="lead-detail__link lead-detail__link--with-icon" (click)="openReplyFromLeadComments()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M4 4h16v16H4z" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="m22 6-10 7L2 6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Reply
+        </button>
+        <button type="button" class="lead-detail__link lead-detail__link--with-icon" (click)="openNewCommentFromLead()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+          </svg>
+          Comment
+        </button>
+      </footer>
+      } @else if (activeTab() === 'Data') {
+      <header class="lead-detail__main-head">
+        <h2>Data</h2>
+        <div class="lead-detail__data-actions">
+          <button type="button" class="lead-detail__icon-btn" aria-label="Discard unsaved edits" title="Revert" (click)="discardDataEdits()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+          <button type="button" class="lead-detail__btn lead-detail__btn--solid" [disabled]="dataSaving()" (click)="saveDataTab()">
+            Save
+          </button>
+        </div>
+      </header>
+
+      <form class="lead-detail__data-form" [formGroup]="dataForm" (ngSubmit)="saveDataTab()">
+        <fieldset class="lead-detail__fieldset">
+          <legend class="lead-detail__fieldset-legend">Details</legend>
+          <div class="lead-detail__field-grid">
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Organization</span>
+              <input type="text" class="lead-detail__input" formControlName="organization" />
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Website</span>
+              <input type="text" class="lead-detail__input" formControlName="website" />
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Territory</span>
+              <select class="lead-detail__select" formControlName="territory">
+                @for (t of territoryOptions; track t) {
+                <option [value]="t">{{ t === '' ? '— Select —' : t }}</option>
+                }
+              </select>
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Industry</span>
+              <select class="lead-detail__select" formControlName="industry">
+                @for (i of industryOptions; track i) {
+                <option [value]="i">{{ i === '' ? '— Select —' : i }}</option>
+                }
+              </select>
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Job Title</span>
+              <input type="text" class="lead-detail__input" formControlName="jobTitle" />
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Source</span>
+              <select class="lead-detail__select" formControlName="source">
+                @for (s of sourceOptions; track s) {
+                <option [value]="s">{{ s === '' ? '— Select —' : s }}</option>
+                }
+              </select>
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Lead Owner</span>
+              <select class="lead-detail__select" formControlName="owner">
+                <option value="">— Select owner —</option>
+                @for (o of leadOwnerOptions; track o.id) {
+                <option [value]="o.id">{{ o.label }}</option>
+                }
+              </select>
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset class="lead-detail__fieldset">
+          <legend class="lead-detail__fieldset-legend">Person</legend>
+          <div class="lead-detail__field-grid">
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Salutation</span>
+              <select class="lead-detail__select" formControlName="salutation">
+                @for (s of salutationOptions; track s) {
+                <option [value]="s">{{ s === '' ? '—' : s }}</option>
+                }
+              </select>
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label"
+                >First Name<span class="lead-detail__req" aria-hidden="true">*</span></span
+              >
+              <input type="text" class="lead-detail__input" formControlName="firstName" [class.is-invalid]="dataForm.controls.firstName.invalid && dataForm.controls.firstName.touched" />
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Last Name</span>
+              <input type="text" class="lead-detail__input" formControlName="lastName" />
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Email</span>
+              <input type="email" class="lead-detail__input" formControlName="email" />
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Mobile No</span>
+              <input type="text" class="lead-detail__input" formControlName="mobile" autocomplete="tel" />
+            </label>
+          </div>
+        </fieldset>
+      </form>
+      } @else if (activeTab() === 'Calls') {
+      <header class="lead-detail__main-head">
+        <h2>Calls</h2>
+        <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="openLogCallFromLead()">+ Log a Call</button>
+      </header>
+
+      @if (leadCallLogs().length === 0) {
+      <div class="lead-detail__calls-empty">
+        <span class="lead-detail__calls-icon" aria-hidden="true">
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path
+              d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
+            />
+          </svg>
+        </span>
+        <p>No Call Logs</p>
+        <button type="button" class="lead-detail__btn lead-detail__btn--calls-muted" (click)="openLogCallFromLead()">Log a Call</button>
+      </div>
+      } @else {
+      <ul class="lead-detail__call-list" aria-label="Call logs for this lead">
+        @for (call of leadCallLogs(); track call.id) {
+        <li class="lead-detail__call-row">
+          <span class="lead-detail__call-dir">{{ call.direction }}</span>
+          <div class="lead-detail__call-body">
+            <p class="lead-detail__call-title">{{ call.contactName }}</p>
+            <p class="lead-detail__call-meta">
+              {{ callMetaLine(call) }}
+            </p>
+          </div>
+          <time class="lead-detail__call-when">{{ formatCallWhen(call) }}</time>
+        </li>
+        }
+      </ul>
+      }
+      } @else if (activeTab() === 'Tasks') {
+      <header class="lead-detail__main-head lead-detail__main-head--tasks">
+        <h2>Tasks</h2>
+        <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="openNewTaskFromLead()">+ New Task</button>
+      </header>
+
+      @if (leadTasks().length === 0) {
+      <div class="lead-detail__tasks-empty">
+        <span class="lead-detail__tasks-icon" aria-hidden="true">
+          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 11l3 3L22 4" />
+            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+          </svg>
+        </span>
+        <p>No Tasks</p>
+        <button type="button" class="lead-detail__btn lead-detail__btn--calls-muted" (click)="openNewTaskFromLead()">New Task</button>
+      </div>
+      } @else {
+      <ul class="lead-detail__task-list" aria-label="Tasks for this lead">
+        @for (task of leadTasks(); track task.id) {
+        <li class="lead-detail__task-row">
+          <div class="lead-detail__task-body">
+            <button type="button" class="lead-detail__task-title" (click)="openTaskForEdit(task)">
+              {{ task.title }}
+            </button>
+            <p class="lead-detail__task-meta">
+              <span class="lead-detail__task-assignee-chip">{{ taskAssigneeChipInitial(task) }}</span>
+              <span>{{ task.assignedTo }}</span>
+              <span class="lead-detail__task-dot">·</span>
+              <span class="lead-detail__task-priority">{{ task.priority }}</span>
+            </p>
+          </div>
+          <div class="lead-detail__task-trail">
+            <span class="lead-detail__task-status-ico" [attr.title]="task.status" role="img" [attr.aria-label]="task.status">
+              @switch (task.status) {
+              @case ('Done') {
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <path d="m9 12 2 2 4-4" />
+              </svg>
+              }
+              @case ('Canceled') {
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <path d="m15 9-6 6M9 9l6 6" />
+              </svg>
+              }
+              @case ('In Progress') {
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-dasharray="2.8 3" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke-dashoffset="14" />
+              </svg>
+              }
+              @case ('Todo') {
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+              </svg>
+              }
+              @default {
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-dasharray="3 3" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+              </svg>
+              }
+              }
+            </span>
+            <button type="button" class="lead-detail__task-more" aria-label="More actions" title="More">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <circle cx="6.5" cy="12" r="1.5" />
+                <circle cx="12" cy="12" r="1.5" />
+                <circle cx="17.5" cy="12" r="1.5" />
+              </svg>
+            </button>
+          </div>
+        </li>
+        }
+      </ul>
+      }
+      } @else if (activeTab() === 'Notes') {
+      <header class="lead-detail__main-head lead-detail__main-head--tasks">
+        <h2>Notes</h2>
+        <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="openCreateNoteFromLead()">+ New Note</button>
+      </header>
+      @if (leadNotes().length === 0) {
+      <div class="lead-detail__notes-empty">
+        <span class="lead-detail__notes-icon" aria-hidden="true">
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <path d="M12 18h-6M12 14h-6M16 14h2M16 18h2" />
+          </svg>
+        </span>
+        <p>No Notes</p>
+        <button type="button" class="lead-detail__btn lead-detail__btn--calls-muted" (click)="openCreateNoteFromLead()">Create Note</button>
+      </div>
+      } @else {
+      <ul class="lead-detail__note-list" aria-label="Notes for this lead">
+        @for (note of leadNotes(); track note.id) {
+        <li class="lead-detail__note-row">
+          <p class="lead-detail__note-title">{{ note.title }}</p>
+          <p class="lead-detail__note-meta">{{ note.author }} · {{ noteRelatedLabel(note) }} · {{ note.when }}</p>
+          @if (note.bodyPreview?.trim()) {
+          <p class="lead-detail__note-preview">{{ note.bodyPreview }}</p>
+          }
+        </li>
+        }
+      </ul>
+      }
+      } @else if (activeTab() === 'Attachments') {
+      <input
+        #leadAttachmentPicker
+        type="file"
+        multiple
+        class="lead-detail__attachment-input"
+        aria-hidden="true"
+        tabindex="-1"
+        (change)="onLeadAttachmentFilesSelected($event)"
+      />
+      <header class="lead-detail__main-head lead-detail__main-head--tasks">
+        <h2>Attachments</h2>
+        <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="leadAttachmentPicker.click()">
+          + Upload Attachment
+        </button>
+      </header>
+      @if (leadAttachments().length === 0) {
+      <div class="lead-detail__attachments-empty">
+        <span class="lead-detail__attachments-icon" aria-hidden="true">
+          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
+          </svg>
+        </span>
+        <p>No Attachments</p>
+        <button type="button" class="lead-detail__btn lead-detail__btn--calls-muted" (click)="leadAttachmentPicker.click()">
+          Upload Attachment
+        </button>
+      </div>
+      } @else {
+      <ul class="lead-detail__attachment-list" aria-label="Attachments for this lead">
+        @for (a of leadAttachments(); track a.id) {
+        <li class="lead-detail__attachment-row">
+          <span class="lead-detail__attachments-icon lead-detail__attachments-icon--sm" aria-hidden="true">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
+            </svg>
+          </span>
+          <div class="lead-detail__attachment-body">
+            <p class="lead-detail__attachment-name">{{ a.name }}</p>
+            <p class="lead-detail__attachment-meta">{{ a.sizeLabel }} · {{ a.uploadedAt }}</p>
+          </div>
+        </li>
+        }
+      </ul>
+      }
       } @else {
       <header class="lead-detail__main-head">
         <h2>{{ activeTab() }}</h2>
@@ -88,36 +626,217 @@
     </article>
 
     <aside class="lead-detail__side card">
-      <header class="lead-detail__side-head">
-        <span class="lead-detail__avatar">{{ leadInitial() }}</span>
-        <div>
-          <p class="lead-detail__name">{{ row.name }}</p>
-          <p class="lead-detail__email">{{ row.email || 'No email' }}</p>
+      <header class="lead-detail__side-id">{{ leadCode() }}</header>
+
+      <div class="lead-detail__side-head">
+        <span class="lead-detail__avatar lead-detail__avatar--lg">{{ sidebarLeadAvatarLetter(row) }}</span>
+        <div class="lead-detail__side-ident">
+          <p class="lead-detail__name">{{ sidebarLeadHeadline(row) }}</p>
+          <div class="lead-detail__side-actions">
+            <button type="button" class="lead-detail__side-icon" aria-label="Email" title="Email" (click)="setTab('Emails')">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <path d="m3 7 9 6 9-6" />
+              </svg>
+            </button>
+            <button type="button" class="lead-detail__side-icon" aria-label="Copy link to this lead" title="Copy link" (click)="copyLeadDetailUrl()">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 1 7.54.54 5 5 0 0 1-7.07 7.07L9 21" />
+                <path d="M14 11a5 5 0 0 1-7.54-.54 5 5 0 0 1 7.07-7.07L15 3" />
+              </svg>
+            </button>
+            <button type="button" class="lead-detail__side-icon" aria-label="Attachments" title="Attachments" (click)="setTab('Attachments')">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="lead-detail__side-icon lead-detail__side-icon--danger"
+              aria-label="Delete lead"
+              title="Delete"
+              (click)="confirmDeleteLead()"
+            >
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M19 6l-1 14H6L5 6" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+            </button>
+          </div>
         </div>
-      </header>
+      </div>
 
-      <section class="lead-detail__section">
-        <h3>Details</h3>
-        <dl class="lead-detail__kv">
-          <dt>Organization</dt><dd>{{ row.organization || '—' }}</dd>
-          <dt>Website</dt><dd>{{ row.website || '—' }}</dd>
-          <dt>Territory</dt><dd>{{ row.territory || '—' }}</dd>
-          <dt>Industry</dt><dd>{{ row.industry || '—' }}</dd>
-          <dt>Source</dt><dd>{{ row.source || '—' }}</dd>
-          <dt>Lead owner</dt>
-          <dd><span class="lead-detail__owner-badge">{{ ownerInitial() }}</span> {{ row.leadOwnerName || row.owner }}</dd>
-        </dl>
+      <section class="lead-detail__side-section">
+        <div class="lead-detail__side-section-head">
+          <button type="button" class="lead-detail__side-toggle" (click)="toggleSidebarDetails()" [attr.aria-expanded]="sidebarDetailsOpen()">
+            <svg class="lead-detail__side-chevron" [class.is-collapsed]="!sidebarDetailsOpen()" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="lead-detail__side-toggle-text">Details</span>
+          </button>
+          <button type="button" class="lead-detail__side-edit" aria-label="Edit details on Data tab" title="Edit" (click)="setTab('Data')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+        </div>
+        @if (sidebarDetailsOpen()) {
+        <div class="lead-detail__side-section-body">
+          <dl class="lead-detail__kv lead-detail__kv--side lead-detail__kv--editable">
+            <dt>Organization</dt>
+            <dd class="lead-detail__kv-dd">
+              <input
+                type="text"
+                class="lead-detail__side-field"
+                [formControl]="dataForm.controls.organization"
+                [placeholder]="sidebarAddLabel('Organization')"
+                autocomplete="organization"
+              />
+            </dd>
+            <dt>Website</dt>
+            <dd class="lead-detail__kv-dd">
+              <input
+                type="text"
+                class="lead-detail__side-field"
+                [formControl]="dataForm.controls.website"
+                [placeholder]="sidebarAddLabel('Website')"
+                inputmode="url"
+                autocomplete="url"
+              />
+            </dd>
+            <dt>Territory</dt>
+            <dd class="lead-detail__kv-dd">
+              <select class="lead-detail__side-field lead-detail__side-field--select" [formControl]="dataForm.controls.territory" aria-label="Territory">
+                @for (t of territoryOptions; track t) {
+                <option [value]="t">{{ t === '' ? '— Select —' : t }}</option>
+                }
+              </select>
+            </dd>
+            <dt>Industry</dt>
+            <dd class="lead-detail__kv-dd">
+              <select class="lead-detail__side-field lead-detail__side-field--select" [formControl]="dataForm.controls.industry" aria-label="Industry">
+                @for (i of industryOptions; track i) {
+                <option [value]="i">{{ i === '' ? '— Select —' : i }}</option>
+                }
+              </select>
+            </dd>
+            <dt>Job Title</dt>
+            <dd class="lead-detail__kv-dd">
+              <input
+                type="text"
+                class="lead-detail__side-field"
+                [formControl]="dataForm.controls.jobTitle"
+                [placeholder]="sidebarAddLabel('Job Title')"
+                autocomplete="organization-title"
+              />
+            </dd>
+            <dt>Source</dt>
+            <dd class="lead-detail__kv-dd">
+              <select class="lead-detail__side-field lead-detail__side-field--select" [formControl]="dataForm.controls.source" aria-label="Source">
+                @for (s of sourceOptions; track s) {
+                <option [value]="s">{{ s === '' ? '— Select —' : s }}</option>
+                }
+              </select>
+            </dd>
+            <dt>Lead Owner</dt>
+            <dd class="lead-detail__kv-owner lead-detail__kv-owner--editable">
+              <span class="lead-detail__owner-badge lead-detail__owner-badge--side">{{ sidebarOwnerChipInitial() }}</span>
+              <select class="lead-detail__side-field lead-detail__side-field--select lead-detail__side-field--owner" [formControl]="dataForm.controls.owner" aria-label="Lead owner">
+                <option value="">— Select owner —</option>
+                @for (o of leadOwnerOptions; track o.id) {
+                <option [value]="o.id">{{ o.label }}</option>
+                }
+              </select>
+            </dd>
+          </dl>
+        </div>
+        }
       </section>
 
-      <section class="lead-detail__section">
-        <h3>Person</h3>
-        <dl class="lead-detail__kv">
-          <dt>Salutation</dt><dd>{{ row.salutation || '—' }}</dd>
-          <dt>First Name</dt><dd>{{ row.firstName || '—' }}</dd>
-          <dt>Last Name</dt><dd>{{ row.lastName || '—' }}</dd>
-          <dt>Mobile</dt><dd>{{ row.mobile || '—' }}</dd>
-        </dl>
+      <section class="lead-detail__side-section lead-detail__side-section--last">
+        <div class="lead-detail__side-section-head">
+          <button type="button" class="lead-detail__side-toggle" (click)="toggleSidebarPerson()" [attr.aria-expanded]="sidebarPersonOpen()">
+            <svg class="lead-detail__side-chevron" [class.is-collapsed]="!sidebarPersonOpen()" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+            <span class="lead-detail__side-toggle-text">Person</span>
+          </button>
+        </div>
+        @if (sidebarPersonOpen()) {
+        <div class="lead-detail__side-section-body">
+          <dl class="lead-detail__kv lead-detail__kv--side lead-detail__kv--editable">
+            <dt>Salutation</dt>
+            <dd class="lead-detail__kv-dd">
+              <select class="lead-detail__side-field lead-detail__side-field--select" [formControl]="dataForm.controls.salutation" aria-label="Salutation">
+                @for (s of salutationOptions; track s) {
+                <option [value]="s">{{ s === '' ? '—' : s }}</option>
+                }
+              </select>
+            </dd>
+            <dt><span class="lead-detail__req">*</span> First Name</dt>
+            <dd class="lead-detail__kv-dd">
+              <input
+                type="text"
+                class="lead-detail__side-field"
+                [class.lead-detail__side-field--invalid]="dataForm.controls.firstName.invalid && dataForm.controls.firstName.touched"
+                [formControl]="dataForm.controls.firstName"
+                [placeholder]="sidebarAddLabel('First Name')"
+                autocomplete="given-name"
+              />
+            </dd>
+            <dt>Last Name</dt>
+            <dd class="lead-detail__kv-dd">
+              <input
+                type="text"
+                class="lead-detail__side-field"
+                [formControl]="dataForm.controls.lastName"
+                [placeholder]="sidebarAddLabel('Last Name')"
+                autocomplete="family-name"
+              />
+            </dd>
+            <dt>Email</dt>
+            <dd class="lead-detail__kv-dd">
+              <input
+                type="email"
+                class="lead-detail__side-field"
+                [formControl]="dataForm.controls.email"
+                [placeholder]="sidebarAddLabel('Email')"
+                autocomplete="email"
+              />
+            </dd>
+            <dt>Mobile No</dt>
+            <dd class="lead-detail__kv-dd">
+              <input
+                type="tel"
+                class="lead-detail__side-field"
+                [formControl]="dataForm.controls.mobile"
+                [placeholder]="sidebarAddLabel('Mobile No')"
+                autocomplete="tel"
+              />
+            </dd>
+          </dl>
+        </div>
+        }
       </section>
+
+      @if (dataForm.dirty) {
+      <footer class="lead-detail__side-save">
+        <button type="button" class="lead-detail__btn lead-detail__btn--light lead-detail__side-save-discard" [disabled]="dataSaving()" (click)="discardDataEdits()">
+          Discard
+        </button>
+        <button
+          type="button"
+          class="lead-detail__btn lead-detail__btn--solid lead-detail__side-save-commit"
+          [disabled]="dataSaving()"
+          (click)="saveDataTab()"
+        >
+          {{ dataSaving() ? 'Saving…' : 'Save changes' }}
+        </button>
+      </footer>
+      }
     </aside>
   </section>
 </div>

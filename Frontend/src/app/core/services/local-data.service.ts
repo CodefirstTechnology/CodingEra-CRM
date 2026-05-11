@@ -165,6 +165,30 @@ function defaultDataset(): Record<LocalEntityKey, Record<string, unknown>[]> {
         assignedInitials: 'SK',
         lastModified: '1w ago',
       },
+      {
+        id: 5,
+        organization: 'crm',
+        annualRevenue: '₹ 0.00',
+        status: 'Demo/Making',
+        email: 'codefirst2022@gmail.com',
+        mobile: '—',
+        assignedTo: 'adsx',
+        assignedInitials: 'A',
+        lastModified: 'Just now',
+        relatedContactId: '5',
+      },
+      {
+        id: 6,
+        organization: 'Contoso Ltd',
+        annualRevenue: '₹ 8,00,000',
+        status: 'Qualification',
+        email: 'deals@contoso.example',
+        mobile: '+91 98000 20001',
+        assignedTo: 'Rohit Dhaygude',
+        assignedInitials: 'R',
+        lastModified: 'Today',
+        relatedOrganizationId: '1',
+      },
     ],
     contacts: [
       {
@@ -219,6 +243,19 @@ function defaultDataset(): Record<LocalEntityKey, Record<string, unknown>[]> {
         address: 'Pune, Maharashtra',
         lastModified: '1w ago',
       },
+      {
+        id: 5,
+        email: 'codefirst2022@gmail.com',
+        phone: '—',
+        organization: '',
+        salutation: '',
+        firstName: 'Codefirst2022',
+        lastName: '',
+        gender: '',
+        designation: '',
+        address: '',
+        lastModified: 'Just now',
+      },
     ],
     organizations: [
       {
@@ -230,6 +267,7 @@ function defaultDataset(): Record<LocalEntityKey, Record<string, unknown>[]> {
         employees: '201-500',
         territory: 'India',
         lastModified: 'Today',
+        address: 'Mumbai, Maharashtra',
       },
       {
         id: 2,

@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { ContactsService } from '../../core/services/contacts.service';
@@ -20,11 +20,12 @@ export interface ContactRow {
   designation: string;
   address: string;
   lastModified: string;
+  
 }
 
 @Component({
   selector: 'app-contacts',
-  imports: [ReactiveFormsModule, CrmSelectionBarComponent],
+  imports: [ReactiveFormsModule, RouterLink, CrmSelectionBarComponent],
   templateUrl: './contacts.component.html',
   styleUrl: './contacts.component.scss',
 })
@@ -88,7 +89,7 @@ export class ContactsComponent {
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
     gender: [''],
-    companyName: ['', [Validators.required, Validators.maxLength(200)]],
+    companyName: ['', Validators.maxLength(200)],
     designation: ['', Validators.maxLength(120)],
     address: [''],
   });
@@ -163,15 +164,16 @@ export class ContactsComponent {
         if (!row) return;
         this.editingNumericId.set(id);
         this.createForm.patchValue({
-          salutation: row.salutation,
-          firstName: row.firstName,
-          lastName: row.lastName,
+          salutation: row.salutation ?? '',
+          firstName: row.firstName ?? '',
+          lastName: row.lastName ?? '',
           email: row.email,
-          mobile: row.phone.replace(/\D/g, '').slice(-10) || row.phone,
-          gender: row.gender,
-          companyName: row.organization,
-          designation: row.designation,
-          address: row.address,
+          mobile: row.phone === '—' ? '' : row.phone,
+          gender: row.gender ?? '',
+          companyName: row.organization ?? '',
+          designation: row.designation ?? '',
+          address: row.address ?? '',
+         
         });
         this.formOpen.set(true);
       });
@@ -245,6 +247,7 @@ export class ContactsComponent {
       designation: raw.designation.trim(),
       address: raw.address,
       lastModified: 'Just now',
+    
     };
 
     const done = () => {
@@ -277,5 +280,13 @@ export class ContactsComponent {
         this.sel.removeId(row.id);
         this.refreshContacts();
       });
+  }
+
+  /** Primary label in the contacts grid (matches detail headline when possible). */
+  protected contactLabel(row: ContactRow): string {
+    const combined = [row.firstName?.trim(), row.lastName?.trim()].filter(Boolean).join(' ');
+    if (combined) return combined;
+    const local = row.email?.split('@')[0]?.trim();
+    return local || row.email || 'Contact';
   }
 }

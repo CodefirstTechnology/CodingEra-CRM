@@ -154,7 +154,9 @@
                   [attr.aria-label]="'Select ' + row.name"
                 />
               </td>
-              <td class="org__td org__td--strong">{{ row.name }}</td>
+              <td class="org__td org__td--strong">
+                <a class="org__name-link" [routerLink]="['/organizations', row.id]">{{ row.name }}</a>
+              </td>
               <td class="org__td org__td--muted">{{ row.website }}</td>
               <td class="org__td">{{ row.industry }}</td>
               <td class="org__td">{{ formatOrgRevenue(row.annualRevenue) }}</td>

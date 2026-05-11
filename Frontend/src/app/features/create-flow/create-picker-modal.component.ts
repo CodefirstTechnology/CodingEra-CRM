@@ -20,6 +20,7 @@ export class CreatePickerModalComponent {
     { kind: 'organization', label: 'New Organization' },
     { kind: 'task', label: 'New Task' },
     { kind: 'callLog', label: 'New Call Log' },
+    { kind: 'note', label: 'New Note' },
   ];
 
   protected readonly focusedIndex = signal(0);

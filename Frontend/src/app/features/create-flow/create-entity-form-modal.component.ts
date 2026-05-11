@@ -5,10 +5,12 @@ import type { CreateEntityKind } from '../../core/create-flow/create-entity-kind
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { CrmModalComponent } from '../../core/modal/crm-modal.component';
+import { AuthService } from '../../core/auth/auth.service';
 import { CallLogsService } from '../../core/services/call-logs.service';
 import { ContactsService } from '../../core/services/contacts.service';
 import { DealsService } from '../../core/services/deals.service';
 import { LeadsService } from '../../core/services/leads.service';
+import { NotesService } from '../../core/services/notes.service';
 import { OrganizationsService } from '../../core/services/organizations.service';
 import { TasksService } from '../../core/services/tasks.service';
 import type { CallLogRow } from '../call-logs/call-logs.component';
@@ -16,6 +18,7 @@ import type { ContactRow } from '../contacts/contacts.component';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from '../deals/deals.component';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { OrganizationRow } from '../organizations/organizations.component';
+import type { NoteRelatedType, NoteRow, NoteVisibility } from '../notes/notes.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
 import type { AssigneeOption, TaskPriority, TaskRow, TaskStatus } from '../tasks/tasks.component';
@@ -37,6 +40,8 @@ export class CreateEntityFormModalComponent {
   private readonly organizationsService = inject(OrganizationsService);
   private readonly tasksService = inject(TasksService);
   private readonly callLogsService = inject(CallLogsService);
+  private readonly notesService = inject(NotesService);
+  protected readonly auth = inject(AuthService);
 
   protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
@@ -78,6 +83,7 @@ export class CreateEntityFormModalComponent {
     'Qualification',
     'Proposal',
     'Negotiation',
+    'Demo/Making',
     'Closed Won',
     'Closed Lost',
   ];
@@ -104,6 +110,13 @@ export class CreateEntityFormModalComponent {
     { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
     { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
   ];
+
+  protected readonly noteRelatedTypeOptions = [
+    { value: 'lead', label: 'Lead' },
+    { value: 'deal', label: 'Deal' },
+    { value: 'contact', label: 'Contact' },
+    { value: 'organization', label: 'Organization' },
+  ] as const;
 
   protected readonly leadForm = this.fb.nonNullable.group({
     salutation: [''],
@@ -180,6 +193,14 @@ export class CreateEntityFormModalComponent {
     durationSec: [0, [Validators.required, Validators.min(0), Validators.max(59)]],
     outcome: ['connected', Validators.required],
     summary: ['', Validators.maxLength(2000)],
+  });
+
+  protected readonly noteForm = this.fb.nonNullable.group({
+    relatedType: ['deal', Validators.required],
+    relatedName: ['', [Validators.required, Validators.maxLength(200)]],
+    title: ['', [Validators.required, Validators.maxLength(200)]],
+    body: ['', [Validators.required, Validators.maxLength(8000)]],
+    visibility: ['team', Validators.required],
   });
 
   constructor() {
@@ -272,15 +293,54 @@ export class CreateEntityFormModalComponent {
         });
         this.taskForm.markAsUntouched();
         break;
+      case 'note': {
+        const rtCtl = this.noteForm.get('relatedType');
+        const rnCtl = this.noteForm.get('relatedName');
+        rtCtl?.enable({ emitEvent: false });
+        rnCtl?.enable({ emitEvent: false });
+        const ctx = this.flow.noteFromLeadFormContext();
+        if (ctx?.relatedLeadId) {
+          this.noteForm.reset({
+            relatedType: 'lead',
+            relatedName: ctx.leadRelatedName ?? '',
+            title: '',
+            body: '',
+            visibility: 'team',
+          });
+          rtCtl?.disable({ emitEvent: false });
+          rnCtl?.disable({ emitEvent: false });
+        } else if (ctx?.relatedDealId) {
+          this.noteForm.reset({
+            relatedType: 'deal',
+            relatedName: ctx.dealRelatedName ?? '',
+            title: '',
+            body: '',
+            visibility: 'team',
+          });
+          rtCtl?.disable({ emitEvent: false });
+          rnCtl?.disable({ emitEvent: false });
+        } else {
+          this.noteForm.reset({
+            relatedType: 'deal',
+            relatedName: '',
+            title: '',
+            body: '',
+            visibility: 'team',
+          });
+        }
+        this.noteForm.markAsUntouched();
+        break;
+      }
       case 'callLog': {
         const p = (n: number) => String(n).padStart(2, '0');
         const d = new Date();
         const local = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+        const ctx = this.flow.callLogFormContext();
         this.callForm.reset({
           startedAt: local,
           direction: 'outbound',
-          phoneNumber: '',
-          contactName: '',
+          phoneNumber: (ctx?.phoneNumber ?? '').trim(),
+          contactName: (ctx?.contactName ?? '').trim(),
           durationMin: 0,
           durationSec: 0,
           outcome: 'connected',
@@ -303,7 +363,7 @@ export class CreateEntityFormModalComponent {
   }
 
   private formGroupFor(
-    group: 'lead' | 'deal' | 'contact' | 'org' | 'task' | 'call',
+    group: 'lead' | 'deal' | 'contact' | 'org' | 'task' | 'call' | 'note',
   ): FormGroup {
     switch (group) {
       case 'lead':
@@ -316,12 +376,17 @@ export class CreateEntityFormModalComponent {
         return this.orgForm;
       case 'task':
         return this.taskForm;
-      default:
+      case 'note':
+        return this.noteForm;
+      case 'call':
         return this.callForm;
     }
   }
 
-  protected fieldInvalid(group: 'lead' | 'deal' | 'contact' | 'org' | 'task' | 'call', name: string): boolean {
+  protected fieldInvalid(
+    group: 'lead' | 'deal' | 'contact' | 'org' | 'task' | 'call' | 'note',
+    name: string,
+  ): boolean {
     const c = this.formGroupFor(group).get(name);
     return !!c && c.invalid && (c.dirty || c.touched);
   }
@@ -431,6 +496,8 @@ export class CreateEntityFormModalComponent {
       assignedTo: owner?.label ?? '',
       assignedInitials: owner?.initials ?? '',
       lastModified: 'Just now',
+      probabilityPercent: 10,
+      nextStep: '',
     };
 
     this.dealsService
@@ -532,12 +599,56 @@ export class CreateEntityFormModalComponent {
       assignedInitials: person?.initials ?? '?',
       lastModified: 'Just now',
     };
+    const leadCtx = this.flow.taskFromLeadFormContext();
+    if (leadCtx?.relatedLeadId) {
+      payload.relatedLeadId = leadCtx.relatedLeadId;
+    }
+    if (leadCtx?.relatedDealId) {
+      payload.relatedDealId = leadCtx.relatedDealId;
+    }
 
     this.tasksService
       .create(payload)
       .pipe(take(1))
       .subscribe((saved) => {
         this.bus.publish('task', saved);
+        this.flow.closeFormModal();
+      });
+  }
+
+  protected submitModalNote(): void {
+    this.noteForm.markAllAsTouched();
+    if (this.noteForm.invalid) return;
+
+    const raw = this.noteForm.getRawValue();
+    const body = raw.body.trim();
+    const bodyPreview = body.length > 140 ? `${body.slice(0, 140)}…` : body;
+
+    const author = this.auth.user()?.name?.trim() || 'You';
+
+    const payload: Omit<NoteRow, 'id'> = {
+      title: raw.title.trim(),
+      relatedType: raw.relatedType as NoteRelatedType,
+      relatedName: raw.relatedName.trim(),
+      visibility: raw.visibility as NoteVisibility,
+      body,
+      author,
+      when: 'Just now',
+      bodyPreview,
+    };
+    const leadCtx = this.flow.noteFromLeadFormContext();
+    if (leadCtx?.relatedLeadId) {
+      payload.relatedLeadId = leadCtx.relatedLeadId;
+    }
+    if (leadCtx?.relatedDealId) {
+      payload.relatedDealId = leadCtx.relatedDealId;
+    }
+
+    this.notesService
+      .create(payload)
+      .pipe(take(1))
+      .subscribe((saved) => {
+        this.bus.publish('note', saved);
         this.flow.closeFormModal();
       });
   }
@@ -579,6 +690,13 @@ export class CreateEntityFormModalComponent {
       summary: summaryTrim,
       lastModified: 'Just now',
     };
+    const leadCtx = this.flow.callLogFormContext();
+    if (leadCtx?.relatedLeadId) {
+      payload.relatedLeadId = leadCtx.relatedLeadId;
+    }
+    if (leadCtx?.relatedDealId) {
+      payload.relatedDealId = leadCtx.relatedDealId;
+    }
 
     this.callLogsService
       .create(payload)

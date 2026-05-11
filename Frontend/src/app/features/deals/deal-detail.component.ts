@@ -2,32 +2,30 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { concatMap, defaultIfEmpty, last, take, tap } from 'rxjs/operators';
+import { take } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { CallLogsService } from '../../core/services/call-logs.service';
 import { DealsService } from '../../core/services/deals.service';
-import { LeadsService } from '../../core/services/leads.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
-import { mapLeadToDealRow } from '../../shared/utils/mappers';
-import { environment } from '../../../environments/environment';
-import type { LeadOwnerOption, LeadRow, LeadStatus } from './leads.component';
+import type { DealOwnerOption, DealPipelineStatus, DealRow } from './deals.component';
+import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import type { CallLogRow } from '../call-logs/call-logs.component';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
 
 type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Calls' | 'Tasks' | 'Notes' | 'Attachments';
 
-interface LeadAttachmentItem {
+interface DealAttachmentItem {
   id: string;
   name: string;
   sizeLabel: string;
   uploadedAt: string;
 }
 
-interface LeadCommentItem {
+interface DealCommentItem {
   id: string;
   authorName: string;
   authorInitial: string;
@@ -35,7 +33,7 @@ interface LeadCommentItem {
   whenLabel: string;
 }
 
-interface LeadEmailThreadItem {
+interface DealEmailThreadItem {
   id: string;
   senderDisplay: string;
   senderInitial: string;
@@ -47,16 +45,15 @@ interface LeadEmailThreadItem {
 }
 
 @Component({
-  selector: 'app-lead-detail',
+  selector: 'app-deal-detail',
   imports: [RouterLink, ReactiveFormsModule],
-  templateUrl: './lead-detail.component.html',
-  styleUrl: './lead-detail.component.scss',
+  templateUrl: './deal-detail.component.html',
+  styleUrl: './deal-detail.component.scss',
 })
-export class LeadDetailComponent {
+export class DealDetailComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
-  private readonly leadsService = inject(LeadsService);
   private readonly dealsService = inject(DealsService);
   private readonly callLogsService = inject(CallLogsService);
   private readonly tasksService = inject(TasksService);
@@ -66,32 +63,27 @@ export class LeadDetailComponent {
   protected readonly auth = inject(AuthService);
 
   protected readonly numericId = signal<number | null>(null);
-  protected readonly lead = signal<LeadRow | null>(null);
-  protected readonly activeTab = signal<DetailTab>('Data');
+  protected readonly deal = signal<DealRow | null>(null);
+  protected readonly activeTab = signal<DetailTab>('Activity');
   protected readonly dataSaving = signal(false);
-  /** Call logs where `relatedLeadId` matches the open lead (from lead-detail “Log a Call”). */
-  protected readonly leadCallLogs = signal<CallLogRow[]>([]);
-  /** Tasks where `relatedLeadId` matches the open lead (from lead-detail “+ New Task”). */
-  protected readonly leadTasks = signal<TaskRow[]>([]);
-  /** Notes scoped to this lead (`relatedLeadId`) from lead-detail “Create note”. */
-  protected readonly leadNotes = signal<NoteRow[]>([]);
-  /** Client-side attachments for this lead (sessionStorage until backend exists). */
-  protected readonly leadAttachments = signal<LeadAttachmentItem[]>([]);
-  /** Client-side timeline comments for this lead (sessionStorage demo until backend exists). */
-  protected readonly leadComments = signal<LeadCommentItem[]>([]);
+  protected readonly dealCallLogs = signal<CallLogRow[]>([]);
+  protected readonly dealTasks = signal<TaskRow[]>([]);
+  protected readonly dealNotes = signal<NoteRow[]>([]);
+  protected readonly dealAttachments = signal<DealAttachmentItem[]>([]);
+  protected readonly dealComments = signal<DealCommentItem[]>([]);
   protected readonly commentComposerOpen = signal(false);
   protected readonly commentDraft = signal('');
 
-  /** Client-side sent/draft emails for this lead timeline (sessionStorage until backend exists). */
-  protected readonly leadEmails = signal<LeadEmailThreadItem[]>([]);
+  protected readonly dealEmails = signal<DealEmailThreadItem[]>([]);
   protected readonly emailComposerOpen = signal(false);
   protected readonly emailComposeEmojiOpen = signal(false);
 
-  /** Quick picks for the email compose emoji tool. */
   protected readonly emailComposeEmojiChoices = ['😊', '👍', '✅', '🙏', '🎉', '❤️'] as const;
 
   protected readonly sidebarDetailsOpen = signal(true);
-  protected readonly sidebarPersonOpen = signal(true);
+  protected readonly sidebarContactsOpen = signal(true);
+  /** Expandable timeline row (+N changes). */
+  protected readonly activityExtrasOpen = signal(false);
 
   protected readonly emailTo = signal('');
   protected readonly emailCc = signal('');
@@ -110,9 +102,8 @@ export class LeadDetailComponent {
     'Attachments',
   ];
 
-  /** Matches reference style `CRM-LEAD-2026-00004` using current year + numeric row id when available. */
-  protected readonly leadCode = computed(() => {
-    const row = this.lead();
+  protected readonly dealCode = computed(() => {
+    const row = this.deal();
     const year = new Date().getFullYear();
     let seq = this.numericId() ?? NaN;
     if (!Number.isFinite(seq) && row?.id) {
@@ -120,7 +111,7 @@ export class LeadDetailComponent {
       if (Number.isFinite(parsed)) seq = parsed;
     }
     if (!Number.isFinite(seq)) seq = 0;
-    return `CRM-LEAD-${year}-${String(seq).padStart(5, '0')}`;
+    return `CRM-DEAL-${year}-${String(seq).padStart(5, '0')}`;
   });
 
   protected readonly emailSubject = computed(() => {
@@ -128,27 +119,22 @@ export class LeadDetailComponent {
     if (customSubject.trim()) {
       return customSubject;
     }
-
-    const name = this.lead()?.name || 'Lead';
-    return `Mr ${name} (${this.leadCode()})`;
+    const org = this.deal()?.organizationName?.trim() || 'Deal';
+    return `${org} (${this.dealCode()})`;
   });
 
   protected readonly emailToLooksValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.emailTo().trim()));
 
-  protected readonly territoryOptions = ['', 'India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
-  protected readonly industryOptions = [
-    '',
-    'Technology',
-    'Finance',
-    'Healthcare',
-    'Manufacturing',
-    'Retail',
-    'Education',
-    'Other',
-  ] as const;
-  protected readonly salutationOptions = ['', 'Mr', 'Mrs', 'Ms', 'Dr', 'Prof'] as const;
-  protected readonly sourceOptions = ['', 'Website', 'Referral', 'Ads', 'Cold Call', 'Event', 'Other'] as const;
-  protected readonly leadOwnerOptions: LeadOwnerOption[] = [
+  protected readonly dealStatuses: DealPipelineStatus[] = [
+    'Qualification',
+    'Proposal',
+    'Negotiation',
+    'Demo/Making',
+    'Closed Won',
+    'Closed Lost',
+  ];
+
+  protected readonly dealOwnerOptions: DealOwnerOption[] = [
     { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
     { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
     { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
@@ -162,18 +148,16 @@ export class LeadDetailComponent {
   };
 
   protected readonly dataForm = this.fb.nonNullable.group({
-    organization: [''],
+    organization: ['', Validators.required],
+    annualRevenue: [''],
+    status: this.fb.nonNullable.control<DealPipelineStatus>('Qualification', Validators.required),
+    email: ['', [Validators.email]],
+    mobile: [''],
+    dealOwner: ['SK', Validators.required],
     website: [''],
     territory: [''],
-    industry: [''],
-    jobTitle: [''],
-    source: [''],
-    owner: [''],
-    salutation: [''],
-    firstName: ['', Validators.required],
-    lastName: [''],
-    email: [''],
-    mobile: [''],
+    probabilityPercent: ['10'],
+    nextStep: [''],
   });
 
   constructor() {
@@ -182,56 +166,58 @@ export class LeadDetailComponent {
       const id = raw != null ? Number(raw) : NaN;
       if (!Number.isFinite(id)) {
         this.numericId.set(null);
-        this.lead.set(null);
-        this.leadCallLogs.set([]);
-        this.leadTasks.set([]);
-        this.leadNotes.set([]);
-        this.leadAttachments.set([]);
-        this.leadComments.set([]);
+        this.deal.set(null);
+        this.dealCallLogs.set([]);
+        this.dealTasks.set([]);
+        this.dealNotes.set([]);
+        this.dealAttachments.set([]);
+        this.dealComments.set([]);
         this.commentComposerOpen.set(false);
         this.commentDraft.set('');
-        this.leadEmails.set([]);
+        this.dealEmails.set([]);
         this.emailComposerOpen.set(false);
         this.emailComposeEmojiOpen.set(false);
         return;
       }
       this.numericId.set(id);
-      this.leadsService
+      this.dealsService
         .getById(id)
         .pipe(take(1))
         .subscribe((row) => {
-          this.lead.set(row);
+          this.deal.set(row);
           if (row) {
             this.patchDataForm(row);
-            this.emailTo.set(row.email ?? '');
+            const em = row.email?.trim();
+            this.emailTo.set(em && em !== '—' ? em : '');
             this.emailCc.set('');
             this.emailBcc.set('');
-            this.emailSubjectText.set(`Mr ${row.name} (${this.leadCode()})`);
+            const org = row.organizationName.trim() || 'Deal';
+            this.emailSubjectText.set(`${org} (${this.dealCode()})`);
             this.emailBody.set('');
-            this.refreshLeadCallLogs();
-            this.refreshLeadTasks();
-            this.refreshLeadNotes();
-            const lid = row.id.trim();
-            if (lid) {
-              this.loadLeadAttachments(lid);
-              this.loadLeadComments(lid);
-              this.loadLeadEmails(lid, row);
+            this.refreshDealCallLogs();
+            this.refreshDealTasks();
+            this.refreshDealNotes();
+            const did = row.id.trim();
+            if (did) {
+              this.loadDealAttachments(did);
+              this.loadDealComments(did);
+              this.loadDealEmails(did, row);
             } else {
-              this.leadAttachments.set([]);
-              this.leadComments.set([]);
-              this.leadEmails.set([]);
+              this.dealAttachments.set([]);
+              this.dealComments.set([]);
+              this.dealEmails.set([]);
             }
             this.commentComposerOpen.set(false);
             this.commentDraft.set('');
             this.emailComposerOpen.set(false);
             this.emailComposeEmojiOpen.set(false);
           } else {
-            this.leadCallLogs.set([]);
-            this.leadTasks.set([]);
-            this.leadNotes.set([]);
-            this.leadAttachments.set([]);
-            this.leadComments.set([]);
-            this.leadEmails.set([]);
+            this.dealCallLogs.set([]);
+            this.dealTasks.set([]);
+            this.dealNotes.set([]);
+            this.dealAttachments.set([]);
+            this.dealComments.set([]);
+            this.dealEmails.set([]);
             this.commentComposerOpen.set(false);
             this.commentDraft.set('');
             this.emailComposerOpen.set(false);
@@ -241,68 +227,68 @@ export class LeadDetailComponent {
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
-      if (e.kind === 'callLog') this.refreshLeadCallLogs();
-      if (e.kind === 'task') this.refreshLeadTasks();
-      if (e.kind === 'note') this.refreshLeadNotes();
+      if (e.kind === 'callLog') this.refreshDealCallLogs();
+      if (e.kind === 'task') this.refreshDealTasks();
+      if (e.kind === 'note') this.refreshDealNotes();
     });
   }
 
-  private refreshLeadCallLogs(): void {
-    const l = this.lead();
-    const lid = l?.id;
-    if (lid == null || lid === '') {
-      this.leadCallLogs.set([]);
+  private refreshDealCallLogs(): void {
+    const d = this.deal();
+    const did = d?.id;
+    if (did == null || did === '') {
+      this.dealCallLogs.set([]);
       return;
     }
     this.callLogsService
       .getAll()
       .pipe(take(1))
       .subscribe((rows) => {
-        const idNorm = lid.trim();
-        const forLead = rows.filter((r) => (r.relatedLeadId ?? '').trim() === idNorm);
-        this.leadCallLogs.set(forLead);
+        const idNorm = did.trim();
+        const scoped = rows.filter((r) => (r.relatedDealId ?? '').trim() === idNorm);
+        this.dealCallLogs.set(scoped);
       });
   }
 
-  private refreshLeadTasks(): void {
-    const l = this.lead();
-    const lid = l?.id;
-    if (lid == null || lid === '') {
-      this.leadTasks.set([]);
+  private refreshDealTasks(): void {
+    const d = this.deal();
+    const did = d?.id;
+    if (did == null || did === '') {
+      this.dealTasks.set([]);
       return;
     }
     this.tasksService
       .getAll()
       .pipe(take(1))
       .subscribe((rows) => {
-        const idNorm = lid.trim();
-        const forLead = rows.filter((r) => (r.relatedLeadId ?? '').trim() === idNorm);
-        this.leadTasks.set(forLead);
+        const idNorm = did.trim();
+        const scoped = rows.filter((r) => (r.relatedDealId ?? '').trim() === idNorm);
+        this.dealTasks.set(scoped);
       });
   }
 
-  private refreshLeadNotes(): void {
-    const l = this.lead();
-    const lid = l?.id;
-    if (lid == null || lid === '') {
-      this.leadNotes.set([]);
+  private refreshDealNotes(): void {
+    const d = this.deal();
+    const did = d?.id;
+    if (did == null || did === '') {
+      this.dealNotes.set([]);
       return;
     }
     this.notesService
       .getAll()
       .pipe(take(1))
       .subscribe((rows) => {
-        const idNorm = lid.trim();
-        const forLead = rows.filter((r) => (r.relatedLeadId ?? '').trim() === idNorm);
-        this.leadNotes.set(forLead);
+        const idNorm = did.trim();
+        const scoped = rows.filter((r) => (r.relatedDealId ?? '').trim() === idNorm);
+        this.dealNotes.set(scoped);
       });
   }
 
-  private attachmentStorageKey(leadId: string): string {
-    return `crm.lead-detail.attach.v1:${leadId}`;
+  private attachmentStorageKey(dealId: string): string {
+    return `crm.deal-detail.attach.v1:${dealId}`;
   }
 
-  private isAttachmentRow(x: unknown): x is LeadAttachmentItem {
+  private isAttachmentRow(x: unknown): x is DealAttachmentItem {
     if (x == null || typeof x !== 'object') return false;
     const o = x as Record<string, unknown>;
     return (
@@ -313,27 +299,27 @@ export class LeadDetailComponent {
     );
   }
 
-  private loadLeadAttachments(leadId: string): void {
-    let rows: LeadAttachmentItem[] = [];
+  private loadDealAttachments(dealId: string): void {
+    let rows: DealAttachmentItem[] = [];
     try {
-      const raw = sessionStorage.getItem(this.attachmentStorageKey(leadId));
+      const raw = sessionStorage.getItem(this.attachmentStorageKey(dealId));
       if (!raw) {
-        this.leadAttachments.set([]);
+        this.dealAttachments.set([]);
         return;
       }
       const parsed = JSON.parse(raw) as unknown;
       rows = Array.isArray(parsed)
-        ? (parsed.filter((item) => this.isAttachmentRow(item)) as LeadAttachmentItem[]).slice(0, 200)
+        ? (parsed.filter((item) => this.isAttachmentRow(item)) as DealAttachmentItem[]).slice(0, 200)
         : [];
     } catch {
       rows = [];
     }
-    this.leadAttachments.set(rows);
+    this.dealAttachments.set(rows);
   }
 
-  private persistAttachments(leadId: string): void {
+  private persistAttachments(dealId: string): void {
     try {
-      sessionStorage.setItem(this.attachmentStorageKey(leadId), JSON.stringify(this.leadAttachments()));
+      sessionStorage.setItem(this.attachmentStorageKey(dealId), JSON.stringify(this.dealAttachments()));
     } catch {
       /* ignore quota / privacy mode */
     }
@@ -353,17 +339,16 @@ export class LeadDetailComponent {
     return `${rounded} ${units[i]}`;
   }
 
-  /** Multi-file picker from header / empty-state “Upload Attachment”. */
-  protected onLeadAttachmentFilesSelected(ev: Event): void {
+  protected onDealAttachmentFilesSelected(ev: Event): void {
     const input = ev.target as HTMLInputElement;
-    const lidRaw = this.lead()?.id;
-    const lid = lidRaw?.trim();
+    const didRaw = this.deal()?.id;
+    const did = didRaw?.trim();
     const files = input.files;
-    if (!lid || !files?.length) {
+    if (!did || !files?.length) {
       input.value = '';
       return;
     }
-    const next = [...this.leadAttachments()];
+    const next = [...this.dealAttachments()];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       const id =
@@ -377,16 +362,16 @@ export class LeadDetailComponent {
         uploadedAt: 'Just now',
       });
     }
-    this.leadAttachments.set(next);
-    this.persistAttachments(lid);
+    this.dealAttachments.set(next);
+    this.persistAttachments(did);
     input.value = '';
   }
 
-  private commentsStorageKey(leadId: string): string {
-    return `crm.lead-detail.comments.v1:${leadId}`;
+  private commentsStorageKey(dealId: string): string {
+    return `crm.deal-detail.comments.v1:${dealId}`;
   }
 
-  private isCommentRow(x: unknown): x is LeadCommentItem {
+  private isCommentRow(x: unknown): x is DealCommentItem {
     if (x == null || typeof x !== 'object') return false;
     const o = x as Record<string, unknown>;
     return (
@@ -398,20 +383,20 @@ export class LeadDetailComponent {
     );
   }
 
-  private loadLeadComments(leadId: string): void {
-    const key = this.commentsStorageKey(leadId);
+  private loadDealComments(dealId: string): void {
+    const key = this.commentsStorageKey(dealId);
     const raw = sessionStorage.getItem(key);
     if (raw === null) {
-      const seed: LeadCommentItem[] = [
+      const seed: DealCommentItem[] = [
         {
-          id: 'seed-crm-demo-comment',
+          id: 'seed-crm-demo-comment-deal',
           authorName: 'CRM Demo',
           authorInitial: 'C',
           body: 'had word with CEO',
           whenLabel: '8 months ago',
         },
       ];
-      this.leadComments.set(seed);
+      this.dealComments.set(seed);
       try {
         sessionStorage.setItem(key, JSON.stringify(seed));
       } catch {
@@ -419,66 +404,66 @@ export class LeadDetailComponent {
       }
       return;
     }
-    let rows: LeadCommentItem[] = [];
+    let rows: DealCommentItem[] = [];
     try {
       const parsed = JSON.parse(raw) as unknown;
       rows = Array.isArray(parsed)
-        ? (parsed.filter((item) => this.isCommentRow(item)) as LeadCommentItem[]).slice(0, 200)
+        ? (parsed.filter((item) => this.isCommentRow(item)) as DealCommentItem[]).slice(0, 200)
         : [];
     } catch {
       rows = [];
     }
-    this.leadComments.set(rows);
+    this.dealComments.set(rows);
   }
 
-  private persistLeadComments(leadId: string): void {
+  private persistDealComments(dealId: string): void {
     try {
-      sessionStorage.setItem(this.commentsStorageKey(leadId), JSON.stringify(this.leadComments()));
+      sessionStorage.setItem(this.commentsStorageKey(dealId), JSON.stringify(this.dealComments()));
     } catch {
       /* ignore quota */
     }
   }
 
-  protected openNewCommentFromLead(): void {
+  protected openNewCommentFromDeal(): void {
     this.commentComposerOpen.set(true);
   }
 
-  protected cancelLeadCommentComposer(): void {
+  protected cancelDealCommentComposer(): void {
     this.commentComposerOpen.set(false);
     this.commentDraft.set('');
   }
 
-  protected postLeadComment(): void {
-    const lid = this.lead()?.id?.trim();
-    if (!lid) return;
+  protected postDealComment(): void {
+    const did = this.deal()?.id?.trim();
+    if (!did) return;
     const text = this.commentDraft().trim();
     if (!text) return;
     const authName = this.auth.user()?.name?.trim() || 'User';
-    const row: LeadCommentItem = {
+    const row: DealCommentItem = {
       id:
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? crypto.randomUUID()
-          : `lead-comment-${Date.now()}`,
+          : `deal-comment-${Date.now()}`,
       authorName: authName,
       authorInitial: authName.trim() ? authName.trim().charAt(0).toUpperCase() : '?',
       body: text,
       whenLabel: 'Just now',
     };
-    this.leadComments.update((list) => [row, ...list]);
-    this.persistLeadComments(lid);
+    this.dealComments.update((list) => [row, ...list]);
+    this.persistDealComments(did);
     this.commentDraft.set('');
     this.commentComposerOpen.set(false);
   }
 
-  protected openReplyFromLeadComments(): void {
+  protected openReplyFromDealComments(): void {
     this.setTab('Emails');
   }
 
-  private emailsStorageKey(leadId: string): string {
-    return `crm.lead-detail.emails.v1:${leadId}`;
+  private emailsStorageKey(dealId: string): string {
+    return `crm.deal-detail.emails.v1:${dealId}`;
   }
 
-  private isEmailThreadRow(x: unknown): x is LeadEmailThreadItem {
+  private isEmailThreadRow(x: unknown): x is DealEmailThreadItem {
     if (x == null || typeof x !== 'object') return false;
     const o = x as Record<string, unknown>;
     const status = o['status'];
@@ -494,14 +479,14 @@ export class LeadDetailComponent {
     );
   }
 
-  private loadLeadEmails(leadId: string, row: LeadRow): void {
-    const key = this.emailsStorageKey(leadId);
+  private loadDealEmails(dealId: string, row: DealRow): void {
+    const key = this.emailsStorageKey(dealId);
     const raw = sessionStorage.getItem(key);
-    const displayName = row.name.trim() || row.firstName?.trim() || 'Lead';
-    const code = this.leadCode();
-    const makeSeed = (): LeadEmailThreadItem[] => [
+    const displayName = row.organizationName.trim() || 'Deal';
+    const code = this.dealCode();
+    const makeSeed = (): DealEmailThreadItem[] => [
       {
-        id: 'seed-crm-email',
+        id: 'seed-crm-email-deal',
         senderDisplay: 'CRM Demo <crm-demo@assimilate.com>',
         senderInitial: 'C',
         subjectLine: `${displayName} (#${code})`,
@@ -514,7 +499,7 @@ export class LeadDetailComponent {
 
     if (raw === null) {
       const seed = makeSeed();
-      this.leadEmails.set(seed);
+      this.dealEmails.set(seed);
       try {
         sessionStorage.setItem(key, JSON.stringify(seed));
       } catch {
@@ -522,32 +507,32 @@ export class LeadDetailComponent {
       }
       return;
     }
-    let emails: LeadEmailThreadItem[] = [];
+    let emails: DealEmailThreadItem[] = [];
     try {
       const parsed = JSON.parse(raw) as unknown;
       emails = Array.isArray(parsed)
-        ? (parsed.filter((item) => this.isEmailThreadRow(item)) as LeadEmailThreadItem[]).slice(0, 200)
+        ? (parsed.filter((item) => this.isEmailThreadRow(item)) as DealEmailThreadItem[]).slice(0, 200)
         : [];
     } catch {
       emails = [];
     }
-    this.leadEmails.set(emails);
+    this.dealEmails.set(emails);
   }
 
-  private persistLeadEmails(leadId: string): void {
+  private persistDealEmails(dealId: string): void {
     try {
-      sessionStorage.setItem(this.emailsStorageKey(leadId), JSON.stringify(this.leadEmails()));
+      sessionStorage.setItem(this.emailsStorageKey(dealId), JSON.stringify(this.dealEmails()));
     } catch {
       /* ignore */
     }
   }
 
-  protected openNewEmailFromLead(): void {
+  protected openNewEmailFromDeal(): void {
     this.emailComposeEmojiOpen.set(false);
     this.emailComposerOpen.set(true);
   }
 
-  protected cancelLeadEmailComposer(): void {
+  protected cancelDealEmailComposer(): void {
     this.emailComposerOpen.set(false);
     this.emailComposeEmojiOpen.set(false);
   }
@@ -556,13 +541,11 @@ export class LeadDetailComponent {
     this.emailComposeEmojiOpen.update((v) => !v);
   }
 
-  /** Inserts emoji at the end of the draft (picker closes). */
   protected insertEmailComposeEmoji(symbol: string): void {
     this.emailBody.update((b) => `${b}${symbol}`);
     this.emailComposeEmojiOpen.set(false);
   }
 
-  /** Paperclip — append referenced file names to the body. */
   protected onEmailComposeAttachmentsSelected(ev: Event): void {
     const input = ev.target as HTMLInputElement;
     const list = input.files;
@@ -575,7 +558,6 @@ export class LeadDetailComponent {
     this.emailBody.update((b) => `${b}${block}`);
   }
 
-  /** Picture — append referenced image file names to the body. */
   protected onEmailComposeImagesSelected(ev: Event): void {
     const input = ev.target as HTMLInputElement;
     const list = input.files;
@@ -588,10 +570,10 @@ export class LeadDetailComponent {
     this.emailBody.update((b) => `${b}${block}`);
   }
 
-  protected submitLeadDraftEmail(): void {
-    const lid = this.lead()?.id?.trim();
-    const l = this.lead();
-    if (!lid || !l) return;
+  protected submitDealDraftEmail(): void {
+    const did = this.deal()?.id?.trim();
+    const d = this.deal();
+    if (!did || !d) return;
     const to = this.emailTo().trim();
     const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to);
     if (!emailLooksValid) {
@@ -607,62 +589,60 @@ export class LeadDetailComponent {
       .replace(/^\.+|\.+$/g, '');
     const localPart = safeLocal.length > 0 ? safeLocal : 'user';
     const senderDisplay = `${authName} <${localPart}@crm.local>`;
-    const leadDisplayName = l.name.trim() || l.firstName?.trim() || 'Lead';
-    const item: LeadEmailThreadItem = {
+    const orgName = d.organizationName.trim() || 'Deal';
+    const item: DealEmailThreadItem = {
       id:
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? crypto.randomUUID()
           : `email-${Date.now()}`,
       senderDisplay,
       senderInitial: authName.trim() ? authName.trim().charAt(0).toUpperCase() : '?',
-      subjectLine: subject || `${leadDisplayName} (#${this.leadCode()})`,
+      subjectLine: subject || `${orgName} (#${this.dealCode()})`,
       toAddress: to,
       status: 'Sent',
       whenLabel: 'Just now',
       body: body.length > 0 ? body : '(No message body)',
     };
-    this.leadEmails.update((list) => [item, ...list]);
-    this.persistLeadEmails(lid);
+    this.dealEmails.update((list) => [item, ...list]);
+    this.persistDealEmails(did);
     this.emailBody.set('');
     this.emailComposerOpen.set(false);
     this.emailComposeEmojiOpen.set(false);
   }
 
-  protected openLeadEmailComposer(): void {
+  protected openDealEmailComposer(): void {
     this.emailComposeEmojiOpen.set(false);
     this.emailComposerOpen.set(true);
   }
 
-  /** Card header reply / reply all — opens compose panel. */
-  protected openLeadEmailReply(_thread?: LeadEmailThreadItem): void {
+  protected openDealEmailReply(_thread?: DealEmailThreadItem): void {
     void _thread;
     this.emailComposeEmojiOpen.set(false);
     this.emailComposerOpen.set(true);
   }
 
-  protected openLeadEmailFooterComment(): void {
+  protected openDealEmailFooterComment(): void {
     this.setTab('Comments');
   }
 
-  protected openLogCallFromLead(): void {
-    const l = this.lead();
-    if (!l?.id) return;
-    const displayName =
-      [l.firstName?.trim(), l.lastName?.trim()].filter(Boolean).join(' ') || l.name.trim() || 'Lead';
+  protected openLogCallFromDeal(): void {
+    const d = this.deal();
+    if (!d?.id) return;
+    const mob = d.mobile?.trim();
     this.createFlow.selectEntity('callLog', {
       callLogFromLead: {
-        relatedLeadId: String(l.id),
-        contactName: displayName,
-        ...(l.mobile?.trim() ? { phoneNumber: l.mobile.trim() } : {}),
+        relatedDealId: String(d.id),
+        contactName: d.organizationName.trim() || 'Deal',
+        ...(mob && mob !== '—' ? { phoneNumber: mob } : {}),
       },
     });
   }
 
-  protected openNewTaskFromLead(): void {
-    const l = this.lead();
-    if (!l?.id) return;
+  protected openNewTaskFromDeal(): void {
+    const d = this.deal();
+    if (!d?.id) return;
     this.createFlow.selectEntity('task', {
-      taskFromLead: { relatedLeadId: String(l.id) },
+      taskFromLead: { relatedDealId: String(d.id) },
     });
   }
 
@@ -672,17 +652,18 @@ export class LeadDetailComponent {
     void this.router.navigate(['/tasks'], { queryParams: { edit: id } });
   }
 
-  protected openCreateNoteFromLead(): void {
-    const l = this.lead();
-    if (!l?.id) return;
-    const displayName =
-      [l.firstName?.trim(), l.lastName?.trim()].filter(Boolean).join(' ') || l.name.trim() || 'Lead';
+  protected openCreateNoteFromDeal(): void {
+    const d = this.deal();
+    if (!d?.id) return;
+    const displayName = d.organizationName.trim() || 'Deal';
     this.createFlow.selectEntity('note', {
-      noteFromLead: { relatedLeadId: String(l.id), leadRelatedName: displayName },
+      noteFromLead: {
+        relatedDealId: String(d.id),
+        dealRelatedName: displayName,
+      },
     });
   }
 
-  /** First character for avatar chip (matches initials or assignee display name). */
   protected taskAssigneeChipInitial(task: TaskRow): string {
     const ini = task.assignedInitials?.trim();
     if (ini) return ini.charAt(0).toUpperCase();
@@ -695,26 +676,39 @@ export class LeadDetailComponent {
     this.sidebarDetailsOpen.update((o) => !o);
   }
 
-  protected toggleSidebarPerson(): void {
-    this.sidebarPersonOpen.update((o) => !o);
+  protected toggleSidebarContacts(): void {
+    this.sidebarContactsOpen.update((o) => !o);
   }
 
-  protected patchDataForm(row: LeadRow): void {
-    const salutation = row.salutation?.replace(/\.$/, '') ?? '';
+  protected toggleActivityExtras(): void {
+    this.activityExtrasOpen.update((o) => !o);
+  }
+
+  private revenueNumberToInputString(value: number | undefined): string {
+    if (value == null || !Number.isFinite(value) || value === 0) return '';
+    return value.toLocaleString('en-IN');
+  }
+
+  protected patchDataForm(row: DealRow): void {
+    const ownerOpt = this.dealOwnerOptions.find(
+      (o) => o.initials === row.assignedInitials || o.label === row.assignedTo,
+    );
+    const emailVal = row.email?.trim();
+    const mobileVal = row.mobile?.trim();
+    const prob = row.probabilityPercent ?? 10;
     this.dataForm.patchValue(
       {
-        organization: row.organization ?? '',
-        website: row.website ?? '',
+        organization: row.organizationName ?? '',
+        annualRevenue: this.revenueNumberToInputString(row.annualRevenue),
+        status: row.status,
+        email: emailVal && emailVal !== '—' ? emailVal : '',
+        mobile: mobileVal && mobileVal !== '—' ? mobileVal : '',
+        dealOwner: ownerOpt?.id ?? 'SK',
+        website: row.website?.trim() ?? '',
         territory: row.territory ?? '',
-        industry: row.industry ?? '',
-        jobTitle: row.jobTitle ?? '',
-        source: row.source ?? '',
-        owner: row.owner ?? '',
-        salutation,
-        firstName: row.firstName ?? '',
-        lastName: row.lastName ?? '',
-        email: row.email ?? '',
-        mobile: row.mobile ?? '',
+        probabilityPercent:
+          Number.isFinite(prob) ? (Math.round(prob * 1000) / 1000).toFixed(3) : '10.000',
+        nextStep: row.nextStep ?? '',
       },
       { emitEvent: false },
     );
@@ -756,58 +750,44 @@ export class LeadDetailComponent {
   }
 
   protected ownerInitial(): string {
-    const owner = this.lead()?.leadOwnerName?.trim() || this.lead()?.owner?.trim() || 'L';
+    const owner = this.deal()?.assignedTo?.trim() || 'D';
     return owner.charAt(0).toUpperCase();
-  }
-
-  protected leadInitial(): string {
-    const name = this.lead()?.firstName?.trim() || this.lead()?.name?.trim() || 'L';
-    return name.charAt(0).toUpperCase();
   }
 
   protected sidebarAddLabel(kind: string): string {
     return `Add ${kind}...`;
   }
 
-  /** Initial for header chip (leading letter shown before full name like "R Rohit Dhaygude"). */
   protected userHeaderChip(): string {
     const name = this.auth.user()?.name?.trim() || '';
     return name ? name.charAt(0).toUpperCase() : '?';
   }
 
   protected discardDataEdits(): void {
-    const row = this.lead();
+    const row = this.deal();
     if (row) this.patchDataForm(row);
   }
 
-  /** Sidebar name line — mirrors `saveDataTab` name computation. */
-  protected sidebarLeadHeadline(row: LeadRow): string {
-    const v = this.dataForm.getRawValue();
-    const salutationNorm = v.salutation.trim() ? `${v.salutation.trim()}.` : '';
-    return (
-      [salutationNorm, v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(' ').trim() ||
-      v.firstName.trim() ||
-      row.name
-    );
+  protected sidebarDealHeadline(row: DealRow): string {
+    const org = this.dataForm.controls.organization.value?.trim();
+    return org || row.organizationName.trim() || 'Deal';
   }
 
-  protected sidebarLeadAvatarLetter(row: LeadRow): string {
-    const fn = this.dataForm.controls.firstName.value?.trim();
-    if (fn) return fn.charAt(0).toUpperCase();
-    return this.leadInitial();
+  protected sidebarDealAvatarLetter(row: DealRow): string {
+    const org = this.dataForm.controls.organization.value?.trim() || row.organizationName.trim() || 'D';
+    return org.charAt(0).toUpperCase();
   }
 
-  /** Lead owner initial beside the owner select (follows selected owner option). */
   protected sidebarOwnerChipInitial(): string {
-    const id = this.dataForm.controls.owner.value?.trim();
-    const opt = this.leadOwnerOptions.find((o) => o.id === id);
+    const id = this.dataForm.controls.dealOwner.value?.trim();
+    const opt = this.dealOwnerOptions.find((o) => o.id === id);
     const label = opt?.label?.trim();
     if (label) return label.charAt(0).toUpperCase();
-    const fb = this.lead()?.leadOwnerName?.trim();
+    const fb = this.deal()?.assignedTo?.trim();
     return fb ? fb.charAt(0).toUpperCase() : '?';
   }
 
-  protected copyLeadDetailUrl(): void {
+  protected copyDealDetailUrl(): void {
     const url = typeof globalThis.location !== 'undefined' ? globalThis.location.href : '';
     if (!url) return;
     const run = async (): Promise<void> => {
@@ -837,7 +817,7 @@ export class LeadDetailComponent {
   }
 
   protected saveDataTab(): void {
-    const row = this.lead();
+    const row = this.deal();
     const idn = this.numericId();
     if (!row || idn == null) return;
 
@@ -847,78 +827,47 @@ export class LeadDetailComponent {
     }
 
     const v = this.dataForm.getRawValue();
-    const salutationNorm = v.salutation.trim() ? `${v.salutation.trim()}.` : '';
-    const name = [salutationNorm, v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(' ').trim() || v.firstName.trim() || row.name;
+    const opt = this.dealOwnerOptions.find((o) => o.id === v.dealOwner.trim());
+    const emailTrim = v.email.trim();
 
-    const opt = this.leadOwnerOptions.find((o) => o.id === v.owner.trim());
-    const leadOwnerName = opt?.label ?? row.leadOwnerName;
+    let probabilityPercent = row.probabilityPercent ?? 10;
+    const rawProb = String(v.probabilityPercent ?? '').replace(/,/g, '').trim();
+    if (rawProb !== '') {
+      const p = Number.parseFloat(rawProb);
+      if (Number.isFinite(p)) probabilityPercent = p;
+    }
 
     this.dataSaving.set(true);
-    const payload: Partial<Omit<LeadRow, 'id'>> = {
-      name,
-      firstName: v.firstName.trim(),
-      lastName: v.lastName.trim(),
-      salutation: salutationNorm || undefined,
-      email: v.email.trim(),
-      mobile: v.mobile.trim() || undefined,
-      organization: v.organization.trim(),
-      website: v.website.trim() || undefined,
-      territory: v.territory.trim() || undefined,
-      industry: v.industry.trim(),
-      jobTitle: v.jobTitle.trim() || undefined,
-      source: v.source.trim() || undefined,
-      owner: v.owner.trim() || row.owner,
-      leadOwnerName,
-      updated: 'Just now',
+    const payload: Partial<Omit<DealRow, 'id'>> = {
+      organizationName: v.organization.trim(),
+      annualRevenue: parseRevenueInputToNumber(v.annualRevenue),
+      status: v.status,
+      email: emailTrim || '—',
+      mobile: v.mobile.trim() || '—',
+      assignedTo: opt?.label ?? row.assignedTo,
+      assignedInitials: opt?.initials ?? row.assignedInitials,
+      dealOwnerId: v.dealOwner.trim(),
+      website: v.website.trim(),
+      territory: v.territory.trim(),
+      probabilityPercent,
+      nextStep: v.nextStep.trim(),
+      lastModified: 'Just now',
     };
 
-    this.leadsService
+    this.dealsService
       .update(idn, payload)
       .pipe(take(1))
       .subscribe({
         next: (updated) => {
           this.dataSaving.set(false);
           if (updated) {
-            this.lead.set(updated);
+            this.deal.set(updated);
             this.patchDataForm(updated);
-            this.emailSubjectText.set(`Mr ${updated.name} (${this.leadCode()})`);
+            const org = updated.organizationName.trim() || 'Deal';
+            this.emailSubjectText.set(`${org} (${this.dealCode()})`);
           }
         },
         error: () => this.dataSaving.set(false),
-      });
-  }
-
-  protected convertToDeal(): void {
-    const row = this.lead();
-    const idn = this.numericId();
-    if (!row || idn == null || row.status === 'Converted') return;
-
-    const after = environment.leadConversionAfterDeal;
-    this.dealsService
-      .create(mapLeadToDealRow(row))
-      .pipe(
-        take(1),
-        tap((created) => this.createRowBus.publish('deal', created)),
-        concatMap(() =>
-          after === 'delete'
-            ? this.leadsService.delete(idn).pipe(take(1))
-            : this.leadsService.update(idn, {
-                status: 'Converted' satisfies LeadStatus,
-                updated: 'Just now',
-              }),
-        ),
-        last(),
-        defaultIfEmpty(null),
-      )
-      .subscribe(() => {
-        if (after === 'delete') {
-          void this.router.navigateByUrl('/leads');
-        } else {
-          this.lead.update((cur) => (cur ? { ...cur, status: 'Converted', updated: 'Just now' } : cur));
-        }
-        if (environment.showLeadConvertSuccessMessage) {
-          window.alert('Lead converted to deal successfully');
-        }
       });
   }
 
@@ -926,13 +875,67 @@ export class LeadDetailComponent {
     this.createFlow.openPicker();
   }
 
-  protected confirmDeleteLead(): void {
+  protected onCreateQuotationDemo(): void {
+    /* Demo: quotation builder not wired in this CRM shell. */
+  }
+
+  protected dealActivityActor(): string {
+    return this.auth.user()?.name?.trim() || 'CRM Demo';
+  }
+
+  protected sidebarAnnualRevenueLabel(): string {
+    const raw = this.dataForm.controls.annualRevenue.value?.trim() ?? '';
+    const n = parseRevenueInputToNumber(raw);
+    if (n == null || !Number.isFinite(n) || n === 0) return '₹ 0.00';
+    return `₹ ${n.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  protected dealPrimaryContactName(): string {
+    const d = this.deal();
+    if (!d) return 'Contact';
+    const name = [d.firstName?.trim(), d.lastName?.trim()].filter(Boolean).join(' ');
+    if (name) return name;
+    const local = d.email?.split('@')[0]?.trim();
+    return local || d.email?.trim() || 'Contact';
+  }
+
+  protected dealPrimaryContactInitial(): string {
+    const n = this.dealPrimaryContactName();
+    const c = n.replace(/[^a-zA-Z0-9]/g, '').charAt(0) || n.charAt(0);
+    return c ? c.toUpperCase() : '?';
+  }
+
+  protected headerStatusDotClass(): string {
+    const s = this.dataForm.controls.status.value;
+    switch (s) {
+      case 'Closed Won':
+        return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--won';
+      case 'Closed Lost':
+        return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--lost';
+      case 'Negotiation':
+      case 'Proposal':
+        return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--accent';
+      case 'Demo/Making':
+        return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--demo';
+      default:
+        return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--muted';
+    }
+  }
+
+  /** Contacts header + button → related contact detail or Data tab for editing. */
+  protected openDealContactTarget(): void {
+    const cid = this.deal()?.relatedContactId?.trim();
+    if (cid) void this.router.navigate(['/contacts', cid]);
+    else this.setTab('Data');
+  }
+
+  protected confirmDeleteDeal(): void {
     const idn = this.numericId();
     if (idn == null) return;
-    if (!confirm('Delete this lead?')) return;
-    this.leadsService
+    if (!confirm('Delete this deal?')) return;
+    this.dealsService
       .delete(idn)
       .pipe(take(1))
-      .subscribe(() => void this.router.navigateByUrl('/leads'));
+      .subscribe(() => void this.router.navigateByUrl('/deals'));
   }
 }

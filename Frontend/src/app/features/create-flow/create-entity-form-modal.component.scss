@@ -83,6 +83,13 @@
   color: #b91c1c;
 }
 
+.create-form__muted {
+  margin: 0 0 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
 .create-form__foot {
   display: flex;
   justify-content: flex-end;

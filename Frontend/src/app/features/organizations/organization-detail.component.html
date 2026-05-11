@@ -1,0 +1,307 @@
+@if (!resolved()) {
+<div class="org-detail org-detail--loading">
+  <div class="org-detail__loading-card" role="status" aria-live="polite">
+    <div class="org-detail__loading-pulse"></div>
+    <p class="org-detail__loading-text">Loading organization…</p>
+  </div>
+</div>
+} @else if (organization()) {
+<div class="org-detail">
+  <div class="org-detail__cols">
+    <aside class="org-detail__sidebar">
+      <p class="org-detail__crumb">
+        <a routerLink="/organizations">Organizations</a> / {{ organizationHeadline() }}
+      </p>
+
+      <div class="org-detail__profile">
+        <div class="org-detail__avatar-ring">
+          <div class="org-detail__avatar" aria-hidden="true">{{ avatarLetters() }}</div>
+        </div>
+        <div class="org-detail__profile-body">
+          <h1 class="org-detail__name">{{ organizationHeadline() }}</h1>
+          <div class="org-detail__profile-actions">
+            <button type="button" class="org-detail__btn-delete" (click)="confirmDeleteOrganization()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M3 6h18" />
+                <path d="M8 6V4h8v2" />
+                <path d="M19 6l-1 14H6L5 6" />
+                <path d="M10 11v6M14 11v6" />
+              </svg>
+              Delete
+            </button>
+            <button
+              type="button"
+              class="org-detail__btn-icon-link"
+              (click)="copyOrganizationLink($event)"
+              aria-label="Copy link to organization"
+              title="Copy link"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M10 13a5 5 0 0 1 7.07 0 3 3 0 0 0 0 4.24l1.83 1.83a5 5 0 1 1-7.07-7.07l-.78-.78" />
+                <path d="M14 11a5 5 0 0 1-7.07 0 3 3 0 0 0 0-4.24L5.1 4.93a5 5 0 1 1 7.07 7.07l.78.78" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <form [formGroup]="detailForm" (ngSubmit)="saveDetails()" class="org-detail__detail-form">
+        <section class="org-detail__section">
+          <div class="org-detail__section-head">
+            <button type="button" class="org-detail__section-toggle" (click)="toggleDetails()" [attr.aria-expanded]="detailsOpen()">
+              <svg
+                class="org-detail__chev"
+                [class.is-collapsed]="!detailsOpen()"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+              <span>Details</span>
+            </button>
+            <button
+              type="button"
+              class="org-detail__section-edit"
+              aria-label="Toggle details"
+              title="Toggle details"
+              (click)="toggleDetails()"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+            </button>
+          </div>
+
+          @if (detailsOpen()) {
+          <div class="org-detail__section-body">
+            <div class="org-detail__fields">
+              <label class="org-detail__row">
+                <span class="org-detail__row-label org-detail__row-label--clip" title="Organization name">Organization name</span>
+                <input
+                  type="text"
+                  class="org-detail__input"
+                  formControlName="organizationName"
+                  (input)="clearOrgNameDupError()"
+                  [class.is-invalid]="detailForm.controls.organizationName.invalid && detailForm.controls.organizationName.touched"
+                />
+                @if (detailForm.controls.organizationName.errors?.['duplicate']) {
+                <span class="org-detail__err">An organization with this name already exists.</span>
+                } @else if (detailForm.controls.organizationName.errors?.['required'] && detailForm.controls.organizationName.touched) {
+                <span class="org-detail__err">Organization name is required.</span>
+                }
+              </label>
+              <label class="org-detail__row">
+                <span class="org-detail__row-label">Website</span>
+                <input type="text" class="org-detail__input" formControlName="website" [placeholder]="sidebarPlaceholder('Website')" />
+              </label>
+              <label class="org-detail__row">
+                <span class="org-detail__row-label">Territory</span>
+                <select class="org-detail__input" formControlName="territory">
+                  @for (t of territoryOptions; track t) {
+                  <option [value]="t">{{ t === '' ? sidebarPlaceholder('Territory') : t }}</option>
+                  }
+                </select>
+              </label>
+              <label class="org-detail__row">
+                <span class="org-detail__row-label">Industry</span>
+                <select class="org-detail__input" formControlName="industry">
+                  <option value="">{{ sidebarPlaceholder('Industry') }}</option>
+                  @for (ind of industryOptions; track ind) {
+                  <option [value]="ind">{{ ind }}</option>
+                  }
+                </select>
+              </label>
+              <label class="org-detail__row">
+                <span class="org-detail__row-label org-detail__row-label--clip" title="No. of employees">No. of employees</span>
+                <select class="org-detail__input" formControlName="employees">
+                  @for (e of employeeOptions; track e) {
+                  <option [value]="e">{{ e }}</option>
+                  }
+                </select>
+              </label>
+              <label class="org-detail__row">
+                <span class="org-detail__row-label">Address</span>
+                <select class="org-detail__input" formControlName="address">
+                  @for (a of addressOptions; track a) {
+                  <option [value]="a">{{ a === '' ? sidebarPlaceholder('Address') : a }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+          </div>
+          }
+        </section>
+
+        @if (detailForm.dirty) {
+        <footer class="org-detail__save-bar">
+          <button type="button" class="org-detail__btn org-detail__btn--ghost" [disabled]="saving()" (click)="discardDetailEdits()">
+            Discard
+          </button>
+          <button type="submit" class="org-detail__btn org-detail__btn--primary" [disabled]="saving()">
+            {{ saving() ? 'Saving…' : 'Save changes' }}
+          </button>
+        </footer>
+        }
+      </form>
+    </aside>
+
+    <main class="org-detail__main">
+      <div class="org-detail__tabs" role="tablist" aria-label="Organization related records">
+        <button
+          type="button"
+          role="tab"
+          class="org-detail__tab"
+          [class.is-active]="mainTab() === 'deals'"
+          [attr.aria-selected]="mainTab() === 'deals'"
+          (click)="setMainTab('deals')"
+        >
+          <svg class="org-detail__tab-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Deals
+          <span class="org-detail__tab-badge">{{ dealCount() }}</span>
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="org-detail__tab"
+          [class.is-active]="mainTab() === 'contacts'"
+          [attr.aria-selected]="mainTab() === 'contacts'"
+          (click)="setMainTab('contacts')"
+        >
+          <svg class="org-detail__tab-ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          Contacts
+          <span class="org-detail__tab-badge">{{ contactCount() }}</span>
+        </button>
+      </div>
+
+      <div class="org-detail__table-wrap">
+        @if (mainTab() === 'deals') {
+        <table class="org-detail__table">
+          <thead>
+            <tr>
+              <th>Organization</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Email</th>
+              <th>Mobile no</th>
+              <th>Deal owner</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (relatedDeals().length === 0) {
+            <tr>
+              <td colspan="6" class="org-detail__empty">No deals linked to this organization.</td>
+            </tr>
+            } @else {
+            @for (d of relatedDeals(); track d.id) {
+            <tr>
+              <td>
+                <span class="org-detail__org-cell">
+                  <span class="org-detail__org-dot">{{ orgDealInitial(d.organizationName) }}</span>
+                  <a class="org-detail__org-link" [routerLink]="['/deals', d.id]">{{ d.organizationName }}</a>
+                </span>
+              </td>
+              <td>{{ d.annualRevenue }}</td>
+              <td>
+                <span class="org-detail__status-cell">
+                  <span class="org-detail__status-dot" [class.org-detail__status-dot--demo]="d.status === 'Demo/Making'" aria-hidden="true"></span>
+                  <span [class]="dealStatusClass(d.status)">{{ d.status }}</span>
+                </span>
+              </td>
+              <td>{{ d.email }}</td>
+              <td>
+                @if (d.mobile && d.mobile !== '—') {
+                <span class="org-detail__mobile">{{ d.mobile }}</span>
+                } @else {
+                <span class="org-detail__mobile-ico" title="—" aria-label="No mobile">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path
+                      d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
+                    />
+                  </svg>
+                </span>
+                }
+              </td>
+              <td>
+                @if (d.assignedTo.trim()) {
+                <span class="org-detail__owner-cell">
+                  <span class="org-detail__owner-dot">{{ dealOwnerInitials(d) }}</span>
+                  {{ d.assignedTo }}
+                </span>
+                } @else {
+                <span class="org-detail__dash-cell">—</span>
+                }
+              </td>
+            </tr>
+            }
+            }
+          </tbody>
+        </table>
+        } @else {
+        <table class="org-detail__table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Mobile</th>
+              <th>Last modified</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (relatedContacts().length === 0) {
+            <tr>
+              <td colspan="4" class="org-detail__empty">No contacts linked to this organization.</td>
+            </tr>
+            } @else {
+            @for (c of relatedContacts(); track c.id) {
+            <tr>
+              <td>
+                <span class="org-detail__org-cell">
+                  <span class="org-detail__org-dot">{{ contactInitial(c) }}</span>
+                  <a class="org-detail__org-link" [routerLink]="['/contacts', c.id]">{{ contactLabel(c) }}</a>
+                </span>
+              </td>
+              <td>{{ c.email }}</td>
+              <td>
+                @if (c.phone && c.phone !== '—') {
+                <span class="org-detail__mobile">{{ c.phone }}</span>
+                } @else {
+                <span class="org-detail__mobile-ico" title="—" aria-label="No mobile">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path
+                      d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
+                    />
+                  </svg>
+                </span>
+                }
+              </td>
+              <td class="org-detail__muted-cell">{{ c.lastModified }}</td>
+            </tr>
+            }
+            }
+          </tbody>
+        </table>
+        }
+      </div>
+    </main>
+  </div>
+</div>
+} @else {
+<div class="org-detail org-detail--empty">
+  <div class="org-detail__empty-inner">
+    <p class="org-detail__empty-title">Organization not found</p>
+    <p class="org-detail__empty-sub">It may have been removed or the link is incorrect.</p>
+    <a routerLink="/organizations" class="org-detail__empty-cta">Back to organizations</a>
+  </div>
+</div>
+}

@@ -135,7 +135,11 @@
                   [attr.aria-label]="'Select ' + row.title"
                 />
               </td>
-              <td class="tasks__td tasks__td--strong">{{ row.title }}</td>
+              <td class="tasks__td tasks__td--strong">
+                <button type="button" class="tasks__title-link" (click)="openTaskForEdit(row, $event)">
+                  {{ row.title }}
+                </button>
+              </td>
               <td class="tasks__td"><span [class]="statusClass(row.status)">{{ row.status }}</span></td>
               <td class="tasks__td"><span [class]="priorityClass(row.priority)">{{ row.priority }}</span></td>
               <td class="tasks__td">{{ row.dueDate }}</td>
