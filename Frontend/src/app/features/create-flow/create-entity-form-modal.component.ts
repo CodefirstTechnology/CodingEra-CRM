@@ -133,6 +133,7 @@ export class CreateEntityFormModalComponent {
     status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),
     leadOwner: ['SK', Validators.required],
     requestType: [''],
+    requirement: ['', Validators.maxLength(240)],
     customField: ['', Validators.maxLength(240)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
   });
@@ -234,6 +235,7 @@ export class CreateEntityFormModalComponent {
           status: 'New',
           leadOwner: 'SK',
           requestType: '',
+          requirement: '',
           customField: '',
         });
         this.leadForm.markAsUntouched();
@@ -455,6 +457,7 @@ export class CreateEntityFormModalComponent {
       industry: raw.industry,
       status: raw.status,
       requestType: raw.requestType || undefined,
+      requirement: raw.requirement.trim() || undefined,
       notes: raw.customField.trim() || undefined,
       leadOwnerName,
       owner: initials,

@@ -47,6 +47,7 @@ export function mapTradeIndiaLeadToLeadRow(ti: TradeIndiaLead): LeadRow {
     owner: 'TI',
     updated: updatedLabel,
     source: ti.source.trim(),
+    requirement: ti.message.trim(),
     notes: ti.message.trim(),
     leadSource: 'TradeIndia',
     sortTimestamp: ts,

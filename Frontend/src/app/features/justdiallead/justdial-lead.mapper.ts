@@ -47,6 +47,7 @@ export function mapJustdialLeadToLeadRow(jd: JustdialLead): LeadRow {
     owner: 'JD',
     updated: updatedLabel,
     source: jd.source.trim(),
+    requirement: jd.message.trim(),
     notes: jd.message.trim(),
     leadSource: 'Justdial',
     sortTimestamp: ts,
