@@ -83,6 +83,9 @@ export function normalizeDealRow(row: Record<string, unknown>): DealRow {
       : {}),
     probabilityPercent,
     nextStep: String(row['nextStep'] ?? ''),
+    ...(row['requirement'] != null && row['requirement'] !== ''
+      ? { requirement: String(row['requirement']) }
+      : {}),
   };
 }
 

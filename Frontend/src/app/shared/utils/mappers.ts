@@ -59,23 +59,35 @@ export function mapLeadStatusToDealPipelineStatus(status: LeadStatus): DealPipel
 export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
   const draft = mapLeadToDealDraft(lead);
   const mobile = draft.contactPhone.replace(/\D/g, '');
+  const firstName = (lead.firstName ?? '').trim() || lead.name.trim().split(/\s+/)[0] || 'Contact';
+  const lastName =
+    (lead.lastName ?? '').trim() ||
+    lead.name
+      .trim()
+      .split(/\s+/)
+      .slice(1)
+      .join(' ') ||
+    'Primary';
+  const assignedTo = (lead.leadOwnerName ?? '').trim();
+  const assignedInitials = (lead.owner ?? '').trim();
   return {
-    organizationName: draft.company.trim(),
+    organizationName: draft.company.trim() || 'Unknown organization',
     employees: (lead.employees ?? '').trim() || '1-10',
     annualRevenue: parseLeadNumericValue(lead),
     website: (lead.website ?? '').trim(),
     territory: (lead.territory ?? '').trim(),
     industry: (lead.industry ?? '').trim() || 'Other',
     salutation: (lead.salutation ?? '').trim(),
-    firstName: (lead.firstName ?? '').trim(),
-    lastName: (lead.lastName ?? '').trim(),
+    firstName,
+    lastName,
     email: draft.contactEmail.trim(),
     mobile,
     gender: (lead.gender ?? '').trim(),
     status: mapLeadStatusToDealPipelineStatus(lead.status),
-    dealOwnerId: (lead.leadOwnerId ?? lead.owner ?? '').trim(),
-    assignedTo: (lead.leadOwnerName ?? '').trim(),
-    assignedInitials: (lead.owner ?? '').trim(),
+    dealOwnerId: (lead.leadOwnerId ?? assignedInitials).trim(),
+    assignedTo: assignedTo || 'Unassigned',
+    assignedInitials: assignedInitials || '-',
     lastModified: 'Just now',
+    requirement: (lead.requirement ?? lead.notes ?? '').trim(),
   };
 }

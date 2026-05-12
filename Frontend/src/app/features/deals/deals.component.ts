@@ -53,6 +53,13 @@ export interface DealRow {
   /** Win probability (e.g. 10 = 10%). */
   probabilityPercent?: number;
   nextStep?: string;
+  requirement?: string;
+}
+
+interface DealColumnOption {
+  id: string;
+  label: string;
+  required: boolean;
 }
 
 @Component({
@@ -74,6 +81,7 @@ export class DealsComponent {
   private lastRouteEdit = '';
 
   protected readonly formOpen = signal(false);
+  protected readonly columnMenuOpen = signal(false);
 
   protected readonly dealStatuses: DealPipelineStatus[] = [
     'Qualification',
@@ -105,6 +113,52 @@ export class DealsComponent {
   ];
 
   protected readonly rows = signal<DealRow[]>([]);
+  private readonly requiredColumnIds = new Set(['organizationName', 'email', 'assignedTo']);
+  private readonly selectedColumnIds = signal<string[]>([
+    'organizationName',
+    'email',
+    'assignedTo',
+    'annualRevenue',
+    'mobile',
+    'status',
+  ]);
+  private readonly ignoredColumnIds = new Set([
+    'id',
+    'dealOwnerId',
+    'assignedInitials',
+    'relatedContactId',
+    'relatedOrganizationId',
+  ]);
+  private readonly preferredColumnOrder = [
+    'organizationName',
+    'annualRevenue',
+    'status',
+    'email',
+    'mobile',
+    'assignedTo',
+    'lastModified',
+    'firstName',
+    'lastName',
+    'employees',
+    'website',
+    'territory',
+    'industry',
+    'requirement',
+    'salutation',
+    'gender',
+    'probabilityPercent',
+    'nextStep',
+  ];
+  private readonly columnLabels: Record<string, string> = {
+    organizationName: 'Organization',
+    annualRevenue: 'Annual revenue',
+    assignedTo: 'Assigned to',
+    lastModified: 'Last modified',
+    firstName: 'First name',
+    lastName: 'Last name',
+    probabilityPercent: 'Probability',
+    nextStep: 'Next step',
+  };
 
   constructor() {
     this.refreshDeals();
@@ -129,6 +183,28 @@ export class DealsComponent {
 
   protected readonly allSelected = computed(() =>
     this.sel.allSelectedIn(this.rows().map((r) => r.id)),
+  );
+
+  protected readonly columnOptions = computed<DealColumnOption[]>(() => {
+    const ids = new Set(this.preferredColumnOrder);
+    for (const row of this.rows()) {
+      for (const key of Object.keys(row)) {
+        if (!this.ignoredColumnIds.has(key)) {
+          ids.add(key);
+        }
+      }
+    }
+    return [...ids]
+      .filter((id) => !this.ignoredColumnIds.has(id))
+      .map((id) => ({
+        id,
+        label: this.columnLabels[id] ?? this.titleizeColumnId(id),
+        required: this.requiredColumnIds.has(id),
+      }));
+  });
+
+  protected readonly visibleColumns = computed(() =>
+    this.columnOptions().filter((column) => this.isColumnVisible(column.id)),
   );
 
   protected readonly assignDefaultOwnerId = computed(() => {
@@ -184,6 +260,29 @@ export class DealsComponent {
 
   protected toggleSelectAll(): void {
     this.sel.toggleSelectAll(this.rows().map((r) => r.id));
+  }
+
+  protected toggleColumnMenu(): void {
+    this.columnMenuOpen.update((open) => !open);
+  }
+
+  protected toggleColumn(id: string): void {
+    if (this.requiredColumnIds.has(id)) return;
+    this.selectedColumnIds.update((selected) =>
+      selected.includes(id) ? selected.filter((columnId) => columnId !== id) : [...selected, id],
+    );
+  }
+
+  protected isColumnVisible(id: string): boolean {
+    return this.requiredColumnIds.has(id) || this.selectedColumnIds().includes(id);
+  }
+
+  protected displayColumnValue(row: DealRow, id: string): string {
+    const value = (row as unknown as Record<string, unknown>)[id];
+    if (value == null) return '-';
+    if (typeof value === 'string') return value.trim() || '-';
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return '-';
   }
 
   protected openForm(): void {
@@ -463,5 +562,12 @@ export class DealsComponent {
       default:
         return 'deals__tag deals__tag--muted';
     }
+  }
+
+  private titleizeColumnId(id: string): string {
+    return id
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (ch) => ch.toUpperCase());
   }
 }
