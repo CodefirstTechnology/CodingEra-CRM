@@ -147,10 +147,7 @@ export class LeadsComponent {
     'organization',
     'email',
     'status',
-    'requirement',
-    'industry',
     'owner',
-    'updated',
   ]);
   private readonly ignoredColumnIds = new Set([
     'id',
@@ -158,6 +155,7 @@ export class LeadsComponent {
     'lastName',
     'salutation',
     'gender',
+    'leadOwnerName',
     'leadOwnerId',
     'sortTimestamp',
   ]);
@@ -171,7 +169,6 @@ export class LeadsComponent {
     'requirement',
     'industry',
     'owner',
-    'leadOwnerName',
     'updated',
     'employees',
     'annualRevenue',
@@ -183,6 +180,7 @@ export class LeadsComponent {
   ];
   private readonly columnLabels: Record<string, string> = {
     leadSource: 'Source',
+    owner: 'Lead owner',
     leadOwnerName: 'Lead owner',
     annualRevenue: 'Annual revenue',
     requestType: 'Request type',
