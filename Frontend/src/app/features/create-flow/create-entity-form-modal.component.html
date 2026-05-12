@@ -187,6 +187,15 @@
             <span class="create-form__err">Last name is required.</span>
           }
         </label>
+        <label class="create-form__field create-form__field--span3">
+          <span class="create-form__label">Requirement</span>
+          <input
+            class="create-form__control"
+            type="text"
+            formControlName="requirement"
+            placeholder="What is the customer looking for?"
+          />
+        </label>
       </div>
       <footer class="create-form__foot">
         <button type="button" class="create-form__btn create-form__btn--ghost" (click)="close()">Cancel</button>

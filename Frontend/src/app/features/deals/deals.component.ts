@@ -238,6 +238,7 @@ export class DealsComponent {
     gender: [''],
     status: this.fb.nonNullable.control<DealPipelineStatus>('Qualification', Validators.required),
     dealOwner: ['SK', Validators.required],
+    requirement: ['', Validators.maxLength(240)],
   });
 
   private clearEditQuery(): void {
@@ -317,6 +318,7 @@ export class DealsComponent {
       gender: '',
       status: 'Qualification',
       dealOwner: 'SK',
+      requirement: '',
     });
     this.applyPrimaryEmailValidators('create');
     this.createForm.markAsUntouched();
@@ -370,6 +372,7 @@ export class DealsComponent {
           gender: row.gender,
           status: row.status,
           dealOwner: ownerOpt?.id ?? (row.dealOwnerId || 'SK'),
+          requirement: row.requirement ?? '',
         });
         this.formOpen.set(true);
       });
@@ -508,6 +511,7 @@ export class DealsComponent {
       lastModified: 'Just now',
       probabilityPercent: 10,
       nextStep: '',
+      requirement: raw.requirement.trim() || undefined,
     };
 
     const done = () => {

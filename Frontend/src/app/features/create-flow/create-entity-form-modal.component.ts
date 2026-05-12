@@ -153,6 +153,7 @@ export class CreateEntityFormModalComponent {
     gender: [''],
     status: this.fb.nonNullable.control<DealPipelineStatus>('Qualification', Validators.required),
     dealOwner: ['SK', Validators.required],
+    requirement: ['', Validators.maxLength(240)],
   });
 
   protected readonly contactForm = this.fb.nonNullable.group({
@@ -256,6 +257,7 @@ export class CreateEntityFormModalComponent {
           gender: '',
           status: 'Qualification',
           dealOwner: 'SK',
+          requirement: '',
         });
         this.dealForm.markAsUntouched();
         break;
@@ -501,6 +503,7 @@ export class CreateEntityFormModalComponent {
       lastModified: 'Just now',
       probabilityPercent: 10,
       nextStep: '',
+      requirement: raw.requirement.trim() || undefined,
     };
 
     this.dealsService

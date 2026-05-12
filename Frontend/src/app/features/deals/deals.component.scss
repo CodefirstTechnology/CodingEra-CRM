@@ -488,6 +488,10 @@
     grid-template-columns: 1fr;
   }
 
+  .deals__field--span2 {
+    grid-column: auto;
+  }
+
   .deals__th--gap,
   .deals__td--gap {
     padding-left: 1rem;
@@ -505,6 +509,10 @@
   flex-direction: column;
   gap: 0.35rem;
   min-width: 0;
+}
+
+.deals__field--span2 {
+  grid-column: span 2;
 }
 
 .deals__label {
