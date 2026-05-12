@@ -264,6 +264,15 @@
                 </select>
               </label>
               <label class="leads__field leads__field--full">
+                <span class="leads__label">Requirement</span>
+                <input
+                  class="leads__control leads__control--soft"
+                  type="text"
+                  formControlName="requirement"
+                  placeholder="What is the customer looking for?"
+                />
+              </label>
+              <label class="leads__field leads__field--full">
                 <span class="leads__label">Additional details</span>
                 <input class="leads__control leads__control--soft" type="text" formControlName="customField" placeholder="Enter {0}" />
               </label>
@@ -335,7 +344,34 @@
           <span class="leads__count-muted">leads</span>
         }
       </span>
-      <button type="button" class="leads__linkish">Columns</button>
+      <div class="leads__columns" (click)="$event.stopPropagation()">
+        <button
+          type="button"
+          class="leads__linkish"
+          [attr.aria-expanded]="columnMenuOpen()"
+          aria-haspopup="menu"
+          (click)="toggleColumnMenu()"
+        >
+          Columns
+        </button>
+        @if (columnMenuOpen()) {
+          <div class="leads__columns-menu" role="menu" aria-label="Choose lead table columns">
+            <p class="leads__columns-help">Name, email, and source are required.</p>
+            @for (column of columnOptions(); track column.id) {
+              <label class="leads__column-option" [class.is-required]="column.required">
+                <input
+                  type="checkbox"
+                  class="leads__checkbox"
+                  [checked]="isColumnVisible(column.id)"
+                  [disabled]="column.required"
+                  (change)="toggleColumn(column.id)"
+                />
+                <span>{{ column.label }}</span>
+              </label>
+            }
+          </div>
+        }
+      </div>
     </div>
     <div class="leads__scroll">
       @if (filtered().length === 0) {
@@ -358,14 +394,9 @@
                   aria-label="Select all visible leads"
                 />
               </th>
-              <th>Name</th>
-              <th class="hide-narrow">Source</th>
-              <th class="hide-narrow">Organization</th>
-              <th class="hide-narrow">Email</th>
-              <th>Status</th>
-              <th class="hide-md">Industry</th>
-              <th>Owner</th>
-              <th class="hide-md">Updated</th>
+              @for (column of visibleColumns(); track column.id) {
+                <th>{{ column.label }}</th>
+              }
               <th class="hide-narrow">Actions</th>
             </tr>
           </thead>
@@ -381,60 +412,65 @@
                     [attr.aria-label]="'Select ' + row.name"
                   />
                 </td>
-                <td class="leads__strong">
-                  <a [routerLink]="['/leads', row.id]" class="leads__name-link">{{ row.name }}</a>
-                </td>
-                <td class="hide-narrow">
-                  <span [class]="leadSourceClass(row)">{{ leadSourceLabel(row) }}</span>
-                </td>
-                <td class="hide-narrow">{{ row.organization }}</td>
-                <td class="hide-narrow leads__muted">{{ row.email || '—' }}</td>
-                <td>
-                  @if (leadSourceLabel(row) === 'IndiaMART') {
-                    <select
-                      class="leads__status-select"
-                      [value]="row.status"
-                      (change)="onIndiaMartStatusChange(row, $event)"
-                      [attr.aria-label]="'Status for ' + row.name"
-                    >
-                      @for (st of indiaMartStatusOptions; track st) {
-                        <option [value]="st">{{ st }}</option>
+                @for (column of visibleColumns(); track column.id) {
+                  <td [class.leads__strong]="column.id === 'name'" [class.leads__muted]="column.id === 'email' || column.id === 'updated'">
+                    @switch (column.id) {
+                      @case ('name') {
+                        <a [routerLink]="['/leads', row.id]" class="leads__name-link">{{ row.name }}</a>
                       }
-                    </select>
-                  } @else if (leadSourceLabel(row) === 'Justdial') {
-                    <select
-                      class="leads__status-select"
-                      [value]="row.status"
-                      (change)="onJustdialStatusChange(row, $event)"
-                      [attr.aria-label]="'Status for ' + row.name"
-                    >
-                      @for (st of justdialStatusOptions; track st) {
-                        <option [value]="st">{{ st }}</option>
+                      @case ('leadSource') {
+                        <span [class]="leadSourceClass(row)">{{ leadSourceLabel(row) }}</span>
                       }
-                    </select>
-                  } @else if (leadSourceLabel(row) === 'TradeIndia') {
-                    <select
-                      class="leads__status-select"
-                      [value]="row.status"
-                      (change)="onTradeIndiaStatusChange(row, $event)"
-                      [attr.aria-label]="'Status for ' + row.name"
-                    >
-                      @for (st of tradeindiaStatusOptions; track st) {
-                        <option [value]="st">{{ st }}</option>
+                      @case ('status') {
+                        @if (leadSourceLabel(row) === 'IndiaMART') {
+                          <select
+                            class="leads__status-select"
+                            [value]="row.status"
+                            (change)="onIndiaMartStatusChange(row, $event)"
+                            [attr.aria-label]="'Status for ' + row.name"
+                          >
+                            @for (st of indiaMartStatusOptions; track st) {
+                              <option [value]="st">{{ st }}</option>
+                            }
+                          </select>
+                        } @else if (leadSourceLabel(row) === 'Justdial') {
+                          <select
+                            class="leads__status-select"
+                            [value]="row.status"
+                            (change)="onJustdialStatusChange(row, $event)"
+                            [attr.aria-label]="'Status for ' + row.name"
+                          >
+                            @for (st of justdialStatusOptions; track st) {
+                              <option [value]="st">{{ st }}</option>
+                            }
+                          </select>
+                        } @else if (leadSourceLabel(row) === 'TradeIndia') {
+                          <select
+                            class="leads__status-select"
+                            [value]="row.status"
+                            (change)="onTradeIndiaStatusChange(row, $event)"
+                            [attr.aria-label]="'Status for ' + row.name"
+                          >
+                            @for (st of tradeindiaStatusOptions; track st) {
+                              <option [value]="st">{{ st }}</option>
+                            }
+                          </select>
+                        } @else {
+                          <span [class]="statusClass(row.status)">{{ row.status }}</span>
+                        }
                       }
-                    </select>
-                  } @else {
-                    <span [class]="statusClass(row.status)">{{ row.status }}</span>
-                  }
-                </td>
-                <td class="hide-md">{{ row.industry }}</td>
-                <td>
-                  <span class="leads__owner-cell">
-                    <span class="leads__avatar">{{ row.owner }}</span>
-                    <span class="leads__owner-name hide-narrow">{{ row.leadOwnerName }}</span>
-                  </span>
-                </td>
-                <td class="hide-md leads__muted">{{ row.updated }}</td>
+                      @case ('owner') {
+                        <span class="leads__owner-cell">
+                          <span class="leads__avatar">{{ row.owner }}</span>
+                          <span class="leads__owner-name">{{ row.leadOwnerName }}</span>
+                        </span>
+                      }
+                      @default {
+                        {{ displayColumnValue(row, column.id) }}
+                      }
+                    }
+                  </td>
+                }
                 <td class="hide-narrow">
                   <button type="button" class="leads__linkish" (click)="deleteLead(row, $event)">Delete</button>
                 </td>

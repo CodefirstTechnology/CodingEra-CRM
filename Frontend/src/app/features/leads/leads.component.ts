@@ -49,6 +49,12 @@ import type {
 /** @deprecated Import from `./lead-row.model` instead. */
 export type { LeadListStatusFilter as StatusFilter, LeadRow, LeadOwnerOption, LeadStatus } from './lead-row.model';
 
+interface LeadColumnOption {
+  id: string;
+  label: string;
+  required: boolean;
+}
+
 @Component({
   selector: 'app-leads',
   imports: [ReactiveFormsModule, RouterLink, CrmSelectionBarComponent, CrmAssignPickerComponent],
@@ -91,6 +97,7 @@ export class LeadsComponent {
   protected readonly searchQuery = signal('');
   protected readonly statusFilter = signal<LeadListStatusFilter>('all');
   protected readonly sourceFilter = signal<LeadListSourceFilter>('all');
+  protected readonly columnMenuOpen = signal(false);
 
   protected readonly statusOptions: LeadStatus[] = ['New', 'Contacted', 'Qualified', 'Lost'];
   protected readonly indiaMartStatusOptions = [...INDIA_MART_LEAD_STATUSES];
@@ -132,6 +139,53 @@ export class LeadsComponent {
     { id: 'Justdial', label: 'Justdial' },
     { id: 'TradeIndia', label: 'TradeIndia' },
   ];
+
+  private readonly requiredColumnIds = new Set(['name', 'email', 'leadSource']);
+  private readonly selectedColumnIds = signal<string[]>([
+    'name',
+    'leadSource',
+    'organization',
+    'email',
+    'status',
+    'owner',
+  ]);
+  private readonly ignoredColumnIds = new Set([
+    'id',
+    'firstName',
+    'lastName',
+    'salutation',
+    'gender',
+    'leadOwnerName',
+    'leadOwnerId',
+    'sortTimestamp',
+  ]);
+  private readonly preferredColumnOrder = [
+    'name',
+    'leadSource',
+    'organization',
+    'email',
+    'mobile',
+    'status',
+    'requirement',
+    'industry',
+    'owner',
+    'updated',
+    'employees',
+    'annualRevenue',
+    'website',
+    'territory',
+    'requestType',
+    'source',
+    'notes',
+  ];
+  private readonly columnLabels: Record<string, string> = {
+    leadSource: 'Source',
+    owner: 'Lead owner',
+    leadOwnerName: 'Lead owner',
+    annualRevenue: 'Annual revenue',
+    requestType: 'Request type',
+    source: 'Original source',
+  };
 
   /** Manual / API-backed rows only; merged with marketplace lead sources in {@link rows}. */
   protected readonly manualRows = signal<LeadRow[]>([]);
@@ -237,6 +291,7 @@ export class LeadsComponent {
         row.owner.toLowerCase().includes(q) ||
         row.leadOwnerName.toLowerCase().includes(q) ||
         row.industry.toLowerCase().includes(q) ||
+        (row.requirement?.toLowerCase().includes(q) ?? false) ||
         (row.notes?.toLowerCase().includes(q) ?? false) ||
         srcLabel.includes(q)
       );
@@ -245,6 +300,28 @@ export class LeadsComponent {
 
   protected readonly allSelectedFiltered = computed(() =>
     this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
+  );
+
+  protected readonly columnOptions = computed<LeadColumnOption[]>(() => {
+    const ids = new Set(this.preferredColumnOrder);
+    for (const row of this.rows()) {
+      for (const key of Object.keys(row)) {
+        if (!this.ignoredColumnIds.has(key)) {
+          ids.add(key);
+        }
+      }
+    }
+    return [...ids]
+      .filter((id) => !this.ignoredColumnIds.has(id))
+      .map((id) => ({
+        id,
+        label: this.columnLabels[id] ?? this.titleizeColumnId(id),
+        required: this.requiredColumnIds.has(id),
+      }));
+  });
+
+  protected readonly visibleColumns = computed(() =>
+    this.columnOptions().filter((column) => this.isColumnVisible(column.id)),
   );
 
   protected readonly assignDefaultOwnerId = computed(() => {
@@ -294,6 +371,7 @@ export class LeadsComponent {
     status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),
     leadOwner: ['SK', Validators.required],
     requestType: [''],
+    requirement: ['', Validators.maxLength(240)],
     customField: ['', Validators.maxLength(240)],
   });
 
@@ -326,6 +404,7 @@ export class LeadsComponent {
       status: 'New',
       leadOwner: 'SK',
       requestType: '',
+      requirement: '',
       customField: '',
     });
     this.createForm.markAsUntouched();
@@ -353,6 +432,7 @@ export class LeadsComponent {
       status: 'New',
       leadOwner: 'SK',
       requestType: '',
+      requirement: '',
       customField: '',
     });
     this.createForm.markAsUntouched();
@@ -394,6 +474,7 @@ export class LeadsComponent {
           status: row.status ?? 'New',
           leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? 'SK',
           requestType: row.requestType ?? '',
+          requirement: row.requirement ?? '',
           customField: row.notes ?? '',
         });
         this.formOpen.set(true);
@@ -579,6 +660,29 @@ export class LeadsComponent {
     this.sourceFilter.set(id);
   }
 
+  protected toggleColumnMenu(): void {
+    this.columnMenuOpen.update((open) => !open);
+  }
+
+  protected toggleColumn(id: string): void {
+    if (this.requiredColumnIds.has(id)) return;
+    this.selectedColumnIds.update((selected) =>
+      selected.includes(id) ? selected.filter((columnId) => columnId !== id) : [...selected, id],
+    );
+  }
+
+  protected isColumnVisible(id: string): boolean {
+    return this.requiredColumnIds.has(id) || this.selectedColumnIds().includes(id);
+  }
+
+  protected displayColumnValue(row: LeadRow, id: string): string {
+    const value = (row as unknown as Record<string, unknown>)[id];
+    if (value == null) return '—';
+    if (typeof value === 'string') return value.trim() || '—';
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return '—';
+  }
+
   protected isChipActive(id: LeadListStatusFilter): boolean {
     return this.statusFilter() === id;
   }
@@ -636,6 +740,7 @@ export class LeadsComponent {
       industry: raw.industry,
       status: raw.status,
       requestType: raw.requestType || undefined,
+      requirement: raw.requirement.trim() || undefined,
       notes: raw.customField.trim() || undefined,
       leadOwnerName,
       owner: initials,
@@ -808,5 +913,12 @@ export class LeadsComponent {
       this.sourceFilter() !== 'all' ||
       this.searchQuery().trim().length > 0
     );
+  }
+
+  private titleizeColumnId(id: string): string {
+    return id
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (ch) => ch.toUpperCase());
   }
 }

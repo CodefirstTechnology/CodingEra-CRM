@@ -133,6 +133,7 @@ export class CreateEntityFormModalComponent {
     status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),
     leadOwner: ['SK', Validators.required],
     requestType: [''],
+    requirement: ['', Validators.maxLength(240)],
     customField: ['', Validators.maxLength(240)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
   });
@@ -152,6 +153,7 @@ export class CreateEntityFormModalComponent {
     gender: [''],
     status: this.fb.nonNullable.control<DealPipelineStatus>('Qualification', Validators.required),
     dealOwner: ['SK', Validators.required],
+    requirement: ['', Validators.maxLength(240)],
   });
 
   protected readonly contactForm = this.fb.nonNullable.group({
@@ -234,6 +236,7 @@ export class CreateEntityFormModalComponent {
           status: 'New',
           leadOwner: 'SK',
           requestType: '',
+          requirement: '',
           customField: '',
         });
         this.leadForm.markAsUntouched();
@@ -254,6 +257,7 @@ export class CreateEntityFormModalComponent {
           gender: '',
           status: 'Qualification',
           dealOwner: 'SK',
+          requirement: '',
         });
         this.dealForm.markAsUntouched();
         break;
@@ -455,6 +459,7 @@ export class CreateEntityFormModalComponent {
       industry: raw.industry,
       status: raw.status,
       requestType: raw.requestType || undefined,
+      requirement: raw.requirement.trim() || undefined,
       notes: raw.customField.trim() || undefined,
       leadOwnerName,
       owner: initials,
@@ -498,6 +503,7 @@ export class CreateEntityFormModalComponent {
       lastModified: 'Just now',
       probabilityPercent: 10,
       nextStep: '',
+      requirement: raw.requirement.trim() || undefined,
     };
 
     this.dealsService

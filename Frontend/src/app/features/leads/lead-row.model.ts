@@ -32,6 +32,7 @@ export interface LeadRow {
   jobTitle?: string;
   status: LeadStatus;
   requestType?: string;
+  requirement?: string;
   notes?: string;
   leadOwnerName: string;
   owner: string;
