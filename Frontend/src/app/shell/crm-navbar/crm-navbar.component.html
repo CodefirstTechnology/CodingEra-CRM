@@ -35,9 +35,10 @@
       (click)="openProfile()"
       aria-haspopup="dialog"
       [attr.aria-expanded]="profilePanel.open()"
-      aria-label="Open profile"
+      [attr.aria-label]="'Open profile for ' + (auth.user()?.name?.trim() || auth.user()?.email || 'account')"
+      [title]="profileButtonTitle()"
     >
-      <span class="navbar__avatar">JD</span>
+      <span class="navbar__avatar" aria-hidden="true">{{ avatarInitials() }}</span>
     </button>
   </div>
 </header>

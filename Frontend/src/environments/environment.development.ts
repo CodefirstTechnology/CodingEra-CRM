@@ -18,7 +18,8 @@ export const environment = {
    */
   indiamartAutoSimulateDurationMs: 0,
   useMockData: true,
-  apiUrl: '/api',
+  /** Local .NET API (dev): `{apiUrl}/auth/login`, `/auth/register`, `/auth/users`, `/auth/users/{id}` */
+  apiUrl: 'https://localhost:7172/api',
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
   showLeadConvertSuccessMessage: false,
   /**

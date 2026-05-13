@@ -60,7 +60,12 @@
       <div class="adv-users__toolbar">
         <label class="adv-users__search">
           <span class="visually-hidden">Search user</span>
-          <input type="search" placeholder="Search user" />
+          <input
+            type="search"
+            placeholder="Search user"
+            [value]="usersSearchQuery()"
+            (input)="onUsersSearch($event)"
+          />
         </label>
         <label class="adv-users__filter">
           <span class="visually-hidden">Role filter</span>
@@ -72,8 +77,15 @@
         </label>
       </div>
 
+      @if (usersLoading()) {
+        <p class="adv-users__hint">Loading users…</p>
+      }
+      @if (usersError(); as errMsg) {
+        <p class="adv-users__err" role="alert">{{ errMsg }}</p>
+      }
+
       <ul class="adv-users__list">
-        @for (user of filteredUsers(); track user.email) {
+        @for (user of filteredUsers(); track user.id) {
         <li class="adv-users__row">
           <div class="adv-users__identity">
             <span class="adv-users__avatar">{{ userInitial(user.name) }}</span>

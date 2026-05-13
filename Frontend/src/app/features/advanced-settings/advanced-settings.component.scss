@@ -241,6 +241,18 @@
   margin-bottom: 0.85rem;
 }
 
+.adv-users__hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.adv-users__err {
+  margin: 0 0 0.75rem;
+  font-size: 0.9rem;
+  color: #b91c1c;
+}
+
 .adv-users__search input,
 .adv-users__filter select {
   border: 1px solid var(--card-border);
