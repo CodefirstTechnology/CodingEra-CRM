@@ -1,4 +1,14 @@
-@if (lead(); as row) {
+@if (leadInitialLoading()) {
+<div class="lead-detail lead-detail--empty">
+  <p role="status">Loading lead…</p>
+  <a routerLink="/leads" class="lead-detail__back">Back to leads</a>
+</div>
+} @else if (leadLoadError(); as errMsg) {
+<div class="lead-detail lead-detail--empty" role="alert">
+  <p>{{ errMsg }}</p>
+  <a routerLink="/leads" class="lead-detail__back">Back to leads</a>
+</div>
+} @else if (lead(); as row) {
 <div class="lead-detail">
   <header class="lead-detail__top">
     <p class="lead-detail__crumb"><a routerLink="/leads">Leads</a> / {{ row.name }}</p>

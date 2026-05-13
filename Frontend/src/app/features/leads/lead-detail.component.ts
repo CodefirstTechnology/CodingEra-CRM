@@ -8,7 +8,8 @@ import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { CallLogsService } from '../../core/services/call-logs.service';
 import { DealsService } from '../../core/services/deals.service';
-import { LeadsService } from '../../core/services/leads.service';
+import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
+import { ToastService } from '../../core/toast/toast.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
@@ -57,6 +58,7 @@ export class LeadDetailComponent {
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly leadsService = inject(LeadsService);
+  private readonly toast = inject(ToastService);
   private readonly dealsService = inject(DealsService);
   private readonly callLogsService = inject(CallLogsService);
   private readonly tasksService = inject(TasksService);
@@ -69,6 +71,8 @@ export class LeadDetailComponent {
   protected readonly lead = signal<LeadRow | null>(null);
   protected readonly activeTab = signal<DetailTab>('Data');
   protected readonly dataSaving = signal(false);
+  protected readonly leadInitialLoading = signal(false);
+  protected readonly leadLoadError = signal<string | null>(null);
   /** Call logs where `relatedLeadId` matches the open lead (from lead-detail “Log a Call”). */
   protected readonly leadCallLogs = signal<CallLogRow[]>([]);
   /** Tasks where `relatedLeadId` matches the open lead (from lead-detail “+ New Task”). */
@@ -183,6 +187,8 @@ export class LeadDetailComponent {
       if (!Number.isFinite(id)) {
         this.numericId.set(null);
         this.lead.set(null);
+        this.leadLoadError.set(null);
+        this.leadInitialLoading.set(false);
         this.leadCallLogs.set([]);
         this.leadTasks.set([]);
         this.leadNotes.set([]);
@@ -196,48 +202,7 @@ export class LeadDetailComponent {
         return;
       }
       this.numericId.set(id);
-      this.leadsService
-        .getById(id)
-        .pipe(take(1))
-        .subscribe((row) => {
-          this.lead.set(row);
-          if (row) {
-            this.patchDataForm(row);
-            this.emailTo.set(row.email ?? '');
-            this.emailCc.set('');
-            this.emailBcc.set('');
-            this.emailSubjectText.set(`Mr ${row.name} (${this.leadCode()})`);
-            this.emailBody.set('');
-            this.refreshLeadCallLogs();
-            this.refreshLeadTasks();
-            this.refreshLeadNotes();
-            const lid = row.id.trim();
-            if (lid) {
-              this.loadLeadAttachments(lid);
-              this.loadLeadComments(lid);
-              this.loadLeadEmails(lid, row);
-            } else {
-              this.leadAttachments.set([]);
-              this.leadComments.set([]);
-              this.leadEmails.set([]);
-            }
-            this.commentComposerOpen.set(false);
-            this.commentDraft.set('');
-            this.emailComposerOpen.set(false);
-            this.emailComposeEmojiOpen.set(false);
-          } else {
-            this.leadCallLogs.set([]);
-            this.leadTasks.set([]);
-            this.leadNotes.set([]);
-            this.leadAttachments.set([]);
-            this.leadComments.set([]);
-            this.leadEmails.set([]);
-            this.commentComposerOpen.set(false);
-            this.commentDraft.set('');
-            this.emailComposerOpen.set(false);
-            this.emailComposeEmojiOpen.set(false);
-          }
-        });
+      void this.hydrateLeadFromRoute(id);
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
@@ -245,6 +210,66 @@ export class LeadDetailComponent {
       if (e.kind === 'task') this.refreshLeadTasks();
       if (e.kind === 'note') this.refreshLeadNotes();
     });
+  }
+
+  private clearLeadSideState(): void {
+    this.leadCallLogs.set([]);
+    this.leadTasks.set([]);
+    this.leadNotes.set([]);
+    this.leadAttachments.set([]);
+    this.leadComments.set([]);
+    this.leadEmails.set([]);
+    this.commentComposerOpen.set(false);
+    this.commentDraft.set('');
+    this.emailComposerOpen.set(false);
+    this.emailComposeEmojiOpen.set(false);
+  }
+
+  private applyLoadedLead(row: LeadRow): void {
+    this.patchDataForm(row);
+    this.emailTo.set(row.email ?? '');
+    this.emailCc.set('');
+    this.emailBcc.set('');
+    this.emailSubjectText.set(`Mr ${row.name} (${this.leadCode()})`);
+    this.emailBody.set('');
+    this.refreshLeadCallLogs();
+    this.refreshLeadTasks();
+    this.refreshLeadNotes();
+    const lid = row.id.trim();
+    if (lid) {
+      this.loadLeadAttachments(lid);
+      this.loadLeadComments(lid);
+      this.loadLeadEmails(lid, row);
+    } else {
+      this.leadAttachments.set([]);
+      this.leadComments.set([]);
+      this.leadEmails.set([]);
+    }
+    this.commentComposerOpen.set(false);
+    this.commentDraft.set('');
+    this.emailComposerOpen.set(false);
+    this.emailComposeEmojiOpen.set(false);
+  }
+
+  private async hydrateLeadFromRoute(id: number): Promise<void> {
+    this.leadInitialLoading.set(true);
+    this.leadLoadError.set(null);
+    try {
+      const row = await this.leadsService.getByIdAsync(id);
+      this.lead.set(row);
+      if (row) {
+        this.applyLoadedLead(row);
+      } else {
+        this.leadLoadError.set('Lead not found.');
+        this.clearLeadSideState();
+      }
+    } catch (e) {
+      this.leadLoadError.set(leadsHttpErrorMessage(e));
+      this.lead.set(null);
+      this.clearLeadSideState();
+    } finally {
+      this.leadInitialLoading.set(false);
+    }
   }
 
   private refreshLeadCallLogs(): void {
@@ -836,7 +861,7 @@ export class LeadDetailComponent {
     void run();
   }
 
-  protected saveDataTab(): void {
+  protected async saveDataTab(): Promise<void> {
     const row = this.lead();
     const idn = this.numericId();
     if (!row || idn == null) return;
@@ -872,20 +897,19 @@ export class LeadDetailComponent {
       updated: 'Just now',
     };
 
-    this.leadsService
-      .update(idn, payload)
-      .pipe(take(1))
-      .subscribe({
-        next: (updated) => {
-          this.dataSaving.set(false);
-          if (updated) {
-            this.lead.set(updated);
-            this.patchDataForm(updated);
-            this.emailSubjectText.set(`Mr ${updated.name} (${this.leadCode()})`);
-          }
-        },
-        error: () => this.dataSaving.set(false),
-      });
+    try {
+      const updated = await this.leadsService.updateAsync(idn, payload);
+      if (updated) {
+        this.lead.set(updated);
+        this.patchDataForm(updated);
+        this.emailSubjectText.set(`Mr ${updated.name} (${this.leadCode()})`);
+        this.toast.show('Lead saved.');
+      }
+    } catch (e) {
+      this.toast.show(leadsHttpErrorMessage(e));
+    } finally {
+      this.dataSaving.set(false);
+    }
   }
 
   protected convertToDeal(): void {
@@ -910,15 +934,20 @@ export class LeadDetailComponent {
         last(),
         defaultIfEmpty(null),
       )
-      .subscribe(() => {
-        if (after === 'delete') {
-          void this.router.navigateByUrl('/leads');
-        } else {
-          this.lead.update((cur) => (cur ? { ...cur, status: 'Converted', updated: 'Just now' } : cur));
-        }
-        if (environment.showLeadConvertSuccessMessage) {
-          window.alert('Lead converted to deal successfully');
-        }
+      .subscribe({
+        next: () => {
+          if (after === 'delete') {
+            void this.router.navigateByUrl('/leads');
+          } else {
+            this.lead.update((cur) => (cur ? { ...cur, status: 'Converted', updated: 'Just now' } : cur));
+          }
+          if (environment.showLeadConvertSuccessMessage) {
+            window.alert('Lead converted to deal successfully');
+          } else {
+            this.toast.show('Lead converted to deal.');
+          }
+        },
+        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
       });
   }
 
@@ -926,13 +955,16 @@ export class LeadDetailComponent {
     this.createFlow.openPicker();
   }
 
-  protected confirmDeleteLead(): void {
+  protected async confirmDeleteLead(): Promise<void> {
     const idn = this.numericId();
     if (idn == null) return;
     if (!confirm('Delete this lead?')) return;
-    this.leadsService
-      .delete(idn)
-      .pipe(take(1))
-      .subscribe(() => void this.router.navigateByUrl('/leads'));
+    try {
+      await this.leadsService.deleteAsync(idn);
+      this.toast.show('Lead deleted.');
+      void this.router.navigateByUrl('/leads');
+    } catch (e) {
+      this.toast.show(leadsHttpErrorMessage(e));
+    }
   }
 }

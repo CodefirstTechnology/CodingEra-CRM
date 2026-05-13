@@ -115,7 +115,13 @@
       </div>
       <footer class="create-form__foot">
         <button type="button" class="create-form__btn create-form__btn--ghost" (click)="close()">Cancel</button>
-        <button type="submit" class="create-form__btn create-form__btn--primary">Save</button>
+        <button
+          type="submit"
+          class="create-form__btn create-form__btn--primary"
+          [disabled]="leadSubmitting()"
+        >
+          {{ leadSubmitting() ? 'Saving…' : 'Save' }}
+        </button>
       </footer>
     </form>
   } @else if (flow.formKind() === 'deal') {

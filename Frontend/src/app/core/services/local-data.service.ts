@@ -1,7 +1,6 @@
 import { Injectable } from '@angular/core';
 
 export type LocalEntityKey =
-  | 'leads'
   | 'deals'
   | 'contacts'
   | 'organizations'
@@ -17,73 +16,6 @@ function clone<T>(v: T): T {
 
 function defaultDataset(): Record<LocalEntityKey, Record<string, unknown>[]> {
   return {
-    leads: [
-      {
-        id: 1,
-        name: 'John Doe',
-        firstName: 'John',
-        lastName: 'Doe',
-        mobile: '9876543210',
-        email: 'john.doe@example.com',
-        organization: 'Acme Inc',
-        employees: '51-200',
-        industry: 'Technology',
-        status: 'New',
-        source: 'Website',
-        leadOwnerName: 'Sam Kumar',
-        owner: 'SK',
-        leadOwnerId: 'SK',
-        updated: 'Today',
-      },
-      {
-        id: 2,
-        name: 'Jane Smith',
-        firstName: 'Jane',
-        lastName: 'Smith',
-        mobile: '9876543211',
-        email: 'jane.smith@example.com',
-        organization: 'Globex Corp',
-        industry: 'Finance',
-        status: 'Contacted',
-        source: 'Referral',
-        leadOwnerName: 'Alex Morgan',
-        owner: 'AM',
-        leadOwnerId: 'AM',
-        updated: 'Yesterday',
-      },
-      {
-        id: 3,
-        name: 'Mike Ross',
-        firstName: 'Mike',
-        lastName: 'Ross',
-        mobile: '9876543212',
-        email: 'mike.ross@example.com',
-        organization: 'Pearson Hardman',
-        industry: 'Technology',
-        status: 'Qualified',
-        source: 'Ads',
-        leadOwnerName: 'Jordan Doe',
-        owner: 'JD',
-        leadOwnerId: 'JD',
-        updated: '2d ago',
-      },
-      {
-        id: 4,
-        name: 'Rachel Zane',
-        firstName: 'Rachel',
-        lastName: 'Zane',
-        mobile: '9876543213',
-        email: 'rachel.zane@example.com',
-        organization: 'Rand Securities',
-        industry: 'Retail',
-        status: 'Lost',
-        source: 'Cold Call',
-        leadOwnerName: 'Sam Kumar',
-        owner: 'SK',
-        leadOwnerId: 'SK',
-        updated: '1w ago',
-      },
-    ],
     deals: [
       {
         id: 1,

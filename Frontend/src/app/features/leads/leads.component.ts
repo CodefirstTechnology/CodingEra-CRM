@@ -2,10 +2,10 @@ import { Component, computed, DestroyRef, inject, NgZone, signal } from '@angula
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { concat, concatMap, defaultIfEmpty, EMPTY, forkJoin, of, last, take, tap } from 'rxjs';
+import { concat, concatMap, defaultIfEmpty, forkJoin, of, last, take, tap } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { DealsService } from '../../core/services/deals.service';
-import { LeadsService } from '../../core/services/leads.service';
+import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
@@ -269,7 +269,13 @@ export class LeadsComponent {
     this.leadsService
       .getAll()
       .pipe(take(1))
-      .subscribe((rows) => this.manualRows.set(rows));
+      .subscribe({
+        next: (rows) => this.manualRows.set(rows),
+        error: (err: unknown) => {
+          this.manualRows.set([]);
+          this.toast.show(leadsHttpErrorMessage(err));
+        },
+      });
   }
 
   protected readonly filtered = computed(() => {
@@ -449,35 +455,41 @@ export class LeadsComponent {
     this.leadsService
       .getById(id)
       .pipe(take(1))
-      .subscribe((row) => {
-        if (!row) return;
-        this.editingNumericId.set(id);
-        this.modalLeadSource.set(row.leadSource ?? 'Manual');
-        const ownerOpt = this.leadOwnerOptions.find(
-          (o) => o.initials === row.owner || o.label === row.leadOwnerName,
-        );
-        const ar = row.annualRevenue?.trim() ?? '';
-        const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
-        this.createForm.patchValue({
-          salutation: row.salutation ?? '',
-          lastName: row.lastName ?? '',
-          mobile: (row.mobile ?? '').replace(/\D/g, '').slice(-10) || row.mobile || '',
-          firstName: row.firstName ?? '',
-          email: row.email ?? '',
-          gender: row.gender ?? '',
-          organization: row.organization ?? '',
-          employees: row.employees ?? '1-10',
-          annualRevenue: arInput,
-          website: row.website ?? '',
-          territory: row.territory ?? '',
-          industry: row.industry ?? 'Technology',
-          status: row.status ?? 'New',
-          leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? 'SK',
-          requestType: row.requestType ?? '',
-          requirement: row.requirement ?? '',
-          customField: row.notes ?? '',
-        });
-        this.formOpen.set(true);
+      .subscribe({
+        next: (row) => {
+          if (!row) {
+            this.toast.show('Lead not found.');
+            return;
+          }
+          this.editingNumericId.set(id);
+          this.modalLeadSource.set(row.leadSource ?? 'Manual');
+          const ownerOpt = this.leadOwnerOptions.find(
+            (o) => o.initials === row.owner || o.label === row.leadOwnerName,
+          );
+          const ar = row.annualRevenue?.trim() ?? '';
+          const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
+          this.createForm.patchValue({
+            salutation: row.salutation ?? '',
+            lastName: row.lastName ?? '',
+            mobile: (row.mobile ?? '').replace(/\D/g, '').slice(-10) || row.mobile || '',
+            firstName: row.firstName ?? '',
+            email: row.email ?? '',
+            gender: row.gender ?? '',
+            organization: row.organization ?? '',
+            employees: row.employees ?? '1-10',
+            annualRevenue: arInput,
+            website: row.website ?? '',
+            territory: row.territory ?? '',
+            industry: row.industry ?? 'Technology',
+            status: row.status ?? 'New',
+            leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? 'SK',
+            requestType: row.requestType ?? '',
+            requirement: row.requirement ?? '',
+            customField: row.notes ?? '',
+          });
+          this.formOpen.set(true);
+        },
+        error: (err: unknown) => this.toast.show(leadsHttpErrorMessage(err)),
       });
   }
 
@@ -520,9 +532,12 @@ export class LeadsComponent {
       }
       return this.leadsService.delete(Number(sid)).pipe(take(1));
     });
-    forkJoin(streams).subscribe(() => {
-      this.sel.clear();
-      this.refreshLeads();
+    forkJoin(streams).subscribe({
+      next: () => {
+        this.sel.clear();
+        this.refreshLeads();
+      },
+      error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -559,10 +574,13 @@ export class LeadsComponent {
         })
         .pipe(take(1)),
     );
-    forkJoin(streams).subscribe(() => {
-      this.assignPickerOpen.set(false);
-      this.sel.clear();
-      this.refreshLeads();
+    forkJoin(streams).subscribe({
+      next: () => {
+        this.assignPickerOpen.set(false);
+        this.sel.clear();
+        this.refreshLeads();
+      },
+      error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -579,9 +597,12 @@ export class LeadsComponent {
         })
         .pipe(take(1)),
     );
-    forkJoin(streams).subscribe(() => {
-      this.sel.clear();
-      this.refreshLeads();
+    forkJoin(streams).subscribe({
+      next: () => {
+        this.sel.clear();
+        this.refreshLeads();
+      },
+      error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -620,12 +641,15 @@ export class LeadsComponent {
     const convertedCount = streams.length;
     concat(...streams)
       .pipe(last(), defaultIfEmpty(null))
-      .subscribe(() => {
-        this.sel.clear();
-        this.refreshLeads();
-        if (convertedCount > 0 && environment.showLeadConvertSuccessMessage) {
-          window.alert('Lead converted to deal successfully');
-        }
+      .subscribe({
+        next: () => {
+          this.sel.clear();
+          this.refreshLeads();
+          if (convertedCount > 0 && environment.showLeadConvertSuccessMessage) {
+            window.alert('Lead converted to deal successfully');
+          }
+        },
+        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
       });
   }
 
@@ -758,12 +782,18 @@ export class LeadsComponent {
       this.leadsService
         .update(editId, payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => done(),
+          error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+        });
     } else {
       this.leadsService
         .create(payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => done(),
+          error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+        });
     }
   }
 
@@ -792,9 +822,12 @@ export class LeadsComponent {
     this.leadsService
       .delete(id)
       .pipe(take(1))
-      .subscribe(() => {
-        this.sel.removeId(row.id);
-        this.refreshLeads();
+      .subscribe({
+        next: () => {
+          this.sel.removeId(row.id);
+          this.refreshLeads();
+        },
+        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
       });
   }
 
