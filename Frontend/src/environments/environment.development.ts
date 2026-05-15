@@ -28,6 +28,11 @@ export const environment = {
    * Dev `apiUrl` is `/api` so `ng serve` proxies to `https://localhost:7172` (see `proxy.conf.json`) and avoids CORS.
    */
   useLiveCallLogsApi: true,
+  /**
+   * When `useMockData` is true, deals still call `GET/POST/PUT/DELETE …/api/deals` against the backend
+   * (Swagger contract). Set `false` to use local demo deals only while the rest of the app stays on mock.
+   */
+  useLiveDealsApi: true,
   /** Proxied by `proxy.conf.json` → `https://localhost:7172/api` */
   apiUrl: '/api',
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',

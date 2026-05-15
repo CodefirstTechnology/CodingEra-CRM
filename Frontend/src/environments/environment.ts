@@ -25,6 +25,8 @@ export const environment = {
   useMockData: true,
   /** When true with `useMockData`, only call logs use `apiUrl`; set true in dev to hit the DB-backed call log API. */
   useLiveCallLogsApi: false,
+  /** When `useMockData` is true, set true to load/save deals via `apiUrl` (see `DealsService`). */
+  useLiveDealsApi: false,
   apiUrl: '/api',
   /** After lead → deal: `'mark-converted'` sets lead status to Converted; `'delete'` removes the lead. */
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
