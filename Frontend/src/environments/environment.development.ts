@@ -18,8 +18,13 @@ export const environment = {
    */
   indiamartAutoSimulateDurationMs: 0,
   useMockData: true,
-  /** Local .NET API (dev): `{apiUrl}/auth/login`, `/auth/register`, `/auth/users`, `/auth/users/{id}` */
-  apiUrl: 'https://localhost:7172/api',
+  /**
+   * When `useMockData` is true, call logs still use the real API if this is true (other entities stay on local mock).
+   * Dev `apiUrl` is `/api` so `ng serve` proxies to `https://localhost:7172` (see `proxy.conf.json`) and avoids CORS.
+   */
+  useLiveCallLogsApi: true,
+  /** Proxied by `proxy.conf.json` → `https://localhost:7172/api` */
+  apiUrl: '/api',
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
   showLeadConvertSuccessMessage: false,
   /**

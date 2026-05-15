@@ -11,6 +11,7 @@ export const environment = {
   indiamartAutoSimulateIntervalMs: 4 * 60 * 1000,
   indiamartAutoSimulateDurationMs: 60 * 60 * 1000,
   useMockData: false,
+  useLiveCallLogsApi: true,
   apiUrl: '/api',
   usersListPath: '',
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',

@@ -18,6 +18,8 @@ export const environment = {
    */
   indiamartAutoSimulateDurationMs: 60 * 60 * 1000,
   useMockData: true,
+  /** When true with `useMockData`, only call logs use `apiUrl`; set true in dev to hit the DB-backed call log API. */
+  useLiveCallLogsApi: false,
   apiUrl: '/api',
   /** After lead → deal: `'mark-converted'` sets lead status to Converted; `'delete'` removes the lead. */
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
