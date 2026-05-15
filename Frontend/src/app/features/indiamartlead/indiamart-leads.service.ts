@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
-import { inject, Injectable, NgZone, signal } from '@angular/core';
-import { defer, Observable, of, throwError } from 'rxjs';
+import { inject, Injectable, signal } from '@angular/core';
+import { defer, Observable, throwError } from 'rxjs';
 import { catchError, finalize, map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import {
@@ -19,60 +19,9 @@ import {
 
 const STORAGE_KEY = 'crm_indiamart_leads_v1';
 
-/** Seeded + random data for offline simulation (India-focused B2B samples). */
-const SAMPLE_FIRST = [
-  'Rajesh',
-  'Priya',
-  'Amit',
-  'Sneha',
-  'Vikram',
-  'Ananya',
-  'Karthik',
-  'Deepa',
-  'Manish',
-  'Kavita',
-] as const;
-const SAMPLE_LAST = [
-  'Kumar',
-  'Sharma',
-  'Patel',
-  'Reddy',
-  'Iyer',
-  'Singh',
-  'Mehta',
-  'Nair',
-  'Joshi',
-  'Desai',
-] as const;
-const SAMPLE_CITIES = [
-  'Mumbai',
-  'Delhi',
-  'Bengaluru',
-  'Hyderabad',
-  'Chennai',
-  'Pune',
-  'Ahmedabad',
-  'Kolkata',
-  'Jaipur',
-  'Indore',
-] as const;
-const SAMPLE_PRODUCTS = [
-  'Industrial PVC Pipes',
-  'SS Fasteners Grade 304',
-  'Centrifugal Water Pump 5HP',
-  'Three-phase Induction Motor',
-  'Hydraulic Hose Assembly',
-  'CNC Lathe Spare Kit',
-  'Solar Panel 450W Mono',
-  'Warehouse Pallet Rack',
-  'Safety Helmets (ISI)',
-  'Copper Wire 2.5 sq mm',
-] as const;
-
 @Injectable({ providedIn: 'root' })
 export class IndiamartLeadsService {
   private readonly http = inject(HttpClient);
-  private readonly zone = inject(NgZone);
 
   private readonly leadsSignal = signal<IndiaMartLead[]>([]);
   private readonly pullInProgressSignal = signal(false);
@@ -82,15 +31,8 @@ export class IndiamartLeadsService {
   readonly pullInProgress = this.pullInProgressSignal.asReadonly();
   readonly pushInProgress = this.pushInProgressSignal.asReadonly();
 
-  private simIntervalId: ReturnType<typeof setInterval> | null = null;
-  private simStopId: ReturnType<typeof setTimeout> | null = null;
-
   constructor() {
-    const hadPersistedKey = localStorage.getItem(STORAGE_KEY) !== null;
     this.hydrateFromStorage();
-    if (environment.indiamart.useMock && !hadPersistedKey) {
-      this.seedDummyLeads();
-    }
   }
 
   getLeads(): IndiaMartLead[] {
@@ -109,53 +51,6 @@ export class IndiamartLeadsService {
     return lead;
   }
 
-  /**
-   * Starts (or restarts) the demo auto-simulation. Only active when `indiamart.useMock` is true.
-   */
-  startDemoAutoSimulation(config: {
-    intervalMs: number;
-    durationMs: number;
-    onLeadAdded?: () => void;
-    onSessionEnd?: () => void;
-  }): void {
-    if (!environment.indiamart.useMock) {
-      return;
-    }
-    this.stopDemoAutoSimulation('restart (single session)');
-    const { intervalMs, durationMs, onLeadAdded, onSessionEnd } = config;
-    if (intervalMs <= 0) {
-      return;
-    }
-
-    this.simIntervalId = window.setInterval(() => {
-      this.zone.run(() => {
-        this.addLead(this.buildRandomLead());
-        onLeadAdded?.();
-      });
-    }, intervalMs);
-
-    if (durationMs > 0) {
-      this.simStopId = window.setTimeout(() => {
-        this.zone.run(() => {
-          this.stopDemoAutoSimulation('session duration complete');
-          this.clearAllLeads();
-          onSessionEnd?.();
-        });
-      }, durationMs);
-    }
-  }
-
-  stopDemoAutoSimulation(_reason: string): void {
-    if (this.simIntervalId != null) {
-      window.clearInterval(this.simIntervalId);
-      this.simIntervalId = null;
-    }
-    if (this.simStopId != null) {
-      window.clearTimeout(this.simStopId);
-      this.simStopId = null;
-    }
-  }
-
   updateLeadStatus(id: number, status: IndiaMartLeadStatus): void {
     this.leadsSignal.update((rows) => rows.map((r) => (r.id === id ? { ...r, status } : r)));
     this.persist();
@@ -171,96 +66,10 @@ export class IndiamartLeadsService {
     this.persist();
   }
 
-  seedDummyLeads(): void {
-    if (!environment.indiamart.useMock) {
-      return;
-    }
-    const now = Date.now();
-    const seeds: IndiaMartLeadInput[] = [
-      {
-        customerName: 'Ramesh Agarwal',
-        mobile: '9876543210',
-        email: 'r.agarwal@example.com',
-        city: 'Mumbai',
-        product: 'SS Ball Valves DN50',
-        quantity: '120 pcs',
-        message: 'Need quotation for bulk supply to Vasai warehouse.',
-        source: 'IndiaMART Inquiry',
-        status: 'New',
-      },
-      {
-        customerName: 'Sunita Menon',
-        mobile: '9123456789',
-        email: 'sunita.m@example.com',
-        city: 'Bengaluru',
-        product: 'Industrial Conveyor Belt',
-        quantity: '80 m',
-        message: 'Urgent replacement for food-grade line.',
-        source: 'IndiaMART BuyLead',
-        status: 'Contacted',
-      },
-      {
-        customerName: 'Harish Khanna',
-        mobile: '9988776655',
-        email: 'hk.traders@example.com',
-        city: 'Delhi',
-        product: 'DG Set 125 kVA',
-        quantity: '1 unit',
-        message: 'Installation required within 2 weeks.',
-        source: 'IndiaMART Inquiry',
-        status: 'Qualified',
-      },
-      {
-        customerName: 'Meera Joshi',
-        mobile: '9090909090',
-        email: 'meera.j@example.com',
-        city: 'Ahmedabad',
-        product: 'Modular Office Furniture',
-        quantity: '45 sets',
-        message: 'Converted from pilot order — repeat purchase.',
-        source: 'IndiaMART BuyLead',
-        status: 'Converted',
-      },
-    ];
-    const withIds = seeds.map((row, i) =>
-      this.normalizeInput({
-        ...row,
-        id: now + i,
-        createdAt: new Date(now - (i + 1) * 3600_000).toISOString(),
-      }),
-    );
-    this.leadsSignal.update((existing) => [...withIds, ...existing]);
-    this.persist();
-  }
-
-  buildRandomLead(overrides: Partial<IndiaMartLeadInput> = {}): IndiaMartLeadInput {
-    const first = SAMPLE_FIRST[Math.floor(Math.random() * SAMPLE_FIRST.length)];
-    const last = SAMPLE_LAST[Math.floor(Math.random() * SAMPLE_LAST.length)];
-    const city = SAMPLE_CITIES[Math.floor(Math.random() * SAMPLE_CITIES.length)];
-    const product = SAMPLE_PRODUCTS[Math.floor(Math.random() * SAMPLE_PRODUCTS.length)];
-    const qty = `${10 + Math.floor(Math.random() * 200)} ${Math.random() > 0.5 ? 'pcs' : 'units'}`;
-    return {
-      customerName: `${first} ${last}`,
-      mobile: `9${Math.floor(100000000 + Math.random() * 900000000)}`,
-      email: `${first.toLowerCase()}.${last.toLowerCase()}@example.com`,
-      city,
-      product,
-      quantity: qty,
-      message: `Inquiry via IndiaMART — interested in ${product}. Please share best price and delivery to ${city}.`,
-      source: Math.random() > 0.4 ? 'IndiaMART Inquiry' : 'IndiaMART BuyLead',
-      status: 'New',
-      ...overrides,
-    };
-  }
-
   /**
    * GET {@link environment.indiamart.pullApiUrl} and merge into the local list (deduped).
-   * No-op in mock mode beyond emitting an error Observable.
    */
   fetchFromIndiaMartAPI(): Observable<IndiamartPullResult> {
-    if (environment.indiamart.useMock) {
-      return throwError(() => new Error('IndiaMART pull is not available in mock mode.'));
-    }
     const url = this.buildCrmPullRequestUrl();
     if (!url.length) {
       return throwError(
@@ -323,9 +132,6 @@ export class IndiamartLeadsService {
    * POST current IndiaMART rows to {@link environment.indiamart.pushApiUrl} (API contract may evolve).
    */
   syncPendingLeads(): Observable<void> {
-    if (environment.indiamart.useMock) {
-      return of(undefined);
-    }
     const url = this.browserSafeIndiamartUrl(environment.indiamart.pushApiUrl);
     if (!url.length) {
       return throwError(() => new Error('IndiaMART push URL is not configured.'));

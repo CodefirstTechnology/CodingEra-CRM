@@ -6,12 +6,7 @@
     </div>
     <div class="leads__actions">
       <button type="button" class="leads__btn leads__btn--ghost">Import</button>
-      @if (enableIndiamartLead && indiamartUseMock) {
-        <button type="button" class="leads__btn leads__btn--ghost" (click)="simulateIndiaMartLead()">
-          Simulate IndiaMART lead
-        </button>
-      }
-      @if (enableIndiamartLead && !indiamartUseMock) {
+      @if (enableIndiamartLead) {
         <button
           type="button"
           class="leads__btn leads__btn--ghost"

@@ -48,7 +48,6 @@ const indiamartSecrets = {
 
 const justdialSecrets = {
   enabled: parseBool(localEnv.JUSTDIAL_ENABLED, true),
-  useMock: parseBool(localEnv.JUSTDIAL_USE_MOCK, true),
   pullApiUrl: localEnv.JUSTDIAL_PULL_API_URL ?? '',
   apiKey: localEnv.JUSTDIAL_API_KEY ?? '',
   webhookToken: localEnv.JUSTDIAL_WEBHOOK_TOKEN ?? '',
@@ -56,7 +55,6 @@ const justdialSecrets = {
 
 const tradeindiaSecrets = {
   enabled: parseBool(localEnv.TRADEINDIA_ENABLED, true),
-  useMock: parseBool(localEnv.TRADEINDIA_USE_MOCK, true),
   pullApiUrl: localEnv.TRADEINDIA_PULL_API_URL ?? '',
   apiKey: localEnv.TRADEINDIA_API_KEY ?? '',
   webhookToken: localEnv.TRADEINDIA_WEBHOOK_TOKEN ?? '',
