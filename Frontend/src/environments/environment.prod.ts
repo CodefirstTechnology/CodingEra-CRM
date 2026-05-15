@@ -13,16 +13,10 @@ import {
 export const environment = {
   production: true,
   enableIndiamartLead: true,
-  indiamartAutoSimulateIntervalMs: 4 * 60 * 1000,
-  indiamartAutoSimulateDurationMs: 60 * 60 * 1000,
-  useMockData: false,
-  useLiveCallLogsApi: true,
-  apiUrl: '/api',
-  usersListPath: '',
+  apiUrl: 'https://localhost:7172/api',
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
   showLeadConvertSuccessMessage: false,
   indiamart: {
-    useMock: false,
     pullApiUrl:
       indiamartSecrets.pullApiUrl || 'https://mapi.indiamart.com/wservce/crm/crmListing/v2',
     pushApiUrl: indiamartSecrets.pushApiUrl,
@@ -31,14 +25,12 @@ export const environment = {
   } satisfies IndiamartEnvironmentConfig,
   justdial: {
     enabled: justdialSecrets.enabled,
-    useMock: justdialSecrets.useMock,
     pullApiUrl: justdialSecrets.pullApiUrl,
     apiKey: justdialSecrets.apiKey,
     webhookToken: justdialSecrets.webhookToken,
   },
   tradeindia: {
     enabled: tradeindiaSecrets.enabled,
-    useMock: tradeindiaSecrets.useMock,
     pullApiUrl: tradeindiaSecrets.pullApiUrl,
     apiKey: tradeindiaSecrets.apiKey,
     webhookToken: tradeindiaSecrets.webhookToken,

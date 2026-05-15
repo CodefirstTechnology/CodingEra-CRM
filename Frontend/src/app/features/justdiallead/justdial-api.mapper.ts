@@ -24,7 +24,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-/** Accepts common Justdial proxy/mock shapes (data, leads, enquiries, etc.). */
+/** Accepts common Justdial proxy response shapes (data, leads, enquiries, etc.). */
 export function extractJustdialLeadsArrayFromApiResponse(body: unknown): unknown[] {
   if (Array.isArray(body)) return body;
   const root = asRecord(body);

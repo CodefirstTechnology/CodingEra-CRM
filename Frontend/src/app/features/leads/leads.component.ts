@@ -1,4 +1,4 @@
-import { Component, computed, DestroyRef, inject, NgZone, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -62,10 +62,8 @@ interface LeadColumnOption {
   styleUrl: './leads.component.scss',
 })
 export class LeadsComponent {
-  /** Exposes feature flag for template (simulate + merged IndiaMART list). */
+  /** Exposes feature flag for template (merged IndiaMART list). */
   protected readonly enableIndiamartLead = environment.enableIndiamartLead;
-  /** When true, IndiaMART uses localStorage + optional demo simulation instead of HTTP. */
-  protected readonly indiamartUseMock = environment.indiamart.useMock;
   protected readonly justdialEnabled = environment.justdial.enabled;
   protected readonly tradeindiaEnabled = environment.tradeindia.enabled;
 
@@ -83,9 +81,6 @@ export class LeadsComponent {
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly destroyRef = inject(DestroyRef);
-  private readonly ngZone = inject(NgZone);
-
   protected readonly sel = createIdSelection();
   protected readonly assignPickerOpen = signal(false);
   protected readonly editingNumericId = signal<number | null>(null);
@@ -202,21 +197,6 @@ export class LeadsComponent {
         this.beginEditFromRoute(String(edit));
       }
     });
-
-    const pollMs = environment.indiamartAutoSimulateIntervalMs ?? 0;
-    const durationMs = environment.indiamartAutoSimulateDurationMs ?? 0;
-    if (environment.enableIndiamartLead && environment.indiamart.useMock && pollMs > 0) {
-      this.indiamartLeadsService.startDemoAutoSimulation({
-        intervalMs: pollMs,
-        durationMs,
-        onLeadAdded: () => this.toast.show('New IndiaMART Lead Received'),
-        onSessionEnd: () =>
-          this.toast.show('IndiaMART demo simulation ended — all IndiaMART leads cleared.'),
-      });
-      this.destroyRef.onDestroy(() => {
-        this.indiamartLeadsService.stopDemoAutoSimulation('LeadsComponent destroyed');
-      });
-    }
   }
 
   /** Unified list: manual CRM leads + marketplace sources, sorted by recency. */
@@ -852,16 +832,8 @@ export class LeadsComponent {
     this.tradeindiaLeadsService.updateLeadStatus(n, v);
   }
 
-  protected simulateIndiaMartLead(): void {
-    if (!environment.indiamart.useMock) return;
-    this.ngZone.run(() => {
-      this.indiamartLeadsService.addLead(this.indiamartLeadsService.buildRandomLead());
-    });
-  }
-
-  /** Pulls IndiaMART leads from `environment.indiamart.pullApiUrl` (non-mock only). */
+  /** Pulls IndiaMART leads from `environment.indiamart.pullApiUrl`. */
   protected syncIndiaMartFromApi(): void {
-    if (environment.indiamart.useMock) return;
     this.indiamartLeadsService
       .fetchFromIndiaMartAPI()
       .pipe(take(1))
@@ -875,7 +847,7 @@ export class LeadsComponent {
       });
   }
 
-  /** Pulls Justdial leads from mock JSON or `environment.justdial.pullApiUrl`. */
+  /** Pulls Justdial leads from `environment.justdial.pullApiUrl`. */
   protected syncJustdialFromApi(): void {
     this.justdialLeadsService
       .fetchFromAPI()
@@ -890,7 +862,7 @@ export class LeadsComponent {
       });
   }
 
-  /** Pulls TradeIndia leads from mock JSON or `environment.tradeindia.pullApiUrl`. */
+  /** Pulls TradeIndia leads from `environment.tradeindia.pullApiUrl`. */
   protected syncTradeIndiaFromApi(): void {
     this.tradeindiaLeadsService
       .fetchFromAPI()

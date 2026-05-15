@@ -1,9 +1,8 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
-import { defer, Observable, of, throwError } from 'rxjs';
-import { catchError, delay, finalize, map } from 'rxjs/operators';
+import { defer, Observable, throwError } from 'rxjs';
+import { catchError, finalize, map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import mockTradeIndiaApiResponse from './tradeindia-mock-response.json';
 import {
   extractTradeIndiaLeadsArrayFromApiResponse,
   mapUnknownRecordToTradeIndiaLeadInput,
@@ -18,7 +17,6 @@ import {
 } from './tradeindia-lead.model';
 
 const STORAGE_KEY = 'crm_tradeindia_leads_v1';
-const MOCK_PULL_DELAY_MS = 700;
 
 @Injectable({ providedIn: 'root' })
 export class TradeIndiaLeadsService {
@@ -75,21 +73,11 @@ export class TradeIndiaLeadsService {
   }
 
   /**
-   * Pulls TradeIndia leads through mock JSON or a backend/proxy URL and merges into localStorage.
+   * Pulls TradeIndia leads from `environment.tradeindia.pullApiUrl` and merges into localStorage.
    */
   fetchFromAPI(): Observable<TradeIndiaPullResult> {
     if (!environment.tradeindia.enabled) {
       return throwError(() => new Error('TradeIndia integration is disabled.'));
-    }
-
-    if (environment.tradeindia.useMock) {
-      return defer(() => {
-        this.loadingSignal.set(true);
-        return of(mockTradeIndiaApiResponse as unknown).pipe(delay(MOCK_PULL_DELAY_MS));
-      }).pipe(
-        map((body) => this.mergeRemoteLeadsFromResponseBody(body)),
-        finalize(() => this.loadingSignal.set(false)),
-      );
     }
 
     const url = environment.tradeindia.pullApiUrl.trim();

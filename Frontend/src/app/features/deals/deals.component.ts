@@ -46,9 +46,9 @@ export interface DealRow {
   assignedTo: string;
   assignedInitials: string;
   lastModified: string;
-  /** When set, deal appears on the matching contact's detail "Deals" tab (mock UX). */
+  /** When set, deal appears on the matching contact's detail "Deals" tab. */
   relatedContactId?: string;
-  /** When set, deal appears on the matching organization's detail "Deals" tab (mock UX). */
+  /** When set, deal appears on the matching organization's detail "Deals" tab. */
   relatedOrganizationId?: string;
   /** Win probability (e.g. 10 = 10%). */
   probabilityPercent?: number;

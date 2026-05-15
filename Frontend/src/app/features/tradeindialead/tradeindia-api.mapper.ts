@@ -24,7 +24,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-/** Accepts common TradeIndia proxy/mock shapes (data, leads, enquiries, etc.). */
+/** Accepts common TradeIndia proxy response shapes (data, leads, enquiries, etc.). */
 export function extractTradeIndiaLeadsArrayFromApiResponse(body: unknown): unknown[] {
   if (Array.isArray(body)) return body;
   const root = asRecord(body);

@@ -1,9 +1,7 @@
 /**
  * IndiaMART integration config (URLs and credentials belong in environment files only).
- * When `useMock` is true, the app uses localStorage + optional demo simulation.
  */
 export interface IndiamartEnvironmentConfig {
-  useMock: boolean;
   /**
    * Lead Manager Pull API base URL (no `glusr_crm_key` required here unless you embed it).
    * Docs: `https://mapi.indiamart.com/wservce/crm/crmListing/v2`

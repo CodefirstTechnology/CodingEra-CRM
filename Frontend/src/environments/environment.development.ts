@@ -12,24 +12,7 @@ export const environment = {
    * Set to `false` to hide it completely (direct URLs redirect to `/dashboard`).
    */
   enableIndiamartLead: true,
-  /**
-   * Demo auto-append (localStorage). Only runs when `indiamart.useMock` is true.
-   * Set to `0` while using real IndiaMART API only.
-   */
-  indiamartAutoSimulateIntervalMs: 0,
-  /**
-   * After this many ms from opening the Leads page, auto-simulation stops and clears IndiaMART rows.
-   * N/A when `indiamartAutoSimulateIntervalMs` is `0`.
-   */
-  indiamartAutoSimulateDurationMs: 0,
-  useMockData: true,
-  /**
-   * When `useMockData` is true, call logs still use the real API if this is true (other entities stay on local mock).
-   * Dev `apiUrl` is `/api` so `ng serve` proxies to `https://localhost:7172` (see `proxy.conf.json`) and avoids CORS.
-   */
-  useLiveCallLogsApi: true,
-  /** Proxied by `proxy.conf.json` → `https://localhost:7172/api` */
-  apiUrl: '/api',
+  apiUrl: 'https://localhost:7172/api',
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
   showLeadConvertSuccessMessage: false,
   /**
@@ -39,7 +22,6 @@ export const environment = {
    * Do not use old `…/enquiry/listing/GLUSR_MOBILE/…` URLs — they 404/503. Max one sync per 5 minutes.
    */
   indiamart: {
-    useMock: false,
     pullApiUrl: indiamartSecrets.pullApiUrl || '/indiamart-mapi/wservce/crm/crmListing/v2',
     pushApiUrl: indiamartSecrets.pushApiUrl,
     /** Same Pull API key as production `environment.ts` — keep in sync or use a local-only key. */
@@ -48,14 +30,12 @@ export const environment = {
   } satisfies IndiamartEnvironmentConfig,
   justdial: {
     enabled: justdialSecrets.enabled,
-    useMock: justdialSecrets.useMock,
     pullApiUrl: justdialSecrets.pullApiUrl,
     apiKey: justdialSecrets.apiKey,
     webhookToken: justdialSecrets.webhookToken,
   },
   tradeindia: {
     enabled: tradeindiaSecrets.enabled,
-    useMock: tradeindiaSecrets.useMock,
     pullApiUrl: tradeindiaSecrets.pullApiUrl,
     apiKey: tradeindiaSecrets.apiKey,
     webhookToken: tradeindiaSecrets.webhookToken,

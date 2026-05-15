@@ -17,7 +17,7 @@ export interface CallLogRow {
   startedAt: string;
   durationSeconds: number;
   outcome: string;
-  /** ISO-local datetime for edit form (optional, mock persistence). */
+  /** ISO-local datetime for edit form (optional client-side draft). */
   startedAtIso?: string;
  
   callSummary?: string;

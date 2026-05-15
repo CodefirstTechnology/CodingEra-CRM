@@ -23,7 +23,7 @@ export interface NoteRow {
   author: string;
   when: string;
   bodyPreview?: string;
-  /** Full body for edit round-trip (local/mock). */
+  /** Full body for edit round-trip. */
   bodyStorage?: string;
   /** When created from lead detail — used to scope notes on the lead. */
   relatedLeadId?: string;

@@ -1,21 +1,10 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { Observable } from 'rxjs';
 import { map, take } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import type { CallLogRow } from '../../features/call-logs/call-logs.component';
 import { normalizeCallLogRow } from '../../shared/utils/normalize-local-rows';
-import { LocalDataService } from './local-data.service';
-
-function mapCallLog(row: Record<string, unknown>): CallLogRow {
-  return normalizeCallLogRow(row);
-}
-
-/** Use localStorage for call logs only when global mock is on and live call-log API is off. */
-function useCallLogsFromLocalStorage(): boolean {
-  const live = (environment as { useLiveCallLogsApi?: boolean }).useLiveCallLogsApi === true;
-  return environment.useMockData && !live;
-}
 
 /** Parses `GET …/callLogs/GetCalls` whether the API returns a bare array or a wrapper object. */
 function extractCallLogRecords(raw: unknown): Record<string, unknown>[] {
@@ -121,24 +110,16 @@ function mergeAddCallResponse(raw: unknown, sent: Omit<CallLogRow, 'id'>): Recor
 @Injectable({ providedIn: 'root' })
 export class CallLogsService {
   private readonly http = inject(HttpClient);
-  private readonly local = inject(LocalDataService);
 
   private readonly apiBase = `${environment.apiUrl}/callLogs`;
 
   getAll(): Observable<CallLogRow[]> {
-    if (useCallLogsFromLocalStorage()) {
-      return of(this.local.getAll('callLogs').map(mapCallLog));
-    }
     return this.http.get<unknown>(`${this.apiBase}/GetCalls`).pipe(
       map((raw) => extractCallLogRecords(raw).map((row) => normalizeCallLogRow(row))),
     );
   }
 
   getById(id: number): Observable<CallLogRow | null> {
-    if (useCallLogsFromLocalStorage()) {
-      const row = this.local.getById('callLogs', id);
-      return of(row ? mapCallLog(row) : null);
-    }
     return this.getAll().pipe(
       map((rows) => rows.find((r) => Number(r.id) === id || String(r.id) === String(id)) ?? null),
       take(1),
@@ -146,19 +127,12 @@ export class CallLogsService {
   }
 
   create(data: Omit<CallLogRow, 'id'>): Observable<CallLogRow> {
-    if (useCallLogsFromLocalStorage()) {
-      return of(mapCallLog(this.local.create('callLogs', data as Record<string, unknown>)));
-    }
     return this.http.post<unknown>(`${this.apiBase}/AddCall`, toAddCallApiBody(data)).pipe(
       map((raw) => normalizeCallLogRow(mergeAddCallResponse(raw, data))),
     );
   }
 
   update(id: number, data: Partial<Omit<CallLogRow, 'id'>>): Observable<CallLogRow | null> {
-    if (useCallLogsFromLocalStorage()) {
-      const row = this.local.update('callLogs', id, data as Record<string, unknown>);
-      return of(row ? mapCallLog(row) : null);
-    }
     const patch = toAddCallApiBody(data as Omit<CallLogRow, 'id'>);
     patch['callId'] = id;
     return this.http.put<unknown>(`${this.apiBase}/UpdateCall/${id}`, patch).pipe(
@@ -167,10 +141,6 @@ export class CallLogsService {
   }
 
   delete(id: number): Observable<void> {
-    if (useCallLogsFromLocalStorage()) {
-      this.local.delete('callLogs', id);
-      return of(undefined);
-    }
     return this.http.delete<void>(`${this.apiBase}/DeleteCall/${id}`);
   }
 }
