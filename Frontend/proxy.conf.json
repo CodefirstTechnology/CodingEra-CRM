@@ -5,6 +5,12 @@
     "changeOrigin": true
   },
   "/indiamart-mapi/**": {
+  "/api": {
+    "target": "http://localhost:5000",
+    "secure": false,
+    "changeOrigin": true
+  },
+  "/indiamart-mapi": {
     "target": "https://mapi.indiamart.com",
     "secure": true,
     "changeOrigin": true,

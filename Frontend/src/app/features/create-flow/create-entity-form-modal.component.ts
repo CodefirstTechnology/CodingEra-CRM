@@ -1,4 +1,4 @@
-import { Component, effect, inject, untracked } from '@angular/core';
+import { Component, effect, inject, signal, untracked } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { take } from 'rxjs';
 import type { CreateEntityKind } from '../../core/create-flow/create-entity-kind';
@@ -9,7 +9,8 @@ import { AuthService } from '../../core/auth/auth.service';
 import { CallLogsService } from '../../core/services/call-logs.service';
 import { ContactsService } from '../../core/services/contacts.service';
 import { DealsService } from '../../core/services/deals.service';
-import { LeadsService } from '../../core/services/leads.service';
+import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
+import { ToastService } from '../../core/toast/toast.service';
 import { NotesService } from '../../core/services/notes.service';
 import { OrganizationsService } from '../../core/services/organizations.service';
 import { TasksService } from '../../core/services/tasks.service';
@@ -35,6 +36,7 @@ export class CreateEntityFormModalComponent {
   protected readonly flow = inject(CreateFlowService);
   private readonly bus = inject(CreateRowBusService);
   private readonly leadsService = inject(LeadsService);
+  private readonly toast = inject(ToastService);
   private readonly dealsService = inject(DealsService);
   private readonly contactsService = inject(ContactsService);
   private readonly organizationsService = inject(OrganizationsService);
@@ -72,6 +74,8 @@ export class CreateEntityFormModalComponent {
     { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
     { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
   ];
+
+  protected readonly leadSubmitting = signal(false);
 
   protected readonly dealOwnerOptions: DealOwnerOption[] = [
     { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
@@ -133,6 +137,7 @@ export class CreateEntityFormModalComponent {
     status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),
     leadOwner: ['SK', Validators.required],
     requestType: [''],
+    requirement: ['', Validators.maxLength(240)],
     customField: ['', Validators.maxLength(240)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
   });
@@ -152,6 +157,7 @@ export class CreateEntityFormModalComponent {
     gender: [''],
     status: this.fb.nonNullable.control<DealPipelineStatus>('Qualification', Validators.required),
     dealOwner: ['SK', Validators.required],
+    requirement: ['', Validators.maxLength(240)],
   });
 
   protected readonly contactForm = this.fb.nonNullable.group({
@@ -234,6 +240,7 @@ export class CreateEntityFormModalComponent {
           status: 'New',
           leadOwner: 'SK',
           requestType: '',
+          requirement: '',
           customField: '',
         });
         this.leadForm.markAsUntouched();
@@ -254,6 +261,7 @@ export class CreateEntityFormModalComponent {
           gender: '',
           status: 'Qualification',
           dealOwner: 'SK',
+          requirement: '',
         });
         this.dealForm.markAsUntouched();
         break;
@@ -427,7 +435,7 @@ export class CreateEntityFormModalComponent {
     c.setErrors(Object.keys(next).length ? next : null);
   }
 
-  protected submitLead(): void {
+  protected async submitLead(): Promise<void> {
     this.leadForm.markAllAsTouched();
     if (this.leadForm.invalid) return;
 
@@ -455,19 +463,25 @@ export class CreateEntityFormModalComponent {
       industry: raw.industry,
       status: raw.status,
       requestType: raw.requestType || undefined,
+      requirement: raw.requirement.trim() || undefined,
       notes: raw.customField.trim() || undefined,
       leadOwnerName,
       owner: initials,
       updated: 'Just now',
+      leadSource: 'Manual',
     };
 
-    this.leadsService
-      .create(payload)
-      .pipe(take(1))
-      .subscribe((saved) => {
-        this.bus.publish('lead', saved);
-        this.flow.closeFormModal();
-      });
+    this.leadSubmitting.set(true);
+    try {
+      const saved = await this.leadsService.createAsync(payload);
+      this.bus.publish('lead', saved);
+      this.flow.closeFormModal();
+      this.toast.show('Lead created.');
+    } catch (e) {
+      this.toast.show(leadsHttpErrorMessage(e));
+    } finally {
+      this.leadSubmitting.set(false);
+    }
   }
 
   protected submitDeal(): void {
@@ -498,6 +512,7 @@ export class CreateEntityFormModalComponent {
       lastModified: 'Just now',
       probabilityPercent: 10,
       nextStep: '',
+      requirement: raw.requirement.trim() || undefined,
     };
 
     this.dealsService

@@ -205,6 +205,15 @@
                   }
                 </select>
               </label>
+              <label class="deals__field deals__field--span2">
+                <span class="deals__label">Requirement</span>
+                <input
+                  class="deals__control deals__control--soft"
+                  type="text"
+                  formControlName="requirement"
+                  placeholder="What is the customer looking for?"
+                />
+              </label>
             </div>
           </section>
 
@@ -220,6 +229,40 @@
   }
 
   <div class="deals__table-card card">
+    <div class="deals__table-head">
+      <span class="deals__count">
+        <strong>{{ rows().length }}</strong>
+        <span class="deals__count-muted">deals</span>
+      </span>
+      <div class="deals__columns" (click)="$event.stopPropagation()">
+        <button
+          type="button"
+          class="deals__linkish"
+          [attr.aria-expanded]="columnMenuOpen()"
+          aria-haspopup="menu"
+          (click)="toggleColumnMenu()"
+        >
+          Columns
+        </button>
+        @if (columnMenuOpen()) {
+          <div class="deals__columns-menu" role="menu" aria-label="Choose deal table columns">
+            <p class="deals__columns-help">Organization, email, and assigned to are required.</p>
+            @for (column of columnOptions(); track column.id) {
+              <label class="deals__column-option" [class.is-required]="column.required">
+                <input
+                  type="checkbox"
+                  class="deals__checkbox"
+                  [checked]="isColumnVisible(column.id)"
+                  [disabled]="column.required"
+                  (change)="toggleColumn(column.id)"
+                />
+                <span>{{ column.label }}</span>
+              </label>
+            }
+          </div>
+        }
+      </div>
+    </div>
     <div class="deals__table-scroll">
       <table class="deals__table">
         <thead>
@@ -233,13 +276,9 @@
                 aria-label="Select all deals"
               />
             </th>
-            <th class="deals__th">Organization</th>
-            <th class="deals__th">Annual Revenue</th>
-            <th class="deals__th">Status</th>
-            <th class="deals__th deals__th--gap">Email</th>
-            <th class="deals__th">Mobile No</th>
-            <th class="deals__th">Assigned To</th>
-            <th class="deals__th">Last Modified</th>
+            @for (column of visibleColumns(); track column.id) {
+              <th class="deals__th">{{ column.label }}</th>
+            }
             <th class="deals__th">Actions</th>
           </tr>
         </thead>
@@ -255,20 +294,37 @@
                   [attr.aria-label]="'Select ' + row.organizationName"
                 />
               </td>
-              <td class="deals__td">
-                <a class="deals__name-link" [routerLink]="['/deals', row.id]">{{ row.organizationName }}</a>
-              </td>
-              <td class="deals__td">{{ formatDealRevenue(row.annualRevenue) }}</td>
-              <td class="deals__td"><span [class]="statusClass(row.status)">{{ row.status }}</span></td>
-              <td class="deals__td deals__td--email deals__td--gap">{{ row.email }}</td>
-              <td class="deals__td">{{ row.mobile }}</td>
-              <td class="deals__td">
-                <span class="deals__assign">
-                  <span class="deals__assign-avatar">{{ row.assignedInitials }}</span>
-                  <span class="deals__assign-name">{{ row.assignedTo }}</span>
-                </span>
-              </td>
-              <td class="deals__td deals__td--muted">{{ row.lastModified }}</td>
+              @for (column of visibleColumns(); track column.id) {
+                <td
+                  class="deals__td"
+                  [class.deals__td--email]="column.id === 'email'"
+                  [class.deals__td--muted]="column.id === 'lastModified'"
+                >
+                  @switch (column.id) {
+                    @case ('organizationName') {
+                      <a class="deals__name-link" [routerLink]="['/deals', row.id]">{{ row.organizationName }}</a>
+                    }
+                    @case ('annualRevenue') {
+                      {{ formatDealRevenue(row.annualRevenue) }}
+                    }
+                    @case ('status') {
+                      <span [class]="statusClass(row.status)">{{ row.status }}</span>
+                    }
+                    @case ('assignedTo') {
+                      <span class="deals__assign">
+                        <span class="deals__assign-avatar">{{ row.assignedInitials }}</span>
+                        <span class="deals__assign-name">{{ row.assignedTo }}</span>
+                      </span>
+                    }
+                    @case ('probabilityPercent') {
+                      {{ row.probabilityPercent ?? 0 }}%
+                    }
+                    @default {
+                      {{ displayColumnValue(row, column.id) }}
+                    }
+                  }
+                </td>
+              }
               <td class="deals__td">
                 <button type="button" class="deals__linkish" (click)="deleteDeal(row, $event)">Delete</button>
               </td>

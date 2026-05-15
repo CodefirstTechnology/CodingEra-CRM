@@ -47,6 +47,7 @@ export function mapIndiaMartLeadToLeadRow(im: IndiaMartLead): LeadRow {
     owner: 'IM',
     updated: updatedLabel,
     source: im.source.trim(),
+    requirement: im.message.trim(),
     notes: im.message.trim(),
     leadSource: 'IndiaMART',
     sortTimestamp: ts,

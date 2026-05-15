@@ -2,10 +2,10 @@ import { Component, computed, DestroyRef, inject, NgZone, signal } from '@angula
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { concat, concatMap, defaultIfEmpty, EMPTY, forkJoin, of, last, take, tap } from 'rxjs';
+import { concat, concatMap, defaultIfEmpty, forkJoin, of, last, take, tap } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { DealsService } from '../../core/services/deals.service';
-import { LeadsService } from '../../core/services/leads.service';
+import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
@@ -21,6 +21,22 @@ import {
   parseIndiamartNumericIdFromRowId,
 } from '../indiamartlead/indiamart-lead.mapper';
 import { IndiamartLeadsService } from '../indiamartlead/indiamart-leads.service';
+import type { JustdialLeadStatus } from '../justdiallead/justdial-lead.model';
+import { JUSTDIAL_LEAD_STATUSES } from '../justdiallead/justdial-lead.model';
+import {
+  isJustdialLeadRowId,
+  mapJustdialLeadToLeadRow,
+  parseJustdialNumericIdFromRowId,
+} from '../justdiallead/justdial-lead.mapper';
+import { JustdialLeadsService } from '../justdiallead/justdial-leads.service';
+import type { TradeIndiaLeadStatus } from '../tradeindialead/tradeindia-lead.model';
+import { TRADEINDIA_LEAD_STATUSES } from '../tradeindialead/tradeindia-lead.model';
+import {
+  isTradeIndiaLeadRowId,
+  mapTradeIndiaLeadToLeadRow,
+  parseTradeIndiaNumericIdFromRowId,
+} from '../tradeindialead/tradeindia-lead.mapper';
+import { TradeIndiaLeadsService } from '../tradeindialead/tradeindia-leads.service';
 import type {
   LeadListSourceFilter,
   LeadListStatusFilter,
@@ -33,6 +49,12 @@ import type {
 /** @deprecated Import from `./lead-row.model` instead. */
 export type { LeadListStatusFilter as StatusFilter, LeadRow, LeadOwnerOption, LeadStatus } from './lead-row.model';
 
+interface LeadColumnOption {
+  id: string;
+  label: string;
+  required: boolean;
+}
+
 @Component({
   selector: 'app-leads',
   imports: [ReactiveFormsModule, RouterLink, CrmSelectionBarComponent, CrmAssignPickerComponent],
@@ -44,6 +66,8 @@ export class LeadsComponent {
   protected readonly enableIndiamartLead = environment.enableIndiamartLead;
   /** When true, IndiaMART uses localStorage + optional demo simulation instead of HTTP. */
   protected readonly indiamartUseMock = environment.indiamart.useMock;
+  protected readonly justdialEnabled = environment.justdial.enabled;
+  protected readonly tradeindiaEnabled = environment.tradeindia.enabled;
 
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
@@ -52,6 +76,10 @@ export class LeadsComponent {
   private readonly indiamartLeadsService = inject(IndiamartLeadsService);
   /** Mirrors {@link IndiamartLeadsService.pullInProgress} for the sync button. */
   protected readonly indiamartPullLoading = this.indiamartLeadsService.pullInProgress;
+  private readonly justdialLeadsService = inject(JustdialLeadsService);
+  protected readonly justdialLoading = this.justdialLeadsService.loading;
+  private readonly tradeindiaLeadsService = inject(TradeIndiaLeadsService);
+  protected readonly tradeindiaLoading = this.tradeindiaLeadsService.loading;
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -69,9 +97,12 @@ export class LeadsComponent {
   protected readonly searchQuery = signal('');
   protected readonly statusFilter = signal<LeadListStatusFilter>('all');
   protected readonly sourceFilter = signal<LeadListSourceFilter>('all');
+  protected readonly columnMenuOpen = signal(false);
 
   protected readonly statusOptions: LeadStatus[] = ['New', 'Contacted', 'Qualified', 'Lost'];
   protected readonly indiaMartStatusOptions = [...INDIA_MART_LEAD_STATUSES];
+  protected readonly justdialStatusOptions = [...JUSTDIAL_LEAD_STATUSES];
+  protected readonly tradeindiaStatusOptions = [...TRADEINDIA_LEAD_STATUSES];
   protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
   protected readonly employeeOptions = ['1-10', '11-50', '51-200', '201-500', '500+'] as const;
@@ -105,9 +136,58 @@ export class LeadsComponent {
     { id: 'all', label: 'All' },
     { id: 'Manual', label: 'Manual' },
     { id: 'IndiaMART', label: 'IndiaMART' },
+    { id: 'Justdial', label: 'Justdial' },
+    { id: 'TradeIndia', label: 'TradeIndia' },
   ];
 
-  /** Manual / API-backed rows only; merged with IndiaMART in {@link rows}. */
+  private readonly requiredColumnIds = new Set(['name', 'email', 'leadSource']);
+  private readonly selectedColumnIds = signal<string[]>([
+    'name',
+    'leadSource',
+    'organization',
+    'email',
+    'status',
+    'owner',
+  ]);
+  private readonly ignoredColumnIds = new Set([
+    'id',
+    'firstName',
+    'lastName',
+    'salutation',
+    'gender',
+    'leadOwnerName',
+    'leadOwnerId',
+    'sortTimestamp',
+  ]);
+  private readonly preferredColumnOrder = [
+    'name',
+    'leadSource',
+    'organization',
+    'email',
+    'mobile',
+    'status',
+    'requirement',
+    'industry',
+    'owner',
+    'updated',
+    'employees',
+    'annualRevenue',
+    'website',
+    'territory',
+    'requestType',
+    'source',
+    'notes',
+  ];
+  private readonly columnLabels: Record<string, string> = {
+    leadSource: 'Source',
+    owner: 'Lead owner',
+    leadOwnerName: 'Lead owner',
+    annualRevenue: 'Annual revenue',
+    requestType: 'Request type',
+    source: 'Original source',
+  };
+
+  /** Manual / API-backed rows only; merged with marketplace lead sources in {@link rows}. */
   protected readonly manualRows = signal<LeadRow[]>([]);
 
   constructor() {
@@ -139,12 +219,17 @@ export class LeadsComponent {
     }
   }
 
-  /** Unified list: manual CRM leads + IndiaMART (when feature flag is on), sorted by recency. */
+  /** Unified list: manual CRM leads + marketplace sources, sorted by recency. */
   protected readonly rows = computed(() => this.buildMergedRows());
 
   private buildMergedRows(): LeadRow[] {
     const manual = this.manualRows().map((r) => {
-      const leadSource: LeadSource = r.leadSource === 'IndiaMART' ? 'IndiaMART' : 'Manual';
+      const leadSource: LeadSource =
+        r.leadSource === 'IndiaMART' ||
+        r.leadSource === 'Justdial' ||
+        r.leadSource === 'TradeIndia'
+          ? r.leadSource
+          : 'Manual';
       const idNum = Number(r.id);
       return {
         ...r,
@@ -152,12 +237,18 @@ export class LeadsComponent {
         sortTimestamp: r.sortTimestamp ?? this.manualUpdatedSortKey(r.updated, idNum),
       };
     });
-    if (!environment.enableIndiamartLead) {
-      return manual;
-    }
-    const imSnapshot = this.indiamartLeadsService.leads();
-    const im = imSnapshot.map(mapIndiaMartLeadToLeadRow);
-    return [...manual, ...im].sort((a, b) => (b.sortTimestamp ?? 0) - (a.sortTimestamp ?? 0));
+    const im = environment.enableIndiamartLead
+      ? this.indiamartLeadsService.leads().map(mapIndiaMartLeadToLeadRow)
+      : [];
+    const jd = environment.justdial.enabled
+      ? this.justdialLeadsService.leads().map(mapJustdialLeadToLeadRow)
+      : [];
+    const ti = environment.tradeindia.enabled
+      ? this.tradeindiaLeadsService.leads().map(mapTradeIndiaLeadToLeadRow)
+      : [];
+    return [...manual, ...im, ...jd, ...ti].sort(
+      (a, b) => (b.sortTimestamp ?? 0) - (a.sortTimestamp ?? 0),
+    );
   }
 
   private manualUpdatedSortKey(updated: string, numericId: number): number {
@@ -178,7 +269,13 @@ export class LeadsComponent {
     this.leadsService
       .getAll()
       .pipe(take(1))
-      .subscribe((rows) => this.manualRows.set(rows));
+      .subscribe({
+        next: (rows) => this.manualRows.set(rows),
+        error: (err: unknown) => {
+          this.manualRows.set([]);
+          this.toast.show(leadsHttpErrorMessage(err));
+        },
+      });
   }
 
   protected readonly filtered = computed(() => {
@@ -200,6 +297,7 @@ export class LeadsComponent {
         row.owner.toLowerCase().includes(q) ||
         row.leadOwnerName.toLowerCase().includes(q) ||
         row.industry.toLowerCase().includes(q) ||
+        (row.requirement?.toLowerCase().includes(q) ?? false) ||
         (row.notes?.toLowerCase().includes(q) ?? false) ||
         srcLabel.includes(q)
       );
@@ -208,6 +306,28 @@ export class LeadsComponent {
 
   protected readonly allSelectedFiltered = computed(() =>
     this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
+  );
+
+  protected readonly columnOptions = computed<LeadColumnOption[]>(() => {
+    const ids = new Set(this.preferredColumnOrder);
+    for (const row of this.rows()) {
+      for (const key of Object.keys(row)) {
+        if (!this.ignoredColumnIds.has(key)) {
+          ids.add(key);
+        }
+      }
+    }
+    return [...ids]
+      .filter((id) => !this.ignoredColumnIds.has(id))
+      .map((id) => ({
+        id,
+        label: this.columnLabels[id] ?? this.titleizeColumnId(id),
+        required: this.requiredColumnIds.has(id),
+      }));
+  });
+
+  protected readonly visibleColumns = computed(() =>
+    this.columnOptions().filter((column) => this.isColumnVisible(column.id)),
   );
 
   protected readonly assignDefaultOwnerId = computed(() => {
@@ -257,6 +377,7 @@ export class LeadsComponent {
     status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),
     leadOwner: ['SK', Validators.required],
     requestType: [''],
+    requirement: ['', Validators.maxLength(240)],
     customField: ['', Validators.maxLength(240)],
   });
 
@@ -289,6 +410,7 @@ export class LeadsComponent {
       status: 'New',
       leadOwner: 'SK',
       requestType: '',
+      requirement: '',
       customField: '',
     });
     this.createForm.markAsUntouched();
@@ -316,6 +438,7 @@ export class LeadsComponent {
       status: 'New',
       leadOwner: 'SK',
       requestType: '',
+      requirement: '',
       customField: '',
     });
     this.createForm.markAsUntouched();
@@ -323,6 +446,8 @@ export class LeadsComponent {
 
   private beginEditFromRoute(idStr: string): void {
     if (isIndiamartLeadRowId(idStr)) return;
+    if (isJustdialLeadRowId(idStr)) return;
+    if (isTradeIndiaLeadRowId(idStr)) return;
     if (this.lastRouteEdit === idStr && this.formOpen()) return;
     const id = Number(idStr);
     if (!Number.isFinite(id)) return;
@@ -330,34 +455,41 @@ export class LeadsComponent {
     this.leadsService
       .getById(id)
       .pipe(take(1))
-      .subscribe((row) => {
-        if (!row) return;
-        this.editingNumericId.set(id);
-        this.modalLeadSource.set(row.leadSource ?? 'Manual');
-        const ownerOpt = this.leadOwnerOptions.find(
-          (o) => o.initials === row.owner || o.label === row.leadOwnerName,
-        );
-        const ar = row.annualRevenue?.trim() ?? '';
-        const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
-        this.createForm.patchValue({
-          salutation: row.salutation ?? '',
-          lastName: row.lastName ?? '',
-          mobile: (row.mobile ?? '').replace(/\D/g, '').slice(-10) || row.mobile || '',
-          firstName: row.firstName ?? '',
-          email: row.email ?? '',
-          gender: row.gender ?? '',
-          organization: row.organization ?? '',
-          employees: row.employees ?? '1-10',
-          annualRevenue: arInput,
-          website: row.website ?? '',
-          territory: row.territory ?? '',
-          industry: row.industry ?? 'Technology',
-          status: row.status ?? 'New',
-          leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? 'SK',
-          requestType: row.requestType ?? '',
-          customField: row.notes ?? '',
-        });
-        this.formOpen.set(true);
+      .subscribe({
+        next: (row) => {
+          if (!row) {
+            this.toast.show('Lead not found.');
+            return;
+          }
+          this.editingNumericId.set(id);
+          this.modalLeadSource.set(row.leadSource ?? 'Manual');
+          const ownerOpt = this.leadOwnerOptions.find(
+            (o) => o.initials === row.owner || o.label === row.leadOwnerName,
+          );
+          const ar = row.annualRevenue?.trim() ?? '';
+          const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
+          this.createForm.patchValue({
+            salutation: row.salutation ?? '',
+            lastName: row.lastName ?? '',
+            mobile: (row.mobile ?? '').replace(/\D/g, '').slice(-10) || row.mobile || '',
+            firstName: row.firstName ?? '',
+            email: row.email ?? '',
+            gender: row.gender ?? '',
+            organization: row.organization ?? '',
+            employees: row.employees ?? '1-10',
+            annualRevenue: arInput,
+            website: row.website ?? '',
+            territory: row.territory ?? '',
+            industry: row.industry ?? 'Technology',
+            status: row.status ?? 'New',
+            leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? 'SK',
+            requestType: row.requestType ?? '',
+            requirement: row.requirement ?? '',
+            customField: row.notes ?? '',
+          });
+          this.formOpen.set(true);
+        },
+        error: (err: unknown) => this.toast.show(leadsHttpErrorMessage(err)),
       });
   }
 
@@ -390,11 +522,22 @@ export class LeadsComponent {
       if (imId != null) {
         return of(null).pipe(tap(() => this.indiamartLeadsService.deleteLead(imId)));
       }
+      const jdId = parseJustdialNumericIdFromRowId(sid);
+      if (jdId != null) {
+        return of(null).pipe(tap(() => this.justdialLeadsService.deleteLead(jdId)));
+      }
+      const tiId = parseTradeIndiaNumericIdFromRowId(sid);
+      if (tiId != null) {
+        return of(null).pipe(tap(() => this.tradeindiaLeadsService.deleteLead(tiId)));
+      }
       return this.leadsService.delete(Number(sid)).pipe(take(1));
     });
-    forkJoin(streams).subscribe(() => {
-      this.sel.clear();
-      this.refreshLeads();
+    forkJoin(streams).subscribe({
+      next: () => {
+        this.sel.clear();
+        this.refreshLeads();
+      },
+      error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -431,10 +574,13 @@ export class LeadsComponent {
         })
         .pipe(take(1)),
     );
-    forkJoin(streams).subscribe(() => {
-      this.assignPickerOpen.set(false);
-      this.sel.clear();
-      this.refreshLeads();
+    forkJoin(streams).subscribe({
+      next: () => {
+        this.assignPickerOpen.set(false);
+        this.sel.clear();
+        this.refreshLeads();
+      },
+      error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -451,9 +597,12 @@ export class LeadsComponent {
         })
         .pipe(take(1)),
     );
-    forkJoin(streams).subscribe(() => {
-      this.sel.clear();
-      this.refreshLeads();
+    forkJoin(streams).subscribe({
+      next: () => {
+        this.sel.clear();
+        this.refreshLeads();
+      },
+      error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -492,12 +641,15 @@ export class LeadsComponent {
     const convertedCount = streams.length;
     concat(...streams)
       .pipe(last(), defaultIfEmpty(null))
-      .subscribe(() => {
-        this.sel.clear();
-        this.refreshLeads();
-        if (convertedCount > 0 && environment.showLeadConvertSuccessMessage) {
-          window.alert('Lead converted to deal successfully');
-        }
+      .subscribe({
+        next: () => {
+          this.sel.clear();
+          this.refreshLeads();
+          if (convertedCount > 0 && environment.showLeadConvertSuccessMessage) {
+            window.alert('Lead converted to deal successfully');
+          }
+        },
+        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
       });
   }
 
@@ -530,6 +682,29 @@ export class LeadsComponent {
 
   protected setSourceFilter(id: LeadListSourceFilter): void {
     this.sourceFilter.set(id);
+  }
+
+  protected toggleColumnMenu(): void {
+    this.columnMenuOpen.update((open) => !open);
+  }
+
+  protected toggleColumn(id: string): void {
+    if (this.requiredColumnIds.has(id)) return;
+    this.selectedColumnIds.update((selected) =>
+      selected.includes(id) ? selected.filter((columnId) => columnId !== id) : [...selected, id],
+    );
+  }
+
+  protected isColumnVisible(id: string): boolean {
+    return this.requiredColumnIds.has(id) || this.selectedColumnIds().includes(id);
+  }
+
+  protected displayColumnValue(row: LeadRow, id: string): string {
+    const value = (row as unknown as Record<string, unknown>)[id];
+    if (value == null) return '—';
+    if (typeof value === 'string') return value.trim() || '—';
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    return '—';
   }
 
   protected isChipActive(id: LeadListStatusFilter): boolean {
@@ -589,6 +764,7 @@ export class LeadsComponent {
       industry: raw.industry,
       status: raw.status,
       requestType: raw.requestType || undefined,
+      requirement: raw.requirement.trim() || undefined,
       notes: raw.customField.trim() || undefined,
       leadOwnerName,
       owner: initials,
@@ -606,12 +782,18 @@ export class LeadsComponent {
       this.leadsService
         .update(editId, payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => done(),
+          error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+        });
     } else {
       this.leadsService
         .create(payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => done(),
+          error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+        });
     }
   }
 
@@ -623,14 +805,29 @@ export class LeadsComponent {
       this.sel.removeId(row.id);
       return;
     }
+    const jdId = parseJustdialNumericIdFromRowId(row.id);
+    if (jdId != null) {
+      this.justdialLeadsService.deleteLead(jdId);
+      this.sel.removeId(row.id);
+      return;
+    }
+    const tiId = parseTradeIndiaNumericIdFromRowId(row.id);
+    if (tiId != null) {
+      this.tradeindiaLeadsService.deleteLead(tiId);
+      this.sel.removeId(row.id);
+      return;
+    }
     const id = Number(row.id);
     if (!Number.isFinite(id)) return;
     this.leadsService
       .delete(id)
       .pipe(take(1))
-      .subscribe(() => {
-        this.sel.removeId(row.id);
-        this.refreshLeads();
+      .subscribe({
+        next: () => {
+          this.sel.removeId(row.id);
+          this.refreshLeads();
+        },
+        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
       });
   }
 
@@ -639,6 +836,20 @@ export class LeadsComponent {
     const n = parseIndiamartNumericIdFromRowId(row.id);
     if (n == null) return;
     this.indiamartLeadsService.updateLeadStatus(n, v);
+  }
+
+  protected onJustdialStatusChange(row: LeadRow, ev: Event): void {
+    const v = (ev.target as HTMLSelectElement).value as JustdialLeadStatus;
+    const n = parseJustdialNumericIdFromRowId(row.id);
+    if (n == null) return;
+    this.justdialLeadsService.updateLeadStatus(n, v);
+  }
+
+  protected onTradeIndiaStatusChange(row: LeadRow, ev: Event): void {
+    const v = (ev.target as HTMLSelectElement).value as TradeIndiaLeadStatus;
+    const n = parseTradeIndiaNumericIdFromRowId(row.id);
+    if (n == null) return;
+    this.tradeindiaLeadsService.updateLeadStatus(n, v);
   }
 
   protected simulateIndiaMartLead(): void {
@@ -661,6 +872,36 @@ export class LeadsComponent {
           ),
         error: (e: unknown) =>
           this.toast.show(e instanceof Error ? e.message : 'IndiaMART sync failed.'),
+      });
+  }
+
+  /** Pulls Justdial leads from mock JSON or `environment.justdial.pullApiUrl`. */
+  protected syncJustdialFromApi(): void {
+    this.justdialLeadsService
+      .fetchFromAPI()
+      .pipe(take(1))
+      .subscribe({
+        next: (r) =>
+          this.toast.show(
+            `Justdial sync: ${r.added} new, ${r.skippedDuplicates} skipped, ${r.remoteCount} parsed from response.`,
+          ),
+        error: (e: unknown) =>
+          this.toast.show(e instanceof Error ? e.message : 'Justdial sync failed.'),
+      });
+  }
+
+  /** Pulls TradeIndia leads from mock JSON or `environment.tradeindia.pullApiUrl`. */
+  protected syncTradeIndiaFromApi(): void {
+    this.tradeindiaLeadsService
+      .fetchFromAPI()
+      .pipe(take(1))
+      .subscribe({
+        next: (r) =>
+          this.toast.show(
+            `TradeIndia sync: ${r.added} new, ${r.skippedDuplicates} skipped, ${r.remoteCount} parsed from response.`,
+          ),
+        error: (e: unknown) =>
+          this.toast.show(e instanceof Error ? e.message : 'TradeIndia sync failed.'),
       });
   }
 
@@ -693,7 +934,10 @@ export class LeadsComponent {
   }
 
   protected leadSourceBadgeClass(src: LeadSource): string {
-    return src === 'IndiaMART' ? 'leads__tag leads__tag--src-im' : 'leads__tag leads__tag--src-manual';
+    if (src === 'IndiaMART') return 'leads__tag leads__tag--src-im';
+    if (src === 'Justdial') return 'leads__tag leads__tag--src-jd';
+    if (src === 'TradeIndia') return 'leads__tag leads__tag--ok';
+    return 'leads__tag leads__tag--src-manual';
   }
 
   protected hasActiveFilters(): boolean {
@@ -702,5 +946,12 @@ export class LeadsComponent {
       this.sourceFilter() !== 'all' ||
       this.searchQuery().trim().length > 0
     );
+  }
+
+  private titleizeColumnId(id: string): string {
+    return id
+      .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (ch) => ch.toUpperCase());
   }
 }

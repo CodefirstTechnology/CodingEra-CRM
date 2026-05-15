@@ -68,6 +68,15 @@
             <span class="create-form__err">Organization is required.</span>
           }
         </label>
+        <label class="create-form__field create-form__field--span2">
+          <span class="create-form__label">Requirement</span>
+          <input
+            class="create-form__control"
+            type="text"
+            formControlName="requirement"
+            placeholder="What is the customer looking for?"
+          />
+        </label>
         <label class="create-form__field">
           <span class="create-form__label">Employees</span>
           <select class="create-form__control" formControlName="employees">
@@ -106,7 +115,13 @@
       </div>
       <footer class="create-form__foot">
         <button type="button" class="create-form__btn create-form__btn--ghost" (click)="close()">Cancel</button>
-        <button type="submit" class="create-form__btn create-form__btn--primary">Save</button>
+        <button
+          type="submit"
+          class="create-form__btn create-form__btn--primary"
+          [disabled]="leadSubmitting()"
+        >
+          {{ leadSubmitting() ? 'Saving…' : 'Save' }}
+        </button>
       </footer>
     </form>
   } @else if (flow.formKind() === 'deal') {
@@ -177,6 +192,15 @@
           @if (fieldInvalid('deal', 'lastName')) {
             <span class="create-form__err">Last name is required.</span>
           }
+        </label>
+        <label class="create-form__field create-form__field--span3">
+          <span class="create-form__label">Requirement</span>
+          <input
+            class="create-form__control"
+            type="text"
+            formControlName="requirement"
+            placeholder="What is the customer looking for?"
+          />
         </label>
       </div>
       <footer class="create-form__foot">
