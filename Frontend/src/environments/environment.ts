@@ -47,14 +47,12 @@ export const environment = {
    */
   justdial: {
     enabled: justdialSecrets.enabled,
-    useMock: justdialSecrets.useMock,
     pullApiUrl: justdialSecrets.pullApiUrl,
     apiKey: justdialSecrets.apiKey,
     webhookToken: justdialSecrets.webhookToken,
   },
   tradeindia: {
     enabled: tradeindiaSecrets.enabled,
-    useMock: tradeindiaSecrets.useMock,
     pullApiUrl: tradeindiaSecrets.pullApiUrl,
     apiKey: tradeindiaSecrets.apiKey,
     webhookToken: tradeindiaSecrets.webhookToken,

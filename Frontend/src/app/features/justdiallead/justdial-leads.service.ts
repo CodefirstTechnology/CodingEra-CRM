@@ -1,9 +1,8 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
-import { defer, Observable, of, throwError } from 'rxjs';
-import { catchError, delay, finalize, map } from 'rxjs/operators';
+import { defer, Observable, throwError } from 'rxjs';
+import { catchError, finalize, map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
-import mockJustdialApiResponse from './justdial-mock-response.json';
 import {
   extractJustdialLeadsArrayFromApiResponse,
   mapUnknownJustdialWebhookPayloadToInput,
@@ -18,7 +17,6 @@ import {
 } from './justdial-lead.model';
 
 const STORAGE_KEY = 'crm_justdial_leads_v1';
-const MOCK_PULL_DELAY_MS = 700;
 
 @Injectable({ providedIn: 'root' })
 export class JustdialLeadsService {
@@ -75,21 +73,11 @@ export class JustdialLeadsService {
   }
 
   /**
-   * Pulls Justdial leads through mock JSON or a backend/proxy URL and merges into localStorage.
+   * Pulls Justdial leads from `environment.justdial.pullApiUrl` and merges into localStorage.
    */
   fetchFromAPI(): Observable<JustdialPullResult> {
     if (!environment.justdial.enabled) {
       return throwError(() => new Error('Justdial integration is disabled.'));
-    }
-
-    if (environment.justdial.useMock) {
-      return defer(() => {
-        this.loadingSignal.set(true);
-        return of(mockJustdialApiResponse as unknown).pipe(delay(MOCK_PULL_DELAY_MS));
-      }).pipe(
-        map((body) => this.mergeRemoteLeadsFromResponseBody(body)),
-        finalize(() => this.loadingSignal.set(false)),
-      );
     }
 
     const url = environment.justdial.pullApiUrl.trim();
