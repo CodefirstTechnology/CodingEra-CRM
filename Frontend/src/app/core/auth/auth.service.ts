@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
-import { catchError, firstValueFrom, Observable, of, timeout } from 'rxjs';
+import { catchError, firstValueFrom, Observable, of, switchMap, timeout } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import { CreateFlowService } from '../create-flow/create-flow.service';
@@ -14,6 +14,14 @@ import type { RegisterPayload, UserSession } from './auth.models';
 export interface LoginResult {
   ok: boolean;
   error?: string;
+}
+
+/** Login API body — `userId` or `user.id` is used for `GET …/auth/users/{id}`. */
+interface LoginApiResponse {
+  access_token?: string;
+  token?: string;
+  user?: Partial<UserSession>;
+  userId?: string | number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -90,13 +98,10 @@ export class AuthService {
     }
 
     return this.http
-      .post<{ access_token?: string; token?: string; user?: Partial<UserSession> }>(
-        `${base}/auth/login`,
-        { email: trimmed, password },
-      )
+      .post<LoginApiResponse>(`${base}/auth/login`, { email: trimmed, password })
       .pipe(
         timeout(15000),
-        map((res) => {
+        switchMap((res) => {
           const token = res.access_token ?? res.token ?? '';
           if (!token) {
             writeLoginLog('login_failure', {
@@ -104,23 +109,61 @@ export class AuthService {
               reason: 'no_token_in_response',
               maskedEmail: maskEmail(trimmed),
             });
-            return { ok: false as const, error: 'No token in response.' };
+            return of({ ok: false as const, error: 'No token in response.' });
           }
           const u = res.user;
+          const rawUserId = u?.id ?? res.userId;
           const emailResolved = String(u?.email ?? trimmed);
+          const serverUserId =
+            rawUserId != null && String(rawUserId).trim() !== ''
+              ? String(rawUserId)
+              : null;
           const user: UserSession = {
-            id: String(u?.id ?? crypto.randomUUID()),
+            id: serverUserId ?? crypto.randomUUID(),
             email: emailResolved,
             name: String(u?.name ?? this.displayNameFromEmail(trimmed)),
             role: String(u?.role ?? 'User'),
           };
           this.setSession(token, user);
-          writeLoginLog('login_success', {
-            mode: 'api',
-            userId: user.id,
-            maskedEmail: maskEmail(user.email),
-          });
-          return { ok: true as const };
+
+          if (!serverUserId) {
+            writeLoginLog('login_success', {
+              mode: 'api',
+              userId: user.id,
+              maskedEmail: maskEmail(user.email),
+            });
+            return of({ ok: true as const });
+          }
+
+          return this.http
+            .get<Record<string, unknown>>(`${base}/auth/users/${encodeURIComponent(serverUserId)}`, {
+              headers: new HttpHeaders({ Authorization: `Bearer ${token}` }),
+            })
+            .pipe(
+              timeout(15000),
+              map((raw) => {
+                const enriched = this.mapApiUserToSession(raw, emailResolved);
+                if (enriched) {
+                  this.setSession(token, enriched);
+                }
+                const session = enriched ?? user;
+                writeLoginLog('login_success', {
+                  mode: 'api',
+                  userId: session.id,
+                  maskedEmail: maskEmail(session.email),
+                });
+                return { ok: true as const };
+              }),
+              catchError(() => {
+                writeLoginLog('login_success', {
+                  mode: 'api',
+                  userId: user.id,
+                  maskedEmail: maskEmail(user.email),
+                  detail: 'user_profile_fetch_skipped',
+                });
+                return of({ ok: true as const });
+              }),
+            );
         }),
         catchError((err: unknown) => {
           const status =
@@ -276,5 +319,27 @@ export class AuthService {
       .filter(Boolean)
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
       .join(' ');
+  }
+
+  /** Maps `GET {apiUrl}/auth/users/{id}` body to `UserSession` (tolerates common API shapes). */
+  private mapApiUserToSession(raw: Record<string, unknown>, fallbackEmail: string): UserSession | null {
+    const idVal = raw['id'] ?? raw['userId'];
+    const emailVal = raw['email'];
+    const email =
+      typeof emailVal === 'string' && emailVal.trim() ? emailVal.trim() : fallbackEmail;
+    if (idVal == null || String(idVal).trim() === '') {
+      return null;
+    }
+    const id = String(idVal);
+    let name: string;
+    if (typeof raw['name'] === 'string' && raw['name'].trim()) {
+      name = raw['name'].trim();
+    } else if (typeof raw['fullName'] === 'string' && raw['fullName'].trim()) {
+      name = raw['fullName'].trim();
+    } else {
+      name = this.displayNameFromEmail(email);
+    }
+    const role = typeof raw['role'] === 'string' && raw['role'].trim() ? raw['role'].trim() : 'User';
+    return { id, email, name, role };
   }
 }

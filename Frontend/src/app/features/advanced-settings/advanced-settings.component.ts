@@ -1,5 +1,6 @@
 import { Component, HostListener, computed, inject, signal } from '@angular/core';
 import { AuthService } from '../../core/auth/auth.service';
+import { AdminUsersService, type AdminUserRow } from '../../core/services/admin-users.service';
 
 @Component({
   selector: 'app-advanced-settings',
@@ -9,6 +10,7 @@ import { AuthService } from '../../core/auth/auth.service';
 })
 export class AdvancedSettingsComponent {
   private readonly auth = inject(AuthService);
+  private readonly adminUsers = inject(AdminUsersService);
   protected readonly activeItem = signal('Profile');
   protected readonly selectedRoleFilter = signal('All');
   protected readonly addExistingOpen = signal(false);
@@ -17,6 +19,12 @@ export class AdvancedSettingsComponent {
   protected readonly inviteRole = signal('Sales User');
   protected readonly inviteEmailsInput = signal('');
   protected readonly newMenuOpen = signal(false);
+  protected readonly usersSearchQuery = signal('');
+  protected readonly usersFromApi = signal<AdminUserRow[]>([]);
+  /** Rows added locally via invite (not persisted until API exists). */
+  protected readonly localInviteAdds = signal<AdminUserRow[]>([]);
+  protected readonly usersLoading = signal(false);
+  protected readonly usersError = signal<string | null>(null);
   protected readonly roleFilters = ['All', 'Admin', 'Manager', 'Sales User'] as const;
 
   protected readonly leftNav = [
@@ -50,20 +58,40 @@ export class AdvancedSettingsComponent {
     },
   ];
 
-  private readonly users = signal([
-    { name: 'Admin', email: 'adm62@gmail.com', role: 'Admin' },
-    { name: 'Admin', email: 'admin-crm@assimilate.com', role: 'Admin' },
-    { name: 'adsx', email: 'azd@gmail.com', role: 'Manager' },
-    { name: 'Aniket learnetto technologies', email: 'ingale.aniket24@gmail.com', role: 'Admin' },
-    { name: 'Assimilate', email: 'developer@assimilatetechnologies.com', role: 'Manager' },
-    { name: 'CRM Demo', email: 'crm-demo@assimilate.com', role: 'Admin' },
+  protected reloadUsersFromApi(): void {
+    this.usersLoading.set(true);
+    this.usersError.set(null);
+    this.adminUsers.listUsers(this.auth.token()).subscribe({
+      next: (rows) => {
+        this.usersFromApi.set(rows);
+        this.usersLoading.set(false);
+      },
+      error: () => {
+        this.usersLoading.set(false);
+        this.usersError.set('Could not load users. Check that the API is running and you are signed in.');
+      },
+    });
+  }
+
+  protected readonly allDisplayedUsers = computed(() => [
+    ...this.localInviteAdds(),
+    ...this.usersFromApi(),
   ]);
 
   protected readonly filteredUsers = computed(() => {
     const role = this.selectedRoleFilter();
-    const all = this.users();
-    if (role === 'All') return all;
-    return all.filter((u) => u.role === role);
+    const q = this.usersSearchQuery().trim().toLowerCase();
+    let all = this.allDisplayedUsers();
+    if (role !== 'All') {
+      all = all.filter((u) => u.role === role);
+    }
+    if (q) {
+      all = all.filter(
+        (u) =>
+          u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q),
+      );
+    }
+    return all;
   });
 
   protected readonly canSendInvites = computed(() => {
@@ -71,8 +99,15 @@ export class AdvancedSettingsComponent {
     return parsed.length > 0;
   });
 
+  protected onUsersSearch(ev: Event): void {
+    this.usersSearchQuery.set((ev.target as HTMLInputElement).value);
+  }
+
   protected setActiveItem(item: string): void {
     this.activeItem.set(item);
+    if (item === 'Users') {
+      this.reloadUsersFromApi();
+    }
   }
 
   protected setRoleFilter(ev: Event): void {
@@ -129,17 +164,20 @@ export class AdvancedSettingsComponent {
     if (emails.length === 0) return;
 
     const role = this.inviteRole();
-    const existing = new Set(this.users().map((u) => u.email.toLowerCase()));
-    const toAdd = emails
+    const existing = new Set(
+      this.allDisplayedUsers().map((u) => u.email.toLowerCase()),
+    );
+    const toAdd: AdminUserRow[] = emails
       .filter((email) => !existing.has(email.toLowerCase()))
       .map((email) => ({
+        id: `invite-${email}-${Date.now()}`,
         name: this.nameFromEmail(email),
         email,
         role,
       }));
 
     if (toAdd.length > 0) {
-      this.users.update((rows) => [...toAdd, ...rows]);
+      this.localInviteAdds.update((rows) => [...toAdd, ...rows]);
     }
 
     this.inviteEmailsInput.set('');

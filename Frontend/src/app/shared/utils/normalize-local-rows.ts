@@ -191,23 +191,48 @@ export function normalizeNoteRow(row: Record<string, unknown>): NoteRow {
 }
 
 export function normalizeCallLogRow(row: Record<string, unknown>): CallLogRow {
-  const id = String(row['id'] ?? '');
-  const direction = (row['direction'] === 'Inbound' ? 'Inbound' : 'Outbound') as CallLogRow['direction'];
-  const phoneNumber = String(row['phoneNumber'] ?? row['number'] ?? '');
-  const contactName = String(row['contactName'] ?? '');
-  const summary = String(row['summary'] ?? row['callSummary'] ?? '');
-  let startedAt = String(row['startedAt'] ?? row['startedAtIso'] ?? '');
+  const id = String(row['id'] ?? row['Id'] ?? row['callId'] ?? row['CallId'] ?? row['callLogId'] ?? row['CallLogId'] ?? '');
+  const directionRaw = String(row['direction'] ?? row['Direction'] ?? 'Outbound').trim();
+  const directionLower = directionRaw.toLowerCase();
+  const direction = (
+    directionLower === 'inbound' || directionLower === 'incoming'
+      ? 'Inbound'
+      : directionLower === 'outgoing'
+        ? 'Outbound'
+        : directionRaw === 'Inbound'
+          ? 'Inbound'
+          : 'Outbound'
+  ) as CallLogRow['direction'];
+  const phoneNumber = String(row['phoneNumber'] ?? row['PhoneNumber'] ?? row['number'] ?? row['Number'] ?? '');
+  let contactName = String(row['contactName'] ?? row['ContactName'] ?? '');
+  const summary = String(row['summary'] ?? row['Summary'] ?? row['callSummary'] ?? row['CallSummary'] ?? '');
+  let startedAt = String(
+    row['startedAt'] ??
+      row['StartedAt'] ??
+      row['callStarted'] ??
+      row['CallStarted'] ??
+      row['startedAtIso'] ??
+      row['StartedAtIso'] ??
+      '',
+  );
   if (!startedAt) {
     startedAt = new Date().toISOString();
   }
   let durationSeconds = 0;
-  if (row['durationSeconds'] != null) {
-    durationSeconds = Math.max(0, Math.floor(Number(row['durationSeconds']) || 0));
+  if (row['durationMinutes'] != null || row['DurationMinutes'] != null) {
+    const m = Math.max(0, Math.floor(Number(row['durationMinutes'] ?? row['DurationMinutes']) || 0));
+    const s = Math.max(0, Math.floor(Number(row['durationSeconds'] ?? row['DurationSeconds']) || 0));
+    durationSeconds = m * 60 + s;
+  } else if (row['durationSeconds'] != null || row['DurationSeconds'] != null) {
+    durationSeconds = Math.max(
+      0,
+      Math.floor(Number(row['durationSeconds'] ?? row['DurationSeconds']) || 0),
+    );
   } else {
-    durationSeconds = durationMmSsToSeconds(row['duration']);
+    durationSeconds = durationMmSsToSeconds(row['duration'] ?? row['Duration']);
   }
-  const outcome = String(row['outcome'] ?? 'Connected');
-  const lastModified = String(row['lastModified'] ?? '');
+  const outcome = String(row['outcome'] ?? row['Outcome'] ?? 'Connected');
+  const lastModified = String(row['lastModified'] ?? row['LastModified'] ?? '');
 
   let resolvedContactName = contactName;
   if (!resolvedContactName && row['contact'] != null) {
@@ -216,7 +241,14 @@ export function normalizeCallLogRow(row: Record<string, unknown>): CallLogRow {
     resolvedContactName = idx < 0 ? c.trim() : c.slice(0, idx).trim();
   }
 
-  return {
+  const relatedLeadRaw = row['relatedLeadId'] ?? row['RelatedLeadId'];
+  const relatedDealRaw = row['relatedDealId'] ?? row['RelatedDealId'];
+  const relatedLeadId =
+    relatedLeadRaw != null && String(relatedLeadRaw).trim() !== '' ? String(relatedLeadRaw).trim() : undefined;
+  const relatedDealId =
+    relatedDealRaw != null && String(relatedDealRaw).trim() !== '' ? String(relatedDealRaw).trim() : undefined;
+
+  const out: CallLogRow = {
     id,
     direction,
     phoneNumber,
@@ -227,4 +259,7 @@ export function normalizeCallLogRow(row: Record<string, unknown>): CallLogRow {
     summary,
     lastModified,
   };
+  if (relatedLeadId !== undefined) out.relatedLeadId = relatedLeadId;
+  if (relatedDealId !== undefined) out.relatedDealId = relatedDealId;
+  return out;
 }

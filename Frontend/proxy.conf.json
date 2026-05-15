@@ -1,10 +1,10 @@
 {
-  "/api": {
-    "target": "http://localhost:5000",
+  "/api/**": {
+    "target": "https://localhost:7172",
     "secure": false,
     "changeOrigin": true
   },
-  "/indiamart-mapi": {
+  "/indiamart-mapi/**": {
     "target": "https://mapi.indiamart.com",
     "secure": true,
     "changeOrigin": true,
@@ -12,7 +12,7 @@
       "^/indiamart-mapi": ""
     }
   },
-  "/indiamart_mapi": {
+  "/indiamart_mapi/**": {
     "target": "https://mapi.indiamart.com",
     "secure": true,
     "changeOrigin": true,
@@ -20,7 +20,7 @@
       "^/indiamart_mapi": ""
     }
   },
-  "/indiamart mapi": {
+  "/indiamart mapi/**": {
     "target": "https://mapi.indiamart.com",
     "secure": true,
     "changeOrigin": true,
