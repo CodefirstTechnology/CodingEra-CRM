@@ -107,7 +107,7 @@
         <label class="create-form__field">
           <span class="create-form__label">Lead owner</span>
           <select class="create-form__control" formControlName="leadOwner">
-            @for (o of leadOwnerOptions; track o.id) {
+            @for (o of leadOwnerOptions(); track o.id) {
               <option [value]="o.id">{{ o.label }}</option>
             }
           </select>

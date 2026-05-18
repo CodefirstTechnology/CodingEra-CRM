@@ -19,7 +19,8 @@ import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
 import { environment } from '../../../environments/environment';
-import type { LeadOwnerOption, LeadRow, LeadStatus } from './leads.component';
+import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
+import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
 import type { CallLogRow } from '../call-logs/call-logs.component';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
@@ -185,11 +186,8 @@ export class LeadDetailComponent {
     }
     return base;
   });
-  protected readonly leadOwnerOptions: LeadOwnerOption[] = [
-    { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
-    { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
-    { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
-  ];
+  private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
+  protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
 
   private readonly noteRelatedTypeLabels: Record<NoteRelatedType, string> = {
     lead: 'Lead',
@@ -214,6 +212,7 @@ export class LeadDetailComponent {
   });
 
   constructor() {
+    this.leadOwnerOpts.load();
     forkJoin({
       salutations: this.leadMasterData.loadSalutations(),
       territories: this.leadMasterData.loadTerritories(),
@@ -303,9 +302,10 @@ export class LeadDetailComponent {
     this.leadLoadError.set(null);
     try {
       const row = await this.leadsService.getByIdAsync(id);
-      this.lead.set(row);
-      if (row) {
-        this.applyLoadedLead(row);
+      const enriched = row ? this.leadOwnerOpts.applyOwnerToRow(row) : null;
+      this.lead.set(enriched);
+      if (enriched) {
+        this.applyLoadedLead(enriched);
       } else {
         this.leadLoadError.set('Lead not found.');
         this.clearLeadSideState();
@@ -826,7 +826,7 @@ export class LeadDetailComponent {
         industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
         jobTitle: row.jobTitle ?? '',
         source: row.source?.trim() || row.leadSource || '',
-        owner: row.owner ?? '',
+        owner: row.leadOwnerId ?? '',
         salutation: this.masterSelectControlValue(row.salutationId, salutationPlain, this.salutationSelectOptions()),
         firstName: row.firstName ?? '',
         lastName: row.lastName ?? '',
@@ -918,7 +918,7 @@ export class LeadDetailComponent {
   /** Lead owner initial beside the owner select (follows selected owner option). */
   protected sidebarOwnerChipInitial(): string {
     const id = this.dataForm.controls.owner.value?.trim();
-    const opt = this.leadOwnerOptions.find((o) => o.id === id);
+    const opt = this.leadOwnerOpts.findById(id);
     const label = opt?.label?.trim();
     if (label) return label.charAt(0).toUpperCase();
     const fb = this.lead()?.leadOwnerName?.trim();
@@ -975,7 +975,8 @@ export class LeadDetailComponent {
       v.firstName.trim() ||
       row.name;
 
-    const opt = this.leadOwnerOptions.find((o) => o.id === v.owner.trim());
+    const ownerId = v.owner.trim();
+    const opt = this.leadOwnerOpts.findById(ownerId);
     const leadOwnerName = opt?.label ?? row.leadOwnerName;
 
     this.dataSaving.set(true);
@@ -995,7 +996,8 @@ export class LeadDetailComponent {
       industryId: indPick.masterId,
       jobTitle: v.jobTitle.trim() || undefined,
       source: v.source.trim() || undefined,
-      owner: v.owner.trim() || row.owner,
+      leadOwnerId: ownerId || undefined,
+      owner: opt?.initials ?? row.owner,
       leadOwnerName,
       updated: 'Just now',
     };
@@ -1003,8 +1005,9 @@ export class LeadDetailComponent {
     try {
       const updated = await this.leadsService.updateAsync(idn, payload);
       if (updated) {
-        this.lead.set(updated);
-        this.patchDataForm(updated);
+        const enriched = this.leadOwnerOpts.applyOwnerToRow(updated);
+        this.lead.set(enriched);
+        this.patchDataForm(enriched);
         this.emailSubjectText.set(`Mr ${updated.name} (${this.leadCode()})`);
         this.toast.show('Lead saved.');
       }

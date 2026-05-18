@@ -17,7 +17,8 @@ import { TasksService } from '../../core/services/tasks.service';
 import type { CallLogRow } from '../call-logs/call-logs.component';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from '../deals/deals.component';
-import type { LeadOwnerOption, LeadRow, LeadStatus } from '../leads/lead-row.model';
+import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
+import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { OrganizationRow } from '../organizations/organizations.component';
 import type { NoteRelatedType, NoteRow, NoteVisibility } from '../notes/notes.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
@@ -44,6 +45,7 @@ export class CreateEntityFormModalComponent {
   private readonly callLogsService = inject(CallLogsService);
   private readonly notesService = inject(NotesService);
   protected readonly auth = inject(AuthService);
+  private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
 
   protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
@@ -69,11 +71,7 @@ export class CreateEntityFormModalComponent {
     'Other',
   ] as const;
 
-  protected readonly leadOwnerOptions: LeadOwnerOption[] = [
-    { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
-    { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
-    { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
-  ];
+  protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
 
   protected readonly leadSubmitting = signal(false);
 
@@ -135,7 +133,7 @@ export class CreateEntityFormModalComponent {
     territory: [''],
     industry: ['Technology', Validators.required],
     status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),
-    leadOwner: ['SK', Validators.required],
+    leadOwner: ['', Validators.required],
     requestType: [''],
     requirement: ['', Validators.maxLength(240)],
     customField: ['', Validators.maxLength(240)],
@@ -210,6 +208,7 @@ export class CreateEntityFormModalComponent {
   });
 
   constructor() {
+    this.leadOwnerOpts.load();
     effect(() => {
       const k = this.flow.formKind();
       if (!k) return;
@@ -238,7 +237,7 @@ export class CreateEntityFormModalComponent {
           territory: '',
           industry: 'Technology',
           status: 'New',
-          leadOwner: 'SK',
+          leadOwner: this.leadOwnerOpts.defaultOwnerId(),
           requestType: '',
           requirement: '',
           customField: '',
@@ -442,7 +441,7 @@ export class CreateEntityFormModalComponent {
     const raw = this.leadForm.getRawValue();
     const emailTrim = raw.email.trim();
 
-    const ownerOpt = this.leadOwnerOptions.find((o) => o.id === raw.leadOwner);
+    const ownerOpt = this.leadOwnerOpts.findById(raw.leadOwner);
     const initials = ownerOpt?.initials ?? raw.leadOwner;
     const leadOwnerName = ownerOpt?.label ?? raw.leadOwner;
 

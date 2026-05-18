@@ -10,6 +10,10 @@ import {
   LeadMasterDataService,
   type MasterDataOption,
 } from '../../core/services/leads/lead-master-data.service';
+import {
+  isPersistedApiLeadRow,
+  LeadOwnerOptionsService,
+} from '../../core/services/leads/lead-owner-options.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
@@ -92,6 +96,7 @@ export class LeadsComponent {
   private readonly leadsService = inject(LeadsService);
   private readonly dealsService = inject(DealsService);
   private readonly leadMasterData = inject(LeadMasterDataService);
+  private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly indiamartLeadsService = inject(IndiamartLeadsService);
   /** Mirrors {@link IndiamartLeadsService.pullInProgress} for the sync button. */
   protected readonly indiamartPullLoading = this.indiamartLeadsService.pullInProgress;
@@ -157,11 +162,8 @@ export class LeadsComponent {
     return api.length > 0 ? api : FALLBACK_LEAD_STATUS_NAMES.map((name) => ({ id: 0, name }));
   });
 
-  protected readonly leadOwnerOptions: LeadOwnerOption[] = [
-    { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
-    { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
-    { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
-  ];
+  protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
+  protected readonly isPersistedApiLeadRow = isPersistedApiLeadRow;
 
   protected readonly filterChips: { id: LeadListStatusFilter; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -230,6 +232,7 @@ export class LeadsComponent {
   protected readonly manualRows = signal<LeadRow[]>([]);
 
   constructor() {
+    this.leadOwnerOpts.load();
     this.refreshLeads();
     forkJoin({
       salutations: this.leadMasterData.loadSalutations(),
@@ -263,7 +266,7 @@ export class LeadsComponent {
   }
 
   /** Unified list: manual CRM leads + marketplace sources, sorted by recency. */
-  protected readonly rows = computed(() => this.buildMergedRows());
+  protected readonly rows = computed(() => this.leadOwnerOpts.enrichRows(this.buildMergedRows()));
 
   private persistMarketplaceLeadsToDb(): boolean {
     const flag = (environment as { persistMarketplaceLeadsToDb?: boolean }).persistMarketplaceLeadsToDb;
@@ -386,10 +389,13 @@ export class LeadsComponent {
   protected readonly assignDefaultOwnerId = computed(() => {
     const ids = this.sel.selectedItems();
     const first = this.rows().find((r) => r.id === ids[0]);
-    if (!first) return 'SK';
+    if (!first) return this.leadOwnerOpts.defaultOwnerId();
     return (
-      this.leadOwnerOptions.find((o) => o.initials === first.owner || o.label === first.leadOwnerName)?.id ??
-      'SK'
+      this.leadOwnerOpts.findById(first.leadOwnerId)?.id ??
+      this.leadOwnerOptions().find(
+        (o) => o.initials === first.owner || o.label === first.leadOwnerName,
+      )?.id ??
+      this.leadOwnerOpts.defaultOwnerId()
     );
   });
 
@@ -402,7 +408,7 @@ export class LeadsComponent {
   protected readonly bulkAssignEnabled = computed(() => {
     const ids = this.sel.selectedItems();
     if (ids.length === 0) return false;
-    return ids.every((id) => this.rows().find((r) => r.id === id)?.leadSource === 'Manual');
+    return ids.every((id) => isPersistedApiLeadRow(id));
   });
 
   protected readonly bulkConvertEnabled = computed(() => {
@@ -428,7 +434,7 @@ export class LeadsComponent {
     territory: [''],
     industry: ['', Validators.required],
     status: ['', Validators.required],
-    leadOwner: ['SK', Validators.required],
+    leadOwner: ['', Validators.required],
     requestType: [''],
     requirement: ['', Validators.maxLength(240)],
     customField: ['', Validators.maxLength(240)],
@@ -461,7 +467,7 @@ export class LeadsComponent {
       territory: '',
       industry: '',
       status: '',
-      leadOwner: 'SK',
+      leadOwner: this.leadOwnerOpts.defaultOwnerId(),
       requestType: '',
       requirement: '',
       customField: '',
@@ -489,7 +495,7 @@ export class LeadsComponent {
       territory: '',
       industry: '',
       status: '',
-      leadOwner: 'SK',
+      leadOwner: this.leadOwnerOpts.defaultOwnerId(),
       requestType: '',
       requirement: '',
       customField: '',
@@ -516,9 +522,11 @@ export class LeadsComponent {
           }
           this.editingNumericId.set(id);
           this.modalLeadSource.set(row.leadSource ?? 'Manual');
-          const ownerOpt = this.leadOwnerOptions.find(
-            (o) => o.initials === row.owner || o.label === row.leadOwnerName,
-          );
+          const ownerOpt =
+            this.leadOwnerOpts.findById(row.leadOwnerId) ??
+            this.leadOwnerOptions().find(
+              (o) => o.initials === row.owner || o.label === row.leadOwnerName,
+            );
           const ar = row.annualRevenue?.trim() ?? '';
           const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
           this.createForm.patchValue({
@@ -539,7 +547,7 @@ export class LeadsComponent {
             territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
             industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
             status: this.masterSelectControlValue(row.leadStatusId, row.status, this.statusSelectOptions()),
-            leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? 'SK',
+            leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? this.leadOwnerOpts.defaultOwnerId(),
             requestType: this.masterSelectControlValue(
               row.requestTypeId,
               row.requestType,
@@ -615,7 +623,7 @@ export class LeadsComponent {
   }
 
   protected onAssignPicked(ownerKey: string): void {
-    const opt = this.leadOwnerOptions.find((o) => o.id === ownerKey);
+    const opt = this.leadOwnerOpts.findById(ownerKey);
     if (!opt) {
       this.assignPickerOpen.set(false);
       return;
@@ -629,6 +637,7 @@ export class LeadsComponent {
     const streams = ids.map((sid) =>
       this.leadsService
         .update(Number(sid), {
+          leadOwnerId: opt.id,
           leadOwnerName: opt.label,
           owner: opt.initials,
           updated: 'Just now',
@@ -652,6 +661,7 @@ export class LeadsComponent {
     const streams = ids.map((sid) =>
       this.leadsService
         .update(Number(sid), {
+          leadOwnerId: '',
           leadOwnerName: '—',
           owner: '—',
           updated: 'Just now',
@@ -665,6 +675,46 @@ export class LeadsComponent {
       },
       error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
     });
+  }
+
+  protected onLeadOwnerChange(row: LeadRow, ev: Event): void {
+    ev.stopPropagation();
+    if (!isPersistedApiLeadRow(row.id)) return;
+    const idn = Number(row.id);
+    if (!Number.isFinite(idn)) return;
+
+    const ownerKey = (ev.target as HTMLSelectElement).value;
+    if (!ownerKey) {
+      this.leadsService
+        .update(idn, {
+          leadOwnerId: '',
+          leadOwnerName: '—',
+          owner: '—',
+          updated: 'Just now',
+        })
+        .pipe(take(1))
+        .subscribe({
+          next: () => this.refreshLeads(),
+          error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+        });
+      return;
+    }
+
+    const opt = this.leadOwnerOpts.findById(ownerKey);
+    if (!opt) return;
+
+    this.leadsService
+      .update(idn, {
+        leadOwnerId: opt.id,
+        leadOwnerName: opt.label,
+        owner: opt.initials,
+        updated: 'Just now',
+      })
+      .pipe(take(1))
+      .subscribe({
+        next: () => this.refreshLeads(),
+        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+      });
   }
 
   protected convertToDeal(): void {
@@ -849,7 +899,7 @@ export class LeadsComponent {
       return;
     }
 
-    const ownerOpt = this.leadOwnerOptions.find((o) => o.id === raw.leadOwner);
+    const ownerOpt = this.leadOwnerOpts.findById(raw.leadOwner);
     const initials = ownerOpt?.initials ?? raw.leadOwner;
     const leadOwnerName = ownerOpt?.label ?? raw.leadOwner;
 

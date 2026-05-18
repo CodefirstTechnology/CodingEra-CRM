@@ -383,7 +383,7 @@
               <span class="lead-detail__label">Lead Owner</span>
               <select class="lead-detail__select" formControlName="owner">
                 <option value="">— Select owner —</option>
-                @for (o of leadOwnerOptions; track o.id) {
+                @for (o of leadOwnerOptions(); track o.id) {
                 <option [value]="o.id">{{ o.label }}</option>
                 }
               </select>
@@ -761,7 +761,7 @@
               <span class="lead-detail__owner-badge lead-detail__owner-badge--side">{{ sidebarOwnerChipInitial() }}</span>
               <select class="lead-detail__side-field lead-detail__side-field--select lead-detail__side-field--owner" [formControl]="dataForm.controls.owner" aria-label="Lead owner">
                 <option value="">— Select owner —</option>
-                @for (o of leadOwnerOptions; track o.id) {
+                @for (o of leadOwnerOptions(); track o.id) {
                 <option [value]="o.id">{{ o.label }}</option>
                 }
               </select>

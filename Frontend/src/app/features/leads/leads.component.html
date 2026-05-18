@@ -75,7 +75,7 @@
   <app-crm-assign-picker
     [open]="assignPickerOpen()"
     title="Assign leads"
-    [options]="leadOwnerOptions"
+    [options]="leadOwnerOptions()"
     [selectedId]="assignDefaultOwnerId()"
     (picked)="onAssignPicked($event)"
     (closed)="onAssignClosed()"
@@ -255,7 +255,7 @@
               <label class="leads__field leads__field--span2-md">
                 <span class="leads__label">Lead owner</span>
                 <select class="leads__control leads__control--soft leads__control--owner" formControlName="leadOwner">
-                  @for (o of leadOwnerOptions; track o.id) {
+                  @for (o of leadOwnerOptions(); track o.id) {
                     <option [value]="o.id">{{ o.label }}</option>
                   }
                 </select>
@@ -466,10 +466,27 @@
                         }
                       }
                       @case ('owner') {
-                        <span class="leads__owner-cell">
-                          <span class="leads__avatar">{{ row.owner }}</span>
-                          <span class="leads__owner-name">{{ row.leadOwnerName }}</span>
-                        </span>
+                        @if (isPersistedApiLeadRow(row.id) && leadOwnerOptions().length > 0) {
+                          <select
+                            class="leads__owner-select"
+                            [value]="row.leadOwnerId ?? ''"
+                            (change)="onLeadOwnerChange(row, $event)"
+                            (click)="$event.stopPropagation()"
+                            [attr.aria-label]="'Lead owner for ' + row.name"
+                          >
+                            <option value="">Unassigned</option>
+                            @for (o of leadOwnerOptions(); track o.id) {
+                              <option [value]="o.id">{{ o.label }}</option>
+                            }
+                          </select>
+                        } @else {
+                          <span class="leads__owner-cell">
+                            @if (row.owner) {
+                              <span class="leads__avatar">{{ row.owner }}</span>
+                            }
+                            <span class="leads__owner-name">{{ row.leadOwnerName || '—' }}</span>
+                          </span>
+                        }
                       }
                       @default {
                         {{ displayColumnValue(row, column.id) }}
