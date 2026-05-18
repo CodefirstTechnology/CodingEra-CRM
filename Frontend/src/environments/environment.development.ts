@@ -29,7 +29,7 @@ export const environment = {
    */
   useLiveCallLogsApi: true,
   /** Proxied by `proxy.conf.json` → `https://localhost:7172/api` */
-  apiUrl: '/api',
+  apiUrl: 'https://localhost:7172/api',
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
   showLeadConvertSuccessMessage: false,
   /**

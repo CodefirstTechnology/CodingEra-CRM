@@ -22,10 +22,10 @@ export const environment = {
    * Set to `0` to run until you leave the page (no auto-clear).
    */
   indiamartAutoSimulateDurationMs: 60 * 60 * 1000,
-  useMockData: true,
+  useMockData: false,
   /** When true with `useMockData`, only call logs use `apiUrl`; set true in dev to hit the DB-backed call log API. */
   useLiveCallLogsApi: false,
-  apiUrl: '/api',
+  apiUrl: 'https://localhost:7172/api',
   /** After lead → deal: `'mark-converted'` sets lead status to Converted; `'delete'` removes the lead. */
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
   /** If true, shows `window.alert` after a successful convert (no new UI components). */
