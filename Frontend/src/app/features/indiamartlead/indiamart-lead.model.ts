@@ -43,4 +43,10 @@ export interface IndiamartPullResult {
   added: number;
   skippedDuplicates: number;
   remoteCount: number;
+  /** Rows added to localStorage on this pull (for DB sync). */
+  newLeads?: IndiaMartLead[];
+  dbSaved?: number;
+  dbSkipped?: number;
+  dbFailed?: number;
+  lastError?: string;
 }

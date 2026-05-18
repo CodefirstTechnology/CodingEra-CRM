@@ -1,7 +1,8 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable, NgZone, signal } from '@angular/core';
+import { MarketplaceLeadDbSyncService } from '../../core/services/leads/marketplace-lead-db-sync.service';
 import { defer, Observable, of, throwError } from 'rxjs';
-import { catchError, finalize, map } from 'rxjs/operators';
+import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import {
   extractLeadsArrayFromApiResponse,
@@ -73,6 +74,7 @@ const SAMPLE_PRODUCTS = [
 export class IndiamartLeadsService {
   private readonly http = inject(HttpClient);
   private readonly zone = inject(NgZone);
+  private readonly marketplaceDb = inject(MarketplaceLeadDbSyncService);
 
   private readonly leadsSignal = signal<IndiaMartLead[]>([]);
   private readonly pullInProgressSignal = signal(false);
@@ -97,6 +99,23 @@ export class IndiamartLeadsService {
     return this.leadsSignal();
   }
 
+  /** `null` when live pull can run; otherwise a short fix instruction for the UI. */
+  getLivePullConfigurationError(): string | null {
+    if (environment.indiamart.useMock) {
+      return null;
+    }
+    const pullUrl = environment.indiamart.pullApiUrl.trim();
+    if (!pullUrl.length) {
+      return 'Set INDIAMART_PULL_API_URL in Frontend/.env (e.g. /indiamart-mapi/wservce/crm/crmListing/v2), then restart ng serve.';
+    }
+    const key = environment.indiamart.apiKey.trim();
+    const urlHasKey = pullUrl.includes('glusr_crm_key=');
+    if (!key.length && !urlHasKey) {
+      return 'IndiaMART CRM key missing. Add INDIAMART_CRM_KEY=your_glusr_crm_key to Frontend/.env (seller.indiamart.com → Lead Manager → Import/Export → Pull API), then restart ng serve.';
+    }
+    return null;
+  }
+
   /**
    * Adds a lead when new; if a duplicate exists (same external ref or natural key), returns the existing row.
    */
@@ -106,6 +125,7 @@ export class IndiamartLeadsService {
     const lead = this.normalizeInput(input);
     this.leadsSignal.update((rows) => [lead, ...rows]);
     this.persist();
+    this.persistNewLeadsToDb([lead]);
     return lead;
   }
 
@@ -261,6 +281,10 @@ export class IndiamartLeadsService {
     if (environment.indiamart.useMock) {
       return throwError(() => new Error('IndiaMART pull is not available in mock mode.'));
     }
+    const configErr = this.getLivePullConfigurationError();
+    if (configErr) {
+      return throwError(() => new Error(configErr));
+    }
     const url = this.buildCrmPullRequestUrl();
     if (!url.length) {
       return throwError(
@@ -275,12 +299,13 @@ export class IndiamartLeadsService {
       this.pullInProgressSignal.set(true);
       return this.http.get<unknown>(url, { headers: this.buildJsonAuthHeaders('pull') });
     }).pipe(
-      map((body) => {
+      switchMap((body) => {
         const apiErr = getIndiaMartCrmPullErrorMessage(body);
         if (apiErr) {
           throw new Error(apiErr);
         }
-        return this.mergeRemoteLeadsFromResponseBody(body);
+        const merged = this.mergeRemoteLeadsFromResponseBody(body);
+        return this.attachDbPersistResult(merged);
       }),
       catchError((err: unknown) => {
         if (err instanceof HttpErrorResponse) {
@@ -552,7 +577,41 @@ export class IndiamartLeadsService {
       added,
       skippedDuplicates,
       remoteCount: inputs.length,
+      newLeads,
     };
+  }
+
+  private persistNewLeadsToDb(leads: IndiaMartLead[]): void {
+    if (leads.length === 0 || !this.marketplaceDb.enabled()) return;
+    this.marketplaceDb
+      .persistIndiaMartLeads(leads)
+      .pipe(
+        catchError((err) => {
+          console.warn('[IndiaMART] DB persist failed', err);
+          return of({ saved: 0, skipped: 0, failed: leads.length });
+        }),
+      )
+      .subscribe();
+  }
+
+  private attachDbPersistResult(merged: IndiamartPullResult): Observable<IndiamartPullResult> {
+    const batch = merged.newLeads ?? [];
+    if (batch.length === 0 || !this.marketplaceDb.enabled()) {
+      return of(merged);
+    }
+    return this.marketplaceDb.persistIndiaMartLeads(batch).pipe(
+      map((db) => ({
+        ...merged,
+        dbSaved: db.saved,
+        dbSkipped: db.skipped,
+        dbFailed: db.failed,
+        lastError: db.lastError,
+      })),
+      catchError((err) => {
+        console.warn('[IndiaMART] DB persist failed', err);
+        return of(merged);
+      }),
+    );
   }
 
   private findDuplicateForInput(input: IndiaMartLeadInput): IndiaMartLead | null {
