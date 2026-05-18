@@ -6,7 +6,7 @@ import type { DealRow } from '../../features/deals/deals.component';
 import { normalizeDealRow } from '../../shared/utils/normalize-local-rows';
 import {
   dealCreatePayloadToApiJson,
-  mapDealApiDtoToRow,
+  mapDealNormalizedToRow,
   mergeDealApiDtoWithRowPatch,
 } from './deals/deal-api.mapper';
 import { DealHttpService } from './deals/deal-http.service';
@@ -16,7 +16,7 @@ function mapDeal(row: Record<string, unknown>): DealRow {
   return normalizeDealRow(row);
 }
 
-/** When global mock is on, deals still use the API if this flag is true (same idea as `useLiveCallLogsApi`). */
+/** When global mock is on, deals still use the API if this flag is true. */
 function useDealsFromLocalStorage(): boolean {
   const live = (environment as { useLiveDealsApi?: boolean }).useLiveDealsApi === true;
   return environment.useMockData && !live;
@@ -31,7 +31,7 @@ export class DealsService {
     if (useDealsFromLocalStorage()) {
       return of(this.local.getAll('deals').map(mapDeal));
     }
-    return this.dealHttp.list().pipe(map((rows) => rows.map(mapDealApiDtoToRow)));
+    return this.dealHttp.list().pipe(map((rows) => rows.map(mapDealNormalizedToRow)));
   }
 
   getById(id: number): Observable<DealRow | null> {
@@ -39,7 +39,7 @@ export class DealsService {
       const row = this.local.getById('deals', id);
       return of(row ? mapDeal(row) : null);
     }
-    return this.dealHttp.getById(id).pipe(map((dto) => (dto ? mapDealApiDtoToRow(dto) : null)));
+    return this.dealHttp.getById(id).pipe(map((dto) => (dto ? mapDealNormalizedToRow(dto) : null)));
   }
 
   create(data: Omit<DealRow, 'id'>): Observable<DealRow> {
@@ -47,7 +47,7 @@ export class DealsService {
       return of(mapDeal(this.local.create('deals', data as Record<string, unknown>)));
     }
     const body = dealCreatePayloadToApiJson(data);
-    return this.dealHttp.create(body).pipe(map(mapDealApiDtoToRow));
+    return this.dealHttp.create(body).pipe(map(mapDealNormalizedToRow));
   }
 
   update(id: number, data: Partial<Omit<DealRow, 'id'>>): Observable<DealRow | null> {
@@ -59,7 +59,7 @@ export class DealsService {
       switchMap((prev) => {
         if (!prev) return of(null);
         const body = mergeDealApiDtoWithRowPatch(prev, data);
-        return this.dealHttp.put(id, body).pipe(map(mapDealApiDtoToRow));
+        return this.dealHttp.put(id, body).pipe(map(mapDealNormalizedToRow));
       }),
     );
   }

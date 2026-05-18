@@ -1,5 +1,5 @@
 import type { DealPipelineStatus, DealRow } from '../../../features/deals/deals.component';
-import type { DealApiDto } from './deal-api.models';
+import type { DealNormalized, DealUpsertDto } from './deal-api.models';
 
 const PIPELINE: DealPipelineStatus[] = [
   'Qualification',
@@ -13,6 +13,21 @@ const PIPELINE: DealPipelineStatus[] = [
 function coerceDealStatus(raw: string | undefined | null): DealPipelineStatus {
   const s = (raw ?? 'Qualification').trim();
   return (PIPELINE.includes(s as DealPipelineStatus) ? s : 'Qualification') as DealPipelineStatus;
+}
+
+function readMasterName(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'string') return v.trim();
+  if (typeof v === 'object' && v !== null && 'name' in v) {
+    return String((v as { name?: unknown }).name ?? '').trim();
+  }
+  return '';
+}
+
+function readOptionalInt(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'number' ? v : Number(String(v).trim());
+  return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
 /** Human-friendly label for the deals table (API sends ISO `lastModified`). */
@@ -35,143 +50,217 @@ export function formatDealLastModifiedLabel(iso: string | undefined | null): str
   }
 }
 
-export function parseOptionalPositiveInt(v: string | number | undefined | null): number {
-  if (v == null || String(v).trim() === '') return 0;
+export function parseOptionalPositiveInt(v: string | number | undefined | null): number | null {
+  if (v == null || String(v).trim() === '') return null;
   const n = typeof v === 'number' ? v : Number(String(v).trim());
-  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : 0;
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
 }
 
-/** Maps UI `dealOwnerId` (numeric string or initials) onto API ints; preserves `previous` when the UI value is non-numeric. */
-function parseOwnerIdFromRow(s: string | undefined | null, previous: number): number {
-  if (s == null) return previous;
-  const t = String(s).trim();
-  if (t === '') return 0;
-  const n = Number(t);
-  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : previous;
-}
+/** Flattens nested `GET /api/deals` payloads into {@link DealNormalized}. */
+export function normalizeDealApiRecord(raw: unknown): DealNormalized {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const id = readOptionalInt(r['id']) ?? 0;
 
-export function mapDealApiDtoToRow(dto: DealApiDto): DealRow {
-  const id = String(dto.id);
-  const emailRaw = dto.email?.trim() ?? '';
-  const mobileRaw = dto.mobile?.trim() ?? '';
-  const prob = dto.probabilityPercent;
+  const orgRaw = r['organization'];
+  let organizationId = readOptionalInt(r['organizationId']);
+  let organizationName = String(r['organizationName'] ?? '').trim();
+  let industry = readMasterName(r['industry']);
+  let territory = readMasterName(r['territory']);
+  let employees = String(r['employees'] ?? readMasterName(r['employeeCount'])).trim();
+  let annualRevenue = readOptionalInt(r['annualRevenue']);
+  let website = String(r['website'] ?? '').trim();
+
+  if (orgRaw != null && typeof orgRaw === 'object') {
+    const o = orgRaw as Record<string, unknown>;
+    organizationId = organizationId ?? readOptionalInt(o['id']);
+    organizationName = String(o['name'] ?? organizationName).trim();
+    industry = readMasterName(o['industry']) || industry;
+    territory = readMasterName(o['territory']) || territory;
+    employees = readMasterName(o['employeeCount']) || employees;
+    const rev = o['annualRevenue'];
+    if (rev != null && Number.isFinite(Number(rev))) annualRevenue = Number(rev);
+    website = String(o['website'] ?? website).trim();
+  } else if (typeof orgRaw === 'string') {
+    organizationName = orgRaw.trim();
+  }
+
+  const statusRaw = r['dealStatus'] ?? r['status'];
+  const status =
+    readMasterName(statusRaw) || (typeof statusRaw === 'string' ? statusRaw.trim() : 'Qualification');
+
+  const prob = r['probabilityPercent'];
   const probabilityPercent =
-    prob != null && Number.isFinite(Number(prob)) ? Number(prob) : 10;
+    prob != null && Number.isFinite(Number(prob)) ? Number(prob) : null;
 
-  const assignedInitials = dto.assignedInitials?.trim() ?? '';
+  return {
+    id,
+    organizationId,
+    contactId: readOptionalInt(r['contactId']),
+    organizationName,
+    salutation: readMasterName(r['salutation']) || String(r['salutation'] ?? '').trim(),
+    firstName: String(r['firstName'] ?? '').trim(),
+    lastName: String(r['lastName'] ?? '').trim(),
+    email: String(r['email'] ?? '').trim(),
+    mobile: String(r['mobile'] ?? '').trim(),
+    gender: String(r['gender'] ?? '').trim(),
+    annualRevenue,
+    employees: employees || '1-10',
+    website,
+    territory,
+    industry: industry || 'Technology',
+    status,
+    dealOwnerId: readOptionalInt(r['dealOwnerId']),
+    assignedToUserId: readOptionalInt(r['assignedToUserId']),
+    assignedInitials: String(r['assignedInitials'] ?? '').trim(),
+    relatedContactId: readOptionalInt(r['relatedContactId']),
+    relatedOrganizationId: readOptionalInt(r['relatedOrganizationId']),
+    probabilityPercent,
+    nextStep: String(r['nextStep'] ?? '').trim(),
+    lastModified: String(r['lastModified'] ?? r['updatedAt'] ?? '').trim(),
+  };
+}
+
+export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
+  const id = String(dto.id);
+  const probabilityPercent = dto.probabilityPercent ?? 10;
+  const assignedInitials = dto.assignedInitials ?? '';
+  const assignedToUserId = dto.assignedToUserId ?? 0;
   const assignedTo =
-    dto.assignedToUserId > 0 && assignedInitials
+    assignedToUserId > 0 && assignedInitials
       ? assignedInitials
-      : dto.assignedToUserId > 0
-        ? `User #${dto.assignedToUserId}`
+      : assignedToUserId > 0
+        ? `User #${assignedToUserId}`
         : assignedInitials;
 
   const out: DealRow = {
     id,
     organizationName: dto.organizationName ?? '',
     employees: dto.employees?.trim() ? dto.employees : '1-10',
-    annualRevenue: Number.isFinite(Number(dto.annualRevenue)) ? Number(dto.annualRevenue) : 0,
-    website: dto.website?.trim() ? dto.website : '',
-    territory: dto.territory?.trim() ? dto.territory : '',
-    industry: dto.industry?.trim() ? dto.industry : 'Technology',
-    salutation: dto.salutation?.trim() ? dto.salutation : '',
-    firstName: dto.firstName?.trim() ? dto.firstName : '',
-    lastName: dto.lastName?.trim() ? dto.lastName : '',
-    email: emailRaw,
-    mobile: mobileRaw,
-    gender: dto.gender?.trim() ? dto.gender : '',
+    annualRevenue:
+      dto.annualRevenue != null && Number.isFinite(dto.annualRevenue) ? dto.annualRevenue : 0,
+    website: dto.website ?? '',
+    territory: dto.territory ?? '',
+    industry: dto.industry ?? 'Technology',
+    salutation: dto.salutation ?? '',
+    firstName: dto.firstName ?? '',
+    lastName: dto.lastName ?? '',
+    email: dto.email ?? '',
+    mobile: dto.mobile ?? '',
+    gender: dto.gender ?? '',
     status: coerceDealStatus(dto.status),
-    dealOwnerId: dto.dealOwnerId > 0 ? String(dto.dealOwnerId) : '',
+    dealOwnerId: dto.dealOwnerId != null && dto.dealOwnerId > 0 ? String(dto.dealOwnerId) : '',
     assignedTo,
     assignedInitials,
     lastModified: formatDealLastModifiedLabel(dto.lastModified),
     probabilityPercent,
-    nextStep: dto.nextStep?.trim() ? dto.nextStep : '',
+    nextStep: dto.nextStep ?? '',
   };
 
-  if (dto.relatedContactId > 0) {
+  if (dto.relatedContactId != null && dto.relatedContactId > 0) {
     out.relatedContactId = String(dto.relatedContactId);
   }
-  if (dto.relatedOrganizationId > 0) {
+  if (dto.relatedOrganizationId != null && dto.relatedOrganizationId > 0) {
     out.relatedOrganizationId = String(dto.relatedOrganizationId);
   }
   return out;
+}
+
+/** @deprecated Use {@link mapDealNormalizedToRow} after {@link normalizeDealApiRecord}. */
+export function mapDealApiDtoToRow(dto: DealNormalized): DealRow {
+  return mapDealNormalizedToRow(dto);
 }
 
 export function mergeDealRowPatch(row: DealRow, patch: Partial<Omit<DealRow, 'id'>>): DealRow {
   return { ...row, ...patch, id: row.id };
 }
 
-/**
- * Merges a UI patch onto the last known API DTO so PUT sends a full model without
- * dropping server-only ids (`organizationId`, `contactId`, `assignedToUserId`, …).
- */
-export function mergeDealApiDtoWithRowPatch(
-  previous: DealApiDto,
-  patch: Partial<Omit<DealRow, 'id'>>,
-): DealApiDto {
-  const row = mergeDealRowPatch(mapDealApiDtoToRow(previous), patch);
-  const prob = row.probabilityPercent ?? 10;
-  const emailForApi = row.email === '—' ? '' : (row.email ?? '');
-  const mobileForApi = row.mobile === '—' ? '' : (row.mobile ?? '');
-  const nextDealOwnerId = parseOwnerIdFromRow(row.dealOwnerId, previous.dealOwnerId);
-  const initials = (row.assignedInitials ?? '').trim();
-  const assignedToUserId =
-    nextDealOwnerId === 0 && initials === '' ? 0 : previous.assignedToUserId;
+function parseOwnerIdFromRow(s: string | undefined | null, previous: number | null): number | null {
+  if (s == null) return previous;
+  const t = String(s).trim();
+  if (t === '') return null;
+  const n = Number(t);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : previous;
+}
 
+function normalizedToUpsertDto(n: DealNormalized, idOverride?: number): DealUpsertDto {
   return {
-    ...previous,
-    organizationName: row.organizationName ?? previous.organizationName,
-    salutation: row.salutation ?? '',
-    firstName: row.firstName ?? '',
-    lastName: row.lastName ?? '',
-    email: emailForApi,
-    mobile: mobileForApi,
-    gender: row.gender ?? '',
-    annualRevenue: Number.isFinite(row.annualRevenue) ? row.annualRevenue : 0,
-    employees: row.employees ?? '',
-    website: row.website ?? '',
-    territory: row.territory ?? '',
-    industry: row.industry ?? '',
-    status: row.status ?? 'Qualification',
-    dealOwnerId: nextDealOwnerId,
-    assignedToUserId,
-    assignedInitials: row.assignedInitials ?? '',
-    relatedContactId: parseOptionalPositiveInt(row.relatedContactId) || previous.relatedContactId,
-    relatedOrganizationId:
-      parseOptionalPositiveInt(row.relatedOrganizationId) || previous.relatedOrganizationId,
-    probabilityPercent: Number.isFinite(prob) ? prob : 10,
-    nextStep: row.nextStep ?? '',
-    lastModified: new Date().toISOString(),
+    id: idOverride ?? n.id,
+    organizationId: n.organizationId,
+    contactId: n.contactId,
+    organizationName: n.organizationName || null,
+    salutation: n.salutation || null,
+    firstName: n.firstName || null,
+    lastName: n.lastName || null,
+    email: n.email || null,
+    mobile: n.mobile || null,
+    gender: n.gender || null,
+    annualRevenue: n.annualRevenue,
+    employees: n.employees || null,
+    website: n.website || null,
+    territory: n.territory || null,
+    industry: n.industry || null,
+    status: n.status || null,
+    dealOwnerId: n.dealOwnerId,
+    assignedToUserId: n.assignedToUserId,
+    assignedInitials: n.assignedInitials || null,
+    relatedContactId: n.relatedContactId,
+    relatedOrganizationId: n.relatedOrganizationId,
+    probabilityPercent: n.probabilityPercent,
+    nextStep: n.nextStep || null,
   };
 }
 
-/** JSON body for `POST /api/deals` (server assigns `id`). */
-export function dealCreatePayloadToApiJson(row: Omit<DealRow, 'id'>): DealApiDto {
+function rowToNormalized(row: DealRow, previous?: DealNormalized): DealNormalized {
+  const annual =
+    Number.isFinite(row.annualRevenue) && row.annualRevenue !== 0 ? row.annualRevenue : null;
   return {
-    id: 0,
-    organizationId: 0,
-    contactId: 0,
+    id: previous?.id ?? (Number.isFinite(Number(row.id)) ? Number(row.id) : 0),
+    organizationId: previous?.organizationId ?? null,
+    contactId: previous?.contactId ?? null,
     organizationName: row.organizationName ?? '',
     salutation: row.salutation ?? '',
     firstName: row.firstName ?? '',
     lastName: row.lastName ?? '',
-    email: row.email ?? '',
-    mobile: row.mobile ?? '',
+    email: row.email === '—' ? '' : (row.email ?? ''),
+    mobile: row.mobile === '—' ? '' : (row.mobile ?? ''),
     gender: row.gender ?? '',
-    annualRevenue: Number.isFinite(row.annualRevenue) ? row.annualRevenue : 0,
-    employees: row.employees ?? '',
-    website: row.website ?? '',
-    territory: row.territory ?? '',
-    industry: row.industry ?? '',
-    status: row.status ?? 'Qualification',
-    dealOwnerId: parseOptionalPositiveInt(row.dealOwnerId),
-    assignedToUserId: 0,
-    assignedInitials: row.assignedInitials ?? '',
-    relatedContactId: parseOptionalPositiveInt(row.relatedContactId),
-    relatedOrganizationId: parseOptionalPositiveInt(row.relatedOrganizationId),
-    probabilityPercent: row.probabilityPercent ?? 10,
-    nextStep: row.nextStep ?? '',
-    lastModified: new Date().toISOString(),
+    annualRevenue: annual ?? previous?.annualRevenue ?? null,
+    employees: row.employees ?? previous?.employees ?? '1-10',
+    website: row.website ?? previous?.website ?? '',
+    territory: row.territory ?? previous?.territory ?? '',
+    industry: row.industry ?? previous?.industry ?? 'Technology',
+    status: row.status ?? previous?.status ?? 'Qualification',
+    dealOwnerId: parseOwnerIdFromRow(row.dealOwnerId, previous?.dealOwnerId ?? null),
+    assignedToUserId: previous?.assignedToUserId ?? null,
+    assignedInitials: row.assignedInitials ?? previous?.assignedInitials ?? '',
+    relatedContactId:
+      parseOptionalPositiveInt(row.relatedContactId) ?? previous?.relatedContactId ?? null,
+    relatedOrganizationId:
+      parseOptionalPositiveInt(row.relatedOrganizationId) ??
+      previous?.relatedOrganizationId ??
+      null,
+    probabilityPercent: row.probabilityPercent ?? previous?.probabilityPercent ?? 10,
+    nextStep: row.nextStep ?? previous?.nextStep ?? '',
+    lastModified: previous?.lastModified ?? new Date().toISOString(),
   };
+}
+
+export function mergeDealApiDtoWithRowPatch(
+  previous: DealNormalized,
+  patch: Partial<Omit<DealRow, 'id'>>,
+): DealUpsertDto {
+  const row = mergeDealRowPatch(mapDealNormalizedToRow(previous), patch);
+  const merged = rowToNormalized(row, previous);
+  const initials = (row.assignedInitials ?? '').trim();
+  if (parseOwnerIdFromRow(row.dealOwnerId, null) == null && initials === '') {
+    merged.assignedToUserId = null;
+  }
+  return normalizedToUpsertDto(merged, previous.id);
+}
+
+/** JSON body for `POST /api/deals`. */
+export function dealCreatePayloadToApiJson(row: Omit<DealRow, 'id'>): DealUpsertDto {
+  const synthetic: DealRow = { ...row, id: '0', lastModified: row.lastModified ?? '' };
+  const normalized = rowToNormalized(synthetic);
+  return normalizedToUpsertDto({ ...normalized, id: 0 }, 0);
 }

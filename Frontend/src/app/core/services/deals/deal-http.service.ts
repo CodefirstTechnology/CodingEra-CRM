@@ -4,27 +4,20 @@ import { Observable, of, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
-import type { DealApiDto } from './deal-api.models';
+import { normalizeDealApiRecord } from './deal-api.mapper';
+import type { DealNormalized, DealUpsertDto } from './deal-api.models';
 
-/** Accepts a bare array or common ASP.NET / OData wrappers. */
-function extractDealDtos(raw: unknown): DealApiDto[] {
-  if (Array.isArray(raw)) {
-    return raw.filter((x): x is DealApiDto => x != null && typeof x === 'object');
-  }
+function extractDealRecords(raw: unknown): unknown[] {
+  if (Array.isArray(raw)) return raw;
   if (raw != null && typeof raw === 'object' && !Array.isArray(raw)) {
     const o = raw as Record<string, unknown>;
     const keys = ['data', 'items', 'value', 'result', 'deals', 'Deals', 'Data', 'Items', '$values'];
     for (const k of keys) {
       const v = o[k];
-      if (Array.isArray(v)) {
-        return v.filter((x): x is DealApiDto => x != null && typeof x === 'object');
-      }
+      if (Array.isArray(v)) return v;
     }
     for (const v of Object.values(o)) {
-      if (Array.isArray(v)) {
-        const rows = v.filter((x): x is DealApiDto => x != null && typeof x === 'object');
-        if (rows.length > 0) return rows;
-      }
+      if (Array.isArray(v) && v.length > 0) return v;
     }
   }
   return [];
@@ -49,26 +42,31 @@ export class DealHttpService {
     return h;
   }
 
-  list(): Observable<DealApiDto[]> {
+  list(): Observable<DealNormalized[]> {
     return this.http.get<unknown>(this.baseUrl, { headers: this.jsonHeaders() }).pipe(
-      map((raw) => extractDealDtos(raw)),
+      map((raw) => extractDealRecords(raw).map((item) => normalizeDealApiRecord(item))),
     );
   }
 
-  getById(id: number): Observable<DealApiDto | null> {
-    return this.http.get<DealApiDto>(`${this.baseUrl}/${id}`, { headers: this.jsonHeaders() }).pipe(
+  getById(id: number): Observable<DealNormalized | null> {
+    return this.http.get<unknown>(`${this.baseUrl}/${id}`, { headers: this.jsonHeaders() }).pipe(
+      map((raw) => (raw != null ? normalizeDealApiRecord(raw) : null)),
       catchError((err: HttpErrorResponse) =>
         err.status === 404 ? of(null) : throwError(() => err),
       ),
     );
   }
 
-  create(body: DealApiDto): Observable<DealApiDto> {
-    return this.http.post<DealApiDto>(this.baseUrl, body, { headers: this.jsonHeaders() });
+  create(body: DealUpsertDto): Observable<DealNormalized> {
+    return this.http
+      .post<unknown>(this.baseUrl, body, { headers: this.jsonHeaders() })
+      .pipe(map((raw) => normalizeDealApiRecord(raw)));
   }
 
-  put(id: number, body: DealApiDto): Observable<DealApiDto> {
-    return this.http.put<DealApiDto>(`${this.baseUrl}/${id}`, body, { headers: this.jsonHeaders() });
+  put(id: number, body: DealUpsertDto): Observable<DealNormalized> {
+    return this.http
+      .put<unknown>(`${this.baseUrl}/${id}`, body, { headers: this.jsonHeaders() })
+      .pipe(map((raw) => normalizeDealApiRecord(raw)));
   }
 
   delete(id: number): Observable<void> {
