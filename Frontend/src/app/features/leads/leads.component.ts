@@ -187,12 +187,11 @@ export class LeadsComponent {
     { id: 'TradeIndia', label: 'TradeIndia' },
   ];
 
-  private readonly requiredColumnIds = new Set(['name', 'email', 'leadSource']);
+  private readonly requiredColumnIds = new Set(['name', 'leadSource']);
   private readonly selectedColumnIds = signal<string[]>([
     'name',
     'leadSource',
     'organization',
-    'email',
     'status',
     'owner',
   ]);
@@ -589,33 +588,6 @@ export class LeadsComponent {
     this.beginEditFromRoute(ids[0]);
   }
 
-  protected onBulkDelete(): void {
-    const ids = this.sel.selectedItems();
-    if (ids.length === 0) return;
-    const streams = ids.map((sid) => {
-      const imId = parseIndiamartNumericIdFromRowId(sid);
-      if (imId != null) {
-        return of(null).pipe(tap(() => this.indiamartLeadsService.deleteLead(imId)));
-      }
-      const jdId = parseJustdialNumericIdFromRowId(sid);
-      if (jdId != null) {
-        return of(null).pipe(tap(() => this.justdialLeadsService.deleteLead(jdId)));
-      }
-      const tiId = parseTradeIndiaNumericIdFromRowId(sid);
-      if (tiId != null) {
-        return of(null).pipe(tap(() => this.tradeindiaLeadsService.deleteLead(tiId)));
-      }
-      return this.leadsService.delete(Number(sid)).pipe(take(1));
-    });
-    forkJoin(streams).subscribe({
-      next: () => {
-        this.sel.clear();
-        this.refreshLeads();
-      },
-      error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
-    });
-  }
-
   protected onBulkDismiss(): void {
     this.sel.clear();
   }
@@ -981,40 +953,6 @@ export class LeadsComponent {
           error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
         });
     }
-  }
-
-  protected deleteLead(row: LeadRow, ev: Event): void {
-    ev.stopPropagation();
-    const imId = parseIndiamartNumericIdFromRowId(row.id);
-    if (imId != null) {
-      this.indiamartLeadsService.deleteLead(imId);
-      this.sel.removeId(row.id);
-      return;
-    }
-    const jdId = parseJustdialNumericIdFromRowId(row.id);
-    if (jdId != null) {
-      this.justdialLeadsService.deleteLead(jdId);
-      this.sel.removeId(row.id);
-      return;
-    }
-    const tiId = parseTradeIndiaNumericIdFromRowId(row.id);
-    if (tiId != null) {
-      this.tradeindiaLeadsService.deleteLead(tiId);
-      this.sel.removeId(row.id);
-      return;
-    }
-    const id = Number(row.id);
-    if (!Number.isFinite(id)) return;
-    this.leadsService
-      .delete(id)
-      .pipe(take(1))
-      .subscribe({
-        next: () => {
-          this.sel.removeId(row.id);
-          this.refreshLeads();
-        },
-        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
-      });
   }
 
   protected onIndiaMartStatusChange(row: LeadRow, ev: Event): void {

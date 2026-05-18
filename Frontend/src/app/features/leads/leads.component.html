@@ -64,8 +64,8 @@
     [convertLeadEnabled]="bulkConvertEnabled()"
     [showAssignActions]="true"
     [showConvertLead]="true"
+    [showDelete]="false"
     (edit)="onBulkEdit()"
-    (delete)="onBulkDelete()"
     (assignTo)="onAssignToMenu()"
     (clearAssignment)="onClearAssignmentBulk()"
     (convertToDeal)="convertToDeal()"
@@ -362,7 +362,7 @@
         </button>
         @if (columnMenuOpen()) {
           <div class="leads__columns-menu" role="menu" aria-label="Choose lead table columns">
-            <p class="leads__columns-help">Name, email, and source are required.</p>
+            <p class="leads__columns-help">Name and source are required.</p>
             @for (column of columnOptions(); track column.id) {
               <label class="leads__column-option" [class.is-required]="column.required">
                 <input
@@ -403,7 +403,6 @@
               @for (column of visibleColumns(); track column.id) {
                 <th>{{ column.label }}</th>
               }
-              <th class="hide-narrow">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -494,9 +493,6 @@
                     }
                   </td>
                 }
-                <td class="hide-narrow">
-                  <button type="button" class="leads__linkish" (click)="deleteLead(row, $event)">Delete</button>
-                </td>
               </tr>
             }
           </tbody>
