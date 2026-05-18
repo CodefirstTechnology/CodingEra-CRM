@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { concat, concatMap, defaultIfEmpty, forkJoin, of, last, take, tap } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
@@ -81,7 +81,13 @@ interface LeadColumnOption {
 
 @Component({
   selector: 'app-leads',
-  imports: [ReactiveFormsModule, RouterLink, CrmSelectionBarComponent, CrmAssignPickerComponent],
+  imports: [
+    ReactiveFormsModule,
+    FormsModule,
+    RouterLink,
+    CrmSelectionBarComponent,
+    CrmAssignPickerComponent,
+  ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
 })
@@ -677,44 +683,54 @@ export class LeadsComponent {
     });
   }
 
-  protected onLeadOwnerChange(row: LeadRow, ev: Event): void {
-    ev.stopPropagation();
+  protected resolveOwnerSelectValue(row: LeadRow): string {
+    return this.leadOwnerOpts.resolveSelectValue(row);
+  }
+
+  protected onLeadOwnerSelectChange(row: LeadRow, ownerKey: string): void {
     if (!isPersistedApiLeadRow(row.id)) return;
     const idn = Number(row.id);
     if (!Number.isFinite(idn)) return;
 
-    const ownerKey = (ev.target as HTMLSelectElement).value;
-    if (!ownerKey) {
-      this.leadsService
-        .update(idn, {
-          leadOwnerId: '',
-          leadOwnerName: '—',
-          owner: '—',
-          updated: 'Just now',
-        })
-        .pipe(take(1))
-        .subscribe({
-          next: () => this.refreshLeads(),
-          error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
-        });
-      return;
-    }
+    const patch = !ownerKey
+      ? { leadOwnerId: '', leadOwnerName: '—', owner: '—', updated: 'Just now' }
+      : (() => {
+          const opt = this.leadOwnerOpts.findById(ownerKey);
+          if (!opt) return null;
+          return {
+            leadOwnerId: opt.id,
+            leadOwnerName: opt.label,
+            owner: opt.initials,
+            updated: 'Just now',
+          };
+        })();
 
-    const opt = this.leadOwnerOpts.findById(ownerKey);
-    if (!opt) return;
+    if (!patch) return;
+
+    this.patchLeadRowInList(String(idn), patch);
 
     this.leadsService
-      .update(idn, {
-        leadOwnerId: opt.id,
-        leadOwnerName: opt.label,
-        owner: opt.initials,
-        updated: 'Just now',
-      })
+      .update(idn, patch)
       .pipe(take(1))
       .subscribe({
-        next: () => this.refreshLeads(),
-        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+        next: (updated) => {
+          if (updated) {
+            this.patchLeadRowInList(String(idn), updated);
+          } else {
+            this.refreshLeads();
+          }
+        },
+        error: (e: unknown) => {
+          this.refreshLeads();
+          this.toast.show(leadsHttpErrorMessage(e));
+        },
       });
+  }
+
+  private patchLeadRowInList(id: string, patch: Partial<LeadRow>): void {
+    this.manualRows.update((rows) =>
+      rows.map((r) => (r.id === id ? this.leadOwnerOpts.applyOwnerToRow({ ...r, ...patch }) : r)),
+    );
   }
 
   protected convertToDeal(): void {

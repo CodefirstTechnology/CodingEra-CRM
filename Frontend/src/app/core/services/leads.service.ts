@@ -10,6 +10,7 @@ import {
   mergeLeadApiDtoWithRowPatch,
 } from './leads/lead-api.mapper';
 import type { LeadUpsertDto } from './leads/lead-api.models';
+import { buildLeadPutJson } from './leads/lead-upsert-body.util';
 import { LeadHttpService } from './leads/lead-http.service';
 
 /** Maps failed lead HTTP calls to a short user-facing message. */
@@ -79,10 +80,11 @@ export class LeadsService {
               organizationId != null
                 ? { ...prev, organizationId, organizationName: patch.organization?.trim() || prev.organizationName }
                 : prev;
-            const body = mergeLeadApiDtoWithRowPatch(prevForMerge, patch);
+            const dto = mergeLeadApiDtoWithRowPatch(prevForMerge, patch);
             if (organizationId != null && organizationId > 0) {
-              body.organizationId = organizationId;
+              dto.organizationId = organizationId;
             }
+            const body = buildLeadPutJson(dto, prevForMerge);
             return this.leadHttp.put(id, body).pipe(map(mapLeadNormalizedToRow));
           }),
         );

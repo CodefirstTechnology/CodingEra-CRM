@@ -52,7 +52,21 @@ export class LeadOwnerOptionsService {
 
   findById(id: string | undefined | null): LeadOwnerOption | undefined {
     if (id == null || !String(id).trim()) return undefined;
-    return this.optionsSignal().find((o) => o.id === String(id).trim());
+    const want = String(id).trim();
+    return this.optionsSignal().find((o) => this.idsMatch(o.id, want));
+  }
+
+  findByLabel(label: string | undefined | null): LeadOwnerOption | undefined {
+    const want = label?.trim().toLowerCase();
+    if (!want) return undefined;
+    return this.optionsSignal().find((o) => o.label.trim().toLowerCase() === want);
+  }
+
+  private idsMatch(a: string, b: string): boolean {
+    if (a === b) return true;
+    const an = Number(a);
+    const bn = Number(b);
+    return Number.isFinite(an) && Number.isFinite(bn) && an === bn;
   }
 
   defaultOwnerId(): string {
@@ -65,14 +79,32 @@ export class LeadOwnerOptionsService {
   }
 
   applyOwnerToRow(row: LeadRow): LeadRow {
-    const opt = row.leadOwnerId ? this.findById(row.leadOwnerId) : undefined;
+    let ownerId = row.leadOwnerId?.trim() || undefined;
+    let opt = ownerId ? this.findById(ownerId) : undefined;
+    if (!opt && row.leadOwnerName?.trim()) {
+      opt = this.findByLabel(row.leadOwnerName);
+      if (opt) ownerId = opt.id;
+    }
     if (opt) {
-      return { ...row, leadOwnerName: opt.label, owner: opt.initials };
+      return {
+        ...row,
+        leadOwnerId: ownerId ?? opt.id,
+        leadOwnerName: opt.label,
+        owner: opt.initials,
+      };
     }
     if (row.leadOwnerId && row.leadOwnerName.startsWith('User #')) {
       return { ...row, leadOwnerName: '', owner: '' };
     }
     return row;
+  }
+
+  /** Value for &lt;select&gt; when API returns owner name but not id on list GET. */
+  resolveSelectValue(row: LeadRow): string {
+    const id = row.leadOwnerId?.trim();
+    if (id && this.findById(id)) return id;
+    const byName = this.findByLabel(row.leadOwnerName);
+    return byName?.id ?? id ?? '';
   }
 
   enrichRows(rows: readonly LeadRow[]): LeadRow[] {

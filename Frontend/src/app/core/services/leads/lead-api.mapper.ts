@@ -47,6 +47,37 @@ function readOptionalInt(v: unknown): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
+/** Resolves lead owner FK from flat or nested API shapes (list vs detail). */
+function readLeadOwnerFk(r: Record<string, unknown>): number | null {
+  for (const key of [
+    'leadOwnerId',
+    'LeadOwnerId',
+    'assignedToUserId',
+    'AssignedToUserId',
+    'ownerId',
+    'OwnerId',
+    'assignedUserId',
+  ]) {
+    const n = readOptionalInt(r[key]);
+    if (n != null && n > 0) return n;
+  }
+  for (const key of ['leadOwner', 'assignedTo', 'owner', 'AssignedTo']) {
+    const nested = r[key];
+    if (nested == null) continue;
+    if (typeof nested === 'number' || typeof nested === 'string') {
+      const n = readOptionalInt(nested);
+      if (n != null && n > 0) return n;
+      continue;
+    }
+    if (typeof nested === 'object') {
+      const o = nested as Record<string, unknown>;
+      const n = readOptionalInt(o['id'] ?? o['Id'] ?? o['userId'] ?? o['UserId']);
+      if (n != null && n > 0) return n;
+    }
+  }
+  return null;
+}
+
 /** Human-friendly “last updated” label for the leads table and detail UI. */
 export function formatLeadUpdatedLabel(iso: string | undefined | null): string {
   if (iso == null || String(iso).trim() === '') return '—';
@@ -188,7 +219,7 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
     requestTypeId,
     requestTypeName,
     notes: String(r['notes'] ?? '').trim(),
-    leadOwnerId: readOptionalInt(r['leadOwnerId']) ?? readMasterId(r['leadOwner']),
+    leadOwnerId: readLeadOwnerFk(r),
     leadOwnerName: readLeadOwnerDisplayName(r),
     leadSource: String(r['leadSource'] ?? r['source'] ?? '').trim(),
     updatedAt,
@@ -261,7 +292,7 @@ function normalizedToUpsertDto(n: LeadNormalized, idOverride?: number): LeadUpse
     firstName: n.firstName,
     lastName: n.lastName,
     salutationId: n.salutationId,
-    gender: n.gender || null,
+    gender: n.gender?.trim() || null,
     mobile: n.mobile || null,
     email: n.email || null,
     organizationId: n.organizationId,
@@ -290,7 +321,7 @@ function rowToNormalized(row: LeadRow, previous?: LeadNormalized): LeadNormalize
     lastName: row.lastName ?? '',
     salutationId: row.salutationId ?? previous?.salutationId ?? null,
     salutationName: row.salutation ?? previous?.salutationName ?? '',
-    gender: row.gender ?? '',
+    gender: row.gender?.trim() || previous?.gender?.trim() || '',
     mobile: row.mobile ?? '',
     email: row.email ?? '',
     organizationId: previous?.organizationId ?? null,

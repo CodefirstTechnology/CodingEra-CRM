@@ -469,8 +469,8 @@
                         @if (isPersistedApiLeadRow(row.id) && leadOwnerOptions().length > 0) {
                           <select
                             class="leads__owner-select"
-                            [value]="row.leadOwnerId ?? ''"
-                            (change)="onLeadOwnerChange(row, $event)"
+                            [ngModel]="resolveOwnerSelectValue(row)"
+                            (ngModelChange)="onLeadOwnerSelectChange(row, $event)"
                             (click)="$event.stopPropagation()"
                             [attr.aria-label]="'Lead owner for ' + row.name"
                           >
