@@ -27,7 +27,10 @@ export const environment = {
   useLiveCallLogsApi: false,
   /** When `useMockData` is true, set true to load/save deals via `apiUrl` (see `DealsService`). */
   useLiveDealsApi: false,
+  useLiveOrganizationsApi: false,
   apiUrl: '/api',
+  persistMarketplaceLeadsToDb: true,
+  marketplaceLeadSourceForApi: 'Website',
   /** After lead → deal: `'mark-converted'` sets lead status to Converted; `'delete'` removes the lead. */
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
   /** If true, shows `window.alert` after a successful convert (no new UI components). */

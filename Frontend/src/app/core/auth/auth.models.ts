@@ -5,10 +5,21 @@ export interface UserSession {
   role: string;
 }
 
-/** Sent to POST /auth/register — password is never persisted on the client. Role is always `User`. */
+/** Sent to POST /auth/register — password is never persisted on the client. */
 export interface RegisterPayload {
   fullName: string;
   email: string;
   password: string;
   phone?: string;
+  /** Maps to Swagger `roleId` (e.g. `1` for default “User” role in master data). Omit/null if the API assigns a default. */
+  roleId?: number | null;
+}
+
+/** Body for `POST /api/auth/register` per Swagger `RegisterRequest`. */
+export interface RegisterApiRequest {
+  fullName: string;
+  email: string;
+  phone?: string | null;
+  password: string;
+  roleId?: number | null;
 }

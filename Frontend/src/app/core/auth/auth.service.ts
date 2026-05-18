@@ -1,15 +1,16 @@
-import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, firstValueFrom, Observable, of, switchMap, timeout } from 'rxjs';
 import { map } from 'rxjs/operators';
+import { extractMasterDataRows, pickRegisterRoleId } from './auth-register.util';
 import { environment } from '../../../environments/environment';
 import { CreateFlowService } from '../create-flow/create-flow.service';
 import { ProfilePanelService } from '../profile/profile-panel.service';
 import { ToastService } from '../toast/toast.service';
 import { AUTH_LEGACY_KEYS, AUTH_TOKEN_KEY, AUTH_USER_KEY } from './auth.constants';
 import { maskEmail, writeLoginLog } from './login-log';
-import type { RegisterPayload, UserSession } from './auth.models';
+import type { RegisterApiRequest, RegisterPayload, UserSession } from './auth.models';
 
 export interface LoginResult {
   ok: boolean;
@@ -233,34 +234,112 @@ export class AuthService {
       return of({ ok: true });
     }
 
+    return this.resolveRegisterRoleId(base, payload.roleId).pipe(
+      switchMap((roleId) => {
+        if (roleId == null) {
+          return of({
+            ok: false as const,
+            error:
+              'No role configured for registration. Add a role in Master Data or set registerRoleId in environment.development.ts.',
+          });
+        }
+
+        const body: RegisterApiRequest = {
+          fullName: payload.fullName.trim(),
+          email: trimmed,
+          password: payload.password,
+          roleId,
+        };
+        const phone = payload.phone?.trim();
+        if (phone) body.phone = phone;
+
+        return this.http.post<unknown>(`${base}/auth/register`, body).pipe(
+          timeout(15000),
+          map(() => ({ ok: true as const })),
+          catchError((err: unknown) => of(this.mapRegisterHttpError(err))),
+        );
+      }),
+    );
+  }
+
+  /** Uses env override, then `GET …/MasterData/roles`, then optional payload roleId. */
+  private resolveRegisterRoleId(
+    base: string,
+    fromPayload?: number | null,
+  ): Observable<number | null> {
+    const envRole = (environment as { registerRoleId?: number }).registerRoleId;
+    if (fromPayload != null && fromPayload > 0) return of(fromPayload);
+    if (envRole != null && envRole > 0) return of(envRole);
+
     return this.http
-      .post<unknown>(`${base}/auth/register`, {
-        name: payload.fullName.trim(),
-        email: trimmed,
-        password: payload.password,
-        phone: payload.phone?.trim() || undefined,
-        role: 'User',
+      .get<unknown>(`${base}/MasterData/roles`, {
+        params: new HttpParams().set('activeOnly', 'true'),
       })
       .pipe(
-        timeout(15000),
-        map(() => ({ ok: true as const })),
-        catchError((err: unknown) => {
-          if (err instanceof HttpErrorResponse) {
-            if (err.status === 409) {
-              return of({ ok: false as const, error: 'Email already exists.' });
-            }
-            const body = err.error as { message?: string; error?: string } | null;
-            const msg = typeof body?.message === 'string' ? body.message : body?.error;
-            if (typeof msg === 'string') {
-              const lower = msg.toLowerCase();
-              if (lower.includes('exist') || lower.includes('duplicate') || lower.includes('taken')) {
-                return of({ ok: false as const, error: 'Email already exists.' });
-              }
-            }
-          }
-          return of({ ok: false as const, error: 'Something went wrong. Please try again.' });
-        }),
+        timeout(10000),
+        map((raw) => pickRegisterRoleId(extractMasterDataRows(raw))),
+        catchError(() => of(null)),
       );
+  }
+
+  private mapRegisterHttpError(err: unknown): LoginResult {
+    if (!(err instanceof HttpErrorResponse)) {
+      return { ok: false, error: 'Something went wrong. Please try again.' };
+    }
+    if (err.status === 404) {
+      return {
+        ok: false,
+        error:
+          'Registration API not found. Start the CRM API on https://localhost:7172 and run the app with ng serve (proxy).',
+      };
+    }
+    if (err.status === 409) {
+      return { ok: false, error: 'Email already exists.' };
+    }
+    const detail = this.httpErrorDetail(err);
+    if (detail) {
+      const lower = detail.toLowerCase();
+      if (lower.includes('exist') || lower.includes('duplicate') || lower.includes('taken')) {
+        return { ok: false, error: 'Email already exists.' };
+      }
+      if (err.status === 400) {
+        return { ok: false, error: detail.slice(0, 220) };
+      }
+      if (err.status >= 500) {
+        return {
+          ok: false,
+          error: `Server error (${err.status}): ${detail.slice(0, 220)}`,
+        };
+      }
+      return { ok: false, error: detail.slice(0, 220) };
+    }
+    return { ok: false, error: 'Something went wrong. Please try again.' };
+  }
+
+  private httpErrorDetail(err: HttpErrorResponse): string | null {
+    const body = err.error;
+    if (typeof body === 'string' && body.trim()) return body.trim();
+    if (body && typeof body === 'object') {
+      const o = body as Record<string, unknown>;
+      const errors = o['errors'];
+      if (errors && typeof errors === 'object') {
+        const parts: string[] = [];
+        for (const [field, messages] of Object.entries(errors as Record<string, unknown>)) {
+          if (Array.isArray(messages)) {
+            const text = messages.map((m) => String(m)).join(', ');
+            if (text.trim()) parts.push(`${field}: ${text}`);
+          } else if (messages != null) {
+            parts.push(`${field}: ${String(messages)}`);
+          }
+        }
+        if (parts.length) return parts.join('; ');
+      }
+      for (const key of ['detail', 'title', 'message', 'error']) {
+        const v = o[key];
+        if (typeof v === 'string' && v.trim()) return v.trim();
+      }
+    }
+    return err.message?.trim() || null;
   }
 
   /**

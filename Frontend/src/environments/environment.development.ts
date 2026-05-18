@@ -33,8 +33,19 @@ export const environment = {
    * (Swagger contract). Set `false` to use local demo deals only while the rest of the app stays on mock.
    */
   useLiveDealsApi: true,
+  /** When `useMockData` is true, organizations use `GET/POST /api/organizations` (needed for lead `organizationId`). */
+  useLiveOrganizationsApi: true,
   /** Proxied by `proxy.conf.json` → `https://localhost:7172/api` */
   apiUrl: '/api',
+  /**
+   * When true, IndiaMART / Justdial / TradeIndia leads are POSTed to `GET/POST /api/leads`
+   * and the Leads list loads marketplace rows from the database (not only localStorage).
+   */
+  persistMarketplaceLeadsToDb: true,
+  /** Stored in DB `leadSource` for marketplace imports; platform name remains in lead `notes`. */
+  marketplaceLeadSourceForApi: 'Website',
+  /** Optional FK for `POST /api/auth/register`. Example: `registerRoleId: 1` if auto-resolve from roles fails. */
+  // registerRoleId: 1,
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
   showLeadConvertSuccessMessage: false,
   /**

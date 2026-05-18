@@ -19,6 +19,8 @@ export const environment = {
   useLiveCallLogsApi: true,
   useLiveDealsApi: true,
   apiUrl: '/api',
+  persistMarketplaceLeadsToDb: true,
+  marketplaceLeadSourceForApi: 'Website',
   usersListPath: '',
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
   showLeadConvertSuccessMessage: false,
