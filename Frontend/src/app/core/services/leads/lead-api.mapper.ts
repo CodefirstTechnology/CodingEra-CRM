@@ -1,10 +1,11 @@
 import { parseRevenueInputToNumber } from '../../../shared/utils/revenue-parse';
 import type { LeadRow, LeadSource, LeadStatus } from '../../../features/leads/lead-row.model';
-import type { LeadApiDto } from './lead-api.models';
+import { applyMarketplaceNotesToLeadRow, extractMarketplaceExternalRef } from './marketplace-lead-to-api.mapper';
+import type { LeadNormalized, LeadUpsertDto } from './lead-api.models';
 
 const LEAD_STATUSES: LeadStatus[] = ['New', 'Contacted', 'Qualified', 'Lost', 'Converted'];
 
-function coerceLeadStatus(raw: string | undefined | null): LeadStatus {
+export function coerceLeadStatus(raw: string | undefined | null): LeadStatus {
   const s = (raw ?? 'New').trim();
   return (LEAD_STATUSES.includes(s as LeadStatus) ? s : 'New') as LeadStatus;
 }
@@ -13,6 +14,37 @@ function coerceLeadSource(raw: string | undefined | null): LeadSource {
   const s = (raw ?? 'Manual').trim();
   if (s === 'IndiaMART' || s === 'Justdial' || s === 'TradeIndia') return s;
   return 'Manual';
+}
+
+function resolveLeadSourceForRow(n: LeadNormalized): LeadSource {
+  const fromNotes = extractMarketplaceExternalRef(n.notes);
+  if (fromNotes) return fromNotes.source;
+  return coerceLeadSource(n.leadSource);
+}
+
+function readMasterName(v: unknown): string {
+  if (v == null) return '';
+  if (typeof v === 'string') return v.trim();
+  if (typeof v === 'object' && v !== null && 'name' in v) {
+    return String((v as { name?: unknown }).name ?? '').trim();
+  }
+  return '';
+}
+
+function readMasterId(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
+  if (typeof v === 'object' && v !== null && 'id' in v) {
+    const id = (v as { id?: unknown }).id;
+    return typeof id === 'number' && Number.isFinite(id) ? Math.trunc(id) : null;
+  }
+  return null;
+}
+
+function readOptionalInt(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'number' ? v : Number(String(v).trim());
+  return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
 /** Human-friendly “last updated” label for the leads table and detail UI. */
@@ -56,132 +88,221 @@ function parseLeadOwnerIdForApi(leadOwnerId: string | undefined | null): number 
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
 }
 
-export function mapLeadApiDtoToRow(dto: LeadApiDto): LeadRow {
-  const id = String(dto.id);
-  const leadOwnerId =
-    dto.leadOwnerId != null && Number.isFinite(dto.leadOwnerId)
-      ? String(dto.leadOwnerId)
-      : undefined;
+/**
+ * Flattens nested `GET /api/leads` JSON (organization, leadStatus, salutation, …) into {@link LeadNormalized}.
+ */
+export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  const id = readOptionalInt(r['id']) ?? 0;
+
+  const firstName = String(r['firstName'] ?? '').trim();
+  const lastName = String(r['lastName'] ?? '').trim();
+
+  const salutationId = readOptionalInt(r['salutationId']) ?? readMasterId(r['salutation']);
+  const salutationName = readMasterName(r['salutation']);
+
+  const orgRaw = r['organization'];
+  let organizationId = readOptionalInt(r['organizationId']);
+  let organizationName = typeof orgRaw === 'string' ? orgRaw.trim() : '';
+  let industry = readMasterName(r['industry']);
+  let territory = readMasterName(r['territory']);
+  let employees = String(r['employees'] ?? '').trim();
+  let annualRevenue = readOptionalInt(r['annualRevenue']);
+  let website = String(r['website'] ?? '').trim();
+  let territoryId = readOptionalInt(r['territoryId']);
+  let employeeCountId = readOptionalInt(r['employeeCountId']);
+  let industryId = readOptionalInt(r['industryId']);
+
+  if (orgRaw != null && typeof orgRaw === 'object') {
+    const o = orgRaw as Record<string, unknown>;
+    organizationId = organizationId ?? readOptionalInt(o['id']);
+    organizationName = String(o['name'] ?? organizationName).trim();
+    industry = readMasterName(o['industry']) || industry;
+    territory = readMasterName(o['territory']) || territory;
+    employees = readMasterName(o['employeeCount']) || employees;
+    industryId = readOptionalInt(o['industryId']) ?? industryId ?? readMasterId(o['industry']);
+    territoryId = readOptionalInt(o['territoryId']) ?? territoryId ?? readMasterId(o['territory']);
+    employeeCountId =
+      readOptionalInt(o['employeeCountId']) ?? employeeCountId ?? readMasterId(o['employeeCount']);
+    const rev = o['annualRevenue'];
+    if (rev != null && Number.isFinite(Number(rev))) annualRevenue = Number(rev);
+    website = String(o['website'] ?? website).trim();
+  }
+
+  const leadStatusId = readOptionalInt(r['leadStatusId']) ?? readMasterId(r['leadStatus']);
+  const statusName =
+    readMasterName(r['leadStatus']) || String(r['status'] ?? 'New').trim() || 'New';
+
+  const requestTypeId = readOptionalInt(r['requestTypeId']) ?? readMasterId(r['requestType']);
+  const requestTypeName = readMasterName(r['requestType']) || String(r['requestType'] ?? '').trim();
+
+  const updatedAt = String(
+    r['updatedAt'] ?? r['lastModified'] ?? r['UpdatedAt'] ?? '',
+  ).trim();
+  const createdAtRaw = r['createdAt'];
+  const createdAt =
+    createdAtRaw != null && String(createdAtRaw).trim() !== ''
+      ? String(createdAtRaw).trim()
+      : null;
 
   return {
     id,
-    name: dto.name ?? '',
-    firstName: dto.firstName ?? '',
-    lastName: dto.lastName ?? '',
-    salutation: dto.salutation?.trim() ? dto.salutation : undefined,
-    mobile: dto.mobile?.trim() ? dto.mobile : undefined,
-    gender: dto.gender?.trim() ? dto.gender : undefined,
-    email: dto.email ?? '',
-    organization: dto.organization ?? '',
-    employees: dto.employees?.trim() ? dto.employees : undefined,
-    annualRevenue: formatAnnualRevenueDisplay(dto.annualRevenue),
-    website: dto.website?.trim() ? dto.website : undefined,
-    territory: dto.territory?.trim() ? dto.territory : undefined,
-    industry: dto.industry ?? '',
-    jobTitle: dto.jobTitle?.trim() ? dto.jobTitle : undefined,
-    status: coerceLeadStatus(dto.status),
-    requestType: dto.requestType?.trim() ? dto.requestType : undefined,
-    requirement: dto.message?.trim() ? dto.message : undefined,
-    notes: dto.notes?.trim() ? dto.notes : undefined,
-    leadOwnerName: dto.leadOwnerName ?? '',
-    owner: dto.owner ?? '',
-    updated: formatLeadUpdatedLabel(dto.updatedAt),
-    source: dto.source?.trim() ? dto.source : undefined,
-    leadOwnerId,
-    leadSource: coerceLeadSource(dto.leadSource),
-    sortTimestamp: dto.sortTimestamp ?? undefined,
+    firstName,
+    lastName,
+    salutationId,
+    salutationName,
+    gender: String(r['gender'] ?? '').trim(),
+    mobile: String(r['mobile'] ?? '').trim(),
+    email: String(r['email'] ?? '').trim(),
+    organizationId,
+    organizationName,
+    industry,
+    territory,
+    employees,
+    annualRevenue,
+    website,
+    leadStatusId,
+    statusName,
+    requestTypeId,
+    requestTypeName,
+    notes: String(r['notes'] ?? '').trim(),
+    leadOwnerId: readOptionalInt(r['leadOwnerId']),
+    leadSource: String(r['leadSource'] ?? r['source'] ?? '').trim(),
+    updatedAt,
+    createdAt,
+    territoryId,
+    employeeCountId,
+    industryId,
   };
+}
+
+export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
+  const id = String(dto.id);
+  const name =
+    [dto.firstName, dto.lastName].filter(Boolean).join(' ').trim() ||
+    dto.organizationName ||
+    'Lead';
+  const leadOwnerId =
+    dto.leadOwnerId != null && dto.leadOwnerId > 0 ? String(dto.leadOwnerId) : undefined;
+
+  const row: LeadRow = {
+    id,
+    name,
+    firstName: dto.firstName,
+    lastName: dto.lastName,
+    salutation: dto.salutationName ? dto.salutationName : undefined,
+    mobile: dto.mobile || undefined,
+    gender: dto.gender || undefined,
+    email: dto.email,
+    organization: dto.organizationName,
+    employees: dto.employees || undefined,
+    annualRevenue: formatAnnualRevenueDisplay(dto.annualRevenue),
+    website: dto.website || undefined,
+    territory: dto.territory || undefined,
+    industry: dto.industry || 'Other',
+    status: coerceLeadStatus(dto.statusName),
+    requestType: dto.requestTypeName || undefined,
+    salutationId: dto.salutationId != null && dto.salutationId > 0 ? dto.salutationId : undefined,
+    requestTypeId: dto.requestTypeId != null && dto.requestTypeId > 0 ? dto.requestTypeId : undefined,
+    territoryId: dto.territoryId != null && dto.territoryId > 0 ? dto.territoryId : undefined,
+    employeeCountId: dto.employeeCountId != null && dto.employeeCountId > 0 ? dto.employeeCountId : undefined,
+    industryId: dto.industryId != null && dto.industryId > 0 ? dto.industryId : undefined,
+    leadStatusId: dto.leadStatusId != null && dto.leadStatusId > 0 ? dto.leadStatusId : undefined,
+    notes: dto.notes || undefined,
+    leadOwnerName: leadOwnerId ? `User #${leadOwnerId}` : '',
+    owner: '',
+    updated: formatLeadUpdatedLabel(dto.updatedAt),
+    source: dto.leadSource || undefined,
+    leadOwnerId,
+    leadSource: resolveLeadSourceForRow(dto),
+    sortTimestamp: dto.updatedAt ? Date.parse(dto.updatedAt) || undefined : undefined,
+  };
+
+  return applyMarketplaceNotesToLeadRow(row, dto.notes);
+}
+
+/** @deprecated Use {@link mapLeadNormalizedToRow} after {@link normalizeLeadApiRecord}. */
+export function mapLeadApiDtoToRow(dto: LeadNormalized): LeadRow {
+  return mapLeadNormalizedToRow(dto);
 }
 
 export function mergeLeadPatch(row: LeadRow, patch: Partial<Omit<LeadRow, 'id'>>): LeadRow {
   return { ...row, ...patch, id: row.id };
 }
 
-/**
- * Applies UI row patch onto the last known API DTO so PUT sends a full model without
- * wiping import-only fields (`externalRef`, `product`, etc.).
- */
+function normalizedToUpsertDto(n: LeadNormalized, idOverride?: number): LeadUpsertDto {
+  return {
+    id: idOverride ?? n.id,
+    firstName: n.firstName,
+    lastName: n.lastName,
+    salutationId: n.salutationId,
+    gender: n.gender || null,
+    mobile: n.mobile || null,
+    email: n.email || null,
+    organizationId: n.organizationId,
+    leadStatusId: n.leadStatusId,
+    status: n.statusName || null,
+    requestTypeId: n.requestTypeId,
+    notes: n.notes || null,
+    leadOwnerId: n.leadOwnerId,
+    leadSource: n.leadSource || null,
+    createdAt: n.createdAt,
+  };
+}
+
+function rowToNormalized(row: LeadRow, previous?: LeadNormalized): LeadNormalized {
+  const ownerId = parseLeadOwnerIdForApi(row.leadOwnerId) ?? previous?.leadOwnerId ?? null;
+  return {
+    id: previous?.id ?? (Number.isFinite(Number(row.id)) ? Number(row.id) : 0),
+    firstName: row.firstName ?? '',
+    lastName: row.lastName ?? '',
+    salutationId: row.salutationId ?? previous?.salutationId ?? null,
+    salutationName: row.salutation ?? previous?.salutationName ?? '',
+    gender: row.gender ?? '',
+    mobile: row.mobile ?? '',
+    email: row.email ?? '',
+    organizationId: previous?.organizationId ?? null,
+    organizationName: row.organization ?? '',
+    industry: row.industry ?? previous?.industry ?? '',
+    industryId: row.industryId ?? previous?.industryId ?? null,
+    territory: row.territory ?? previous?.territory ?? '',
+    territoryId: row.territoryId ?? previous?.territoryId ?? null,
+    employees: row.employees ?? previous?.employees ?? '',
+    employeeCountId: row.employeeCountId ?? previous?.employeeCountId ?? null,
+    annualRevenue:
+      parseAnnualRevenueForApi(row.annualRevenue) ?? previous?.annualRevenue ?? null,
+    website: row.website ?? previous?.website ?? '',
+    leadStatusId: row.leadStatusId ?? previous?.leadStatusId ?? null,
+    statusName: row.status ?? previous?.statusName ?? 'New',
+    requestTypeId: row.requestTypeId ?? previous?.requestTypeId ?? null,
+    requestTypeName: row.requestType ?? previous?.requestTypeName ?? '',
+    notes: row.notes ?? previous?.notes ?? '',
+    leadOwnerId: ownerId,
+    leadSource: row.source ?? row.leadSource ?? previous?.leadSource ?? 'Manual',
+    updatedAt: previous?.updatedAt ?? new Date().toISOString(),
+    createdAt: previous?.createdAt ?? null,
+  };
+}
+
 export function mergeLeadApiDtoWithRowPatch(
-  previous: LeadApiDto,
+  previous: LeadNormalized,
   patch: Partial<Omit<LeadRow, 'id'>>,
-): LeadApiDto {
-  const row = mergeLeadPatch(mapLeadApiDtoToRow(previous), patch);
-  const ownerId = parseLeadOwnerIdForApi(row.leadOwnerId);
-  return {
-    ...previous,
-    name: row.name ?? '',
-    firstName: row.firstName ?? '',
-    lastName: row.lastName ?? '',
-    salutation: row.salutation ?? '',
-    gender: row.gender ?? '',
-    mobile: row.mobile ?? '',
-    email: row.email ?? '',
-    organization: row.organization ?? '',
-    employees: row.employees ?? '',
-    annualRevenue: parseAnnualRevenueForApi(row.annualRevenue),
-    website: row.website ?? '',
-    territory: row.territory ?? '',
-    industry: row.industry ?? '',
-    jobTitle: row.jobTitle ?? '',
-    status: row.status ?? 'New',
-    requestType: row.requestType ?? '',
-    notes: row.notes ?? '',
-    source: row.source ?? '',
-    leadOwnerName: row.leadOwnerName ?? '',
-    owner: row.owner ?? '',
-    leadOwnerId: ownerId ?? previous.leadOwnerId,
-    leadSource: row.leadSource ?? previous.leadSource,
-    sortTimestamp: row.sortTimestamp ?? previous.sortTimestamp,
-    message: row.requirement?.trim() ? row.requirement : null,
-  };
+): LeadUpsertDto {
+  const row = mergeLeadPatch(mapLeadNormalizedToRow(previous), patch);
+  const merged = rowToNormalized(row, previous);
+  if (patch.status != null) {
+    merged.statusName = patch.status;
+  }
+  return normalizedToUpsertDto(merged, previous.id);
 }
 
-function rowToBaseApiFields(row: LeadRow): Omit<LeadApiDto, 'id' | 'updatedAt' | 'createdAt'> {
-  return {
-    name: row.name ?? '',
-    firstName: row.firstName ?? '',
-    lastName: row.lastName ?? '',
-    salutation: row.salutation ?? '',
-    gender: row.gender ?? '',
-    mobile: row.mobile ?? '',
-    email: row.email ?? '',
-    organization: row.organization ?? '',
-    organizationId: null,
-    employees: row.employees ?? '',
-    annualRevenue: parseAnnualRevenueForApi(row.annualRevenue),
-    website: row.website ?? '',
-    territory: row.territory ?? '',
-    industry: row.industry ?? '',
-    jobTitle: row.jobTitle ?? '',
-    status: row.status ?? 'New',
-    requestType: row.requestType ?? '',
-    notes: row.notes ?? '',
-    source: row.source ?? '',
-    leadOwnerName: row.leadOwnerName ?? '',
-    owner: row.owner ?? '',
-    leadOwnerId: parseLeadOwnerIdForApi(row.leadOwnerId),
-    leadSource: row.leadSource ?? 'Manual',
-    sortTimestamp: row.sortTimestamp ?? null,
-    externalRef: null,
-    product: null,
-    quantity: null,
-    message: row.requirement?.trim() ? row.requirement : null,
-    city: null,
-  };
-}
-
-/** JSON body for POST /api/leads. */
-export function leadCreatePayloadToApiJson(row: Omit<LeadRow, 'id'>): LeadApiDto {
+/** JSON body for `POST /api/leads`. */
+export function leadCreatePayloadToApiJson(row: Omit<LeadRow, 'id'>): LeadUpsertDto {
   const synthetic: LeadRow = {
     ...row,
     id: '0',
     updated: row.updated ?? 'Just now',
   };
-  const base = rowToBaseApiFields(synthetic);
-  return {
-    id: 0,
-    ...base,
-    updatedAt: new Date().toISOString(),
-    createdAt: null,
-  };
+  const normalized = rowToNormalized(synthetic);
+  return normalizedToUpsertDto({ ...normalized, id: 0 }, 0);
 }

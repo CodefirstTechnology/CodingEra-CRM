@@ -2,12 +2,17 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { forkJoin } from 'rxjs';
 import { concatMap, defaultIfEmpty, last, take, tap } from 'rxjs/operators';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { CallLogsService } from '../../core/services/call-logs.service';
 import { DealsService } from '../../core/services/deals.service';
+import {
+  LeadMasterDataService,
+  type MasterDataOption,
+} from '../../core/services/leads/lead-master-data.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { TasksService } from '../../core/services/tasks.service';
@@ -18,6 +23,18 @@ import type { LeadOwnerOption, LeadRow, LeadStatus } from './leads.component';
 import type { CallLogRow } from '../call-logs/call-logs.component';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
+
+const FALLBACK_TERRITORY_NAMES = ['India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
+const FALLBACK_SALUTATION_NAMES = ['Mr', 'Mrs', 'Ms', 'Dr', 'Prof'] as const;
+const FALLBACK_INDUSTRY_NAMES = [
+  'Technology',
+  'Finance',
+  'Healthcare',
+  'Manufacturing',
+  'Retail',
+  'Education',
+  'Other',
+] as const;
 
 type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Calls' | 'Tasks' | 'Notes' | 'Attachments';
 
@@ -63,6 +80,7 @@ export class LeadDetailComponent {
   private readonly callLogsService = inject(CallLogsService);
   private readonly tasksService = inject(TasksService);
   private readonly notesService = inject(NotesService);
+  private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly createFlow = inject(CreateFlowService);
   protected readonly auth = inject(AuthService);
@@ -139,19 +157,34 @@ export class LeadDetailComponent {
 
   protected readonly emailToLooksValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.emailTo().trim()));
 
-  protected readonly territoryOptions = ['', 'India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
-  protected readonly industryOptions = [
-    '',
-    'Technology',
-    'Finance',
-    'Healthcare',
-    'Manufacturing',
-    'Retail',
-    'Education',
-    'Other',
-  ] as const;
-  protected readonly salutationOptions = ['', 'Mr', 'Mrs', 'Ms', 'Dr', 'Prof'] as const;
   protected readonly sourceOptions = ['', 'Website', 'Referral', 'Ads', 'Cold Call', 'Event', 'Other'] as const;
+
+  private readonly salutationsFromApi = signal<MasterDataOption[]>([]);
+  private readonly territoriesFromApi = signal<MasterDataOption[]>([]);
+  private readonly industriesFromApi = signal<MasterDataOption[]>([]);
+
+  protected readonly territorySelectOptions = computed<MasterDataOption[]>(() => {
+    const api = this.territoriesFromApi();
+    return api.length > 0 ? api : FALLBACK_TERRITORY_NAMES.map((name) => ({ id: 0, name }));
+  });
+  protected readonly salutationSelectOptions = computed<MasterDataOption[]>(() => {
+    const api = this.salutationsFromApi();
+    return api.length > 0 ? api : FALLBACK_SALUTATION_NAMES.map((name) => ({ id: 0, name }));
+  });
+  protected readonly industrySelectOptions = computed<MasterDataOption[]>(() => {
+    const api = this.industriesFromApi();
+    return api.length > 0 ? api : FALLBACK_INDUSTRY_NAMES.map((name) => ({ id: 0, name }));
+  });
+
+  /** Source dropdown includes the lead's current source when it is not in the static list (e.g. Justdial Enquiry). */
+  protected readonly sourceOptionsForLead = computed(() => {
+    const base = [...this.sourceOptions];
+    const current = this.lead()?.source?.trim();
+    if (current && !base.includes(current as (typeof base)[number])) {
+      return [...base, current];
+    }
+    return base;
+  });
   protected readonly leadOwnerOptions: LeadOwnerOption[] = [
     { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
     { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
@@ -181,6 +214,20 @@ export class LeadDetailComponent {
   });
 
   constructor() {
+    forkJoin({
+      salutations: this.leadMasterData.loadSalutations(),
+      territories: this.leadMasterData.loadTerritories(),
+      industries: this.leadMasterData.loadIndustries(),
+    })
+      .pipe(takeUntilDestroyed())
+      .subscribe({
+        next: (r) => {
+          this.salutationsFromApi.set(r.salutations);
+          this.territoriesFromApi.set(r.territories);
+          this.industriesFromApi.set(r.industries);
+        },
+      });
+
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const raw = params.get('id');
       const id = raw != null ? Number(raw) : NaN;
@@ -716,6 +763,51 @@ export class LeadDetailComponent {
     return '?';
   }
 
+  /** Select `[value]` for master-backed dropdowns (`id` > 0 → numeric string, else label). */
+  protected masterOptionFormValue(opt: MasterDataOption): string {
+    return opt.id > 0 ? String(opt.id) : opt.name;
+  }
+
+  private masterSelectControlValue(
+    id: number | null | undefined,
+    label: string | null | undefined,
+    options: MasterDataOption[],
+  ): string {
+    if (id != null && id > 0) return String(id);
+    const name = label?.trim();
+    if (!name) return '';
+    const norm = (s: string) => s.trim().replace(/\.$/, '').toLowerCase();
+    const key = norm(name);
+    const byName = options.find((o) => o.id > 0 && norm(o.name) === key);
+    if (byName) return String(byName.id);
+    const legacy = options.find((o) => o.id === 0 && norm(o.name) === key);
+    return legacy ? legacy.name : name;
+  }
+
+  private salutationLabelFromFormValue(value: string): string {
+    const v = value.trim();
+    if (!v) return '';
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) {
+      return this.salutationSelectOptions().find((o) => o.id === n)?.name ?? '';
+    }
+    return v;
+  }
+
+  private resolveMasterPick(
+    rawValue: string,
+    options: MasterDataOption[],
+  ): { label: string; masterId?: number } {
+    const v = rawValue.trim();
+    if (!v) return { label: '' };
+    const asNum = Number(v);
+    if (Number.isFinite(asNum) && asNum > 0) {
+      const opt = options.find((o) => o.id === asNum);
+      return { label: opt?.name ?? '', masterId: asNum };
+    }
+    return { label: v };
+  }
+
   protected toggleSidebarDetails(): void {
     this.sidebarDetailsOpen.update((o) => !o);
   }
@@ -725,17 +817,17 @@ export class LeadDetailComponent {
   }
 
   protected patchDataForm(row: LeadRow): void {
-    const salutation = row.salutation?.replace(/\.$/, '') ?? '';
+    const salutationPlain = row.salutation?.replace(/\.$/, '') ?? '';
     this.dataForm.patchValue(
       {
         organization: row.organization ?? '',
         website: row.website ?? '',
-        territory: row.territory ?? '',
-        industry: row.industry ?? '',
+        territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
+        industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
         jobTitle: row.jobTitle ?? '',
-        source: row.source ?? '',
+        source: row.source?.trim() || row.leadSource || '',
         owner: row.owner ?? '',
-        salutation,
+        salutation: this.masterSelectControlValue(row.salutationId, salutationPlain, this.salutationSelectOptions()),
         firstName: row.firstName ?? '',
         lastName: row.lastName ?? '',
         email: row.email ?? '',
@@ -808,7 +900,8 @@ export class LeadDetailComponent {
   /** Sidebar name line — mirrors `saveDataTab` name computation. */
   protected sidebarLeadHeadline(row: LeadRow): string {
     const v = this.dataForm.getRawValue();
-    const salutationNorm = v.salutation.trim() ? `${v.salutation.trim()}.` : '';
+    const salLabel = this.salutationLabelFromFormValue(v.salutation);
+    const salutationNorm = salLabel.trim() ? `${salLabel.trim().replace(/\.$/, '')}.` : '';
     return (
       [salutationNorm, v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(' ').trim() ||
       v.firstName.trim() ||
@@ -872,8 +965,15 @@ export class LeadDetailComponent {
     }
 
     const v = this.dataForm.getRawValue();
-    const salutationNorm = v.salutation.trim() ? `${v.salutation.trim()}.` : '';
-    const name = [salutationNorm, v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(' ').trim() || v.firstName.trim() || row.name;
+    const salPick = this.resolveMasterPick(v.salutation, this.salutationSelectOptions());
+    const terrPick = this.resolveMasterPick(v.territory, this.territorySelectOptions());
+    const indPick = this.resolveMasterPick(v.industry, this.industrySelectOptions());
+    const salBase = salPick.label.trim().replace(/\.$/, '');
+    const salutationNorm = salBase ? `${salBase}.` : '';
+    const name =
+      [salutationNorm, v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(' ').trim() ||
+      v.firstName.trim() ||
+      row.name;
 
     const opt = this.leadOwnerOptions.find((o) => o.id === v.owner.trim());
     const leadOwnerName = opt?.label ?? row.leadOwnerName;
@@ -884,12 +984,15 @@ export class LeadDetailComponent {
       firstName: v.firstName.trim(),
       lastName: v.lastName.trim(),
       salutation: salutationNorm || undefined,
+      salutationId: salPick.masterId,
       email: v.email.trim(),
       mobile: v.mobile.trim() || undefined,
       organization: v.organization.trim(),
       website: v.website.trim() || undefined,
-      territory: v.territory.trim() || undefined,
-      industry: v.industry.trim(),
+      territory: terrPick.label.trim() || undefined,
+      territoryId: terrPick.masterId,
+      industry: indPick.label.trim() || undefined,
+      industryId: indPick.masterId,
       jobTitle: v.jobTitle.trim() || undefined,
       source: v.source.trim() || undefined,
       owner: v.owner.trim() || row.owner,

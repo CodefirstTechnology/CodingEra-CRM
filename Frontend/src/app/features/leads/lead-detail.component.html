@@ -352,16 +352,18 @@
             <label class="lead-detail__field">
               <span class="lead-detail__label">Territory</span>
               <select class="lead-detail__select" formControlName="territory">
-                @for (t of territoryOptions; track t) {
-                <option [value]="t">{{ t === '' ? '— Select —' : t }}</option>
+                <option value="">— Select —</option>
+                @for (opt of territorySelectOptions(); track opt.id + opt.name) {
+                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
               </select>
             </label>
             <label class="lead-detail__field">
               <span class="lead-detail__label">Industry</span>
               <select class="lead-detail__select" formControlName="industry">
-                @for (i of industryOptions; track i) {
-                <option [value]="i">{{ i === '' ? '— Select —' : i }}</option>
+                <option value="">— Select —</option>
+                @for (opt of industrySelectOptions(); track opt.id + opt.name) {
+                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
               </select>
             </label>
@@ -372,7 +374,7 @@
             <label class="lead-detail__field">
               <span class="lead-detail__label">Source</span>
               <select class="lead-detail__select" formControlName="source">
-                @for (s of sourceOptions; track s) {
+                @for (s of sourceOptionsForLead(); track s) {
                 <option [value]="s">{{ s === '' ? '— Select —' : s }}</option>
                 }
               </select>
@@ -395,8 +397,9 @@
             <label class="lead-detail__field">
               <span class="lead-detail__label">Salutation</span>
               <select class="lead-detail__select" formControlName="salutation">
-                @for (s of salutationOptions; track s) {
-                <option [value]="s">{{ s === '' ? '—' : s }}</option>
+                <option value="">—</option>
+                @for (opt of salutationSelectOptions(); track opt.id + opt.name) {
+                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
               </select>
             </label>
@@ -720,16 +723,18 @@
             <dt>Territory</dt>
             <dd class="lead-detail__kv-dd">
               <select class="lead-detail__side-field lead-detail__side-field--select" [formControl]="dataForm.controls.territory" aria-label="Territory">
-                @for (t of territoryOptions; track t) {
-                <option [value]="t">{{ t === '' ? '— Select —' : t }}</option>
+                <option value="">— Select —</option>
+                @for (opt of territorySelectOptions(); track opt.id + opt.name) {
+                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
               </select>
             </dd>
             <dt>Industry</dt>
             <dd class="lead-detail__kv-dd">
               <select class="lead-detail__side-field lead-detail__side-field--select" [formControl]="dataForm.controls.industry" aria-label="Industry">
-                @for (i of industryOptions; track i) {
-                <option [value]="i">{{ i === '' ? '— Select —' : i }}</option>
+                <option value="">— Select —</option>
+                @for (opt of industrySelectOptions(); track opt.id + opt.name) {
+                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
               </select>
             </dd>
@@ -746,7 +751,7 @@
             <dt>Source</dt>
             <dd class="lead-detail__kv-dd">
               <select class="lead-detail__side-field lead-detail__side-field--select" [formControl]="dataForm.controls.source" aria-label="Source">
-                @for (s of sourceOptions; track s) {
+                @for (s of sourceOptionsForLead(); track s) {
                 <option [value]="s">{{ s === '' ? '— Select —' : s }}</option>
                 }
               </select>
@@ -781,8 +786,9 @@
             <dt>Salutation</dt>
             <dd class="lead-detail__kv-dd">
               <select class="lead-detail__side-field lead-detail__side-field--select" [formControl]="dataForm.controls.salutation" aria-label="Salutation">
-                @for (s of salutationOptions; track s) {
-                <option [value]="s">{{ s === '' ? '—' : s }}</option>
+                <option value="">—</option>
+                @for (opt of salutationSelectOptions(); track opt.id + opt.name) {
+                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
               </select>
             </dd>

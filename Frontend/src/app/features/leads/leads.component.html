@@ -15,7 +15,8 @@
         <button
           type="button"
           class="leads__btn leads__btn--ghost"
-          [disabled]="indiamartPullLoading()"
+          [disabled]="indiamartPullLoading() || !!indiamartConfigError()"
+          [title]="indiamartConfigError() ?? ''"
           (click)="syncIndiaMartFromApi()"
         >
           @if (indiamartPullLoading()) {
@@ -56,6 +57,10 @@
       <button type="button" class="leads__btn leads__btn--solid" (click)="openForm()">+ New lead</button>
     </div>
   </header>
+
+  @if (enableIndiamartLead && !indiamartUseMock && indiamartConfigError(); as imErr) {
+    <p class="leads__config-warn" role="status">{{ imErr }}</p>
+  }
 
   <app-crm-selection-bar
     [selectionCount]="sel.selectedCount()"
@@ -117,8 +122,9 @@
               <label class="leads__field">
                 <span class="leads__label">Salutation</span>
                 <select class="leads__control leads__control--soft" formControlName="salutation">
-                  @for (s of salutationOptions; track s) {
-                    <option [value]="s">{{ s === '' ? '— Select —' : s }}</option>
+                  <option value="">— Select —</option>
+                  @for (opt of salutationSelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
               </label>
@@ -188,8 +194,9 @@
               <label class="leads__field">
                 <span class="leads__label">No. of employees</span>
                 <select class="leads__control leads__control--soft" formControlName="employees">
-                  @for (e of employeeOptions; track e) {
-                    <option [value]="e">{{ e }}</option>
+                  <option value="">— Select —</option>
+                  @for (opt of employeeSelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
               </label>
@@ -212,16 +219,18 @@
               <label class="leads__field">
                 <span class="leads__label">Territory</span>
                 <select class="leads__control leads__control--soft" formControlName="territory">
-                  @for (t of territoryOptions; track t) {
-                    <option [value]="t">{{ t === '' ? '— Select —' : t }}</option>
+                  <option value="">— Select —</option>
+                  @for (opt of territorySelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
               </label>
               <label class="leads__field">
                 <span class="leads__label">Industry <span class="leads__req">*</span></span>
                 <select class="leads__control leads__control--soft" formControlName="industry">
-                  @for (ind of industryOptions; track ind) {
-                    <option [value]="ind">{{ ind }}</option>
+                  <option value="">— Select industry —</option>
+                  @for (opt of industrySelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
                 @if (fieldInvalid('industry')) {
@@ -239,8 +248,9 @@
               <label class="leads__field">
                 <span class="leads__label">Status <span class="leads__req">*</span></span>
                 <select class="leads__control leads__control--soft leads__control--status" formControlName="status">
-                  @for (s of statusOptions; track s) {
-                    <option [value]="s">{{ s }}</option>
+                  <option value="">— Select status —</option>
+                  @for (opt of statusSelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
                 @if (fieldInvalid('status')) {
@@ -258,8 +268,9 @@
               <label class="leads__field">
                 <span class="leads__label">Request type</span>
                 <select class="leads__control leads__control--soft" formControlName="requestType">
-                  @for (r of requestTypeOptions; track r) {
-                    <option [value]="r">{{ r === '' ? '— Select —' : r }}</option>
+                  <option value="">— Select —</option>
+                  @for (opt of requestTypeSelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
               </label>
