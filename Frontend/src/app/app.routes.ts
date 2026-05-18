@@ -59,11 +59,6 @@ export const routes: Routes = [
         loadChildren: () => import('./features/notes/notes.module').then((m) => m.NotesModule),
       },
       {
-        path: 'call-logs',
-        loadChildren: () =>
-          import('./features/call-logs/call-logs.module').then((m) => m.CallLogsModule),
-      },
-      {
         path: 'help',
         loadChildren: () => import('./features/help/help.module').then((m) => m.HelpModule),
       },

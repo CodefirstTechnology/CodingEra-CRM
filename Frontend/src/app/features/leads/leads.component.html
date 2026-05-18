@@ -423,9 +423,6 @@
                       @case ('name') {
                         <a [routerLink]="['/leads', row.id]" class="leads__name-link">{{ row.name }}</a>
                       }
-                      @case ('leadSource') {
-                        <span [class]="leadSourceClass(row)">{{ leadSourceLabel(row) }}</span>
-                      }
                       @case ('status') {
                         @if (leadSourceLabel(row) === 'IndiaMART') {
                           <select

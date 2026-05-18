@@ -187,10 +187,10 @@ export class LeadsComponent {
     { id: 'TradeIndia', label: 'TradeIndia' },
   ];
 
-  private readonly requiredColumnIds = new Set(['name', 'leadSource']);
+  private readonly requiredColumnIds = new Set(['name', 'source']);
   private readonly selectedColumnIds = signal<string[]>([
     'name',
-    'leadSource',
+    'source',
     'organization',
     'status',
     'owner',
@@ -203,11 +203,12 @@ export class LeadsComponent {
     'gender',
     'leadOwnerName',
     'leadOwnerId',
+    'leadSource',
     'sortTimestamp',
   ]);
   private readonly preferredColumnOrder = [
     'name',
-    'leadSource',
+    'source',
     'organization',
     'email',
     'mobile',
@@ -221,16 +222,14 @@ export class LeadsComponent {
     'website',
     'territory',
     'requestType',
-    'source',
     'notes',
   ];
   private readonly columnLabels: Record<string, string> = {
-    leadSource: 'Source',
+    source: 'Source',
     owner: 'Lead owner',
     leadOwnerName: 'Lead owner',
     annualRevenue: 'Annual revenue',
     requestType: 'Request type',
-    source: 'Original source',
   };
 
   /** Manual / API-backed rows only; merged with marketplace lead sources in {@link rows}. */
@@ -358,6 +357,7 @@ export class LeadsComponent {
         row.owner.toLowerCase().includes(q) ||
         row.leadOwnerName.toLowerCase().includes(q) ||
         row.industry.toLowerCase().includes(q) ||
+        (row.source?.toLowerCase().includes(q) ?? false) ||
         (row.requirement?.toLowerCase().includes(q) ?? false) ||
         (row.notes?.toLowerCase().includes(q) ?? false) ||
         srcLabel.includes(q)

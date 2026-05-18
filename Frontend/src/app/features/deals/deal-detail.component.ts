@@ -6,17 +6,15 @@ import { take } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
-import { CallLogsService } from '../../core/services/call-logs.service';
 import { DealsService } from '../../core/services/deals.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from './deals.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
-import type { CallLogRow } from '../call-logs/call-logs.component';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
 
-type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Calls' | 'Tasks' | 'Notes' | 'Attachments';
+type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Tasks' | 'Notes' | 'Attachments';
 
 interface DealAttachmentItem {
   id: string;
@@ -55,7 +53,6 @@ export class DealDetailComponent {
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly dealsService = inject(DealsService);
-  private readonly callLogsService = inject(CallLogsService);
   private readonly tasksService = inject(TasksService);
   private readonly notesService = inject(NotesService);
   private readonly createRowBus = inject(CreateRowBusService);
@@ -66,7 +63,6 @@ export class DealDetailComponent {
   protected readonly deal = signal<DealRow | null>(null);
   protected readonly activeTab = signal<DetailTab>('Activity');
   protected readonly dataSaving = signal(false);
-  protected readonly dealCallLogs = signal<CallLogRow[]>([]);
   protected readonly dealTasks = signal<TaskRow[]>([]);
   protected readonly dealNotes = signal<NoteRow[]>([]);
   protected readonly dealAttachments = signal<DealAttachmentItem[]>([]);
@@ -96,7 +92,6 @@ export class DealDetailComponent {
     'Emails',
     'Comments',
     'Data',
-    'Calls',
     'Tasks',
     'Notes',
     'Attachments',
@@ -167,7 +162,6 @@ export class DealDetailComponent {
       if (!Number.isFinite(id)) {
         this.numericId.set(null);
         this.deal.set(null);
-        this.dealCallLogs.set([]);
         this.dealTasks.set([]);
         this.dealNotes.set([]);
         this.dealAttachments.set([]);
@@ -194,7 +188,6 @@ export class DealDetailComponent {
             const org = row.organizationName.trim() || 'Deal';
             this.emailSubjectText.set(`${org} (${this.dealCode()})`);
             this.emailBody.set('');
-            this.refreshDealCallLogs();
             this.refreshDealTasks();
             this.refreshDealNotes();
             const did = row.id.trim();
@@ -212,7 +205,6 @@ export class DealDetailComponent {
             this.emailComposerOpen.set(false);
             this.emailComposeEmojiOpen.set(false);
           } else {
-            this.dealCallLogs.set([]);
             this.dealTasks.set([]);
             this.dealNotes.set([]);
             this.dealAttachments.set([]);
@@ -227,27 +219,9 @@ export class DealDetailComponent {
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
-      if (e.kind === 'callLog') this.refreshDealCallLogs();
       if (e.kind === 'task') this.refreshDealTasks();
       if (e.kind === 'note') this.refreshDealNotes();
     });
-  }
-
-  private refreshDealCallLogs(): void {
-    const d = this.deal();
-    const did = d?.id;
-    if (did == null || did === '') {
-      this.dealCallLogs.set([]);
-      return;
-    }
-    this.callLogsService
-      .getAll()
-      .pipe(take(1))
-      .subscribe((rows) => {
-        const idNorm = did.trim();
-        const scoped = rows.filter((r) => (r.relatedDealId ?? '').trim() === idNorm);
-        this.dealCallLogs.set(scoped);
-      });
   }
 
   private refreshDealTasks(): void {
@@ -625,19 +599,6 @@ export class DealDetailComponent {
     this.setTab('Comments');
   }
 
-  protected openLogCallFromDeal(): void {
-    const d = this.deal();
-    if (!d?.id) return;
-    const mob = d.mobile?.trim();
-    this.createFlow.selectEntity('callLog', {
-      callLogFromLead: {
-        relatedDealId: String(d.id),
-        contactName: d.organizationName.trim() || 'Deal',
-        ...(mob && mob !== '—' ? { phoneNumber: mob } : {}),
-      },
-    });
-  }
-
   protected openNewTaskFromDeal(): void {
     const d = this.deal();
     if (!d?.id) return;
@@ -719,30 +680,6 @@ export class DealDetailComponent {
     const label = this.noteRelatedTypeLabels[note.relatedType] ?? note.relatedType;
     const suffix = note.visibility === 'private' ? ' · Private' : '';
     return `${label} · ${note.relatedName}${suffix}`;
-  }
-
-  protected callMetaLine(call: CallLogRow): string {
-    return `${call.phoneNumber} · ${this.formatCallDuration(call)} · ${call.outcome}`;
-  }
-
-  protected formatCallDuration(call: CallLogRow): string {
-    const sec = Math.max(0, Math.floor(call.durationSeconds ?? 0));
-    const mm = Math.floor(sec / 60);
-    const ss = sec % 60;
-    return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-  }
-
-  protected formatCallWhen(call: CallLogRow): string {
-    const lm = call.lastModified?.trim();
-    if (lm) return lm;
-    return this.formatStartedAtLabel(call.startedAt);
-  }
-
-  private formatStartedAtLabel(iso: string): string {
-    if (!iso?.trim()) return '—';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   }
 
   protected setTab(tab: DetailTab): void {

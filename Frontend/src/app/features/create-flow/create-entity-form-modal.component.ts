@@ -6,7 +6,6 @@ import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { CrmModalComponent } from '../../core/modal/crm-modal.component';
 import { AuthService } from '../../core/auth/auth.service';
-import { CallLogsService } from '../../core/services/call-logs.service';
 import { ContactsService } from '../../core/services/contacts.service';
 import { DealsService } from '../../core/services/deals.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
@@ -14,7 +13,6 @@ import { ToastService } from '../../core/toast/toast.service';
 import { NotesService } from '../../core/services/notes.service';
 import { OrganizationsService } from '../../core/services/organizations.service';
 import { TasksService } from '../../core/services/tasks.service';
-import type { CallLogRow } from '../call-logs/call-logs.component';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from '../deals/deals.component';
 import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
@@ -42,7 +40,6 @@ export class CreateEntityFormModalComponent {
   private readonly contactsService = inject(ContactsService);
   private readonly organizationsService = inject(OrganizationsService);
   private readonly tasksService = inject(TasksService);
-  private readonly callLogsService = inject(CallLogsService);
   private readonly notesService = inject(NotesService);
   protected readonly auth = inject(AuthService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
@@ -188,17 +185,6 @@ export class CreateEntityFormModalComponent {
     priority: this.fb.nonNullable.control<TaskPriority>('Low', Validators.required),
   });
 
-  protected readonly callForm = this.fb.nonNullable.group({
-    direction: ['outbound', Validators.required],
-    phoneNumber: ['', [Validators.required, Validators.maxLength(40)]],
-    contactName: ['', [Validators.required, Validators.maxLength(200)]],
-    startedAt: ['', Validators.required],
-    durationMin: [0, [Validators.required, Validators.min(0), Validators.max(99)]],
-    durationSec: [0, [Validators.required, Validators.min(0), Validators.max(59)]],
-    outcome: ['connected', Validators.required],
-    summary: ['', Validators.maxLength(2000)],
-  });
-
   protected readonly noteForm = this.fb.nonNullable.group({
     relatedType: ['deal', Validators.required],
     relatedName: ['', [Validators.required, Validators.maxLength(200)]],
@@ -338,24 +324,6 @@ export class CreateEntityFormModalComponent {
         this.noteForm.markAsUntouched();
         break;
       }
-      case 'callLog': {
-        const p = (n: number) => String(n).padStart(2, '0');
-        const d = new Date();
-        const local = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-        const ctx = this.flow.callLogFormContext();
-        this.callForm.reset({
-          startedAt: local,
-          direction: 'outbound',
-          phoneNumber: (ctx?.phoneNumber ?? '').trim(),
-          contactName: (ctx?.contactName ?? '').trim(),
-          durationMin: 0,
-          durationSec: 0,
-          outcome: 'connected',
-          summary: '',
-        });
-        this.callForm.markAsUntouched();
-        break;
-      }
     }
   }
 
@@ -370,7 +338,7 @@ export class CreateEntityFormModalComponent {
   }
 
   private formGroupFor(
-    group: 'lead' | 'deal' | 'contact' | 'org' | 'task' | 'call' | 'note',
+    group: 'lead' | 'deal' | 'contact' | 'org' | 'task' | 'note',
   ): FormGroup {
     switch (group) {
       case 'lead':
@@ -385,13 +353,11 @@ export class CreateEntityFormModalComponent {
         return this.taskForm;
       case 'note':
         return this.noteForm;
-      case 'call':
-        return this.callForm;
     }
   }
 
   protected fieldInvalid(
-    group: 'lead' | 'deal' | 'contact' | 'org' | 'task' | 'call' | 'note',
+    group: 'lead' | 'deal' | 'contact' | 'org' | 'task' | 'note',
     name: string,
   ): boolean {
     const c = this.formGroupFor(group).get(name);
@@ -667,69 +633,4 @@ export class CreateEntityFormModalComponent {
       });
   }
 
-  private pad2(n: number): string {
-    return String(Math.max(0, Math.min(99, n))).padStart(2, '0');
-  }
-
-  private outcomeLabel(code: string): string {
-    const map: Record<string, string> = {
-      connected: 'Connected',
-      voicemail: 'Voicemail',
-      no_answer: 'No answer',
-      busy: 'Busy',
-      wrong_number: 'Wrong number',
-    };
-    return map[code] ?? code;
-  }
-
-  protected submitCall(): void {
-    this.callForm.markAllAsTouched();
-    if (this.callForm.invalid) return;
-
-    const v = this.callForm.getRawValue();
-    const direction: 'Inbound' | 'Outbound' = v.direction === 'inbound' ? 'Inbound' : 'Outbound';
-    const mm = Math.max(0, Math.min(99, Number(v.durationMin)));
-    const ss = Math.max(0, Math.min(59, Number(v.durationSec)));
-    const durationSeconds = mm * 60 + ss;
-    const outcome = this.outcomeLabel(v.outcome);
-    const summaryTrim = v.summary.trim();
-
-    const payload: Omit<CallLogRow, 'id'> = {
-      direction,
-      phoneNumber: v.phoneNumber.trim(),
-      contactName: v.contactName.trim(),
-      startedAt: v.startedAt,
-      durationSeconds,
-      outcome,
-      summary: summaryTrim,
-      lastModified: 'Just now',
-    };
-    const leadCtx = this.flow.callLogFormContext();
-    if (leadCtx?.relatedLeadId) {
-      payload.relatedLeadId = leadCtx.relatedLeadId;
-    }
-    if (leadCtx?.relatedDealId) {
-      payload.relatedDealId = leadCtx.relatedDealId;
-    }
-
-    this.callLogsService
-      .create(payload)
-      .pipe(take(1))
-      .subscribe((saved) => {
-        this.bus.publish('callLog', saved);
-        this.flow.closeFormModal();
-      });
-  }
-
-  private formatWhen(isoLocal: string): string {
-    const d = new Date(isoLocal);
-    if (Number.isNaN(d.getTime())) return 'Just now';
-    return d.toLocaleString(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  }
 }

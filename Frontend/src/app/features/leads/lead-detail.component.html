@@ -424,40 +424,6 @@
           </div>
         </fieldset>
       </form>
-      } @else if (activeTab() === 'Calls') {
-      <header class="lead-detail__main-head">
-        <h2>Calls</h2>
-        <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="openLogCallFromLead()">+ Log a Call</button>
-      </header>
-
-      @if (leadCallLogs().length === 0) {
-      <div class="lead-detail__calls-empty">
-        <span class="lead-detail__calls-icon" aria-hidden="true">
-          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-            <path
-              d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
-            />
-          </svg>
-        </span>
-        <p>No Call Logs</p>
-        <button type="button" class="lead-detail__btn lead-detail__btn--calls-muted" (click)="openLogCallFromLead()">Log a Call</button>
-      </div>
-      } @else {
-      <ul class="lead-detail__call-list" aria-label="Call logs for this lead">
-        @for (call of leadCallLogs(); track call.id) {
-        <li class="lead-detail__call-row">
-          <span class="lead-detail__call-dir">{{ call.direction }}</span>
-          <div class="lead-detail__call-body">
-            <p class="lead-detail__call-title">{{ call.contactName }}</p>
-            <p class="lead-detail__call-meta">
-              {{ callMetaLine(call) }}
-            </p>
-          </div>
-          <time class="lead-detail__call-when">{{ formatCallWhen(call) }}</time>
-        </li>
-        }
-      </ul>
-      }
       } @else if (activeTab() === 'Tasks') {
       <header class="lead-detail__main-head lead-detail__main-head--tasks">
         <h2>Tasks</h2>
@@ -862,3 +828,4 @@
   <a routerLink="/leads" class="lead-detail__back">Back to leads</a>
 </div>
 }
+

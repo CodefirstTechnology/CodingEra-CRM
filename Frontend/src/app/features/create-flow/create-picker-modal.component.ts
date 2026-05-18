@@ -19,7 +19,6 @@ export class CreatePickerModalComponent {
     { kind: 'contact', label: 'New Contact' },
     { kind: 'organization', label: 'New Organization' },
     { kind: 'task', label: 'New Task' },
-    { kind: 'callLog', label: 'New Call Log' },
     { kind: 'note', label: 'New Note' },
   ];
 

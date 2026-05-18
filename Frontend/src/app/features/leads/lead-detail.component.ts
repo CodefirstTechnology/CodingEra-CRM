@@ -7,7 +7,6 @@ import { concatMap, defaultIfEmpty, last, take, tap } from 'rxjs/operators';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
-import { CallLogsService } from '../../core/services/call-logs.service';
 import { DealsService } from '../../core/services/deals.service';
 import {
   LeadMasterDataService,
@@ -21,7 +20,6 @@ import { mapLeadToDealRow } from '../../shared/utils/mappers';
 import { environment } from '../../../environments/environment';
 import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
-import type { CallLogRow } from '../call-logs/call-logs.component';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
 
@@ -37,7 +35,7 @@ const FALLBACK_INDUSTRY_NAMES = [
   'Other',
 ] as const;
 
-type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Calls' | 'Tasks' | 'Notes' | 'Attachments';
+type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Tasks' | 'Notes' | 'Attachments';
 
 interface LeadAttachmentItem {
   id: string;
@@ -78,7 +76,6 @@ export class LeadDetailComponent {
   private readonly leadsService = inject(LeadsService);
   private readonly toast = inject(ToastService);
   private readonly dealsService = inject(DealsService);
-  private readonly callLogsService = inject(CallLogsService);
   private readonly tasksService = inject(TasksService);
   private readonly notesService = inject(NotesService);
   private readonly leadMasterData = inject(LeadMasterDataService);
@@ -92,8 +89,6 @@ export class LeadDetailComponent {
   protected readonly dataSaving = signal(false);
   protected readonly leadInitialLoading = signal(false);
   protected readonly leadLoadError = signal<string | null>(null);
-  /** Call logs where `relatedLeadId` matches the open lead (from lead-detail “Log a Call”). */
-  protected readonly leadCallLogs = signal<CallLogRow[]>([]);
   /** Tasks where `relatedLeadId` matches the open lead (from lead-detail “+ New Task”). */
   protected readonly leadTasks = signal<TaskRow[]>([]);
   /** Notes scoped to this lead (`relatedLeadId`) from lead-detail “Create note”. */
@@ -127,7 +122,6 @@ export class LeadDetailComponent {
     'Emails',
     'Comments',
     'Data',
-    'Calls',
     'Tasks',
     'Notes',
     'Attachments',
@@ -235,7 +229,6 @@ export class LeadDetailComponent {
         this.lead.set(null);
         this.leadLoadError.set(null);
         this.leadInitialLoading.set(false);
-        this.leadCallLogs.set([]);
         this.leadTasks.set([]);
         this.leadNotes.set([]);
         this.leadAttachments.set([]);
@@ -252,14 +245,12 @@ export class LeadDetailComponent {
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
-      if (e.kind === 'callLog') this.refreshLeadCallLogs();
       if (e.kind === 'task') this.refreshLeadTasks();
       if (e.kind === 'note') this.refreshLeadNotes();
     });
   }
 
   private clearLeadSideState(): void {
-    this.leadCallLogs.set([]);
     this.leadTasks.set([]);
     this.leadNotes.set([]);
     this.leadAttachments.set([]);
@@ -278,7 +269,6 @@ export class LeadDetailComponent {
     this.emailBcc.set('');
     this.emailSubjectText.set(`Mr ${row.name} (${this.leadCode()})`);
     this.emailBody.set('');
-    this.refreshLeadCallLogs();
     this.refreshLeadTasks();
     this.refreshLeadNotes();
     const lid = row.id.trim();
@@ -317,23 +307,6 @@ export class LeadDetailComponent {
     } finally {
       this.leadInitialLoading.set(false);
     }
-  }
-
-  private refreshLeadCallLogs(): void {
-    const l = this.lead();
-    const lid = l?.id;
-    if (lid == null || lid === '') {
-      this.leadCallLogs.set([]);
-      return;
-    }
-    this.callLogsService
-      .getAll()
-      .pipe(take(1))
-      .subscribe((rows) => {
-        const idNorm = lid.trim();
-        const forLead = rows.filter((r) => (r.relatedLeadId ?? '').trim() === idNorm);
-        this.leadCallLogs.set(forLead);
-      });
   }
 
   private refreshLeadTasks(): void {
@@ -716,20 +689,6 @@ export class LeadDetailComponent {
     this.setTab('Comments');
   }
 
-  protected openLogCallFromLead(): void {
-    const l = this.lead();
-    if (!l?.id) return;
-    const displayName =
-      [l.firstName?.trim(), l.lastName?.trim()].filter(Boolean).join(' ') || l.name.trim() || 'Lead';
-    this.createFlow.selectEntity('callLog', {
-      callLogFromLead: {
-        relatedLeadId: String(l.id),
-        contactName: displayName,
-        ...(l.mobile?.trim() ? { phoneNumber: l.mobile.trim() } : {}),
-      },
-    });
-  }
-
   protected openNewTaskFromLead(): void {
     const l = this.lead();
     if (!l?.id) return;
@@ -842,30 +801,6 @@ export class LeadDetailComponent {
     const label = this.noteRelatedTypeLabels[note.relatedType] ?? note.relatedType;
     const suffix = note.visibility === 'private' ? ' · Private' : '';
     return `${label} · ${note.relatedName}${suffix}`;
-  }
-
-  protected callMetaLine(call: CallLogRow): string {
-    return `${call.phoneNumber} · ${this.formatCallDuration(call)} · ${call.outcome}`;
-  }
-
-  protected formatCallDuration(call: CallLogRow): string {
-    const sec = Math.max(0, Math.floor(call.durationSeconds ?? 0));
-    const mm = Math.floor(sec / 60);
-    const ss = sec % 60;
-    return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`;
-  }
-
-  protected formatCallWhen(call: CallLogRow): string {
-    const lm = call.lastModified?.trim();
-    if (lm) return lm;
-    return this.formatStartedAtLabel(call.startedAt);
-  }
-
-  private formatStartedAtLabel(iso: string): string {
-    if (!iso?.trim()) return '—';
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   }
 
   protected setTab(tab: DetailTab): void {
