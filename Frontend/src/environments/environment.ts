@@ -12,7 +12,9 @@ export const environment = {
    * Set to `false` to hide it completely (direct URLs redirect to `/dashboard`).
    */
   enableIndiamartLead: true,
-  apiUrl: 'https://localhost:7172/api',
+  apiUrl: '/api',
+  persistMarketplaceLeadsToDb: true,
+  marketplaceLeadSourceForApi: 'Website',
   /** After lead → deal: `'mark-converted'` sets lead status to Converted; `'delete'` removes the lead. */
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
   /** If true, shows `window.alert` after a successful convert (no new UI components). */

@@ -1,7 +1,8 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
-import { defer, Observable, throwError } from 'rxjs';
-import { catchError, finalize, map } from 'rxjs/operators';
+import { MarketplaceLeadDbSyncService } from '../../core/services/leads/marketplace-lead-db-sync.service';
+import { defer, Observable, of, throwError } from 'rxjs';
+import { catchError, finalize, map, switchMap } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import {
   extractTradeIndiaLeadsArrayFromApiResponse,
@@ -21,6 +22,7 @@ const STORAGE_KEY = 'crm_tradeindia_leads_v1';
 @Injectable({ providedIn: 'root' })
 export class TradeIndiaLeadsService {
   private readonly http = inject(HttpClient);
+  private readonly marketplaceDb = inject(MarketplaceLeadDbSyncService);
 
   private readonly leadsSignal = signal<TradeIndiaLead[]>([]);
   private readonly loadingSignal = signal(false);
@@ -59,6 +61,7 @@ export class TradeIndiaLeadsService {
     const lead = this.normalizeInput(input);
     this.leadsSignal.update((rows) => [lead, ...rows]);
     this.persist();
+    this.persistNewLeadsToDb([lead]);
     return lead;
   }
 
@@ -94,7 +97,7 @@ export class TradeIndiaLeadsService {
       this.loadingSignal.set(true);
       return this.http.get<unknown>(url, { headers: this.buildJsonAuthHeaders() });
     }).pipe(
-      map((body) => this.mergeRemoteLeadsFromResponseBody(body)),
+      switchMap((body) => this.attachDbPersistResult(this.mergeRemoteLeadsFromResponseBody(body))),
       catchError((err: unknown) => {
         if (err instanceof HttpErrorResponse) {
           console.warn('[TradeIndia] pull HTTP error', {
@@ -169,7 +172,41 @@ export class TradeIndiaLeadsService {
       added,
       skippedDuplicates,
       remoteCount: inputs.length,
+      newLeads,
     };
+  }
+
+  private persistNewLeadsToDb(leads: TradeIndiaLead[]): void {
+    if (leads.length === 0 || !this.marketplaceDb.enabled()) return;
+    this.marketplaceDb
+      .persistTradeIndiaLeads(leads)
+      .pipe(
+        catchError((err) => {
+          console.warn('[TradeIndia] DB persist failed', err);
+          return of({ saved: 0, skipped: 0, failed: leads.length });
+        }),
+      )
+      .subscribe();
+  }
+
+  private attachDbPersistResult(merged: TradeIndiaPullResult): Observable<TradeIndiaPullResult> {
+    const batch = merged.newLeads ?? [];
+    if (batch.length === 0 || !this.marketplaceDb.enabled()) {
+      return of(merged);
+    }
+    return this.marketplaceDb.persistTradeIndiaLeads(batch).pipe(
+      map((db) => ({
+        ...merged,
+        dbSaved: db.saved,
+        dbSkipped: db.skipped,
+        dbFailed: db.failed,
+        lastError: db.lastError,
+      })),
+      catchError((err) => {
+        console.warn('[TradeIndia] DB persist failed', err);
+        return of(merged);
+      }),
+    );
   }
 
   private buildJsonAuthHeaders(): HttpHeaders {

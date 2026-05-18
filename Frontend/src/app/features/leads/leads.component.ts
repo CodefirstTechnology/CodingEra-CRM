@@ -5,6 +5,11 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { concat, concatMap, defaultIfEmpty, forkJoin, of, last, take, tap } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { DealsService } from '../../core/services/deals.service';
+import { coerceLeadStatus } from '../../core/services/leads/lead-api.mapper';
+import {
+  LeadMasterDataService,
+  type MasterDataOption,
+} from '../../core/services/leads/lead-master-data.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
@@ -49,6 +54,21 @@ import type {
 /** @deprecated Import from `./lead-row.model` instead. */
 export type { LeadListStatusFilter as StatusFilter, LeadRow, LeadOwnerOption, LeadStatus } from './lead-row.model';
 
+const FALLBACK_SALUTATION_NAMES = ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
+const FALLBACK_EMPLOYEE_LABELS = ['1-10', '11-50', '51-200', '201-500', '500+'] as const;
+const FALLBACK_TERRITORY_NAMES = ['India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
+const FALLBACK_REQUEST_TYPE_NAMES = ['Sales', 'Support', 'Partnership', 'General inquiry'] as const;
+const FALLBACK_INDUSTRY_NAMES = [
+  'Technology',
+  'Finance',
+  'Healthcare',
+  'Manufacturing',
+  'Retail',
+  'Education',
+  'Other',
+] as const;
+const FALLBACK_LEAD_STATUS_NAMES = ['New', 'Contacted', 'Qualified', 'Lost', 'Converted'] as const;
+
 interface LeadColumnOption {
   id: string;
   label: string;
@@ -71,9 +91,14 @@ export class LeadsComponent {
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly leadsService = inject(LeadsService);
   private readonly dealsService = inject(DealsService);
+  private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly indiamartLeadsService = inject(IndiamartLeadsService);
   /** Mirrors {@link IndiamartLeadsService.pullInProgress} for the sync button. */
   protected readonly indiamartPullLoading = this.indiamartLeadsService.pullInProgress;
+  /** Set when live IndiaMART pull is misconfigured (e.g. missing CRM key in `.env`). */
+  protected readonly indiamartConfigError = computed(() =>
+    this.indiamartLeadsService.getLivePullConfigurationError(),
+  );
   private readonly justdialLeadsService = inject(JustdialLeadsService);
   protected readonly justdialLoading = this.justdialLeadsService.loading;
   private readonly tradeindiaLeadsService = inject(TradeIndiaLeadsService);
@@ -94,24 +119,43 @@ export class LeadsComponent {
   protected readonly sourceFilter = signal<LeadListSourceFilter>('all');
   protected readonly columnMenuOpen = signal(false);
 
-  protected readonly statusOptions: LeadStatus[] = ['New', 'Contacted', 'Qualified', 'Lost'];
   protected readonly indiaMartStatusOptions = [...INDIA_MART_LEAD_STATUSES];
   protected readonly justdialStatusOptions = [...JUSTDIAL_LEAD_STATUSES];
   protected readonly tradeindiaStatusOptions = [...TRADEINDIA_LEAD_STATUSES];
-  protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
-  protected readonly employeeOptions = ['1-10', '11-50', '51-200', '201-500', '500+'] as const;
-  protected readonly territoryOptions = ['', 'India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
-  protected readonly industryOptions = [
-    'Technology',
-    'Finance',
-    'Healthcare',
-    'Manufacturing',
-    'Retail',
-    'Education',
-    'Other',
-  ] as const;
-  protected readonly requestTypeOptions = ['', 'Sales', 'Support', 'Partnership', 'General inquiry'] as const;
+
+  private readonly salutationsFromApi = signal<MasterDataOption[]>([]);
+  private readonly employeeCountsFromApi = signal<MasterDataOption[]>([]);
+  private readonly territoriesFromApi = signal<MasterDataOption[]>([]);
+  private readonly requestTypesFromApi = signal<MasterDataOption[]>([]);
+  private readonly industriesFromApi = signal<MasterDataOption[]>([]);
+  private readonly leadStatusesFromApi = signal<MasterDataOption[]>([]);
+
+  /** Dropdown options: API rows when available, else legacy labels (`id` 0 → value is {@link MasterDataOption.name}). */
+  protected readonly salutationSelectOptions = computed<MasterDataOption[]>(() => {
+    const api = this.salutationsFromApi();
+    return api.length > 0 ? api : FALLBACK_SALUTATION_NAMES.map((name) => ({ id: 0, name }));
+  });
+  protected readonly employeeSelectOptions = computed<MasterDataOption[]>(() => {
+    const api = this.employeeCountsFromApi();
+    return api.length > 0 ? api : FALLBACK_EMPLOYEE_LABELS.map((name) => ({ id: 0, name }));
+  });
+  protected readonly territorySelectOptions = computed<MasterDataOption[]>(() => {
+    const api = this.territoriesFromApi();
+    return api.length > 0 ? api : FALLBACK_TERRITORY_NAMES.map((name) => ({ id: 0, name }));
+  });
+  protected readonly requestTypeSelectOptions = computed<MasterDataOption[]>(() => {
+    const api = this.requestTypesFromApi();
+    return api.length > 0 ? api : FALLBACK_REQUEST_TYPE_NAMES.map((name) => ({ id: 0, name }));
+  });
+  protected readonly industrySelectOptions = computed<MasterDataOption[]>(() => {
+    const api = this.industriesFromApi();
+    return api.length > 0 ? api : FALLBACK_INDUSTRY_NAMES.map((name) => ({ id: 0, name }));
+  });
+  protected readonly statusSelectOptions = computed<MasterDataOption[]>(() => {
+    const api = this.leadStatusesFromApi();
+    return api.length > 0 ? api : FALLBACK_LEAD_STATUS_NAMES.map((name) => ({ id: 0, name }));
+  });
 
   protected readonly leadOwnerOptions: LeadOwnerOption[] = [
     { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
@@ -187,6 +231,25 @@ export class LeadsComponent {
 
   constructor() {
     this.refreshLeads();
+    forkJoin({
+      salutations: this.leadMasterData.loadSalutations(),
+      employeeCounts: this.leadMasterData.loadEmployeeCounts(),
+      territories: this.leadMasterData.loadTerritories(),
+      requestTypes: this.leadMasterData.loadRequestTypes(),
+      industries: this.leadMasterData.loadIndustries(),
+      leadStatuses: this.leadMasterData.loadLeadStatuses(),
+    })
+      .pipe(takeUntilDestroyed())
+      .subscribe({
+        next: (r) => {
+          this.salutationsFromApi.set(r.salutations);
+          this.employeeCountsFromApi.set(r.employeeCounts);
+          this.territoriesFromApi.set(r.territories);
+          this.requestTypesFromApi.set(r.requestTypes);
+          this.industriesFromApi.set(r.industries);
+          this.leadStatusesFromApi.set(r.leadStatuses);
+        },
+      });
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'lead') return;
       this.refreshLeads();
@@ -201,6 +264,11 @@ export class LeadsComponent {
 
   /** Unified list: manual CRM leads + marketplace sources, sorted by recency. */
   protected readonly rows = computed(() => this.buildMergedRows());
+
+  private persistMarketplaceLeadsToDb(): boolean {
+    const flag = (environment as { persistMarketplaceLeadsToDb?: boolean }).persistMarketplaceLeadsToDb;
+    return flag !== false && !!environment.apiUrl?.trim();
+  }
 
   private buildMergedRows(): LeadRow[] {
     const manual = this.manualRows().map((r) => {
@@ -217,6 +285,11 @@ export class LeadsComponent {
         sortTimestamp: r.sortTimestamp ?? this.manualUpdatedSortKey(r.updated, idNum),
       };
     });
+
+    if (this.persistMarketplaceLeadsToDb()) {
+      return [...manual].sort((a, b) => (b.sortTimestamp ?? 0) - (a.sortTimestamp ?? 0));
+    }
+
     const im = environment.enableIndiamartLead
       ? this.indiamartLeadsService.leads().map(mapIndiaMartLeadToLeadRow)
       : [];
@@ -349,12 +422,12 @@ export class LeadsComponent {
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
     organization: ['', [Validators.required, Validators.maxLength(160)]],
-    employees: ['1-10'],
+    employees: [''],
     annualRevenue: ['', Validators.maxLength(32)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
     territory: [''],
-    industry: ['Technology', Validators.required],
-    status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),
+    industry: ['', Validators.required],
+    status: ['', Validators.required],
     leadOwner: ['SK', Validators.required],
     requestType: [''],
     requirement: ['', Validators.maxLength(240)],
@@ -382,12 +455,12 @@ export class LeadsComponent {
       email: '',
       gender: '',
       organization: '',
-      employees: '1-10',
+      employees: '',
       annualRevenue: '',
       website: '',
       territory: '',
-      industry: 'Technology',
-      status: 'New',
+      industry: '',
+      status: '',
       leadOwner: 'SK',
       requestType: '',
       requirement: '',
@@ -410,12 +483,12 @@ export class LeadsComponent {
       email: '',
       gender: '',
       organization: '',
-      employees: '1-10',
+      employees: '',
       annualRevenue: '',
       website: '',
       territory: '',
-      industry: 'Technology',
-      status: 'New',
+      industry: '',
+      status: '',
       leadOwner: 'SK',
       requestType: '',
       requirement: '',
@@ -449,21 +522,29 @@ export class LeadsComponent {
           const ar = row.annualRevenue?.trim() ?? '';
           const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
           this.createForm.patchValue({
-            salutation: row.salutation ?? '',
+            salutation: this.masterSelectControlValue(row.salutationId, row.salutation, this.salutationSelectOptions()),
             lastName: row.lastName ?? '',
             mobile: (row.mobile ?? '').replace(/\D/g, '').slice(-10) || row.mobile || '',
             firstName: row.firstName ?? '',
             email: row.email ?? '',
             gender: row.gender ?? '',
             organization: row.organization ?? '',
-            employees: row.employees ?? '1-10',
+            employees: this.masterSelectControlValue(
+              row.employeeCountId,
+              row.employees,
+              this.employeeSelectOptions(),
+            ),
             annualRevenue: arInput,
             website: row.website ?? '',
-            territory: row.territory ?? '',
-            industry: row.industry ?? 'Technology',
-            status: row.status ?? 'New',
+            territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
+            industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
+            status: this.masterSelectControlValue(row.leadStatusId, row.status, this.statusSelectOptions()),
             leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? 'SK',
-            requestType: row.requestType ?? '',
+            requestType: this.masterSelectControlValue(
+              row.requestTypeId,
+              row.requestType,
+              this.requestTypeSelectOptions(),
+            ),
             requirement: row.requirement ?? '',
             customField: row.notes ?? '',
           });
@@ -695,6 +776,51 @@ export class LeadsComponent {
     return this.sourceFilter() === id;
   }
 
+  /** Select `[value]` for master-backed dropdowns (`id` > 0 → numeric string, else label). */
+  protected masterOptionFormValue(opt: MasterDataOption): string {
+    return opt.id > 0 ? String(opt.id) : opt.name;
+  }
+
+  private masterSelectControlValue(
+    id: number | null | undefined,
+    label: string | null | undefined,
+    options: MasterDataOption[],
+  ): string {
+    if (id != null && id > 0) return String(id);
+    const name = label?.trim();
+    if (!name) return '';
+    const norm = (s: string) => s.trim().replace(/\.$/, '').toLowerCase();
+    const key = norm(name);
+    const byName = options.find((o) => o.id > 0 && norm(o.name) === key);
+    if (byName) return String(byName.id);
+    const legacy = options.find((o) => o.id === 0 && norm(o.name) === key);
+    return legacy ? legacy.name : name;
+  }
+
+  private salutationLabelFromFormValue(value: string): string {
+    const v = value.trim();
+    if (!v) return '';
+    const n = Number(v);
+    if (Number.isFinite(n) && n > 0) {
+      return this.salutationSelectOptions().find((o) => o.id === n)?.name ?? '';
+    }
+    return v;
+  }
+
+  private resolveMasterPick(
+    rawValue: string,
+    options: MasterDataOption[],
+  ): { label: string; masterId?: number } {
+    const v = rawValue.trim();
+    if (!v) return { label: '' };
+    const asNum = Number(v);
+    if (Number.isFinite(asNum) && asNum > 0) {
+      const opt = options.find((o) => o.id === asNum);
+      return { label: opt?.name ?? '', masterId: asNum };
+    }
+    return { label: v };
+  }
+
   private buildDisplayName(salutation: string, first: string, last: string): string {
     const parts = [salutation.trim(), first.trim(), last.trim()].filter(Boolean);
     return parts.join(' ').trim() || first.trim() || last.trim() || 'Lead';
@@ -727,23 +853,37 @@ export class LeadsComponent {
     const initials = ownerOpt?.initials ?? raw.leadOwner;
     const leadOwnerName = ownerOpt?.label ?? raw.leadOwner;
 
+    const salPick = this.resolveMasterPick(raw.salutation, this.salutationSelectOptions());
+    const empPick = this.resolveMasterPick(raw.employees, this.employeeSelectOptions());
+    const terrPick = this.resolveMasterPick(raw.territory, this.territorySelectOptions());
+    const rtPick = this.resolveMasterPick(raw.requestType, this.requestTypeSelectOptions());
+    const indPick = this.resolveMasterPick(raw.industry, this.industrySelectOptions());
+    const statPick = this.resolveMasterPick(raw.status, this.statusSelectOptions());
+    const salLabel = salPick.label;
+
     const payload: Omit<LeadRow, 'id'> = {
-      salutation: raw.salutation || undefined,
+      salutation: salLabel || undefined,
+      salutationId: salPick.masterId,
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
-      name: this.buildDisplayName(raw.salutation, raw.firstName, raw.lastName),
+      name: this.buildDisplayName(this.salutationLabelFromFormValue(raw.salutation), raw.firstName, raw.lastName),
       mobile: raw.mobile.trim(),
       leadOwnerId: raw.leadOwner,
       gender: raw.gender || undefined,
       email: emailTrim,
       organization: raw.organization.trim(),
-      employees: raw.employees,
+      employees: empPick.label || undefined,
+      employeeCountId: empPick.masterId,
       annualRevenue: raw.annualRevenue.trim() || undefined,
       website: raw.website.trim() || undefined,
-      territory: raw.territory || undefined,
-      industry: raw.industry,
-      status: raw.status,
-      requestType: raw.requestType || undefined,
+      territory: terrPick.label || undefined,
+      territoryId: terrPick.masterId,
+      industry: indPick.label || 'Other',
+      industryId: indPick.masterId,
+      status: coerceLeadStatus(statPick.label),
+      leadStatusId: statPick.masterId,
+      requestType: rtPick.label || undefined,
+      requestTypeId: rtPick.masterId,
       requirement: raw.requirement.trim() || undefined,
       notes: raw.customField.trim() || undefined,
       leadOwnerName,
@@ -813,6 +953,7 @@ export class LeadsComponent {
 
   protected onIndiaMartStatusChange(row: LeadRow, ev: Event): void {
     const v = (ev.target as HTMLSelectElement).value as IndiaMartLeadStatus;
+    if (this.updateMarketplaceStatusOnApi(row, v, 'IndiaMART')) return;
     const n = parseIndiamartNumericIdFromRowId(row.id);
     if (n == null) return;
     this.indiamartLeadsService.updateLeadStatus(n, v);
@@ -820,6 +961,7 @@ export class LeadsComponent {
 
   protected onJustdialStatusChange(row: LeadRow, ev: Event): void {
     const v = (ev.target as HTMLSelectElement).value as JustdialLeadStatus;
+    if (this.updateMarketplaceStatusOnApi(row, v, 'Justdial')) return;
     const n = parseJustdialNumericIdFromRowId(row.id);
     if (n == null) return;
     this.justdialLeadsService.updateLeadStatus(n, v);
@@ -827,9 +969,45 @@ export class LeadsComponent {
 
   protected onTradeIndiaStatusChange(row: LeadRow, ev: Event): void {
     const v = (ev.target as HTMLSelectElement).value as TradeIndiaLeadStatus;
+    if (this.updateMarketplaceStatusOnApi(row, v, 'TradeIndia')) return;
     const n = parseTradeIndiaNumericIdFromRowId(row.id);
     if (n == null) return;
     this.tradeindiaLeadsService.updateLeadStatus(n, v);
+  }
+
+  private updateMarketplaceStatusOnApi(
+    row: LeadRow,
+    status: LeadStatus,
+    source: LeadSource,
+  ): boolean {
+    if (!this.persistMarketplaceLeadsToDb() || row.leadSource !== source) return false;
+    const id = Number(row.id);
+    if (!Number.isFinite(id)) return false;
+    this.leadsService
+      .update(id, { status })
+      .pipe(take(1))
+      .subscribe({
+        next: () => this.refreshLeads(),
+        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+      });
+    return true;
+  }
+
+  private dbPersistToastSuffix(r: {
+    dbSaved?: number;
+    dbSkipped?: number;
+    dbFailed?: number;
+    lastError?: string;
+  }): string {
+    if (r.dbSaved == null && r.dbFailed == null) return '';
+    const saved = r.dbSaved ?? 0;
+    const failed = r.dbFailed ?? 0;
+    const skipped = r.dbSkipped ?? 0;
+    let msg = ` Database: ${saved} saved${skipped ? `, ${skipped} already in CRM` : ''}${failed ? `, ${failed} failed` : ''}.`;
+    if (failed > 0 && r.lastError) {
+      msg += ` ${r.lastError}`;
+    }
+    return msg;
   }
 
   /** Pulls IndiaMART leads from `environment.indiamart.pullApiUrl`. */
@@ -838,10 +1016,12 @@ export class LeadsComponent {
       .fetchFromIndiaMartAPI()
       .pipe(take(1))
       .subscribe({
-        next: (r) =>
+        next: (r) => {
+          this.refreshLeads();
           this.toast.show(
-            `IndiaMART sync: ${r.added} new, ${r.skippedDuplicates} skipped (duplicates or invalid), ${r.remoteCount} parsed from response.`,
-          ),
+            `IndiaMART sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
+          );
+        },
         error: (e: unknown) =>
           this.toast.show(e instanceof Error ? e.message : 'IndiaMART sync failed.'),
       });
@@ -853,10 +1033,12 @@ export class LeadsComponent {
       .fetchFromAPI()
       .pipe(take(1))
       .subscribe({
-        next: (r) =>
+        next: (r) => {
+          this.refreshLeads();
           this.toast.show(
-            `Justdial sync: ${r.added} new, ${r.skippedDuplicates} skipped, ${r.remoteCount} parsed from response.`,
-          ),
+            `Justdial sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
+          );
+        },
         error: (e: unknown) =>
           this.toast.show(e instanceof Error ? e.message : 'Justdial sync failed.'),
       });
@@ -868,10 +1050,12 @@ export class LeadsComponent {
       .fetchFromAPI()
       .pipe(take(1))
       .subscribe({
-        next: (r) =>
+        next: (r) => {
+          this.refreshLeads();
           this.toast.show(
-            `TradeIndia sync: ${r.added} new, ${r.skippedDuplicates} skipped, ${r.remoteCount} parsed from response.`,
-          ),
+            `TradeIndia sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
+          );
+        },
         error: (e: unknown) =>
           this.toast.show(e instanceof Error ? e.message : 'TradeIndia sync failed.'),
       });

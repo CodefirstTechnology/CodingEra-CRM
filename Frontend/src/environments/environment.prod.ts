@@ -13,7 +13,9 @@ import {
 export const environment = {
   production: true,
   enableIndiamartLead: true,
-  apiUrl: 'https://localhost:7172/api',
+  apiUrl: '/api',
+  persistMarketplaceLeadsToDb: true,
+  marketplaceLeadSourceForApi: 'Website',
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
   showLeadConvertSuccessMessage: false,
   indiamart: {

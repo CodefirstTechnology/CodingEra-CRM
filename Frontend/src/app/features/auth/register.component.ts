@@ -55,7 +55,9 @@ export class RegisterComponent {
             this.toast.show('Account created successfully');
             void this.router.navigateByUrl('/login', { replaceUrl: true });
           } else {
-            this.formError.set(res.error ?? 'Something went wrong.');
+            const msg = res.error ?? 'Something went wrong.';
+            this.formError.set(msg);
+            this.toast.show(msg);
           }
         },
         error: () => {

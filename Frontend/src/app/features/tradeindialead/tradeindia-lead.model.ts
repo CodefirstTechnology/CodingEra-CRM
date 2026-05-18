@@ -43,4 +43,9 @@ export interface TradeIndiaPullResult {
   added: number;
   skippedDuplicates: number;
   remoteCount: number;
+  newLeads?: TradeIndiaLead[];
+  dbSaved?: number;
+  dbSkipped?: number;
+  dbFailed?: number;
+  lastError?: string;
 }

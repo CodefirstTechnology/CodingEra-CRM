@@ -43,4 +43,9 @@ export interface JustdialPullResult {
   added: number;
   skippedDuplicates: number;
   remoteCount: number;
+  newLeads?: JustdialLead[];
+  dbSaved?: number;
+  dbSkipped?: number;
+  dbFailed?: number;
+  lastError?: string;
 }

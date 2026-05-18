@@ -12,7 +12,17 @@ export const environment = {
    * Set to `false` to hide it completely (direct URLs redirect to `/dashboard`).
    */
   enableIndiamartLead: true,
-  apiUrl: 'https://localhost:7172/api',
+  /** Proxied by `proxy.conf.json` → `https://localhost:7172/api` */
+  apiUrl: '/api',
+  /**
+   * When true, IndiaMART / Justdial / TradeIndia leads are POSTed to `GET/POST /api/leads`
+   * and the Leads list loads marketplace rows from the database (not only localStorage).
+   */
+  persistMarketplaceLeadsToDb: true,
+  /** Stored in DB `leadSource` for marketplace imports; platform name remains in lead `notes`. */
+  marketplaceLeadSourceForApi: 'Website',
+  /** Optional FK for `POST /api/auth/register`. Example: `registerRoleId: 1` if auto-resolve from roles fails. */
+  // registerRoleId: 1,
   leadConversionAfterDeal: 'mark-converted' as 'mark-converted' | 'delete',
   showLeadConvertSuccessMessage: false,
   /**
@@ -24,7 +34,6 @@ export const environment = {
   indiamart: {
     pullApiUrl: indiamartSecrets.pullApiUrl || '/indiamart-mapi/wservce/crm/crmListing/v2',
     pushApiUrl: indiamartSecrets.pushApiUrl,
-    /** Same Pull API key as production `environment.ts` — keep in sync or use a local-only key. */
     apiKey: indiamartSecrets.apiKey,
     webhookToken: indiamartSecrets.webhookToken,
   } satisfies IndiamartEnvironmentConfig,
