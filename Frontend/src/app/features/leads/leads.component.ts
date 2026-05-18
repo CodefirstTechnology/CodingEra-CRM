@@ -14,6 +14,7 @@ import {
   isPersistedApiLeadRow,
   LeadOwnerOptionsService,
 } from '../../core/services/leads/lead-owner-options.service';
+import { LeadRoundRobinService } from '../../core/services/leads/lead-round-robin.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
@@ -103,6 +104,7 @@ export class LeadsComponent {
   private readonly dealsService = inject(DealsService);
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
+  private readonly leadRoundRobin = inject(LeadRoundRobinService);
   private readonly indiamartLeadsService = inject(IndiamartLeadsService);
   /** Mirrors {@link IndiamartLeadsService.pullInProgress} for the sync button. */
   protected readonly indiamartPullLoading = this.indiamartLeadsService.pullInProgress;
@@ -330,7 +332,10 @@ export class LeadsComponent {
       .getAll()
       .pipe(take(1))
       .subscribe({
-        next: (rows) => this.manualRows.set(rows),
+        next: (rows) => {
+          this.manualRows.set(rows);
+          this.leadRoundRobin.seedIndexFromExistingLeadCount(rows.length);
+        },
         error: (err: unknown) => {
           this.manualRows.set([]);
           this.toast.show(leadsHttpErrorMessage(err));
@@ -472,7 +477,7 @@ export class LeadsComponent {
       territory: '',
       industry: '',
       status: '',
-      leadOwner: this.leadOwnerOpts.defaultOwnerId(),
+      leadOwner: this.leadRoundRobin.nextOwnerIdForForm(),
       requestType: '',
       requirement: '',
       customField: '',
@@ -500,7 +505,7 @@ export class LeadsComponent {
       territory: '',
       industry: '',
       status: '',
-      leadOwner: this.leadOwnerOpts.defaultOwnerId(),
+      leadOwner: this.leadRoundRobin.nextOwnerIdForForm(),
       requestType: '',
       requirement: '',
       customField: '',

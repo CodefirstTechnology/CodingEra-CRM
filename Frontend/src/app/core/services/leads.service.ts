@@ -1,7 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom, Observable, of } from 'rxjs';
-import { map, switchMap } from 'rxjs/operators';
+import { map, switchMap, tap } from 'rxjs/operators';
+import { LeadRoundRobinService } from './leads/lead-round-robin.service';
 import { OrganizationResolveService } from './organizations/organization-resolve.service';
 import type { LeadRow } from '../../features/leads/lead-row.model';
 import {
@@ -39,6 +40,7 @@ export function leadsHttpErrorMessage(err: unknown): string {
 export class LeadsService {
   private readonly leadHttp = inject(LeadHttpService);
   private readonly orgResolve = inject(OrganizationResolveService);
+  private readonly roundRobin = inject(LeadRoundRobinService);
 
   getAll(): Observable<LeadRow[]> {
     return this.leadHttp.list().pipe(map((rows) => rows.map(mapLeadNormalizedToRow)));
@@ -57,8 +59,10 @@ export class LeadsService {
   }
 
   create(data: Omit<LeadRow, 'id'>): Observable<LeadRow> {
-    return this.withResolvedOrganization(data).pipe(
+    const withOwner = this.roundRobin.applyOwnerIfMissing(data);
+    return this.withResolvedOrganization(withOwner).pipe(
       switchMap((body) => this.leadHttp.create(body).pipe(map(mapLeadNormalizedToRow))),
+      tap(() => this.roundRobin.advanceAfterLeadCreated()),
     );
   }
 

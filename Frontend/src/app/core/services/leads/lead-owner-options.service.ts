@@ -1,5 +1,5 @@
 import { inject, Injectable, signal } from '@angular/core';
-import { take } from 'rxjs';
+import { catchError, map, Observable, of, take } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { AdminUsersService, type AdminUserRow } from '../admin-users.service';
 import type { LeadOwnerOption, LeadRow } from '../../../features/leads/lead-row.model';
@@ -38,16 +38,27 @@ export class LeadOwnerOptionsService {
   readonly loaded = this.loadedSignal.asReadonly();
 
   load(): void {
-    this.adminUsers.listUsers(this.auth.token()).pipe(take(1)).subscribe({
-      next: (users) => {
-        this.optionsSignal.set(users.map(adminUserToLeadOwnerOption));
+    this.ensureLoaded().pipe(take(1)).subscribe();
+  }
+
+  /** Resolves when owner options are in memory (required before marketplace bulk save + round robin). */
+  ensureLoaded(): Observable<readonly LeadOwnerOption[]> {
+    if (this.loadedSignal()) {
+      return of(this.optionsSignal());
+    }
+    return this.adminUsers.listUsers(this.auth.token()).pipe(
+      map((users) => {
+        const opts = users.map(adminUserToLeadOwnerOption);
+        this.optionsSignal.set(opts);
         this.loadedSignal.set(true);
-      },
-      error: () => {
+        return opts;
+      }),
+      catchError(() => {
         this.optionsSignal.set([]);
         this.loadedSignal.set(true);
-      },
-    });
+        return of([] as LeadOwnerOption[]);
+      }),
+    );
   }
 
   findById(id: string | undefined | null): LeadOwnerOption | undefined {

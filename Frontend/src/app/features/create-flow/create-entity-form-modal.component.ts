@@ -16,6 +16,7 @@ import { TasksService } from '../../core/services/tasks.service';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from '../deals/deals.component';
 import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
+import { LeadRoundRobinService } from '../../core/services/leads/lead-round-robin.service';
 import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { OrganizationRow } from '../organizations/organizations.component';
 import type { NoteRelatedType, NoteRow, NoteVisibility } from '../notes/notes.component';
@@ -43,6 +44,7 @@ export class CreateEntityFormModalComponent {
   private readonly notesService = inject(NotesService);
   protected readonly auth = inject(AuthService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
+  private readonly leadRoundRobin = inject(LeadRoundRobinService);
 
   protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
@@ -223,7 +225,7 @@ export class CreateEntityFormModalComponent {
           territory: '',
           industry: 'Technology',
           status: 'New',
-          leadOwner: this.leadOwnerOpts.defaultOwnerId(),
+          leadOwner: this.leadRoundRobin.nextOwnerIdForForm(),
           requestType: '',
           requirement: '',
           customField: '',
