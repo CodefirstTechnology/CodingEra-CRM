@@ -224,22 +224,47 @@ export class IndiamartLeadsService {
   }
 
   /**
-   * Official Lead Manager Pull API uses query param `glusr_crm_key` (see IndiaMART docs).
-   * If `pullApiUrl` already contains `glusr_crm_key=`, it is left unchanged.
+   * Official Lead Manager Pull API: `glusr_crm_key`, `start_time`, `end_time` (IST, DD-MMM-YYYYHH:MM:SS).
+   * Each sync requests leads for today 00:00:00–23:59:59 IST.
    */
   private buildCrmPullRequestUrl(): string {
     const safe = this.browserSafeIndiamartUrl(environment.indiamart.pullApiUrl);
     if (!safe.length) return '';
     const base = this.coerceToLeadManagerPullBase(safe);
-    if (base.includes('glusr_crm_key=')) {
-      return base;
+    const qIdx = base.indexOf('?');
+    const pathOnly = qIdx >= 0 ? base.slice(0, qIdx) : base;
+    const params = new URLSearchParams(qIdx >= 0 ? base.slice(qIdx + 1) : '');
+
+    if (!params.has('glusr_crm_key')) {
+      const key = environment.indiamart.apiKey.trim();
+      if (!key.length) {
+        return '';
+      }
+      params.set('glusr_crm_key', key);
     }
-    const key = environment.indiamart.apiKey.trim();
-    if (!key.length) {
-      return '';
-    }
-    const sep = base.includes('?') ? '&' : '?';
-    return `${base}${sep}glusr_crm_key=${encodeURIComponent(key)}`;
+
+    const { start_time, end_time } = this.getTodayIstPullTimeRange();
+    params.set('start_time', start_time);
+    params.set('end_time', end_time);
+
+    return `${pathOnly}?${params.toString()}`;
+  }
+
+  /** IndiaMART Pull API expects IST timestamps like `18-May-202600:00:00`. */
+  private getTodayIstPullTimeRange(): { start_time: string; end_time: string } {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Asia/Kolkata',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    }).formatToParts(new Date());
+    const day = parts.find((p) => p.type === 'day')?.value ?? '01';
+    const month = parts.find((p) => p.type === 'month')?.value ?? 'Jan';
+    const year = parts.find((p) => p.type === 'year')?.value ?? '1970';
+    return {
+      start_time: `${day}-${month}-${year}00:00:00`,
+      end_time: `${day}-${month}-${year}23:59:59`,
+    };
   }
 
   /**
