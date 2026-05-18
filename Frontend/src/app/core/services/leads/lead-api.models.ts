@@ -47,6 +47,8 @@ export interface LeadNormalized {
   requestTypeName: string;
   notes: string;
   leadOwnerId: number | null;
+  /** Display name when returned inline on GET (otherwise resolved from users list). */
+  leadOwnerName: string;
   leadSource: string;
   updatedAt: string;
   createdAt: string | null;

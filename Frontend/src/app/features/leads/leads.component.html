@@ -64,8 +64,8 @@
     [convertLeadEnabled]="bulkConvertEnabled()"
     [showAssignActions]="true"
     [showConvertLead]="true"
+    [showDelete]="false"
     (edit)="onBulkEdit()"
-    (delete)="onBulkDelete()"
     (assignTo)="onAssignToMenu()"
     (clearAssignment)="onClearAssignmentBulk()"
     (convertToDeal)="convertToDeal()"
@@ -75,7 +75,7 @@
   <app-crm-assign-picker
     [open]="assignPickerOpen()"
     title="Assign leads"
-    [options]="leadOwnerOptions"
+    [options]="leadOwnerOptions()"
     [selectedId]="assignDefaultOwnerId()"
     (picked)="onAssignPicked($event)"
     (closed)="onAssignClosed()"
@@ -255,7 +255,7 @@
               <label class="leads__field leads__field--span2-md">
                 <span class="leads__label">Lead owner</span>
                 <select class="leads__control leads__control--soft leads__control--owner" formControlName="leadOwner">
-                  @for (o of leadOwnerOptions; track o.id) {
+                  @for (o of leadOwnerOptions(); track o.id) {
                     <option [value]="o.id">{{ o.label }}</option>
                   }
                 </select>
@@ -362,7 +362,7 @@
         </button>
         @if (columnMenuOpen()) {
           <div class="leads__columns-menu" role="menu" aria-label="Choose lead table columns">
-            <p class="leads__columns-help">Name, email, and source are required.</p>
+            <p class="leads__columns-help">Name and source are required.</p>
             @for (column of columnOptions(); track column.id) {
               <label class="leads__column-option" [class.is-required]="column.required">
                 <input
@@ -403,7 +403,6 @@
               @for (column of visibleColumns(); track column.id) {
                 <th>{{ column.label }}</th>
               }
-              <th class="hide-narrow">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -423,9 +422,6 @@
                     @switch (column.id) {
                       @case ('name') {
                         <a [routerLink]="['/leads', row.id]" class="leads__name-link">{{ row.name }}</a>
-                      }
-                      @case ('leadSource') {
-                        <span [class]="leadSourceClass(row)">{{ leadSourceLabel(row) }}</span>
                       }
                       @case ('status') {
                         @if (leadSourceLabel(row) === 'IndiaMART') {
@@ -466,10 +462,27 @@
                         }
                       }
                       @case ('owner') {
-                        <span class="leads__owner-cell">
-                          <span class="leads__avatar">{{ row.owner }}</span>
-                          <span class="leads__owner-name">{{ row.leadOwnerName }}</span>
-                        </span>
+                        @if (isPersistedApiLeadRow(row.id) && leadOwnerOptions().length > 0) {
+                          <select
+                            class="leads__owner-select"
+                            [ngModel]="resolveOwnerSelectValue(row)"
+                            (ngModelChange)="onLeadOwnerSelectChange(row, $event)"
+                            (click)="$event.stopPropagation()"
+                            [attr.aria-label]="'Lead owner for ' + row.name"
+                          >
+                            <option value="">Unassigned</option>
+                            @for (o of leadOwnerOptions(); track o.id) {
+                              <option [value]="o.id">{{ o.label }}</option>
+                            }
+                          </select>
+                        } @else {
+                          <span class="leads__owner-cell">
+                            @if (row.owner) {
+                              <span class="leads__avatar">{{ row.owner }}</span>
+                            }
+                            <span class="leads__owner-name">{{ row.leadOwnerName || '—' }}</span>
+                          </span>
+                        }
                       }
                       @default {
                         {{ displayColumnValue(row, column.id) }}
@@ -477,9 +490,6 @@
                     }
                   </td>
                 }
-                <td class="hide-narrow">
-                  <button type="button" class="leads__linkish" (click)="deleteLead(row, $event)">Delete</button>
-                </td>
               </tr>
             }
           </tbody>

@@ -107,7 +107,7 @@
         <label class="create-form__field">
           <span class="create-form__label">Lead owner</span>
           <select class="create-form__control" formControlName="leadOwner">
-            @for (o of leadOwnerOptions; track o.id) {
+            @for (o of leadOwnerOptions(); track o.id) {
               <option [value]="o.id">{{ o.label }}</option>
             }
           </select>
@@ -445,78 +445,6 @@
             <option value="team">Team</option>
             <option value="private">Private</option>
           </select>
-        </label>
-      </div>
-      <footer class="create-form__foot">
-        <button type="button" class="create-form__btn create-form__btn--ghost" (click)="close()">Cancel</button>
-        <button type="submit" class="create-form__btn create-form__btn--primary">Save</button>
-      </footer>
-    </form>
-  } @else if (flow.formKind() === 'callLog') {
-    <form class="create-form" [formGroup]="callForm" (ngSubmit)="submitCall()">
-      <fieldset class="create-form__fieldset">
-        <legend class="create-form__legend">Direction</legend>
-        <div class="create-form__radio-row">
-          <label class="create-form__radio">
-            <input type="radio" formControlName="direction" value="outbound" />
-            <span>Outbound</span>
-          </label>
-          <label class="create-form__radio">
-            <input type="radio" formControlName="direction" value="inbound" />
-            <span>Inbound</span>
-          </label>
-        </div>
-      </fieldset>
-      <div class="create-form__grid create-form__grid--2">
-        <label class="create-form__field">
-          <span class="create-form__label">Phone <span class="create-form__req">*</span></span>
-          <input class="create-form__control" type="tel" formControlName="phoneNumber" />
-          @if (fieldInvalid('call', 'phoneNumber')) {
-            <span class="create-form__err">Required.</span>
-          }
-        </label>
-        <label class="create-form__field">
-          <span class="create-form__label">Contact / company <span class="create-form__req">*</span></span>
-          <input class="create-form__control" type="text" formControlName="contactName" />
-          @if (fieldInvalid('call', 'contactName')) {
-            <span class="create-form__err">Required.</span>
-          }
-        </label>
-        <label class="create-form__field">
-          <span class="create-form__label">Started <span class="create-form__req">*</span></span>
-          <input class="create-form__control" type="datetime-local" formControlName="startedAt" />
-        </label>
-        <div class="create-form__field">
-          <span class="create-form__label">Duration <span class="create-form__req">*</span></span>
-          <div class="create-form__dur">
-            <label class="create-form__dur-part">
-              <span class="visually-hidden">Minutes</span>
-              <input class="create-form__control" type="number" formControlName="durationMin" min="0" max="99" />
-              <span class="create-form__dur-hint">min</span>
-            </label>
-            <label class="create-form__dur-part">
-              <span class="visually-hidden">Seconds</span>
-              <input class="create-form__control" type="number" formControlName="durationSec" min="0" max="59" />
-              <span class="create-form__dur-hint">sec</span>
-            </label>
-          </div>
-          @if (fieldInvalid('call', 'durationMin') || fieldInvalid('call', 'durationSec')) {
-            <span class="create-form__err">Use valid duration.</span>
-          }
-        </div>
-        <label class="create-form__field create-form__field--span2">
-          <span class="create-form__label">Outcome</span>
-          <select class="create-form__control" formControlName="outcome">
-            <option value="connected">Connected</option>
-            <option value="voicemail">Voicemail</option>
-            <option value="no_answer">No answer</option>
-            <option value="busy">Busy</option>
-            <option value="wrong_number">Wrong number</option>
-          </select>
-        </label>
-        <label class="create-form__field create-form__field--span2">
-          <span class="create-form__label">Summary</span>
-          <textarea class="create-form__control create-form__textarea" rows="2" formControlName="summary"></textarea>
         </label>
       </div>
       <footer class="create-form__foot">

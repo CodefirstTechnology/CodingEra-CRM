@@ -80,7 +80,7 @@ export class LeadHttpService {
       .pipe(map((raw) => normalizeLeadApiRecord(raw)));
   }
 
-  put(id: number, body: LeadUpsertDto): Observable<LeadNormalized> {
+  put(id: number, body: LeadUpsertDto | Record<string, unknown>): Observable<LeadNormalized> {
     return this.http
       .put<unknown>(`${this.baseUrl}/${id}`, body, { headers: this.jsonHeaders() })
       .pipe(map((raw) => normalizeLeadApiRecord(raw)));

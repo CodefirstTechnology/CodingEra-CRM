@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { concat, concatMap, defaultIfEmpty, forkJoin, of, last, take, tap } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
@@ -10,6 +10,11 @@ import {
   LeadMasterDataService,
   type MasterDataOption,
 } from '../../core/services/leads/lead-master-data.service';
+import {
+  isPersistedApiLeadRow,
+  LeadOwnerOptionsService,
+} from '../../core/services/leads/lead-owner-options.service';
+import { LeadRoundRobinService } from '../../core/services/leads/lead-round-robin.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
@@ -77,7 +82,13 @@ interface LeadColumnOption {
 
 @Component({
   selector: 'app-leads',
-  imports: [ReactiveFormsModule, RouterLink, CrmSelectionBarComponent, CrmAssignPickerComponent],
+  imports: [
+    ReactiveFormsModule,
+    FormsModule,
+    RouterLink,
+    CrmSelectionBarComponent,
+    CrmAssignPickerComponent,
+  ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
 })
@@ -92,6 +103,8 @@ export class LeadsComponent {
   private readonly leadsService = inject(LeadsService);
   private readonly dealsService = inject(DealsService);
   private readonly leadMasterData = inject(LeadMasterDataService);
+  private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
+  private readonly leadRoundRobin = inject(LeadRoundRobinService);
   private readonly indiamartLeadsService = inject(IndiamartLeadsService);
   /** Mirrors {@link IndiamartLeadsService.pullInProgress} for the sync button. */
   protected readonly indiamartPullLoading = this.indiamartLeadsService.pullInProgress;
@@ -157,11 +170,8 @@ export class LeadsComponent {
     return api.length > 0 ? api : FALLBACK_LEAD_STATUS_NAMES.map((name) => ({ id: 0, name }));
   });
 
-  protected readonly leadOwnerOptions: LeadOwnerOption[] = [
-    { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
-    { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
-    { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
-  ];
+  protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
+  protected readonly isPersistedApiLeadRow = isPersistedApiLeadRow;
 
   protected readonly filterChips: { id: LeadListStatusFilter; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -179,12 +189,11 @@ export class LeadsComponent {
     { id: 'TradeIndia', label: 'TradeIndia' },
   ];
 
-  private readonly requiredColumnIds = new Set(['name', 'email', 'leadSource']);
+  private readonly requiredColumnIds = new Set(['name', 'source']);
   private readonly selectedColumnIds = signal<string[]>([
     'name',
-    'leadSource',
+    'source',
     'organization',
-    'email',
     'status',
     'owner',
   ]);
@@ -196,11 +205,12 @@ export class LeadsComponent {
     'gender',
     'leadOwnerName',
     'leadOwnerId',
+    'leadSource',
     'sortTimestamp',
   ]);
   private readonly preferredColumnOrder = [
     'name',
-    'leadSource',
+    'source',
     'organization',
     'email',
     'mobile',
@@ -214,22 +224,21 @@ export class LeadsComponent {
     'website',
     'territory',
     'requestType',
-    'source',
     'notes',
   ];
   private readonly columnLabels: Record<string, string> = {
-    leadSource: 'Source',
+    source: 'Source',
     owner: 'Lead owner',
     leadOwnerName: 'Lead owner',
     annualRevenue: 'Annual revenue',
     requestType: 'Request type',
-    source: 'Original source',
   };
 
   /** Manual / API-backed rows only; merged with marketplace lead sources in {@link rows}. */
   protected readonly manualRows = signal<LeadRow[]>([]);
 
   constructor() {
+    this.leadOwnerOpts.load();
     this.refreshLeads();
     forkJoin({
       salutations: this.leadMasterData.loadSalutations(),
@@ -263,7 +272,7 @@ export class LeadsComponent {
   }
 
   /** Unified list: manual CRM leads + marketplace sources, sorted by recency. */
-  protected readonly rows = computed(() => this.buildMergedRows());
+  protected readonly rows = computed(() => this.leadOwnerOpts.enrichRows(this.buildMergedRows()));
 
   private persistMarketplaceLeadsToDb(): boolean {
     const flag = (environment as { persistMarketplaceLeadsToDb?: boolean }).persistMarketplaceLeadsToDb;
@@ -323,7 +332,10 @@ export class LeadsComponent {
       .getAll()
       .pipe(take(1))
       .subscribe({
-        next: (rows) => this.manualRows.set(rows),
+        next: (rows) => {
+          this.manualRows.set(rows);
+          this.leadRoundRobin.seedIndexFromExistingLeadCount(rows.length);
+        },
         error: (err: unknown) => {
           this.manualRows.set([]);
           this.toast.show(leadsHttpErrorMessage(err));
@@ -350,6 +362,7 @@ export class LeadsComponent {
         row.owner.toLowerCase().includes(q) ||
         row.leadOwnerName.toLowerCase().includes(q) ||
         row.industry.toLowerCase().includes(q) ||
+        (row.source?.toLowerCase().includes(q) ?? false) ||
         (row.requirement?.toLowerCase().includes(q) ?? false) ||
         (row.notes?.toLowerCase().includes(q) ?? false) ||
         srcLabel.includes(q)
@@ -386,10 +399,13 @@ export class LeadsComponent {
   protected readonly assignDefaultOwnerId = computed(() => {
     const ids = this.sel.selectedItems();
     const first = this.rows().find((r) => r.id === ids[0]);
-    if (!first) return 'SK';
+    if (!first) return this.leadOwnerOpts.defaultOwnerId();
     return (
-      this.leadOwnerOptions.find((o) => o.initials === first.owner || o.label === first.leadOwnerName)?.id ??
-      'SK'
+      this.leadOwnerOpts.findById(first.leadOwnerId)?.id ??
+      this.leadOwnerOptions().find(
+        (o) => o.initials === first.owner || o.label === first.leadOwnerName,
+      )?.id ??
+      this.leadOwnerOpts.defaultOwnerId()
     );
   });
 
@@ -402,7 +418,7 @@ export class LeadsComponent {
   protected readonly bulkAssignEnabled = computed(() => {
     const ids = this.sel.selectedItems();
     if (ids.length === 0) return false;
-    return ids.every((id) => this.rows().find((r) => r.id === id)?.leadSource === 'Manual');
+    return ids.every((id) => isPersistedApiLeadRow(id));
   });
 
   protected readonly bulkConvertEnabled = computed(() => {
@@ -428,7 +444,7 @@ export class LeadsComponent {
     territory: [''],
     industry: ['', Validators.required],
     status: ['', Validators.required],
-    leadOwner: ['SK', Validators.required],
+    leadOwner: ['', Validators.required],
     requestType: [''],
     requirement: ['', Validators.maxLength(240)],
     customField: ['', Validators.maxLength(240)],
@@ -461,7 +477,7 @@ export class LeadsComponent {
       territory: '',
       industry: '',
       status: '',
-      leadOwner: 'SK',
+      leadOwner: this.leadRoundRobin.nextOwnerIdForForm(),
       requestType: '',
       requirement: '',
       customField: '',
@@ -489,7 +505,7 @@ export class LeadsComponent {
       territory: '',
       industry: '',
       status: '',
-      leadOwner: 'SK',
+      leadOwner: this.leadRoundRobin.nextOwnerIdForForm(),
       requestType: '',
       requirement: '',
       customField: '',
@@ -516,9 +532,11 @@ export class LeadsComponent {
           }
           this.editingNumericId.set(id);
           this.modalLeadSource.set(row.leadSource ?? 'Manual');
-          const ownerOpt = this.leadOwnerOptions.find(
-            (o) => o.initials === row.owner || o.label === row.leadOwnerName,
-          );
+          const ownerOpt =
+            this.leadOwnerOpts.findById(row.leadOwnerId) ??
+            this.leadOwnerOptions().find(
+              (o) => o.initials === row.owner || o.label === row.leadOwnerName,
+            );
           const ar = row.annualRevenue?.trim() ?? '';
           const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
           this.createForm.patchValue({
@@ -539,7 +557,7 @@ export class LeadsComponent {
             territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
             industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
             status: this.masterSelectControlValue(row.leadStatusId, row.status, this.statusSelectOptions()),
-            leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? 'SK',
+            leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? this.leadOwnerOpts.defaultOwnerId(),
             requestType: this.masterSelectControlValue(
               row.requestTypeId,
               row.requestType,
@@ -575,33 +593,6 @@ export class LeadsComponent {
     this.beginEditFromRoute(ids[0]);
   }
 
-  protected onBulkDelete(): void {
-    const ids = this.sel.selectedItems();
-    if (ids.length === 0) return;
-    const streams = ids.map((sid) => {
-      const imId = parseIndiamartNumericIdFromRowId(sid);
-      if (imId != null) {
-        return of(null).pipe(tap(() => this.indiamartLeadsService.deleteLead(imId)));
-      }
-      const jdId = parseJustdialNumericIdFromRowId(sid);
-      if (jdId != null) {
-        return of(null).pipe(tap(() => this.justdialLeadsService.deleteLead(jdId)));
-      }
-      const tiId = parseTradeIndiaNumericIdFromRowId(sid);
-      if (tiId != null) {
-        return of(null).pipe(tap(() => this.tradeindiaLeadsService.deleteLead(tiId)));
-      }
-      return this.leadsService.delete(Number(sid)).pipe(take(1));
-    });
-    forkJoin(streams).subscribe({
-      next: () => {
-        this.sel.clear();
-        this.refreshLeads();
-      },
-      error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
-    });
-  }
-
   protected onBulkDismiss(): void {
     this.sel.clear();
   }
@@ -615,7 +606,7 @@ export class LeadsComponent {
   }
 
   protected onAssignPicked(ownerKey: string): void {
-    const opt = this.leadOwnerOptions.find((o) => o.id === ownerKey);
+    const opt = this.leadOwnerOpts.findById(ownerKey);
     if (!opt) {
       this.assignPickerOpen.set(false);
       return;
@@ -629,6 +620,7 @@ export class LeadsComponent {
     const streams = ids.map((sid) =>
       this.leadsService
         .update(Number(sid), {
+          leadOwnerId: opt.id,
           leadOwnerName: opt.label,
           owner: opt.initials,
           updated: 'Just now',
@@ -652,6 +644,7 @@ export class LeadsComponent {
     const streams = ids.map((sid) =>
       this.leadsService
         .update(Number(sid), {
+          leadOwnerId: '',
           leadOwnerName: '—',
           owner: '—',
           updated: 'Just now',
@@ -665,6 +658,56 @@ export class LeadsComponent {
       },
       error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
     });
+  }
+
+  protected resolveOwnerSelectValue(row: LeadRow): string {
+    return this.leadOwnerOpts.resolveSelectValue(row);
+  }
+
+  protected onLeadOwnerSelectChange(row: LeadRow, ownerKey: string): void {
+    if (!isPersistedApiLeadRow(row.id)) return;
+    const idn = Number(row.id);
+    if (!Number.isFinite(idn)) return;
+
+    const patch = !ownerKey
+      ? { leadOwnerId: '', leadOwnerName: '—', owner: '—', updated: 'Just now' }
+      : (() => {
+          const opt = this.leadOwnerOpts.findById(ownerKey);
+          if (!opt) return null;
+          return {
+            leadOwnerId: opt.id,
+            leadOwnerName: opt.label,
+            owner: opt.initials,
+            updated: 'Just now',
+          };
+        })();
+
+    if (!patch) return;
+
+    this.patchLeadRowInList(String(idn), patch);
+
+    this.leadsService
+      .update(idn, patch)
+      .pipe(take(1))
+      .subscribe({
+        next: (updated) => {
+          if (updated) {
+            this.patchLeadRowInList(String(idn), updated);
+          } else {
+            this.refreshLeads();
+          }
+        },
+        error: (e: unknown) => {
+          this.refreshLeads();
+          this.toast.show(leadsHttpErrorMessage(e));
+        },
+      });
+  }
+
+  private patchLeadRowInList(id: string, patch: Partial<LeadRow>): void {
+    this.manualRows.update((rows) =>
+      rows.map((r) => (r.id === id ? this.leadOwnerOpts.applyOwnerToRow({ ...r, ...patch }) : r)),
+    );
   }
 
   protected convertToDeal(): void {
@@ -849,7 +892,7 @@ export class LeadsComponent {
       return;
     }
 
-    const ownerOpt = this.leadOwnerOptions.find((o) => o.id === raw.leadOwner);
+    const ownerOpt = this.leadOwnerOpts.findById(raw.leadOwner);
     const initials = ownerOpt?.initials ?? raw.leadOwner;
     const leadOwnerName = ownerOpt?.label ?? raw.leadOwner;
 
@@ -915,40 +958,6 @@ export class LeadsComponent {
           error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
         });
     }
-  }
-
-  protected deleteLead(row: LeadRow, ev: Event): void {
-    ev.stopPropagation();
-    const imId = parseIndiamartNumericIdFromRowId(row.id);
-    if (imId != null) {
-      this.indiamartLeadsService.deleteLead(imId);
-      this.sel.removeId(row.id);
-      return;
-    }
-    const jdId = parseJustdialNumericIdFromRowId(row.id);
-    if (jdId != null) {
-      this.justdialLeadsService.deleteLead(jdId);
-      this.sel.removeId(row.id);
-      return;
-    }
-    const tiId = parseTradeIndiaNumericIdFromRowId(row.id);
-    if (tiId != null) {
-      this.tradeindiaLeadsService.deleteLead(tiId);
-      this.sel.removeId(row.id);
-      return;
-    }
-    const id = Number(row.id);
-    if (!Number.isFinite(id)) return;
-    this.leadsService
-      .delete(id)
-      .pipe(take(1))
-      .subscribe({
-        next: () => {
-          this.sel.removeId(row.id);
-          this.refreshLeads();
-        },
-        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
-      });
   }
 
   protected onIndiaMartStatusChange(row: LeadRow, ev: Event): void {

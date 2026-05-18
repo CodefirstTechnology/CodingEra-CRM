@@ -4,5 +4,4 @@ export type CreateEntityKind =
   | 'contact'
   | 'organization'
   | 'task'
-  | 'callLog'
   | 'note';

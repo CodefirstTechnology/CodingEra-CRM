@@ -47,6 +47,37 @@ function readOptionalInt(v: unknown): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
+/** Resolves lead owner FK from flat or nested API shapes (list vs detail). */
+function readLeadOwnerFk(r: Record<string, unknown>): number | null {
+  for (const key of [
+    'leadOwnerId',
+    'LeadOwnerId',
+    'assignedToUserId',
+    'AssignedToUserId',
+    'ownerId',
+    'OwnerId',
+    'assignedUserId',
+  ]) {
+    const n = readOptionalInt(r[key]);
+    if (n != null && n > 0) return n;
+  }
+  for (const key of ['leadOwner', 'assignedTo', 'owner', 'AssignedTo']) {
+    const nested = r[key];
+    if (nested == null) continue;
+    if (typeof nested === 'number' || typeof nested === 'string') {
+      const n = readOptionalInt(nested);
+      if (n != null && n > 0) return n;
+      continue;
+    }
+    if (typeof nested === 'object') {
+      const o = nested as Record<string, unknown>;
+      const n = readOptionalInt(o['id'] ?? o['Id'] ?? o['userId'] ?? o['UserId']);
+      if (n != null && n > 0) return n;
+    }
+  }
+  return null;
+}
+
 /** Human-friendly “last updated” label for the leads table and detail UI. */
 export function formatLeadUpdatedLabel(iso: string | undefined | null): string {
   if (iso == null || String(iso).trim() === '') return '—';
@@ -80,6 +111,28 @@ function parseAnnualRevenueForApi(s: string | undefined | null): number | null {
   if (s == null || !String(s).trim()) return null;
   const n = parseRevenueInputToNumber(s);
   return Number.isFinite(n) ? n : null;
+}
+
+function readLeadOwnerDisplayName(r: Record<string, unknown>): string {
+  const lo = r['leadOwner'];
+  if (lo != null && typeof lo === 'object') {
+    const o = lo as Record<string, unknown>;
+    const nested =
+      readMasterName(o) ||
+      String(o['fullName'] ?? o['FullName'] ?? o['userName'] ?? o['UserName'] ?? '').trim();
+    if (nested) return nested;
+  }
+  const direct = String(
+    r['leadOwnerName'] ?? r['ownerName'] ?? r['assignedTo'] ?? '',
+  ).trim();
+  return direct;
+}
+
+function initialsFromLeadOwnerName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
 
 function parseLeadOwnerIdForApi(leadOwnerId: string | undefined | null): number | null {
@@ -166,7 +219,8 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
     requestTypeId,
     requestTypeName,
     notes: String(r['notes'] ?? '').trim(),
-    leadOwnerId: readOptionalInt(r['leadOwnerId']),
+    leadOwnerId: readLeadOwnerFk(r),
+    leadOwnerName: readLeadOwnerDisplayName(r),
     leadSource: String(r['leadSource'] ?? r['source'] ?? '').trim(),
     updatedAt,
     createdAt,
@@ -184,6 +238,7 @@ export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
     'Lead';
   const leadOwnerId =
     dto.leadOwnerId != null && dto.leadOwnerId > 0 ? String(dto.leadOwnerId) : undefined;
+  const ownerNameFromApi = dto.leadOwnerName?.trim() ?? '';
 
   const row: LeadRow = {
     id,
@@ -209,8 +264,9 @@ export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
     industryId: dto.industryId != null && dto.industryId > 0 ? dto.industryId : undefined,
     leadStatusId: dto.leadStatusId != null && dto.leadStatusId > 0 ? dto.leadStatusId : undefined,
     notes: dto.notes || undefined,
-    leadOwnerName: leadOwnerId ? `User #${leadOwnerId}` : '',
-    owner: '',
+    leadOwnerName:
+      ownerNameFromApi || (leadOwnerId ? `User #${leadOwnerId}` : ''),
+    owner: ownerNameFromApi ? initialsFromLeadOwnerName(ownerNameFromApi) : '',
     updated: formatLeadUpdatedLabel(dto.updatedAt),
     source: dto.leadSource || undefined,
     leadOwnerId,
@@ -236,7 +292,7 @@ function normalizedToUpsertDto(n: LeadNormalized, idOverride?: number): LeadUpse
     firstName: n.firstName,
     lastName: n.lastName,
     salutationId: n.salutationId,
-    gender: n.gender || null,
+    gender: n.gender?.trim() || null,
     mobile: n.mobile || null,
     email: n.email || null,
     organizationId: n.organizationId,
@@ -250,15 +306,22 @@ function normalizedToUpsertDto(n: LeadNormalized, idOverride?: number): LeadUpse
   };
 }
 
+function resolveLeadOwnerIdForApi(row: LeadRow, previous?: LeadNormalized): number | null {
+  if (row.leadOwnerId === '') return null;
+  const parsed = parseLeadOwnerIdForApi(row.leadOwnerId);
+  if (parsed != null) return parsed;
+  return previous?.leadOwnerId ?? null;
+}
+
 function rowToNormalized(row: LeadRow, previous?: LeadNormalized): LeadNormalized {
-  const ownerId = parseLeadOwnerIdForApi(row.leadOwnerId) ?? previous?.leadOwnerId ?? null;
+  const ownerId = resolveLeadOwnerIdForApi(row, previous);
   return {
     id: previous?.id ?? (Number.isFinite(Number(row.id)) ? Number(row.id) : 0),
     firstName: row.firstName ?? '',
     lastName: row.lastName ?? '',
     salutationId: row.salutationId ?? previous?.salutationId ?? null,
     salutationName: row.salutation ?? previous?.salutationName ?? '',
-    gender: row.gender ?? '',
+    gender: row.gender?.trim() || previous?.gender?.trim() || '',
     mobile: row.mobile ?? '',
     email: row.email ?? '',
     organizationId: previous?.organizationId ?? null,
@@ -278,6 +341,7 @@ function rowToNormalized(row: LeadRow, previous?: LeadNormalized): LeadNormalize
     requestTypeName: row.requestType ?? previous?.requestTypeName ?? '',
     notes: row.notes ?? previous?.notes ?? '',
     leadOwnerId: ownerId,
+    leadOwnerName: row.leadOwnerName ?? previous?.leadOwnerName ?? '',
     leadSource: row.source ?? row.leadSource ?? previous?.leadSource ?? 'Manual',
     updatedAt: previous?.updatedAt ?? new Date().toISOString(),
     createdAt: previous?.createdAt ?? null,

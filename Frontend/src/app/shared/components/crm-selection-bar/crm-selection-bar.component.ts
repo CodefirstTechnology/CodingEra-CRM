@@ -15,6 +15,8 @@ export class CrmSelectionBarComponent {
   assignActionsEnabled = input(true);
   /** When false, Convert to deal stays visible but disabled. */
   convertLeadEnabled = input(true);
+  /** When false, hides bulk Delete from the actions menu. */
+  showDelete = input(true);
 
   edit = output<void>();
   delete = output<void>();

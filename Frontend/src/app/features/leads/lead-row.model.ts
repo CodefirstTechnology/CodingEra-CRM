@@ -50,7 +50,7 @@ export interface LeadRow {
   owner: string;
   updated: string;
   source?: string;
-  /** Owner picker key (e.g. SK), mirrors form `leadOwner`. */
+  /** Backend user id (`Users` table), mirrors form `leadOwner`. */
   leadOwnerId?: string;
   /** Set for unified list: manual CRM vs IndiaMART import. */
   leadSource?: LeadSource;
