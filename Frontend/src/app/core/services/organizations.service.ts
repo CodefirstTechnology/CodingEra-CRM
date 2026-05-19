@@ -1,10 +1,27 @@
 import { HttpClient } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
 import { environment } from '../../../environments/environment';
 import type { OrganizationRow } from '../../features/organizations/organizations.component';
+import {
+  organizationCreatePayload,
+  type OrganizationCreateInput,
+} from './organizations/organization-api.mapper';
 import { OrganizationHttpService } from './organizations/organization-http.service';
+
+function toCreateInput(data: Omit<OrganizationRow, 'id'>): OrganizationCreateInput {
+  return {
+    name: data.name,
+    website: data.website,
+    territory: data.territory,
+    territoryId: data.territoryId,
+    industry: data.industry,
+    industryId: data.industryId,
+    employees: data.employees,
+    employeeCountId: data.employeeCountId,
+    annualRevenue: data.annualRevenue,
+  };
+}
 
 @Injectable({ providedIn: 'root' })
 export class OrganizationsService {
@@ -16,33 +33,15 @@ export class OrganizationsService {
   }
 
   getById(id: number): Observable<OrganizationRow | null> {
-    return this.http.get<OrganizationRow>(`${environment.apiUrl}/organizations/${id}`) as Observable<
-      OrganizationRow | null
-    >;
+    return this.orgHttp.getById(id);
   }
 
   create(data: Omit<OrganizationRow, 'id'>): Observable<OrganizationRow> {
-    return this.orgHttp
-      .create({
-        name: data.name,
-        territory: data.territory,
-        industry: data.industry,
-        website: data.website,
-      })
-      .pipe(
-        map((row) => ({
-          ...row,
-          annualRevenue: data.annualRevenue,
-          employees: data.employees ?? row.employees,
-          lastModified: data.lastModified || row.lastModified,
-        })),
-      );
+    return this.orgHttp.create(toCreateInput(data));
   }
 
-  update(id: number, data: Partial<Omit<OrganizationRow, 'id'>>): Observable<OrganizationRow | null> {
-    return this.http.put<OrganizationRow>(`${environment.apiUrl}/organizations/${id}`, data) as Observable<
-      OrganizationRow | null
-    >;
+  update(id: number, data: Omit<OrganizationRow, 'id'>): Observable<OrganizationRow> {
+    return this.orgHttp.put(id, organizationCreatePayload(toCreateInput(data)));
   }
 
   delete(id: number): Observable<void> {

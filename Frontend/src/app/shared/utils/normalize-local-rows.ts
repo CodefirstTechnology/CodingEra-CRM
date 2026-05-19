@@ -88,8 +88,17 @@ export function normalizeDealRow(row: Record<string, unknown>): DealRow {
   };
 }
 
+function optPositiveIntField(v: unknown): number | undefined {
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : undefined;
+}
+
 export function normalizeOrganizationRow(row: Record<string, unknown>): OrganizationRow {
   const id = String(row['id'] ?? '');
+  const industryId = optPositiveIntField(row['industryId']);
+  const employeeCountId = optPositiveIntField(row['employeeCountId']);
+  const territoryId = optPositiveIntField(row['territoryId']);
+  const addressRaw = row['address'];
   return {
     id,
     name: String(row['name'] ?? ''),
@@ -99,6 +108,10 @@ export function normalizeOrganizationRow(row: Record<string, unknown>): Organiza
     employees: String(row['employees'] ?? '1-10'),
     territory: String(row['territory'] ?? ''),
     lastModified: String(row['lastModified'] ?? ''),
+    ...(addressRaw != null && String(addressRaw).trim() !== '' ? { address: String(addressRaw) } : {}),
+    ...(industryId != null ? { industryId } : {}),
+    ...(employeeCountId != null ? { employeeCountId } : {}),
+    ...(territoryId != null ? { territoryId } : {}),
   };
 }
 

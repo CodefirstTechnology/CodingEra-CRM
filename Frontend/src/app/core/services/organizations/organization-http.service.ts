@@ -1,7 +1,7 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import type { OrganizationRow } from '../../../features/organizations/organizations.component';
@@ -60,6 +60,13 @@ export class OrganizationHttpService {
     return this.http
       .get<unknown>(this.baseUrl, { headers: this.jsonHeaders() })
       .pipe(map((raw) => extractOrganizationRecords(raw).map((item) => normalizeOrganizationApiRecord(item))));
+  }
+
+  getById(id: number): Observable<OrganizationRow | null> {
+    return this.http.get<unknown>(`${this.baseUrl}/${id}`, { headers: this.jsonHeaders() }).pipe(
+      map((raw) => (raw != null && typeof raw === 'object' ? normalizeOrganizationApiRecord(raw) : null)),
+      catchError(() => of(null)),
+    );
   }
 
   create(input: OrganizationCreateInput): Observable<OrganizationRow> {

@@ -25,6 +25,8 @@ export interface LeadRow {
   gender?: string;
   email: string;
   organization: string;
+  /** Persisted FK when known (from GET normalization); keeps PUT payloads linked when PATCH omits organization. */
+  organizationId?: string;
   employees?: string;
   /** Master data FK (`/api/MasterData/employee-counts`) when resolving organization. */
   employeeCountId?: number | null;
@@ -46,6 +48,8 @@ export interface LeadRow {
   requestTypeId?: number | null;
   requirement?: string;
   notes?: string;
+  /** Human-readable created time when known (API/manual); aligns with Updates tab “created” line. */
+  created?: string;
   leadOwnerName: string;
   owner: string;
   updated: string;

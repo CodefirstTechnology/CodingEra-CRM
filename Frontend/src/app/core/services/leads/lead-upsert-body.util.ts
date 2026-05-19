@@ -5,12 +5,16 @@ const DEFAULT_LEAD_GENDER = 'Other';
 
 /**
  * Builds JSON for `PUT /api/leads/{id}` with required fields filled from the loaded row.
+ * Includes `id` — many ASP.NET APIs validate that the body id matches the route id.
  */
 export function buildLeadPutJson(dto: LeadUpsertDto, previous: LeadNormalized): Record<string, unknown> {
   const gender =
     dto.gender?.trim() || previous.gender?.trim() || DEFAULT_LEAD_GENDER;
 
+  const leadId = dto.id > 0 ? dto.id : previous.id;
+
   const body: Record<string, unknown> = {
+    id: leadId,
     firstName: dto.firstName?.trim() || previous.firstName?.trim() || 'Lead',
     lastName: dto.lastName?.trim() || previous.lastName?.trim() || 'Contact',
     email: dto.email?.trim() ?? previous.email ?? '',
@@ -26,10 +30,17 @@ export function buildLeadPutJson(dto: LeadUpsertDto, previous: LeadNormalized): 
     body['salutationId'] = previous.salutationId;
   }
 
+  const dtoOrgNm = dto.organizationName?.trim() || '';
+  const prevOrgNm = previous.organizationName?.trim() || '';
+
   if (dto.organizationId != null && dto.organizationId > 0) {
     body['organizationId'] = dto.organizationId;
   } else if (previous.organizationId != null && previous.organizationId > 0) {
     body['organizationId'] = previous.organizationId;
+  } else if (dtoOrgNm) {
+    body['organizationName'] = dtoOrgNm;
+  } else if (prevOrgNm) {
+    body['organizationName'] = prevOrgNm;
   }
 
   if (dto.leadStatusId != null && dto.leadStatusId > 0) {
@@ -88,6 +99,9 @@ export function stripLeadUpsertForPost(dto: LeadUpsertDto): Record<string, unkno
   }
   if (dto.organizationId != null && dto.organizationId > 0) {
     body['organizationId'] = dto.organizationId;
+  } else {
+    const orgNm = dto.organizationName?.trim();
+    if (orgNm) body['organizationName'] = orgNm;
   }
   if (dto.requestTypeId != null && dto.requestTypeId > 0) {
     body['requestTypeId'] = dto.requestTypeId;

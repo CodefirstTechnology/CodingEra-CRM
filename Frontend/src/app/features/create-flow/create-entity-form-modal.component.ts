@@ -12,6 +12,12 @@ import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.s
 import { ToastService } from '../../core/toast/toast.service';
 import { NotesService } from '../../core/services/notes.service';
 import { OrganizationsService } from '../../core/services/organizations.service';
+import { OrganizationMasterSelectService } from '../../core/services/organizations/organization-master-select.service';
+import type { MasterDataOption } from '../../core/services/leads/lead-master-data.service';
+import {
+  masterOptionFormValue,
+  resolveOrgMasterPick,
+} from '../../core/services/organizations/organization-master-select.util';
 import { TasksService } from '../../core/services/tasks.service';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from '../deals/deals.component';
@@ -40,6 +46,7 @@ export class CreateEntityFormModalComponent {
   private readonly dealsService = inject(DealsService);
   private readonly contactsService = inject(ContactsService);
   private readonly organizationsService = inject(OrganizationsService);
+  protected readonly orgMaster = inject(OrganizationMasterSelectService);
   private readonly tasksService = inject(TasksService);
   private readonly notesService = inject(NotesService);
   protected readonly auth = inject(AuthService);
@@ -172,9 +179,9 @@ export class CreateEntityFormModalComponent {
   protected readonly orgForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
-    industry: ['Technology', Validators.required],
+    industry: ['', Validators.required],
     annualRevenue: ['', Validators.maxLength(40)],
-    employees: ['1-10'],
+    employees: [''],
     territory: [''],
   });
 
@@ -206,6 +213,20 @@ export class CreateEntityFormModalComponent {
 
   protected close(): void {
     this.flow.closeFormModal();
+  }
+
+  protected orgMasterOptValue(opt: MasterDataOption): string {
+    return masterOptionFormValue(opt);
+  }
+
+  private defaultOrgModalIndustry(): string {
+    const o = this.orgMaster.industrySelectOptions()[0];
+    return o ? masterOptionFormValue(o) : '';
+  }
+
+  private defaultOrgModalEmployees(): string {
+    const o = this.orgMaster.employeeSelectOptions()[0];
+    return o ? masterOptionFormValue(o) : '';
   }
 
   private resetFor(kind: CreateEntityKind): void {
@@ -270,9 +291,9 @@ export class CreateEntityFormModalComponent {
         this.orgForm.reset({
           organizationName: '',
           website: '',
-          industry: 'Technology',
+          industry: this.defaultOrgModalIndustry(),
           annualRevenue: '',
-          employees: '1-10',
+          employees: this.defaultOrgModalEmployees(),
           territory: '',
         });
         this.orgForm.markAsUntouched();
@@ -528,13 +549,26 @@ export class CreateEntityFormModalComponent {
     if (web && !/^https?:\/\//i.test(web)) {
       web = `https://${web}`;
     }
+    const industryPick = resolveOrgMasterPick(raw.industry, this.orgMaster.industrySelectOptions());
+    const employeePick = resolveOrgMasterPick(raw.employees, this.orgMaster.employeeSelectOptions());
+    const territoryPick = resolveOrgMasterPick(raw.territory, this.orgMaster.territorySelectOptions());
+
     const payload: Omit<OrganizationRow, 'id'> = {
       name: nameTrim,
       website: web || '',
-      industry: raw.industry,
+      industry:
+        industryPick.label ||
+        this.orgMaster.industrySelectOptions()[0]?.name ||
+        'Technology',
       annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
-      employees: raw.employees,
-      territory: raw.territory,
+      employees:
+        employeePick.label ||
+        this.orgMaster.employeeSelectOptions()[0]?.name ||
+        '1-10',
+      territory: territoryPick.label.trim() || undefined,
+      industryId: industryPick.masterId,
+      employeeCountId: employeePick.masterId,
+      territoryId: territoryPick.masterId,
       lastModified: 'Just now',
     };
 

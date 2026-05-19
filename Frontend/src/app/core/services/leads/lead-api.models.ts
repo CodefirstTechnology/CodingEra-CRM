@@ -68,6 +68,8 @@ export interface LeadUpsertDto {
   mobile?: string | null;
   email?: string | null;
   organizationId?: number | null;
+  /** When FK is unknown, backend may bind Organization from display name / create org (align with Swagger). */
+  organizationName?: string | null;
   leadStatusId?: number | null;
   status?: string | null;
   requestTypeId?: number | null;

@@ -584,7 +584,7 @@
         <li>
           <span class="lead-detail__dot">◎</span>
           <p><strong>{{ row.leadOwnerName }}</strong> created this lead</p>
-          <time>{{ row.updated }}</time>
+          <time>{{ row.created ?? row.updated }}</time>
         </li>
         <li>
           <span class="lead-detail__dot">○</span>

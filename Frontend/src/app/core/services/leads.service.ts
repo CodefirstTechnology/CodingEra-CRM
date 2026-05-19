@@ -9,8 +9,9 @@ import {
   leadCreatePayloadToApiJson,
   mapLeadNormalizedToRow,
   mergeLeadApiDtoWithRowPatch,
+  reconcileLeadNormalizedAfterPut,
 } from './leads/lead-api.mapper';
-import type { LeadUpsertDto } from './leads/lead-api.models';
+import type { LeadNormalized, LeadUpsertDto } from './leads/lead-api.models';
 import { buildLeadPutJson } from './leads/lead-upsert-body.util';
 import { LeadHttpService } from './leads/lead-http.service';
 
@@ -23,9 +24,12 @@ export function leadsHttpErrorMessage(err: unknown): string {
     const body = err.error;
     if (typeof body === 'string' && body.trim()) return body.trim().slice(0, 200);
     if (body && typeof body === 'object') {
-      const title = (body as { title?: string }).title;
-      const detail = (body as { detail?: string }).detail;
-      const message = (body as { message?: string }).message;
+      const o = body as Record<string, unknown>;
+      const validation = formatAspNetValidationErrors(o);
+      if (validation) return validation.slice(0, 500);
+      const title = o['title'];
+      const detail = o['detail'];
+      const message = o['message'];
       if (typeof title === 'string' && title.trim()) return title.trim();
       if (typeof detail === 'string' && detail.trim()) return detail.trim();
       if (typeof message === 'string' && message.trim()) return message.trim();
@@ -34,6 +38,21 @@ export function leadsHttpErrorMessage(err: unknown): string {
   }
   if (err instanceof Error) return err.message;
   return 'Something went wrong';
+}
+
+function formatAspNetValidationErrors(body: Record<string, unknown>): string | null {
+  const errors = body['errors'];
+  if (errors == null || typeof errors !== 'object' || Array.isArray(errors)) return null;
+  const parts: string[] = [];
+  for (const [key, val] of Object.entries(errors as Record<string, unknown>)) {
+    if (Array.isArray(val)) {
+      const msgs = val.filter((v): v is string => typeof v === 'string').join('; ');
+      if (msgs) parts.push(`${key}: ${msgs}`);
+    } else if (typeof val === 'string' && val.trim()) {
+      parts.push(`${key}: ${val.trim()}`);
+    }
+  }
+  return parts.length ? parts.join(' · ') : null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -61,7 +80,10 @@ export class LeadsService {
   create(data: Omit<LeadRow, 'id'>): Observable<LeadRow> {
     const withOwner = this.roundRobin.applyOwnerIfMissing(data);
     return this.withResolvedOrganization(withOwner).pipe(
-      switchMap((body) => this.leadHttp.create(body).pipe(map(mapLeadNormalizedToRow))),
+      switchMap((body) => {
+        const dto = this.roundRobin.applyToUpsertDto(body);
+        return this.leadHttp.create(dto).pipe(map(mapLeadNormalizedToRow));
+      }),
       tap(() => this.roundRobin.advanceAfterLeadCreated()),
     );
   }
@@ -78,22 +100,79 @@ export class LeadsService {
     return this.leadHttp.getById(id).pipe(
       switchMap((prev) => {
         if (!prev) return of(null);
-        return this.resolveOrganizationForPatch(patch).pipe(
-          switchMap((organizationId) => {
-            const prevForMerge =
-              organizationId != null
-                ? { ...prev, organizationId, organizationName: patch.organization?.trim() || prev.organizationName }
-                : prev;
-            const dto = mergeLeadApiDtoWithRowPatch(prevForMerge, patch);
-            if (organizationId != null && organizationId > 0) {
-              dto.organizationId = organizationId;
-            }
-            const body = buildLeadPutJson(dto, prevForMerge);
-            return this.leadHttp.put(id, body).pipe(map(mapLeadNormalizedToRow));
-          }),
+        return this.ensureLeadOrganizationFk(prev, patch).pipe(
+          switchMap((prevWithOrg) =>
+            this.resolveOrganizationForPatch(patch).pipe(
+              switchMap((organizationId) => {
+                const prevForMerge =
+                  organizationId != null
+                    ? {
+                        ...prevWithOrg,
+                        organizationId,
+                        organizationName:
+                          patch.organization?.trim() || prevWithOrg.organizationName,
+                      }
+                    : prevWithOrg;
+                const dto = mergeLeadApiDtoWithRowPatch(prevForMerge, patch);
+                if (organizationId != null && organizationId > 0) {
+                  dto.organizationId = organizationId;
+                }
+                if (
+                  (dto.organizationId == null || dto.organizationId <= 0) &&
+                  prevForMerge.organizationId != null &&
+                  prevForMerge.organizationId > 0
+                ) {
+                  dto.organizationId = prevForMerge.organizationId;
+                }
+                const body = buildLeadPutJson(dto, prevForMerge);
+                return this.leadHttp.put(id, body).pipe(
+                  map((norm) => reconcileLeadNormalizedAfterPut(norm, prevForMerge, patch)),
+                  map(mapLeadNormalizedToRow),
+                );
+              }),
+            ),
+          ),
         );
       }),
     );
+  }
+
+  /**
+   * GET payloads sometimes omit `organizationId`. Marketplace leads often only expose the
+   * company/product label inside `notes` — that is mirrored into {@link normalizeLeadApiRecord}.
+   * This step resolves `/api/organizations` so PUT includes `organizationId` even when the PATCH
+   * omits `organization` (e.g. status-only updates).
+   */
+  private ensureLeadOrganizationFk(
+    prev: LeadNormalized,
+    patch?: Partial<Omit<LeadRow, 'id'>>,
+  ): Observable<LeadNormalized> {
+    if (prev.organizationId != null && prev.organizationId > 0) return of(prev);
+
+    /** User cleared org on this save — do not hydrate FK from stale server name */
+    if (patch != null && 'organization' in patch && !String(patch.organization ?? '').trim()) {
+      return of(prev);
+    }
+
+    const name = String(patch?.organization ?? '').trim() || prev.organizationName?.trim();
+    if (!name) return of(prev);
+    return this.orgResolve
+      .ensureOrganizationId(name, {
+        territory: patch?.territory?.trim() || prev.territory?.trim() || undefined,
+        territoryId: patch?.territoryId ?? prev.territoryId ?? undefined,
+        industry: patch?.industry?.trim() || prev.industry?.trim() || undefined,
+        industryId: patch?.industryId ?? prev.industryId ?? undefined,
+        website: patch?.website?.trim() || prev.website?.trim() || undefined,
+        employees: patch?.employees?.trim() || prev.employees?.trim() || undefined,
+        employeeCountId: patch?.employeeCountId ?? prev.employeeCountId ?? undefined,
+      })
+      .pipe(
+        map((organizationId) =>
+          organizationId != null && organizationId > 0
+            ? { ...prev, organizationId, organizationName: name || prev.organizationName }
+            : prev,
+        ),
+      );
   }
 
   private resolveOrganizationForPatch(

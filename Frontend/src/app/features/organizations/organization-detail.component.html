@@ -103,8 +103,10 @@
               <label class="org-detail__row">
                 <span class="org-detail__row-label">Territory</span>
                 <select class="org-detail__input" formControlName="territory">
-                  @for (t of territoryOptions; track t) {
-                  <option [value]="t">{{ t === '' ? sidebarPlaceholder('Territory') : t }}</option>
+                  @for (opt of orgMaster.territorySelectOptions(); track opt.id + '_' + opt.name) {
+                  <option [value]="masterOptValue(opt)">{{
+                    opt.name.trim() === '' ? sidebarPlaceholder('Territory') : opt.name
+                  }}</option>
                   }
                 </select>
               </label>
@@ -112,16 +114,16 @@
                 <span class="org-detail__row-label">Industry</span>
                 <select class="org-detail__input" formControlName="industry">
                   <option value="">{{ sidebarPlaceholder('Industry') }}</option>
-                  @for (ind of industryOptions; track ind) {
-                  <option [value]="ind">{{ ind }}</option>
+                  @for (opt of orgMaster.industrySelectOptions(); track opt.id + opt.name) {
+                  <option [value]="masterOptValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
               </label>
               <label class="org-detail__row">
                 <span class="org-detail__row-label org-detail__row-label--clip" title="No. of employees">No. of employees</span>
                 <select class="org-detail__input" formControlName="employees">
-                  @for (e of employeeOptions; track e) {
-                  <option [value]="e">{{ e }}</option>
+                  @for (opt of orgMaster.employeeSelectOptions(); track opt.id + opt.name) {
+                  <option [value]="masterOptValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
               </label>
