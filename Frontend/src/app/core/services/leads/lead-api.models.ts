@@ -46,6 +46,7 @@ export interface LeadNormalized {
   requestTypeId: number | null;
   requestTypeName: string;
   notes: string;
+  requirement: string;
   leadOwnerId: number | null;
   /** Display name when returned inline on GET (otherwise resolved from users list). */
   leadOwnerName: string;
@@ -72,6 +73,7 @@ export interface LeadUpsertDto {
   status?: string | null;
   requestTypeId?: number | null;
   notes?: string | null;
+  requirement?: string | null;
   leadOwnerId?: number | null;
   leadSource?: string | null;
   createdAt?: string | null;

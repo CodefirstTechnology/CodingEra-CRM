@@ -103,6 +103,17 @@ function apiStoredLeadSourceField(): string {
   return v?.trim() || 'Website';
 }
 
+/** Inquiry text for IndiaMART → DB `requirement` column (not organization name). */
+export function indiaMartRequirementText(lead: MarketplaceLeadShape): string {
+  const message = lead.message.trim();
+  if (message) return message;
+  const product = lead.product.trim();
+  if (!product) return '';
+  const qty = lead.quantity.trim();
+  const qtySuffix = qty && qty !== '—' ? ` · ${qty}` : '';
+  return `${product}${qtySuffix}`;
+}
+
 function toUpsertDto(source: MarketplaceApiSource, lead: MarketplaceLeadShape): LeadUpsertDto {
   const { firstName, lastName } = splitCustomerName(lead.customerName);
   const status = (lead.status?.trim() || 'New') as LeadStatus;
@@ -126,7 +137,12 @@ export function withLeadStatusId(dto: LeadUpsertDto, leadStatusId: number | null
 }
 
 export function indiaMartLeadToUpsertDto(lead: IndiaMartLead): LeadUpsertDto {
-  return toUpsertDto('IndiaMART', lead);
+  const requirement = indiaMartRequirementText(lead);
+  return {
+    ...toUpsertDto('IndiaMART', lead),
+    requirement: requirement || null,
+    organizationId: null,
+  };
 }
 
 export function justdialLeadToUpsertDto(lead: JustdialLead): LeadUpsertDto {
@@ -188,14 +204,28 @@ export function applyMarketplaceNotesToLeadRow(row: LeadRow, notes: string | nul
   const parsed = parseMarketplaceNotesDisplay(notes);
   const out: LeadRow = { ...row };
 
-  if (!out.organization?.trim() && parsed.organizationLabel) {
+  if (ext?.source !== 'IndiaMART' && !out.organization?.trim() && parsed.organizationLabel) {
     out.organization = parsed.organizationLabel;
   }
   if (!out.territory?.trim() && parsed.city) {
     out.territory = parsed.city;
   }
-  if (!out.requirement?.trim() && parsed.message) {
-    out.requirement = parsed.message;
+  if (!out.requirement?.trim()) {
+    if (ext?.source === 'IndiaMART') {
+      out.requirement = indiaMartRequirementText({
+        customerName: '',
+        mobile: '',
+        email: '',
+        city: parsed.city,
+        product: parsed.product,
+        quantity: '',
+        message: parsed.message,
+        source: parsed.inquirySource,
+        status: '',
+      });
+    } else if (parsed.message) {
+      out.requirement = parsed.message;
+    }
   }
   if (!out.notes?.trim() && parsed.message) {
     out.notes = parsed.message;

@@ -20,6 +20,11 @@ export function buildLeadPutJson(dto: LeadUpsertDto, previous: LeadNormalized): 
     leadSource: dto.leadSource?.trim() || previous.leadSource?.trim() || 'Website',
   };
 
+  const requirement = dto.requirement?.trim() ?? previous.requirement?.trim();
+  if (requirement) {
+    body['requirement'] = requirement;
+  }
+
   if (dto.salutationId != null && dto.salutationId > 0) {
     body['salutationId'] = dto.salutationId;
   } else if (previous.salutationId != null && previous.salutationId > 0) {
@@ -76,6 +81,11 @@ export function stripLeadUpsertForPost(dto: LeadUpsertDto): Record<string, unkno
     notes: dto.notes?.trim() || '',
     leadSource: dto.leadSource?.trim() || 'Website',
   };
+
+  const requirement = dto.requirement?.trim();
+  if (requirement) {
+    body['requirement'] = requirement;
+  }
 
   if (dto.leadStatusId != null && dto.leadStatusId > 0) {
     body['leadStatusId'] = dto.leadStatusId;

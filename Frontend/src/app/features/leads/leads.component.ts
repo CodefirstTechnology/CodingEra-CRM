@@ -16,6 +16,7 @@ import {
 } from '../../core/services/leads/lead-owner-options.service';
 import { LeadRoundRobinService } from '../../core/services/leads/lead-round-robin.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
+import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
@@ -101,6 +102,7 @@ export class LeadsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly leadsService = inject(LeadsService);
+  private readonly userScope = inject(UserDataScopeService);
   private readonly dealsService = inject(DealsService);
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
@@ -271,8 +273,10 @@ export class LeadsComponent {
     });
   }
 
-  /** Unified list: manual CRM leads + marketplace sources, sorted by recency. */
-  protected readonly rows = computed(() => this.leadOwnerOpts.enrichRows(this.buildMergedRows()));
+  /** Unified list: manual CRM leads + marketplace sources, sorted by recency (scoped for User role). */
+  protected readonly rows = computed(() =>
+    this.userScope.filterLeads(this.leadOwnerOpts.enrichRows(this.buildMergedRows())),
+  );
 
   private persistMarketplaceLeadsToDb(): boolean {
     const flag = (environment as { persistMarketplaceLeadsToDb?: boolean }).persistMarketplaceLeadsToDb;
@@ -328,8 +332,8 @@ export class LeadsComponent {
   }
 
   private refreshLeads(): void {
-    this.leadsService
-      .getAll()
+    this.userScope
+      .listLeads()
       .pipe(take(1))
       .subscribe({
         next: (rows) => {

@@ -11,6 +11,10 @@ import { stripLeadUpsertForPost } from './lead-upsert-body.util';
 export interface LeadListQuery {
   leadSource?: string;
   status?: string;
+  /** `users.id` / `users.role_id` owner FK on leads. */
+  leadOwnerId?: number;
+  assignedToUserId?: number;
+  userId?: number;
 }
 
 function extractLeadRecords(raw: unknown): unknown[] {
@@ -55,6 +59,16 @@ export class LeadHttpService {
     }
     if (query?.status?.trim()) {
       params = params.set('status', query.status.trim());
+    }
+    const ownerId = query?.leadOwnerId ?? query?.assignedToUserId ?? query?.userId;
+    if (ownerId != null && ownerId > 0) {
+      const id = String(ownerId);
+      params = params
+        .set('leadOwnerId', id)
+        .set('lead_owner_id', id)
+        .set('assignedToUserId', id)
+        .set('assigned_to_user_id', id)
+        .set('userId', id);
     }
     return this.http
       .get<unknown>(this.baseUrl, {

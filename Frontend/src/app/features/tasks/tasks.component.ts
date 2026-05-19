@@ -5,6 +5,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { TasksService } from '../../core/services/tasks.service';
+import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 
@@ -26,6 +27,8 @@ export interface TaskRow {
   dueDate: string;
   dueDateRaw: string;
   assignedTo: string;
+  /** Backend `assignedToUserId` when returned by API. */
+  assignedToUserId?: string;
   assignedInitials: string;
   lastModified: string;
   /** When created from lead detail — used to scope tasks on the lead. */
@@ -44,6 +47,7 @@ export class TasksComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly tasksService = inject(TasksService);
+  private readonly userScope = inject(UserDataScopeService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -96,8 +100,8 @@ export class TasksComponent {
   }
 
   private refreshTasks(): void {
-    this.tasksService
-      .getAll()
+    this.userScope
+      .listTasks()
       .pipe(take(1))
       .subscribe((rows) => this.rows.set(rows));
   }

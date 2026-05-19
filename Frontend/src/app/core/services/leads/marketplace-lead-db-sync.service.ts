@@ -123,9 +123,9 @@ export class MarketplaceLeadDbSyncService {
 
         return from(toCreate).pipe(
           concatMap((body) =>
-            this.attachOrganizationId(body).pipe(
-              switchMap((withOrg) => {
-                const withOwner = this.roundRobin.applyToUpsertDto(withOrg);
+            this.prepareBodyForCreate(source, body).pipe(
+              switchMap((prepared) => {
+                const withOwner = this.roundRobin.applyToUpsertDto(prepared);
                 return this.leadHttp.create(withOwner).pipe(
                   map(() => {
                     this.roundRobin.advanceAfterLeadCreated();
@@ -183,6 +183,14 @@ export class MarketplaceLeadDbSyncService {
     }
     if (err instanceof Error) return err.message;
     return 'Request failed';
+  }
+
+  /** IndiaMART leads: `requirement` only, no organization FK. Other marketplaces resolve org from product/city. */
+  private prepareBodyForCreate(source: MarketplaceApiSource, body: LeadUpsertDto) {
+    if (source === 'IndiaMART') {
+      return of({ ...body, organizationId: null });
+    }
+    return this.attachOrganizationId(body);
   }
 
   private attachOrganizationId(body: LeadUpsertDto) {

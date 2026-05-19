@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { DealsService } from '../../core/services/deals.service';
+import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
@@ -43,6 +44,8 @@ export interface DealRow {
   status: DealPipelineStatus;
   /** Form / owner picker key (e.g. SK). */
   dealOwnerId: string;
+  /** Backend `assignedToUserId` / `users.id`. */
+  assignedToUserId?: string;
   assignedTo: string;
   assignedInitials: string;
   lastModified: string;
@@ -72,6 +75,7 @@ export class DealsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly dealsService = inject(DealsService);
+  private readonly userScope = inject(UserDataScopeService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -175,8 +179,8 @@ export class DealsComponent {
   }
 
   private refreshDeals(): void {
-    this.dealsService
-      .getAll()
+    this.userScope
+      .listDeals()
       .pipe(take(1))
       .subscribe((rows) => this.rows.set(rows));
   }

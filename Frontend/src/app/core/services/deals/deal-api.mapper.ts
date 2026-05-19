@@ -30,6 +30,39 @@ function readOptionalInt(v: unknown): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
+function readDealOwnerFk(r: Record<string, unknown>): number | null {
+  for (const key of ['dealOwnerId', 'DealOwnerId', 'deal_owner_id', 'Deal_Owner_Id']) {
+    const n = readOptionalInt(r[key]);
+    if (n != null && n > 0) return n;
+  }
+  for (const [key, value] of Object.entries(r)) {
+    if (/deal[_]?owner[_]?id/i.test(key)) {
+      const n = readOptionalInt(value);
+      if (n != null && n > 0) return n;
+    }
+  }
+  return null;
+}
+
+function readAssignedToUserFk(r: Record<string, unknown>): number | null {
+  for (const key of [
+    'assignedToUserId',
+    'AssignedToUserId',
+    'assigned_to_user_id',
+    'Assigned_To_User_Id',
+  ]) {
+    const n = readOptionalInt(r[key]);
+    if (n != null && n > 0) return n;
+  }
+  for (const [key, value] of Object.entries(r)) {
+    if (/assigned[_]?to[_]?user[_]?id/i.test(key)) {
+      const n = readOptionalInt(value);
+      if (n != null && n > 0) return n;
+    }
+  }
+  return null;
+}
+
 /** Human-friendly label for the deals table (API sends ISO `lastModified`). */
 export function formatDealLastModifiedLabel(iso: string | undefined | null): string {
   if (iso == null || String(iso).trim() === '') return '—';
@@ -109,8 +142,8 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
     territory,
     industry: industry || 'Technology',
     status,
-    dealOwnerId: readOptionalInt(r['dealOwnerId']),
-    assignedToUserId: readOptionalInt(r['assignedToUserId']),
+    dealOwnerId: readDealOwnerFk(r),
+    assignedToUserId: readAssignedToUserFk(r),
     assignedInitials: String(r['assignedInitials'] ?? '').trim(),
     relatedContactId: readOptionalInt(r['relatedContactId']),
     relatedOrganizationId: readOptionalInt(r['relatedOrganizationId']),
@@ -161,6 +194,9 @@ export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
   }
   if (dto.relatedOrganizationId != null && dto.relatedOrganizationId > 0) {
     out.relatedOrganizationId = String(dto.relatedOrganizationId);
+  }
+  if (assignedToUserId > 0) {
+    out.assignedToUserId = String(assignedToUserId);
   }
   return out;
 }

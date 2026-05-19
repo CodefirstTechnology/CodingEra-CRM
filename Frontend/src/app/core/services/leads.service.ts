@@ -1,7 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom, Observable, of } from 'rxjs';
-import { map, switchMap, tap } from 'rxjs/operators';
+import { catchError, map, switchMap, tap } from 'rxjs/operators';
+import { filterLeadsForUser } from '../../features/user-dashboard/utils/user-ownership.util';
 import { LeadRoundRobinService } from './leads/lead-round-robin.service';
 import { OrganizationResolveService } from './organizations/organization-resolve.service';
 import type { LeadRow } from '../../features/leads/lead-row.model';
@@ -44,6 +45,29 @@ export class LeadsService {
 
   getAll(): Observable<LeadRow[]> {
     return this.leadHttp.list().pipe(map((rows) => rows.map(mapLeadNormalizedToRow)));
+  }
+
+  /** Leads where `leadOwnerId` = logged-in user (`GET /api/leads?leadOwnerId=`). */
+  getAssignedToUser(
+    userId: string,
+    userName = '',
+    userEmail = '',
+  ): Observable<LeadRow[]> {
+    const numericId = Number(userId);
+    const query =
+      Number.isFinite(numericId) && numericId > 0 ? { leadOwnerId: Math.trunc(numericId) } : undefined;
+
+    return this.leadHttp.list(query).pipe(
+      catchError(() => this.leadHttp.list()),
+      map((rows) =>
+        filterLeadsForUser(
+          rows.map(mapLeadNormalizedToRow),
+          userId,
+          userName,
+          userEmail,
+        ),
+      ),
+    );
   }
 
   async getAllAsync(): Promise<LeadRow[]> {

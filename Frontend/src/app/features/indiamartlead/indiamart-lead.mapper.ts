@@ -40,7 +40,7 @@ export function mapIndiaMartLeadToLeadRow(im: IndiaMartLead): LeadRow {
     lastName,
     mobile: im.mobile.trim(),
     email: im.email.trim(),
-    organization: `${im.product.trim()}${im.quantity ? ` · ${im.quantity.trim()}` : ''} (${im.city.trim()})`,
+    organization: '',
     industry: 'Other',
     status: mapIndiaMartStatusToLeadStatus(im.status),
     leadOwnerName: '—',

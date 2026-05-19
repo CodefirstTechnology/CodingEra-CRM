@@ -52,14 +52,26 @@ function readLeadOwnerFk(r: Record<string, unknown>): number | null {
   for (const key of [
     'leadOwnerId',
     'LeadOwnerId',
+    'lead_owner_id',
+    'Lead_Owner_Id',
+    'lead_ownerId',
     'assignedToUserId',
     'AssignedToUserId',
+    'assigned_to_user_id',
     'ownerId',
     'OwnerId',
+    'owner_id',
     'assignedUserId',
+    'assigned_user_id',
   ]) {
     const n = readOptionalInt(r[key]);
     if (n != null && n > 0) return n;
+  }
+  for (const [key, value] of Object.entries(r)) {
+    if (/lead[_]?owner[_]?id/i.test(key)) {
+      const n = readOptionalInt(value);
+      if (n != null && n > 0) return n;
+    }
   }
   for (const key of ['leadOwner', 'assignedTo', 'owner', 'AssignedTo']) {
     const nested = r[key];
@@ -219,6 +231,7 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
     requestTypeId,
     requestTypeName,
     notes: String(r['notes'] ?? '').trim(),
+    requirement: String(r['requirement'] ?? r['Requirement'] ?? '').trim(),
     leadOwnerId: readLeadOwnerFk(r),
     leadOwnerName: readLeadOwnerDisplayName(r),
     leadSource: String(r['leadSource'] ?? r['source'] ?? '').trim(),
@@ -264,6 +277,7 @@ export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
     industryId: dto.industryId != null && dto.industryId > 0 ? dto.industryId : undefined,
     leadStatusId: dto.leadStatusId != null && dto.leadStatusId > 0 ? dto.leadStatusId : undefined,
     notes: dto.notes || undefined,
+    requirement: dto.requirement || undefined,
     leadOwnerName:
       ownerNameFromApi || (leadOwnerId ? `User #${leadOwnerId}` : ''),
     owner: ownerNameFromApi ? initialsFromLeadOwnerName(ownerNameFromApi) : '',
@@ -300,6 +314,7 @@ function normalizedToUpsertDto(n: LeadNormalized, idOverride?: number): LeadUpse
     status: n.statusName || null,
     requestTypeId: n.requestTypeId,
     notes: n.notes || null,
+    requirement: n.requirement || null,
     leadOwnerId: n.leadOwnerId,
     leadSource: n.leadSource || null,
     createdAt: n.createdAt,
@@ -340,6 +355,7 @@ function rowToNormalized(row: LeadRow, previous?: LeadNormalized): LeadNormalize
     requestTypeId: row.requestTypeId ?? previous?.requestTypeId ?? null,
     requestTypeName: row.requestType ?? previous?.requestTypeName ?? '',
     notes: row.notes ?? previous?.notes ?? '',
+    requirement: row.requirement ?? previous?.requirement ?? '',
     leadOwnerId: ownerId,
     leadOwnerName: row.leadOwnerName ?? previous?.leadOwnerName ?? '',
     leadSource: row.source ?? row.leadSource ?? previous?.leadSource ?? 'Manual',

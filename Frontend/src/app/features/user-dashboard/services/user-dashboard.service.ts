@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { forkJoin, Observable, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { catchError, map, switchMap } from 'rxjs/operators';
 import { AuthService } from '../../../core/auth/auth.service';
 import { DealsService } from '../../../core/services/deals.service';
 import { LeadOwnerOptionsService } from '../../../core/services/leads/lead-owner-options.service';
@@ -20,12 +20,6 @@ import type {
   UserDashboardPerformance,
   UserDashboardSnapshot,
 } from '../models/user-dashboard.models';
-import {
-  isDealOwnedByUser,
-  isLeadOwnedByUser,
-  isNoteByUser,
-  isTaskAssignedToUser,
-} from '../utils/user-ownership.util';
 
 @Injectable({ providedIn: 'root' })
 export class UserDashboardService {
@@ -36,37 +30,52 @@ export class UserDashboardService {
   private readonly notesService = inject(NotesService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
 
+  /**
+   * Loads dashboard data scoped to the logged-in user via backend query params
+   * (`leadOwnerId`, `assignedToUserId`, `userId`) with client-side FK filtering as fallback.
+   */
   loadSnapshot(): Observable<{ data: UserDashboardSnapshot | null; error: string | null }> {
     const user = this.auth.user();
     if (!user?.id) {
       return of({ data: null, error: 'No active session.' });
     }
 
+    const userId = user.id;
+    const userName = user.name;
+    const userEmail = user.email;
+
     return forkJoin({
       owners: this.leadOwnerOpts.ensureLoaded(),
-      leads: this.leadsService.getAll().pipe(catchError((e) => of([] as LeadRow[]))),
-      deals: this.dealsService.getAll().pipe(catchError(() => of([] as DealRow[]))),
-      tasks: this.tasksService.getAll().pipe(catchError(() => of([] as TaskRow[]))),
-      notes: this.notesService.getAll().pipe(catchError(() => of([] as NoteRow[]))),
+      leads: this.leadsService
+        .getAssignedToUser(userId, userName, userEmail)
+        .pipe(catchError(() => of([] as LeadRow[]))),
+      deals: this.dealsService
+        .getAssignedToUser(userId, userName, userEmail)
+        .pipe(catchError(() => of([] as DealRow[]))),
+      tasks: this.tasksService
+        .getAssignedToUser(userId, userName, userEmail)
+        .pipe(catchError(() => of([] as TaskRow[]))),
     }).pipe(
-      map(({ leads, deals, tasks, notes }) => {
+      switchMap(({ leads, deals, tasks }) => {
         const enriched = this.leadOwnerOpts.enrichRows(leads);
-        const userId = user.id;
-        const userName = user.name;
-        const userEmail = user.email;
+        const leadIds = new Set(enriched.map((l) => l.id));
+        const dealIds = new Set(deals.map((d) => d.id));
 
-        const myLeads = enriched.filter((l) => isLeadOwnedByUser(l, userId, userName, userEmail));
-        const myDeals = deals.filter((d) => isDealOwnedByUser(d, userId, userName, userEmail));
-        const myTasks = tasks.filter((t) => isTaskAssignedToUser(t, userId, userName, userEmail));
-        const myNotes = notes.filter((n) => isNoteByUser(n, userName, userEmail));
-
-        const taskDueByLead = this.buildLeadNextFollowUpMap(myTasks);
-        const tableRows = myLeads.map((l) => this.toLeadTableRow(l, taskDueByLead.get(l.id)));
-
-        return {
-          data: this.buildSnapshot(tableRows, myLeads, myDeals, myTasks, myNotes),
-          error: null as string | null,
-        };
+        return this.notesService
+          .getAssignedToUser(userId, userName, userEmail, leadIds, dealIds)
+          .pipe(
+            catchError(() => of([] as NoteRow[])),
+            map((notes) => {
+              const taskDueByLead = this.buildLeadNextFollowUpMap(tasks);
+              const tableRows = enriched.map((l) =>
+                this.toLeadTableRow(l, taskDueByLead.get(l.id)),
+              );
+              return {
+                data: this.buildSnapshot(tableRows, enriched, deals, tasks, notes),
+                error: null as string | null,
+              };
+            }),
+          );
       }),
       catchError((err: unknown) =>
         of({ data: null, error: leadsHttpErrorMessage(err) }),
@@ -170,11 +179,7 @@ export class UserDashboardService {
       if (!due) continue;
 
       const isMeeting = /meeting|review|demo/i.test(t.title);
-      const kind: UserDashboardFollowUpItem['kind'] =
-        due < today ? 'overdue' : due <= endToday && isMeeting ? 'meeting' : due <= endToday ? 'upcoming' : 'upcoming';
-
       if (due > endToday && !isMeeting) continue;
-      if (due > endToday && isMeeting) continue;
 
       items.push({
         id: t.id,

@@ -1,6 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
-import { map, switchMap } from 'rxjs/operators';
+import { catchError, map, switchMap } from 'rxjs/operators';
+import { filterDealsForUser } from '../../features/user-dashboard/utils/user-ownership.util';
 import type { DealRow } from '../../features/deals/deals.component';
 import {
   dealCreatePayloadToApiJson,
@@ -15,6 +16,27 @@ export class DealsService {
 
   getAll(): Observable<DealRow[]> {
     return this.dealHttp.list().pipe(map((rows) => rows.map(mapDealNormalizedToRow)));
+  }
+
+  /** Deals where `dealOwnerId` / `assignedToUserId` = logged-in user. */
+  getAssignedToUser(
+    userId: string,
+    userName = '',
+    userEmail = '',
+  ): Observable<DealRow[]> {
+    const numericId = Number(userId);
+    const query =
+      Number.isFinite(numericId) && numericId > 0
+        ? { assignedToUserId: Math.trunc(numericId) }
+        : undefined;
+
+    return this.dealHttp.list(query).pipe(
+      catchError(() => this.dealHttp.list()),
+      map((rows) => {
+        const mapped = rows.map(mapDealNormalizedToRow);
+        return filterDealsForUser(mapped, userId, userName, userEmail);
+      }),
+    );
   }
 
   getById(id: number): Observable<DealRow | null> {
