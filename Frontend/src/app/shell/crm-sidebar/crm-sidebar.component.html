@@ -14,17 +14,29 @@
     </button>
   </div>
   <nav class="sidebar__nav" aria-label="Main">
-    <a routerLink="/dashboard" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }" class="nav-item">
-      <span class="nav-item__icon" aria-hidden="true">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <rect x="3" y="3" width="7" height="9" rx="1" />
-          <rect x="14" y="3" width="7" height="5" rx="1" />
-          <rect x="14" y="12" width="7" height="9" rx="1" />
-          <rect x="3" y="16" width="7" height="5" rx="1" />
-        </svg>
-      </span>
-      <span class="nav-item__label">Dashboard</span>
-    </a>
+    @if (showAdminDashboard()) {
+      <a routerLink="/dashboard" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }" class="nav-item">
+        <span class="nav-item__icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="3" width="7" height="9" rx="1" />
+            <rect x="14" y="3" width="7" height="5" rx="1" />
+            <rect x="14" y="12" width="7" height="9" rx="1" />
+            <rect x="3" y="16" width="7" height="5" rx="1" />
+          </svg>
+        </span>
+        <span class="nav-item__label">Dashboard</span>
+      </a>
+    }
+    @if (showUserDashboard()) {
+      <a routerLink="/user-dashboard" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }" class="nav-item">
+        <span class="nav-item__icon" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" />
+          </svg>
+        </span>
+        <span class="nav-item__label">My Dashboard</span>
+      </a>
+    }
     <a routerLink="/leads" routerLinkActive="is-active" class="nav-item">
       <span class="nav-item__icon" aria-hidden="true">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
