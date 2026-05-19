@@ -109,6 +109,19 @@ export function isNoteRelatedToUserRecords(
   return false;
 }
 
+/** Strict match: `users.id` === `leads.lead_owner_id` (mapped to `leadOwnerId`). */
+export function isLeadOwnedByLeadOwnerFk(lead: LeadRow, userId: string): boolean {
+  const uid = parseSessionUserId(userId);
+  const owner = parseSessionUserId(lead.leadOwnerId);
+  return uid != null && owner != null && uid === owner;
+}
+
+export function filterLeadsByLeadOwnerId(rows: LeadRow[], userId: string): LeadRow[] {
+  const uid = parseSessionUserId(userId);
+  if (uid == null) return [];
+  return rows.filter((r) => isLeadOwnedByLeadOwnerFk(r, userId));
+}
+
 export function filterLeadsForUser(
   rows: LeadRow[],
   userId: string,

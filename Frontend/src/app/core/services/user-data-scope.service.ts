@@ -8,7 +8,7 @@ import type { NoteRow } from '../../features/notes/notes.component';
 import type { TaskRow } from '../../features/tasks/tasks.component';
 import {
   filterDealsForUser,
-  filterLeadsForUser,
+  filterLeadsByLeadOwnerId,
   filterNotesForUser,
   filterTasksForUser,
 } from '../../features/user-dashboard/utils/user-ownership.util';
@@ -77,7 +77,7 @@ export class UserDataScopeService {
   filterLeads(rows: LeadRow[]): LeadRow[] {
     const session = this.sessionIds();
     if (!session || this.isAdminSession()) return rows;
-    return filterLeadsForUser(rows, session.userId, session.name, session.email);
+    return filterLeadsByLeadOwnerId(rows, session.userId);
   }
 
   filterDeals(rows: DealRow[]): DealRow[] {

@@ -185,9 +185,15 @@ export function parseMarketplaceNotesDisplay(notes: string | null | undefined): 
   }
 
   const message = msgLines.join('\n').trim();
-  const organizationLabel = product
-    ? `${product}${city ? ` (${city})` : ''}`
-    : city || message.slice(0, 120) || '';
+  const ext = extractMarketplaceExternalRef(notes);
+  const organizationLabel =
+    ext?.source === 'IndiaMART'
+      ? product
+        ? `${product}${city ? ` (${city})` : ''}`
+        : city
+      : product
+        ? `${product}${city ? ` (${city})` : ''}`
+        : city || message.slice(0, 120) || '';
 
   return { message, product, city, inquirySource, organizationLabel };
 }
@@ -204,7 +210,9 @@ export function applyMarketplaceNotesToLeadRow(row: LeadRow, notes: string | nul
   const parsed = parseMarketplaceNotesDisplay(notes);
   const out: LeadRow = { ...row };
 
-  if (ext?.source !== 'IndiaMART' && !out.organization?.trim() && parsed.organizationLabel) {
+  if (ext?.source === 'IndiaMART') {
+    out.organization = '';
+  } else if (!out.organization?.trim() && parsed.organizationLabel) {
     out.organization = parsed.organizationLabel;
   }
   if (!out.territory?.trim() && parsed.city) {

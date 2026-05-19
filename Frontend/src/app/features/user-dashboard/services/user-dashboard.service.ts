@@ -11,6 +11,7 @@ import type { DealRow } from '../../deals/deals.component';
 import type { LeadRow } from '../../leads/lead-row.model';
 import type { NoteRow } from '../../notes/notes.component';
 import type { TaskRow } from '../../tasks/tasks.component';
+import { parseSessionUserId } from '../utils/user-ownership.util';
 import type {
   UserDashboardActivityItem,
   UserDashboardFollowUpItem,
@@ -31,24 +32,24 @@ export class UserDashboardService {
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
 
   /**
-   * Loads dashboard data scoped to the logged-in user via backend query params
-   * (`leadOwnerId`, `assignedToUserId`, `userId`) with client-side FK filtering as fallback.
+   * Loads dashboard data scoped to the logged-in user (`users.id` = `leads.lead_owner_id` for leads).
    */
   loadSnapshot(): Observable<{ data: UserDashboardSnapshot | null; error: string | null }> {
     const user = this.auth.user();
-    if (!user?.id) {
-      return of({ data: null, error: 'No active session.' });
+    const userId = user?.id?.trim() ?? '';
+    if (!user || parseSessionUserId(userId) == null) {
+      return of({
+        data: null,
+        error: 'No valid user id in session. Log out and log in again.',
+      });
     }
 
-    const userId = user.id;
     const userName = user.name;
     const userEmail = user.email;
 
     return forkJoin({
       owners: this.leadOwnerOpts.ensureLoaded(),
-      leads: this.leadsService
-        .getAssignedToUser(userId, userName, userEmail)
-        .pipe(catchError(() => of([] as LeadRow[]))),
+      leads: this.leadsService.getAssignedToUser(userId).pipe(catchError(() => of([] as LeadRow[]))),
       deals: this.dealsService
         .getAssignedToUser(userId, userName, userEmail)
         .pipe(catchError(() => of([] as DealRow[]))),
@@ -134,7 +135,7 @@ export class UserDashboardService {
         meetingsToday: followUpsToday.filter((f) => f.kind === 'meeting').length,
         monthlyRevenue,
       } satisfies UserDashboardKpis,
-      assignedLeads: tableRows.slice(0, 25),
+      assignedLeads: tableRows,
       todaysLeads: todaysLeads
         .slice(0, 8)
         .map((l) => this.toLeadTableRow(l, undefined)),

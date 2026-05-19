@@ -109,6 +109,8 @@ export function stripLeadUpsertForPost(dto: LeadUpsertDto): Record<string, unkno
   }
   if (dto.organizationId != null && dto.organizationId > 0) {
     body['organizationId'] = dto.organizationId;
+  } else if (dto.organizationId === null) {
+    body['organizationId'] = null;
   } else {
     const orgNm = dto.organizationName?.trim();
     if (orgNm) body['organizationName'] = orgNm;

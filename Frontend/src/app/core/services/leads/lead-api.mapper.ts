@@ -287,9 +287,16 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
   const createdAt = createdIso !== '' ? createdIso : null;
 
   const notesTrim = String(r['notes'] ?? r['Notes'] ?? '').trim();
-  if (!organizationName.trim()) {
+  const marketplaceExt = extractMarketplaceExternalRef(notesTrim);
+  const isIndiaMartMarketplaceLead = marketplaceExt?.source === 'IndiaMART';
+
+  if (!isIndiaMartMarketplaceLead && !organizationName.trim()) {
     const fromNotes = parseMarketplaceNotesDisplay(notesTrim).organizationLabel?.trim();
     if (fromNotes) organizationName = fromNotes;
+  }
+
+  if (isIndiaMartMarketplaceLead && (organizationId == null || organizationId <= 0)) {
+    organizationName = '';
   }
 
   return {

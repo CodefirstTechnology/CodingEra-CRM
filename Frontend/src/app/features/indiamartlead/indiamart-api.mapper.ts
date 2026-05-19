@@ -102,8 +102,7 @@ export function mapUnknownRecordToIndiaMartLeadInput(value: unknown): IndiaMartL
       'SUBJECT',
       'subject',
       'Query_Product',
-    ]) ??
-    (queryMsg.length > 0 ? queryMsg.slice(0, 120) : '');
+    ]) ?? '';
   const quantity =
     pickString(row, ['quantity', 'Quantity', 'qty', 'QTY']) ??
     pickNumberString(row, ['quantity', 'Qty']) ??

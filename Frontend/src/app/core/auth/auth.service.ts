@@ -206,17 +206,23 @@ export class AuthService {
           const u = res.user;
           const rawUserId = u?.['id'] ?? res.userId;
           const emailResolved = String(u?.['email'] ?? trimmed);
+          const numericFromLogin = pickNumericFromLoginResponse(res);
           const serverUserId =
-            rawUserId != null && String(rawUserId).trim() !== ''
-              ? String(rawUserId)
-              : null;
+            pickNumericDbUserId(rawUserId) ??
+            numericFromLogin ??
+            (rawUserId != null && String(rawUserId).trim() !== '' ? String(rawUserId).trim() : null);
 
           return this.resolveUsersTableRoleIdAtLogin(base, token, serverUserId, emailResolved, res).pipe(
             map(({ roleId, profile }) => {
+              const numericUserId =
+                pickNumericDbUserId(profile?.['id'] ?? profile?.['userId']) ??
+                pickNumericDbUserId(serverUserId) ??
+                numericFromLogin;
+
               const loginPayload: Record<string, unknown> = {
                 ...(u && typeof u === 'object' ? u : {}),
                 ...(profile ?? {}),
-                ...(serverUserId ? { id: serverUserId } : {}),
+                ...(numericUserId ? { id: numericUserId } : {}),
                 email: emailResolved,
                 role_id: roleId,
                 roleId,
@@ -225,7 +231,7 @@ export class AuthService {
               const session =
                 buildSessionFromApiRecord(loginPayload, emailResolved, roleId) ??
                 ({
-                  id: serverUserId ?? crypto.randomUUID(),
+                  id: numericUserId ?? '',
                   email: emailResolved,
                   name: String(
                     u?.['name'] ?? u?.['fullName'] ?? profile?.['fullName'] ?? this.displayNameFromEmail(trimmed),
@@ -233,6 +239,10 @@ export class AuthService {
                   role: sessionRoleLabel(roleId),
                   roleId,
                 } satisfies UserSession);
+
+              if (numericUserId) {
+                session.id = numericUserId;
+              }
 
               session.roleId = roleId;
               session.role = sessionRoleLabel(roleId);

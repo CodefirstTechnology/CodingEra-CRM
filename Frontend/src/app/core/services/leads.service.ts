@@ -2,7 +2,10 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom, Observable, of } from 'rxjs';
 import { catchError, map, switchMap, tap } from 'rxjs/operators';
-import { filterLeadsForUser } from '../../features/user-dashboard/utils/user-ownership.util';
+import {
+  filterLeadsByLeadOwnerId,
+  parseSessionUserId,
+} from '../../features/user-dashboard/utils/user-ownership.util';
 import { LeadRoundRobinService } from './leads/lead-round-robin.service';
 import { OrganizationResolveService } from './organizations/organization-resolve.service';
 import type { LeadRow } from '../../features/leads/lead-row.model';
@@ -66,26 +69,30 @@ export class LeadsService {
     return this.leadHttp.list().pipe(map((rows) => rows.map(mapLeadNormalizedToRow)));
   }
 
-  /** Leads where `leadOwnerId` = logged-in user (`GET /api/leads?leadOwnerId=`). */
+  /**
+   * Leads where `users.id` = `leads.lead_owner_id`.
+   * Tries `GET /api/leads?leadOwnerId=` first; if empty or the request fails, loads all leads and filters client-side.
+   */
   getAssignedToUser(
     userId: string,
-    userName = '',
-    userEmail = '',
+    _userName = '',
+    _userEmail = '',
   ): Observable<LeadRow[]> {
-    const numericId = Number(userId);
-    const query =
-      Number.isFinite(numericId) && numericId > 0 ? { leadOwnerId: Math.trunc(numericId) } : undefined;
+    const ownerId = parseSessionUserId(userId);
+    if (ownerId == null) return of([]);
+
+    const toOwnedRows = (normalized: LeadNormalized[]) =>
+      filterLeadsByLeadOwnerId(normalized.map(mapLeadNormalizedToRow), String(ownerId));
+
+    const query = { leadOwnerId: ownerId };
 
     return this.leadHttp.list(query).pipe(
-      catchError(() => this.leadHttp.list()),
-      map((rows) =>
-        filterLeadsForUser(
-          rows.map(mapLeadNormalizedToRow),
-          userId,
-          userName,
-          userEmail,
-        ),
-      ),
+      switchMap((filtered) => {
+        const rows = toOwnedRows(filtered);
+        if (rows.length > 0) return of(rows);
+        return this.leadHttp.list().pipe(map((all) => toOwnedRows(all)));
+      }),
+      catchError(() => this.leadHttp.list().pipe(map((all) => toOwnedRows(all)))),
     );
   }
 
