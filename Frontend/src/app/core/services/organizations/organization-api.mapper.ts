@@ -15,22 +15,61 @@ function readRefName(v: unknown): string {
   return '';
 }
 
+function readNestedRecord(v: unknown): Record<string, unknown> | null {
+  return v != null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+function readOrganizationIndustryId(r: Record<string, unknown>): number | null {
+  return (
+    readOptionalInt(r['industryId']) ??
+    readOptionalInt(r['IndustryId']) ??
+    readOptionalInt(readNestedRecord(r['industry'])?.['id'])
+  );
+}
+
+function readOrganizationEmployeeCountId(r: Record<string, unknown>): number | null {
+  return (
+    readOptionalInt(r['employeeCountId']) ??
+    readOptionalInt(r['EmployeeCountId']) ??
+    readOptionalInt(readNestedRecord(r['employeeCount'])?.['id'])
+  );
+}
+
+function readOrganizationTerritoryId(r: Record<string, unknown>): number | null {
+  return (
+    readOptionalInt(r['territoryId']) ??
+    readOptionalInt(r['TerritoryId']) ??
+    readOptionalInt(readNestedRecord(r['territory'])?.['id'])
+  );
+}
+
 export function normalizeOrganizationApiRecord(raw: unknown): OrganizationRow {
   const r = (raw != null && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const industryRaw = r['industry'];
   const territoryRaw = r['territory'];
   const employeesRaw = r['employeeCount'] ?? r['employees'];
 
+  const industryId = readOrganizationIndustryId(r);
+  const employeeCountId = readOrganizationEmployeeCountId(r);
+  const territoryId = readOrganizationTerritoryId(r);
+
   return normalizeOrganizationRow({
     id: r['id'],
     name: r['name'] ?? r['organizationName'],
     website: r['website'],
-    industry: readRefName(industryRaw) || industryRaw,
+    industry:
+      readRefName(industryRaw) || (typeof industryRaw === 'string' ? industryRaw.trim() : ''),
     annualRevenue: r['annualRevenue'],
-    employees: readRefName(employeesRaw) || employeesRaw,
-    territory: readRefName(territoryRaw) || territoryRaw,
-    lastModified: r['lastModified'] ?? r['updatedAt'],
+    employees:
+      readRefName(employeesRaw) || (typeof employeesRaw === 'string' ? employeesRaw.trim() : ''),
+    territory:
+      readRefName(territoryRaw) || (typeof territoryRaw === 'string' ? territoryRaw.trim() : ''),
+    lastModified:
+      r['lastModified'] ?? r['updatedAt'] ?? r['UpdatedAt'] ?? r['modifyDate'] ?? r['modifiedAt'],
     address: r['address'],
+    industryId,
+    employeeCountId,
+    territoryId,
   });
 }
 
@@ -47,37 +86,35 @@ export interface OrganizationCreateInput {
   website?: string;
   employees?: string;
   employeeCountId?: number | null;
+  /** Sent as `annualRevenue` on `OrganizationUpsertDto`; defaults to `0` when omitted. */
+  annualRevenue?: number | null;
 }
 
 /** Options passed when resolving/creating an organization from lead data (no required `name`). */
 export type OrganizationEnsureOptions = Omit<OrganizationCreateInput, 'name'>;
 
-/** JSON body for `POST /api/organizations` (Swagger-style flat DTO). */
+/** JSON body for `POST /api/organizations` (must match Swagger `OrganizationUpsertDto` — no extra keys). */
 export function organizationCreatePayload(input: OrganizationCreateInput): Record<string, unknown> {
   const name = input.name.trim();
   const body: Record<string, unknown> = {
     name,
-    website: input.website?.trim() || '',
-    annualRevenue: 0,
+    website: input.website?.trim() ?? '',
+    annualRevenue:
+      input.annualRevenue != null && Number.isFinite(Number(input.annualRevenue))
+        ? Number(input.annualRevenue)
+        : 0,
   };
 
   if (input.industryId != null && input.industryId > 0) {
     body['industryId'] = input.industryId;
-  } else {
-    body['industry'] = input.industry?.trim() || 'Other';
   }
 
   if (input.territoryId != null && input.territoryId > 0) {
     body['territoryId'] = input.territoryId;
-  } else {
-    const territory = input.territory?.trim();
-    if (territory) body['territory'] = territory;
   }
 
   if (input.employeeCountId != null && input.employeeCountId > 0) {
     body['employeeCountId'] = input.employeeCountId;
-  } else {
-    body['employees'] = input.employees?.trim() || '1-10';
   }
 
   return body;
@@ -106,10 +143,8 @@ export function organizationLeadSyncPayload(
   if (hasIndustry) {
     if (options.industryId != null && options.industryId > 0) {
       body['industryId'] = options.industryId;
-    } else if (options.industry?.trim()) {
-      body['industry'] = options.industry.trim();
+      extras++;
     }
-    extras++;
   }
 
   const hasTerritory =
@@ -118,10 +153,8 @@ export function organizationLeadSyncPayload(
   if (hasTerritory) {
     if (options.territoryId != null && options.territoryId > 0) {
       body['territoryId'] = options.territoryId;
-    } else if (options.territory?.trim()) {
-      body['territory'] = options.territory.trim();
+      extras++;
     }
-    extras++;
   }
 
   const hasEmployees =
@@ -130,10 +163,8 @@ export function organizationLeadSyncPayload(
   if (hasEmployees) {
     if (options.employeeCountId != null && options.employeeCountId > 0) {
       body['employeeCountId'] = options.employeeCountId;
-    } else if (options.employees?.trim()) {
-      body['employees'] = options.employees.trim();
+      extras++;
     }
-    extras++;
   }
 
   return extras > 0 ? body : null;

@@ -7,6 +7,7 @@ import {
 
 export const environment = {
   production: true,
+  apiQueryUserIdFallback: undefined as string | undefined,
   /**
    * Set to `true` to show IndiaMART Leads in the admin sidebar and enable `/dashboard/indiamart-leads`.
    * Set to `false` to hide it completely (direct URLs redirect to `/dashboard`).

@@ -312,16 +312,16 @@
         <label class="create-form__field">
           <span class="create-form__label">Industry <span class="create-form__req">*</span></span>
           <select class="create-form__control" formControlName="industry">
-            @for (ind of industryOptions; track ind) {
-              <option [value]="ind">{{ ind }}</option>
+            @for (opt of orgMaster.industrySelectOptions(); track opt.id + opt.name) {
+              <option [value]="orgMasterOptValue(opt)">{{ opt.name }}</option>
             }
           </select>
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Employees</span>
           <select class="create-form__control" formControlName="employees">
-            @for (e of employeeOptions; track e) {
-              <option [value]="e">{{ e }}</option>
+            @for (opt of orgMaster.employeeSelectOptions(); track opt.id + opt.name) {
+              <option [value]="orgMasterOptValue(opt)">{{ opt.name }}</option>
             }
           </select>
         </label>
@@ -332,8 +332,10 @@
         <label class="create-form__field">
           <span class="create-form__label">Territory</span>
           <select class="create-form__control" formControlName="territory">
-            @for (t of territoryOptions; track t) {
-              <option [value]="t">{{ t === '' ? '—' : t }}</option>
+            @for (opt of orgMaster.territorySelectOptions(); track opt.id + '_' + opt.name) {
+              <option [value]="orgMasterOptValue(opt)">{{
+                opt.name.trim() === '' ? '—' : opt.name
+              }}</option>
             }
           </select>
         </label>

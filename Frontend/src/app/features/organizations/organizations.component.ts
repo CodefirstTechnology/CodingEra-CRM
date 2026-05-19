@@ -5,6 +5,13 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { OrganizationsService } from '../../core/services/organizations.service';
+import { OrganizationMasterSelectService } from '../../core/services/organizations/organization-master-select.service';
+import type { MasterDataOption } from '../../core/services/leads/lead-master-data.service';
+import {
+  masterOptionFormValue,
+  masterSelectControlValue,
+  resolveOrgMasterPick,
+} from '../../core/services/organizations/organization-master-select.util';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
@@ -20,6 +27,10 @@ export interface OrganizationRow {
   lastModified: string;
   employees?: string;
   territory?: string;
+  /** `GET /api/organizations` may expose FKs for MasterData dropdown round-trip. */
+  industryId?: number;
+  employeeCountId?: number;
+  territoryId?: number;
   /** Street-level or city line for org HQ (shown on organization detail sidebar). */
   address?: string;
 }
@@ -34,6 +45,7 @@ export class OrganizationsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly organizationsService = inject(OrganizationsService);
+  protected readonly orgMaster = inject(OrganizationMasterSelectService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -43,19 +55,11 @@ export class OrganizationsComponent {
 
   protected readonly formOpen = signal(false);
 
-  protected readonly employeeOptions = ['1-10', '11-50', '51-200', '201-500', '500+'] as const;
-  protected readonly territoryOptions = ['', 'India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
-  protected readonly industryOptions = [
-    'Technology',
-    'Finance',
-    'Healthcare',
-    'Manufacturing',
-    'Retail',
-    'Education',
-    'Other',
-  ] as const;
-
   protected readonly rows = signal<OrganizationRow[]>([]);
+
+  protected masterOptValue(opt: MasterDataOption): string {
+    return masterOptionFormValue(opt);
+  }
 
   constructor() {
     this.refreshOrganizations();
@@ -85,9 +89,9 @@ export class OrganizationsComponent {
   protected readonly createForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
-    industry: ['Technology', Validators.required],
+    industry: ['', Validators.required],
     annualRevenue: ['', Validators.maxLength(40)],
-    employees: ['1-10'],
+    employees: [''],
     territory: [''],
   });
 
@@ -113,15 +117,25 @@ export class OrganizationsComponent {
     this.sel.toggleSelectAll(this.rows().map((r) => r.id));
   }
 
+  private defaultIndustryFormValue(): string {
+    const o = this.orgMaster.industrySelectOptions()[0];
+    return o ? masterOptionFormValue(o) : '';
+  }
+
+  private defaultEmployeesFormValue(): string {
+    const o = this.orgMaster.employeeSelectOptions()[0];
+    return o ? masterOptionFormValue(o) : '';
+  }
+
   protected openForm(): void {
     this.editingNumericId.set(null);
     this.clearEditQuery();
     this.createForm.reset({
       organizationName: '',
       website: '',
-      industry: 'Technology',
+      industry: this.defaultIndustryFormValue(),
       annualRevenue: '',
-      employees: '1-10',
+      employees: this.defaultEmployeesFormValue(),
       territory: '',
     });
     this.createForm.markAsUntouched();
@@ -135,9 +149,9 @@ export class OrganizationsComponent {
     this.createForm.reset({
       organizationName: '',
       website: '',
-      industry: 'Technology',
+      industry: this.defaultIndustryFormValue(),
       annualRevenue: '',
-      employees: '1-10',
+      employees: this.defaultEmployeesFormValue(),
       territory: '',
     });
     this.createForm.markAsUntouched();
@@ -158,13 +172,16 @@ export class OrganizationsComponent {
         if (web.startsWith('https://')) web = web.slice(8);
         else if (web.startsWith('http://')) web = web.slice(7);
         const revInput = row.annualRevenue != null && row.annualRevenue !== 0 ? String(row.annualRevenue) : '';
+        const indOpts = this.orgMaster.industrySelectOptions();
+        const empOpts = this.orgMaster.employeeSelectOptions();
+        const terrOpts = this.orgMaster.territorySelectOptions();
         this.createForm.patchValue({
           organizationName: row.name,
           website: web,
-          industry: row.industry,
+          industry: masterSelectControlValue(row.industryId, row.industry, indOpts),
           annualRevenue: revInput,
-          employees: row.employees,
-          territory: row.territory,
+          employees: masterSelectControlValue(row.employeeCountId, row.employees, empOpts),
+          territory: masterSelectControlValue(row.territoryId, row.territory, terrOpts),
         });
         this.formOpen.set(true);
       });
@@ -231,14 +248,27 @@ export class OrganizationsComponent {
       web = `https://${web}`;
     }
 
+    const industryPick = resolveOrgMasterPick(raw.industry, this.orgMaster.industrySelectOptions());
+    const employeePick = resolveOrgMasterPick(raw.employees, this.orgMaster.employeeSelectOptions());
+    const territoryPick = resolveOrgMasterPick(raw.territory, this.orgMaster.territorySelectOptions());
+
     const payload: Omit<OrganizationRow, 'id'> = {
       name: nameTrim,
       website: web || '',
-      industry: raw.industry,
+      industry:
+        industryPick.label ||
+        this.orgMaster.industrySelectOptions()[0]?.name ||
+        'Technology',
       annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
       lastModified: 'Just now',
-      employees: raw.employees,
-      territory: raw.territory.trim() || undefined,
+      employees:
+        employeePick.label ||
+        this.orgMaster.employeeSelectOptions()[0]?.name ||
+        '1-10',
+      territory: territoryPick.label.trim() || undefined,
+      industryId: industryPick.masterId,
+      employeeCountId: employeePick.masterId,
+      territoryId: territoryPick.masterId,
     };
 
     const done = () => {

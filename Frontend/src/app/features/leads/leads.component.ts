@@ -209,6 +209,7 @@ export class LeadsComponent {
     'leadOwnerId',
     'leadSource',
     'sortTimestamp',
+    'created',
   ]);
   private readonly preferredColumnOrder = [
     'name',
@@ -810,7 +811,11 @@ export class LeadsComponent {
   protected displayColumnValue(row: LeadRow, id: string): string {
     const value = (row as unknown as Record<string, unknown>)[id];
     if (value == null) return '—';
-    if (typeof value === 'string') return value.trim() || '—';
+    if (typeof value === 'string') {
+      const t = value.trim();
+      if (!t || /^null$/i.test(t) || /^undefined$/i.test(t)) return '—';
+      return t;
+    }
     if (typeof value === 'number' || typeof value === 'boolean') return String(value);
     return '—';
   }
@@ -864,6 +869,15 @@ export class LeadsComponent {
     if (Number.isFinite(asNum) && asNum > 0) {
       const opt = options.find((o) => o.id === asNum);
       return { label: opt?.name ?? '', masterId: asNum };
+    }
+    const norm = (s: string) => s.trim().toLowerCase();
+    const key = norm(v);
+    const byName = options.find((o) => norm(o.name) === key);
+    if (byName != null) {
+      if (byName.id > 0) {
+        return { label: byName.name, masterId: byName.id };
+      }
+      return { label: byName.name };
     }
     return { label: v };
   }

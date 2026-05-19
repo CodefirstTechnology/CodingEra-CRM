@@ -1,4 +1,4 @@
-import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, firstValueFrom, Observable, of, switchMap, timeout } from 'rxjs';
@@ -22,6 +22,72 @@ import {
   unwrapApiRecord,
 } from './auth-role.util';
 import type { RegisterApiRequest, RegisterPayload, UserSession } from './auth.models';
+import { SKIP_USER_ID_QUERY } from '../http/skip-user-id-query.context';
+
+/** CRM API query param `userId` must be a positive integer — same as `users.id` in the database. */
+function pickNumericDbUserId(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (!/^\d+$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 ? s : null;
+}
+
+function getEnvQueryUserIdFallback(): string | null {
+  return pickNumericDbUserId(
+    (environment as { apiQueryUserIdFallback?: string }).apiQueryUserIdFallback,
+  );
+}
+
+/** Pulls numeric DB user id from common login JSON shapes (root + nested `user`). */
+function pickNumericFromLoginResponse(res: LoginApiResponse): string | null {
+  const r = res as Record<string, unknown>;
+  const flat: unknown[] = [
+    res.userId,
+    res.id,
+    r['userId'],
+    r['UserId'],
+    r['userid'],
+    r['id'],
+  ];
+  for (const v of flat) {
+    const n = pickNumericDbUserId(v);
+    if (n) return n;
+  }
+  const nested = r['user'];
+  if (nested != null && typeof nested === 'object' && !Array.isArray(nested)) {
+    const o = nested as Record<string, unknown>;
+    for (const k of ['id', 'Id', 'userId', 'UserId', 'userid']) {
+      const n = pickNumericDbUserId(o[k]);
+      if (n) return n;
+    }
+  }
+  const u = res.user;
+  if (u != null && typeof u === 'object') {
+    const o = u as Record<string, unknown>;
+    for (const k of ['id', 'Id', 'userId', 'UserId', 'userid']) {
+      const n = pickNumericDbUserId(o[k]);
+      if (n) return n;
+    }
+  }
+  return null;
+}
+
+function parseJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) base64 += '=';
+    const json = atob(base64);
+    const parsed = JSON.parse(json) as unknown;
+    return parsed != null && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface LoginResult {
   ok: boolean;
@@ -30,7 +96,7 @@ export interface LoginResult {
   redirectTo?: string;
 }
 
-/** Login API body — `userId` or `user.id` is used for `GET …/auth/users/{id}`. */
+/** Login API body — backend CRM routes need numeric `users.id` as query `userId`. */
 interface LoginApiResponse {
   access_token?: string;
   token?: string;
@@ -38,6 +104,8 @@ interface LoginApiResponse {
   userId?: string | number;
   roleId?: number;
   role_id?: number;
+  
+  id?: string | number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -73,8 +141,12 @@ export class AuthService {
       return;
     }
     try {
-      const user = JSON.parse(raw) as UserSession;
+      let user = JSON.parse(raw) as UserSession;
       if (!user?.email) throw new Error('invalid user');
+      if (user.id?.trim() && !pickNumericDbUserId(user.id)) {
+        user = { ...user, id: '' };
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+      }
       this._token.set(token);
       const normalized = this.normalizeStoredSession(user);
       this._user.set(normalized);
@@ -183,8 +255,17 @@ export class AuthService {
             err && typeof err === 'object' && 'status' in err
               ? Number((err as { status: number }).status)
               : undefined;
-          // Local dev safety net: if API route is missing, fallback to demo login.
+          // With a configured API base, do not fall back to demo login (avoids UUID "user id" vs required int userId).
           if (status === 404 || status === 0) {
+            if (base) {
+              return of({
+                ok: false as const,
+                error:
+                  status === 0
+                    ? 'Cannot reach the auth server. Start the CRM API and check the dev proxy for /api.'
+                    : 'Auth API not found (404). Start the CRM API on https://localhost:7172 and use ng serve with proxy.',
+              });
+            }
             const fallback = this.loginDemo(trimmed, password);
             writeLoginLog('login_failure', {
               mode: 'api',
