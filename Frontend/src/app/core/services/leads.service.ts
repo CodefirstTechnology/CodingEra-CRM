@@ -141,12 +141,15 @@ export class LeadsService {
           switchMap((prevWithOrg) =>
             this.resolveOrganizationForPatch(patch).pipe(
               switchMap((resolvedOrgId) => {
+                const patchOrgId = this.parseLeadRowOrganizationFk(patch.organizationId);
                 const linkedOrgId =
                   resolvedOrgId != null && resolvedOrgId > 0
                     ? resolvedOrgId
-                    : prevWithOrg.organizationId != null && prevWithOrg.organizationId > 0
-                      ? prevWithOrg.organizationId
-                      : null;
+                    : patchOrgId != null
+                      ? patchOrgId
+                      : prevWithOrg.organizationId != null && prevWithOrg.organizationId > 0
+                        ? prevWithOrg.organizationId
+                        : null;
                 const prevForMerge: LeadNormalized = {
                   ...prevWithOrg,
                   organizationId: linkedOrgId ?? prevWithOrg.organizationId,
@@ -262,6 +265,12 @@ export class LeadsService {
           return out;
         }),
       );
+  }
+
+  private parseLeadRowOrganizationFk(id: string | undefined | null): number | null {
+    if (id == null || !String(id).trim()) return null;
+    const n = Number(String(id).trim());
+    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
   }
 
   private orgFieldsPatchFromLeadData(

@@ -205,7 +205,10 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
 
   const orgRaw = r['organization'] ?? r['Organization'];
   let organizationId =
-    readOptionalInt(r['organizationId']) ?? readOptionalInt(r['OrganizationId']);
+    readOptionalInt(r['organizationId']) ??
+    readOptionalInt(r['OrganizationId']) ??
+    readOptionalInt(r['organization_id']) ??
+    readOptionalInt(r['Organization_Id']);
   let organizationName =
     typeof orgRaw === 'string'
       ? orgRaw.trim()

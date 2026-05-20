@@ -922,6 +922,7 @@ export class LeadDetailComponent {
       email: v.email.trim(),
       mobile: v.mobile.trim() || undefined,
       organization: v.organization.trim(),
+      ...(row.organizationId?.trim() ? { organizationId: row.organizationId.trim() } : {}),
       website: v.website.trim() || undefined,
       territory: terrPick.label.trim() || undefined,
       territoryId: terrPick.masterId,

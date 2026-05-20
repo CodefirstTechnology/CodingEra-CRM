@@ -45,12 +45,13 @@ export function buildLeadPutJson(dto: LeadUpsertDto, previous: LeadNormalized): 
         ? previous.organizationId
         : null;
   const orgNm = dtoOrgNm || prevOrgNm;
-  if (orgId != null) {
+  if (orgId != null && orgId > 0) {
     body['organizationId'] = orgId;
     if (orgNm) body['organizationName'] = orgNm;
   } else if (orgNm) {
     body['organizationName'] = orgNm;
   }
+  // Never send organizationId: 0 or null — backend treats 0 as "clear FK".
 
   if (dto.leadStatusId != null && dto.leadStatusId > 0) {
     body['leadStatusId'] = dto.leadStatusId;
