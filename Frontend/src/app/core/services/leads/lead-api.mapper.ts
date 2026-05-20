@@ -3,11 +3,20 @@ import type { LeadRow, LeadSource, LeadStatus } from '../../../features/leads/le
 import { applyMarketplaceNotesToLeadRow, extractMarketplaceExternalRef, parseMarketplaceNotesDisplay } from './marketplace-lead-to-api.mapper';
 import type { LeadNormalized, LeadUpsertDto } from './lead-api.models';
 
-const LEAD_STATUSES: LeadStatus[] = ['New', 'Contacted', 'Qualified', 'Lost', 'Converted'];
+const LEAD_STATUS_BY_KEY: Record<string, LeadStatus> = {
+  new: 'New',
+  contacted: 'Contacted',
+  nurture: 'Nurture',
+  unqualified: 'Unqualified',
+  qualified: 'Qualified',
+  junk: 'Junk',
+  lost: 'Lost',
+  converted: 'Converted',
+};
 
 export function coerceLeadStatus(raw: string | undefined | null): LeadStatus {
-  const s = (raw ?? 'New').trim();
-  return (LEAD_STATUSES.includes(s as LeadStatus) ? s : 'New') as LeadStatus;
+  const key = (raw ?? 'New').trim().toLowerCase();
+  return LEAD_STATUS_BY_KEY[key] ?? 'New';
 }
 
 function coerceLeadSource(raw: string | undefined | null): LeadSource {
@@ -205,7 +214,10 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
 
   const orgRaw = r['organization'] ?? r['Organization'];
   let organizationId =
-    readOptionalInt(r['organizationId']) ?? readOptionalInt(r['OrganizationId']);
+    readOptionalInt(r['organizationId']) ??
+    readOptionalInt(r['OrganizationId']) ??
+    readOptionalInt(r['organization_id']) ??
+    readOptionalInt(r['Organization_Id']);
   let organizationName =
     typeof orgRaw === 'string'
       ? orgRaw.trim()
@@ -394,7 +406,75 @@ export function mapLeadApiDtoToRow(dto: LeadNormalized): LeadRow {
 }
 
 export function mergeLeadPatch(row: LeadRow, patch: Partial<Omit<LeadRow, 'id'>>): LeadRow {
-  return { ...row, ...patch, id: row.id };
+  const defined = Object.fromEntries(
+    Object.entries(patch).filter(([, v]) => v !== undefined),
+  ) as Partial<Omit<LeadRow, 'id'>>;
+  return { ...row, ...defined, id: row.id };
+}
+
+/** Strengthens PUT reconciliation when the API response omits nested organization / master labels. */
+export function enrichLeadNormalizedFromPatch(
+  baseline: LeadNormalized,
+  patch: Partial<Omit<LeadRow, 'id'>>,
+): LeadNormalized {
+  return {
+    ...baseline,
+    organizationName:
+      patch.organization !== undefined
+        ? patch.organization.trim() || baseline.organizationName
+        : baseline.organizationName,
+    territory:
+      patch.territory !== undefined ? patch.territory.trim() || baseline.territory : baseline.territory,
+    territoryId: patch.territoryId !== undefined ? patch.territoryId ?? baseline.territoryId : baseline.territoryId,
+    industry:
+      patch.industry !== undefined ? patch.industry.trim() || baseline.industry : baseline.industry,
+    industryId: patch.industryId !== undefined ? patch.industryId ?? baseline.industryId : baseline.industryId,
+    website: patch.website !== undefined ? patch.website.trim() || baseline.website : baseline.website,
+    employees:
+      patch.employees !== undefined ? patch.employees.trim() || baseline.employees : baseline.employees,
+    employeeCountId:
+      patch.employeeCountId !== undefined
+        ? patch.employeeCountId ?? baseline.employeeCountId
+        : baseline.employeeCountId,
+    salutationName:
+      patch.salutation !== undefined
+        ? patch.salutation.trim() || baseline.salutationName
+        : baseline.salutationName,
+    salutationId:
+      patch.salutationId !== undefined ? patch.salutationId ?? baseline.salutationId : baseline.salutationId,
+    leadStatusId:
+      patch.leadStatusId !== undefined ? patch.leadStatusId ?? baseline.leadStatusId : baseline.leadStatusId,
+    statusName:
+      patch.status !== undefined ? String(patch.status).trim() || baseline.statusName : baseline.statusName,
+  };
+}
+
+/** Non-empty patch string wins; `undefined` on a patch key does not clear the field. */
+function coalesceStringAfterPut(
+  fromApi: string | undefined | null,
+  baseline: string | undefined | null,
+  patch: Partial<Omit<LeadRow, 'id'>>,
+  key: 'territory' | 'industry' | 'website' | 'employees' | 'salutation',
+): string {
+  if (key in patch && patch[key] !== undefined) {
+    const trimmed = String(patch[key] ?? '').trim();
+    if (trimmed) return trimmed;
+  }
+  return fromApi?.trim() || baseline?.trim() || '';
+}
+
+function coalesceFkAfterPut(
+  fromApi: number | null | undefined,
+  baseline: number | null | undefined,
+  patch: Partial<Omit<LeadRow, 'id'>>,
+  key: 'territoryId' | 'industryId' | 'employeeCountId' | 'salutationId' | 'leadStatusId',
+): number | null {
+  if (key in patch && patch[key] !== undefined && patch[key] != null) {
+    const n = Number(patch[key]);
+    if (Number.isFinite(n) && n > 0) return Math.trunc(n);
+  }
+  if (fromApi != null && fromApi > 0) return fromApi;
+  return baseline ?? null;
 }
 
 function normalizedToUpsertDto(n: LeadNormalized, idOverride?: number): LeadUpsertDto {
@@ -482,16 +562,21 @@ export function reconcileLeadNormalizedAfterPut(
 ): LeadNormalized {
   const out = { ...fromApi };
   const clearedOrg =
-    patch != null && 'organization' in patch && !String(patch.organization ?? '').trim();
+    patch != null &&
+    'organization' in patch &&
+    patch.organization !== undefined &&
+    !String(patch.organization).trim();
   if (clearedOrg) {
     out.organizationId = null;
     out.organizationName = '';
   } else {
-    out.organizationName =
-      fromApi.organizationName?.trim() ||
-      ('organization' in patch ? (patch.organization ?? '').trim() : '') ||
-      baseline.organizationName?.trim() ||
-      '';
+    if ('organization' in patch && patch.organization !== undefined) {
+      const fromPatch = patch.organization.trim();
+      if (fromPatch) out.organizationName = fromPatch;
+    }
+    if (!out.organizationName?.trim()) {
+      out.organizationName = fromApi.organizationName?.trim() || baseline.organizationName?.trim() || '';
+    }
     out.organizationId =
       fromApi.organizationId != null && fromApi.organizationId > 0
         ? fromApi.organizationId
@@ -500,58 +585,35 @@ export function reconcileLeadNormalizedAfterPut(
           : null;
   }
 
-  out.salutationName =
-    fromApi.salutationName?.trim() ||
-    ('salutation' in patch ? (patch.salutation ?? '').trim() : '') ||
-    baseline.salutationName?.trim() ||
-    '';
-  out.salutationId =
-    fromApi.salutationId != null && fromApi.salutationId > 0
-      ? fromApi.salutationId
-      : 'salutationId' in patch && patch.salutationId != null
-        ? patch.salutationId
-        : baseline.salutationId;
+  out.salutationName = coalesceStringAfterPut(
+    fromApi.salutationName,
+    baseline.salutationName,
+    patch,
+    'salutation',
+  );
+  out.salutationId = coalesceFkAfterPut(fromApi.salutationId, baseline.salutationId, patch, 'salutationId');
 
-  out.territory =
-    fromApi.territory?.trim() ||
-    ('territory' in patch ? (patch.territory ?? '').trim() : '') ||
-    baseline.territory?.trim() ||
-    '';
-  out.territoryId =
-    fromApi.territoryId != null && fromApi.territoryId > 0
-      ? fromApi.territoryId
-      : 'territoryId' in patch && patch.territoryId != null
-        ? patch.territoryId
-        : baseline.territoryId;
+  out.territory = coalesceStringAfterPut(fromApi.territory, baseline.territory, patch, 'territory');
+  out.territoryId = coalesceFkAfterPut(fromApi.territoryId, baseline.territoryId, patch, 'territoryId');
 
-  out.industry =
-    fromApi.industry?.trim() ||
-    ('industry' in patch ? (patch.industry ?? '').trim() : '') ||
-    baseline.industry?.trim() ||
-    '';
-  out.industryId =
-    fromApi.industryId != null && fromApi.industryId > 0
-      ? fromApi.industryId
-      : 'industryId' in patch && patch.industryId != null
-        ? patch.industryId
-        : baseline.industryId;
+  out.industry = coalesceStringAfterPut(fromApi.industry, baseline.industry, patch, 'industry');
+  out.industryId = coalesceFkAfterPut(fromApi.industryId, baseline.industryId, patch, 'industryId');
 
-  out.website =
-    fromApi.website?.trim() ||
-    ('website' in patch ? (patch.website ?? '').trim() : '') ||
-    baseline.website?.trim() ||
-    '';
-  out.employees =
-    fromApi.employees?.trim() ||
-    ('employees' in patch ? (patch.employees ?? '').trim() : '') ||
-    baseline.employees?.trim() ||
-    '';
-  out.employeeCountId =
-    fromApi.employeeCountId != null && fromApi.employeeCountId > 0
-      ? fromApi.employeeCountId
-      : 'employeeCountId' in patch && patch.employeeCountId != null
-        ? patch.employeeCountId
-        : baseline.employeeCountId;
+  out.website = coalesceStringAfterPut(fromApi.website, baseline.website, patch, 'website');
+  out.employees = coalesceStringAfterPut(fromApi.employees, baseline.employees, patch, 'employees');
+  out.employeeCountId = coalesceFkAfterPut(
+    fromApi.employeeCountId,
+    baseline.employeeCountId,
+    patch,
+    'employeeCountId',
+  );
+
+  out.leadStatusId = coalesceFkAfterPut(fromApi.leadStatusId, baseline.leadStatusId, patch, 'leadStatusId');
+  if ('status' in patch && patch.status != null) {
+    out.statusName = String(patch.status).trim() || out.statusName;
+  } else if (!out.statusName?.trim()) {
+    out.statusName = baseline.statusName?.trim() || fromApi.statusName?.trim() || 'New';
+  }
 
   if (
     !(fromApi.annualRevenue != null && Number.isFinite(Number(fromApi.annualRevenue)))
@@ -565,12 +627,48 @@ export function reconcileLeadNormalizedAfterPut(
   return out;
 }
 
+/** Keeps organization / territory / industry from the form when the PUT response is sparse. */
+export function applyLeadRowOrgFieldsFromPatch(
+  row: LeadRow,
+  patch: Partial<Omit<LeadRow, 'id'>>,
+): LeadRow {
+  const out = { ...row };
+  if (patch.organization !== undefined) {
+    out.organization = patch.organization.trim();
+  }
+  if (patch.website !== undefined) {
+    const w = patch.website.trim();
+    out.website = w || undefined;
+  }
+  if (patch.territory !== undefined) {
+    const t = patch.territory.trim();
+    out.territory = t || undefined;
+  }
+  if (patch.territoryId !== undefined) {
+    out.territoryId = patch.territoryId ?? undefined;
+  }
+  if (patch.industry !== undefined) {
+    const i = patch.industry.trim();
+    out.industry = i || out.industry;
+  }
+  if (patch.industryId !== undefined) {
+    out.industryId = patch.industryId ?? undefined;
+  }
+  if (patch.organizationId !== undefined) {
+    out.organizationId = patch.organizationId;
+  }
+  return out;
+}
+
 export function mergeLeadApiDtoWithRowPatch(
   previous: LeadNormalized,
   patch: Partial<Omit<LeadRow, 'id'>>,
 ): LeadUpsertDto {
   const row = mergeLeadPatch(mapLeadNormalizedToRow(previous), patch);
   const merged = rowToNormalized(row, previous);
+  if (patch.leadStatusId != null && patch.leadStatusId > 0) {
+    merged.leadStatusId = patch.leadStatusId;
+  }
   if (patch.status != null) {
     merged.statusName = patch.status;
   }

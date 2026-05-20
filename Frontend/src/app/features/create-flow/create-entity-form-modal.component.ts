@@ -30,8 +30,12 @@ import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { OrganizationRow } from '../organizations/organizations.component';
 import type { NoteRelatedType, NoteRow, NoteVisibility } from '../notes/notes.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
-import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
-import type { TaskPriority, TaskRow, TaskStatus } from '../tasks/tasks.component';
+import {
+  optionalMobile10Validator,
+  optionalPhoneValidator,
+  optionalUrlValidator,
+} from '../../shared/validators/crm-validators';
+import type { AssigneeOption, TaskPriority, TaskRow, TaskStatus } from '../tasks/tasks.component';
 
 @Component({
   selector: 'app-create-entity-form-modal',
@@ -133,7 +137,7 @@ export class CreateEntityFormModalComponent {
   protected readonly leadForm = this.fb.nonNullable.group({
     salutation: [''],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
-    mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
+    mobile: ['', [optionalMobile10Validator()]],
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
@@ -145,7 +149,7 @@ export class CreateEntityFormModalComponent {
     status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),
     leadOwner: ['', Validators.required],
     requestType: [''],
-    requirement: ['', Validators.maxLength(240)],
+    requirement: ['', [Validators.required, Validators.maxLength(240)]],
     customField: ['', Validators.maxLength(240)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
   });
@@ -468,7 +472,7 @@ export class CreateEntityFormModalComponent {
       industry: raw.industry,
       status: raw.status,
       requestType: raw.requestType || undefined,
-      requirement: raw.requirement.trim() || undefined,
+      requirement: raw.requirement.trim(),
       notes: raw.customField.trim() || undefined,
       leadOwnerName,
       owner: initials,

@@ -609,6 +609,19 @@ select.leads__control {
   color: var(--text-muted);
 }
 
+.leads__th--mobile,
+.leads__td--mobile {
+  width: 1%;
+  min-width: 9.5rem;
+  white-space: nowrap;
+}
+
+.leads__cell-mobile {
+  display: inline-block;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
 .leads__tag {
   display: inline-block;
   padding: 0.2rem 0.5rem;

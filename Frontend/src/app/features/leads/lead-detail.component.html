@@ -405,10 +405,6 @@
               </select>
             </label>
             <label class="lead-detail__field">
-              <span class="lead-detail__label">Job Title</span>
-              <input type="text" class="lead-detail__input" formControlName="jobTitle" />
-            </label>
-            <label class="lead-detail__field">
               <span class="lead-detail__label">Source</span>
               <select class="lead-detail__select" formControlName="source">
                 @for (s of sourceOptionsForLead(); track s) {
@@ -740,16 +736,6 @@
                 <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
               </select>
-            </dd>
-            <dt>Job Title</dt>
-            <dd class="lead-detail__kv-dd">
-              <input
-                type="text"
-                class="lead-detail__side-field"
-                [formControl]="dataForm.controls.jobTitle"
-                [placeholder]="sidebarAddLabel('Job Title')"
-                autocomplete="organization-title"
-              />
             </dd>
             <dt>Source</dt>
             <dd class="lead-detail__kv-dd">

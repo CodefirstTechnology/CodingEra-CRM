@@ -1,5 +1,13 @@
-/** CRM pipeline status (manual leads + unified list). */
-export type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost' | 'Converted';
+/** CRM pipeline status (manual leads + unified list; aligns with `lead_statuses` master). */
+export type LeadStatus =
+  | 'New'
+  | 'Contacted'
+  | 'Nurture'
+  | 'Unqualified'
+  | 'Qualified'
+  | 'Junk'
+  | 'Lost'
+  | 'Converted';
 
 /** Marketplace origins shown in the unified Leads view. */
 export type MarketplaceLeadSource = 'IndiaMART' | 'Justdial' | 'TradeIndia';

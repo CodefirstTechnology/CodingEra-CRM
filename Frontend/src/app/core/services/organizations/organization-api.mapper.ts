@@ -6,6 +6,18 @@ function readOptionalInt(v: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** Reads organization PK from POST/PUT JSON (camelCase or PascalCase). */
+export function readOrganizationIdFromApiRaw(raw: unknown): number | null {
+  if (raw == null || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  return (
+    readOptionalInt(r['id']) ??
+    readOptionalInt(r['Id']) ??
+    readOptionalInt(r['organizationId']) ??
+    readOptionalInt(r['OrganizationId'])
+  );
+}
+
 function readRefName(v: unknown): string {
   if (typeof v === 'string') return v.trim();
   if (v != null && typeof v === 'object') {
@@ -54,8 +66,8 @@ export function normalizeOrganizationApiRecord(raw: unknown): OrganizationRow {
   const territoryId = readOrganizationTerritoryId(r);
 
   return normalizeOrganizationRow({
-    id: r['id'],
-    name: r['name'] ?? r['organizationName'],
+    id: r['id'] ?? r['Id'],
+    name: r['name'] ?? r['Name'] ?? r['organizationName'],
     website: r['website'],
     industry:
       readRefName(industryRaw) || (typeof industryRaw === 'string' ? industryRaw.trim() : ''),
@@ -168,4 +180,35 @@ export function organizationLeadSyncPayload(
   }
 
   return extras > 0 ? body : null;
+}
+
+/**
+ * Merges an existing organization row into a lead-sync PUT so omitted FKs are not cleared
+ * when ASP.NET deserializes missing JSON properties as null.
+ */
+export function mergeOrganizationLeadSyncWithExisting(
+  existing: OrganizationRow | null | undefined,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { ...patch };
+  if (!existing) return body;
+
+  if (!('territoryId' in body) && existing.territoryId != null && existing.territoryId > 0) {
+    body['territoryId'] = existing.territoryId;
+  }
+  if (!('industryId' in body) && existing.industryId != null && existing.industryId > 0) {
+    body['industryId'] = existing.industryId;
+  }
+  if (
+    !('employeeCountId' in body) &&
+    existing.employeeCountId != null &&
+    existing.employeeCountId > 0
+  ) {
+    body['employeeCountId'] = existing.employeeCountId;
+  }
+  if (!('website' in body) && existing.website?.trim()) {
+    body['website'] = existing.website.trim();
+  }
+
+  return body;
 }

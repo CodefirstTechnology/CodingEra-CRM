@@ -199,7 +199,6 @@ export class LeadDetailComponent {
     website: [''],
     territory: [''],
     industry: [''],
-    jobTitle: [''],
     source: [''],
     owner: [''],
     salutation: [''],
@@ -237,6 +236,7 @@ export class LeadDetailComponent {
         this.leadNotes.set([]);
         this.leadAttachments.set([]);
         this.leadComments.set([]);
+        this.leadActivityGroups.set([]);
         this.commentComposerOpen.set(false);
         this.commentDraft.set('');
         this.leadEmails.set([]);
@@ -329,47 +329,29 @@ export class LeadDetailComponent {
       return;
     }
     this.tasksService
-      .getByRelatedLead(lid)
+      .getAll()
       .pipe(take(1))
       .subscribe((rows) => {
-        this.leadTasks.set(rows);
-      });
-  }
-
-  private refreshLeadActivities(): void {
-    const id = this.numericId();
-    if (id == null) {
-      this.leadActivityGroups.set([]);
-      return;
-    }
-    this.leadActivityLoading.set(true);
-    this.activitiesService
-      .getLeadGroups(id)
-      .pipe(take(1))
-      .subscribe({
-        next: (groups) => {
-          this.leadActivityGroups.set(groups);
-          this.leadActivityLoading.set(false);
-        },
-        error: () => {
-          this.leadActivityGroups.set([]);
-          this.leadActivityLoading.set(false);
-        },
+        const idNorm = lid.trim();
+        const forLead = rows.filter((r) => (r.relatedLeadId ?? '').trim() === idNorm);
+        this.leadTasks.set(forLead);
       });
   }
 
   private refreshLeadNotes(): void {
-    const id = this.numericId();
-    if (id == null) {
+    const l = this.lead();
+    const lid = l?.id;
+    if (lid == null || lid === '') {
       this.leadNotes.set([]);
       return;
     }
     this.notesService
-      .getByRecord(id)
+      .getAll()
       .pipe(take(1))
-      .subscribe({
-        next: (rows) => this.leadNotes.set(rows),
-        error: () => this.leadNotes.set([]),
+      .subscribe((rows) => {
+        const idNorm = lid.trim();
+        const forLead = rows.filter((r) => (r.relatedLeadId ?? '').trim() === idNorm);
+        this.leadNotes.set(forLead);
       });
   }
 
@@ -455,6 +437,28 @@ export class LeadDetailComponent {
     this.leadAttachments.set(next);
     this.persistAttachments(lid);
     input.value = '';
+  }
+
+  private refreshLeadActivities(): void {
+    const id = this.numericId();
+    if (id == null) {
+      this.leadActivityGroups.set([]);
+      return;
+    }
+    this.leadActivityLoading.set(true);
+    this.activitiesService
+      .getLeadGroups(id)
+      .pipe(take(1))
+      .subscribe({
+        next: (groups) => {
+          this.leadActivityGroups.set(groups);
+          this.leadActivityLoading.set(false);
+        },
+        error: () => {
+          this.leadActivityGroups.set([]);
+          this.leadActivityLoading.set(false);
+        },
+      });
   }
 
   private refreshLeadComments(): void {
@@ -732,7 +736,6 @@ export class LeadDetailComponent {
         website: row.website ?? '',
         territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
         industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
-        jobTitle: row.jobTitle ?? '',
         source: row.source?.trim() || row.leadSource || '',
         owner: row.leadOwnerId ?? '',
         salutation: this.masterSelectControlValue(row.salutationId, salutationPlain, this.salutationSelectOptions()),
@@ -851,10 +854,43 @@ export class LeadDetailComponent {
       return;
     }
 
-    const payload = this.buildDirtyLeadSavePatch(row);
-    if (Object.keys(payload).length <= 1) return;
+    const v = this.dataForm.getRawValue();
+    const salPick = this.resolveMasterPick(v.salutation, this.salutationSelectOptions());
+    const terrPick = this.resolveMasterPick(v.territory, this.territorySelectOptions());
+    const indPick = this.resolveMasterPick(v.industry, this.industrySelectOptions());
+    const salBase = salPick.label.trim().replace(/\.$/, '');
+    const salutationNorm = salBase ? `${salBase}.` : '';
+    const name =
+      [salutationNorm, v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(' ').trim() ||
+      v.firstName.trim() ||
+      row.name;
+
+    const ownerId = v.owner.trim();
+    const opt = this.leadOwnerOpts.findById(ownerId);
+    const leadOwnerName = opt?.label ?? row.leadOwnerName;
 
     this.dataSaving.set(true);
+    const payload: Partial<Omit<LeadRow, 'id'>> = {
+      name,
+      firstName: v.firstName.trim(),
+      lastName: v.lastName.trim(),
+      salutation: salutationNorm || undefined,
+      salutationId: salPick.masterId,
+      email: v.email.trim(),
+      mobile: v.mobile.trim() || undefined,
+      organization: v.organization.trim(),
+      ...(row.organizationId?.trim() ? { organizationId: row.organizationId.trim() } : {}),
+      website: v.website.trim() || undefined,
+      territory: terrPick.label.trim() || undefined,
+      territoryId: terrPick.masterId,
+      industry: indPick.label.trim() || undefined,
+      industryId: indPick.masterId,
+      source: v.source.trim() || undefined,
+      leadOwnerId: ownerId || undefined,
+      owner: opt?.initials ?? row.owner,
+      leadOwnerName,
+      updated: 'Just now',
+    };
 
     try {
       const updated = await this.leadsService.updateAsync(idn, payload);
@@ -863,7 +899,6 @@ export class LeadDetailComponent {
         this.lead.set(enriched);
         this.patchDataForm(enriched);
         this.emailSubjectText.set(`Mr ${updated.name} (${this.leadCode()})`);
-        this.refreshLeadActivities();
         this.toast.show('Lead saved.');
       }
     } catch (e) {
@@ -871,71 +906,6 @@ export class LeadDetailComponent {
     } finally {
       this.dataSaving.set(false);
     }
-  }
-
-  /** Sends only fields the user actually edited so unrelated columns (e.g. organization) are not cleared. */
-  private buildDirtyLeadSavePatch(row: LeadRow): Partial<Omit<LeadRow, 'id'>> {
-    const v = this.dataForm.getRawValue();
-    const patch: Partial<Omit<LeadRow, 'id'>> = {};
-
-    if (this.dataForm.controls.email.dirty) {
-      patch.email = v.email.trim();
-    }
-    if (this.dataForm.controls.mobile.dirty) {
-      patch.mobile = v.mobile.trim() || undefined;
-    }
-    if (this.dataForm.controls.organization.dirty) {
-      patch.organization = v.organization.trim();
-    }
-    if (this.dataForm.controls.website.dirty) {
-      patch.website = v.website.trim() || undefined;
-    }
-    if (this.dataForm.controls.territory.dirty) {
-      const terrPick = this.resolveMasterPick(v.territory, this.territorySelectOptions());
-      patch.territory = terrPick.label.trim() || undefined;
-      patch.territoryId = terrPick.masterId;
-    }
-    if (this.dataForm.controls.industry.dirty) {
-      const indPick = this.resolveMasterPick(v.industry, this.industrySelectOptions());
-      patch.industry = indPick.label.trim() || undefined;
-      patch.industryId = indPick.masterId;
-    }
-    if (this.dataForm.controls.jobTitle.dirty) {
-      patch.jobTitle = v.jobTitle.trim() || undefined;
-    }
-    if (this.dataForm.controls.source.dirty) {
-      patch.source = v.source.trim() || undefined;
-    }
-    if (this.dataForm.controls.owner.dirty) {
-      const ownerId = v.owner.trim();
-      const opt = this.leadOwnerOpts.findById(ownerId);
-      patch.leadOwnerId = ownerId || undefined;
-      patch.owner = opt?.initials ?? row.owner;
-      patch.leadOwnerName = opt?.label ?? row.leadOwnerName;
-    }
-    if (
-      this.dataForm.controls.firstName.dirty ||
-      this.dataForm.controls.lastName.dirty ||
-      this.dataForm.controls.salutation.dirty
-    ) {
-      const salPick = this.resolveMasterPick(v.salutation, this.salutationSelectOptions());
-      const salBase = salPick.label.trim().replace(/\.$/, '');
-      const salutationNorm = salBase ? `${salBase}.` : '';
-      patch.firstName = v.firstName.trim();
-      patch.lastName = v.lastName.trim();
-      patch.salutation = salutationNorm || undefined;
-      patch.salutationId = salPick.masterId;
-      patch.name =
-        [salutationNorm, v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(' ').trim() ||
-        v.firstName.trim() ||
-        row.name;
-    }
-
-    if (Object.keys(patch).length > 0) {
-      patch.updated = 'Just now';
-    }
-
-    return patch;
   }
 
   protected convertToDeal(): void {

@@ -38,15 +38,20 @@ export function buildLeadPutJson(dto: LeadUpsertDto, previous: LeadNormalized): 
   const dtoOrgNm = dto.organizationName?.trim() || '';
   const prevOrgNm = previous.organizationName?.trim() || '';
 
-  if (dto.organizationId != null && dto.organizationId > 0) {
-    body['organizationId'] = dto.organizationId;
-  } else if (previous.organizationId != null && previous.organizationId > 0) {
-    body['organizationId'] = previous.organizationId;
-  } else if (dtoOrgNm) {
-    body['organizationName'] = dtoOrgNm;
-  } else if (prevOrgNm) {
-    body['organizationName'] = prevOrgNm;
+  const orgId =
+    dto.organizationId != null && dto.organizationId > 0
+      ? dto.organizationId
+      : previous.organizationId != null && previous.organizationId > 0
+        ? previous.organizationId
+        : null;
+  const orgNm = dtoOrgNm || prevOrgNm;
+  if (orgId != null && orgId > 0) {
+    body['organizationId'] = orgId;
+    if (orgNm) body['organizationName'] = orgNm;
+  } else if (orgNm) {
+    body['organizationName'] = orgNm;
   }
+  // Never send organizationId: 0 or null — backend treats 0 as "clear FK".
 
   if (dto.leadStatusId != null && dto.leadStatusId > 0) {
     body['leadStatusId'] = dto.leadStatusId;
@@ -107,13 +112,14 @@ export function stripLeadUpsertForPost(dto: LeadUpsertDto): Record<string, unkno
   if (dto.leadOwnerId != null && dto.leadOwnerId > 0) {
     body['leadOwnerId'] = dto.leadOwnerId;
   }
+  const orgNm = dto.organizationName?.trim() || '';
   if (dto.organizationId != null && dto.organizationId > 0) {
     body['organizationId'] = dto.organizationId;
+    if (orgNm) body['organizationName'] = orgNm;
   } else if (dto.organizationId === null) {
     body['organizationId'] = null;
-  } else {
-    const orgNm = dto.organizationName?.trim();
-    if (orgNm) body['organizationName'] = orgNm;
+  } else if (orgNm) {
+    body['organizationName'] = orgNm;
   }
   if (dto.requestTypeId != null && dto.requestTypeId > 0) {
     body['requestTypeId'] = dto.requestTypeId;

@@ -124,6 +124,13 @@
                 </select>
               </label>
               <label class="leads__field">
+                <span class="leads__label">First name <span class="leads__req">*</span></span>
+                <input class="leads__control leads__control--soft" type="text" formControlName="firstName" autocomplete="given-name" />
+                @if (fieldInvalid('firstName')) {
+                  <span class="leads__err">First name is required.</span>
+                }
+              </label>
+              <label class="leads__field">
                 <span class="leads__label">Last name <span class="leads__req">*</span></span>
                 <input class="leads__control leads__control--soft" type="text" formControlName="lastName" autocomplete="family-name" />
                 @if (fieldInvalid('lastName')) {
@@ -132,18 +139,9 @@
               </label>
               <label class="leads__field">
                 <span class="leads__label">Mobile no.</span>
-                <input class="leads__control leads__control--soft" type="tel" formControlName="mobile" autocomplete="tel" />
-                @if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['required']) {
-                  <span class="leads__err">Mobile is required.</span>
-                } @else if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['pattern']) {
+                <input class="leads__control leads__control--soft" type="tel" formControlName="mobile" autocomplete="tel" inputmode="numeric" />
+                @if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['pattern']) {
                   <span class="leads__err">Enter exactly 10 digits.</span>
-                }
-              </label>
-              <label class="leads__field">
-                <span class="leads__label">First name <span class="leads__req">*</span></span>
-                <input class="leads__control leads__control--soft" type="text" formControlName="firstName" autocomplete="given-name" />
-                @if (fieldInvalid('firstName')) {
-                  <span class="leads__err">First name is required.</span>
                 }
               </label>
               <label class="leads__field">
@@ -270,13 +268,16 @@
                 </select>
               </label>
               <label class="leads__field leads__field--full">
-                <span class="leads__label">Requirement</span>
+                <span class="leads__label">Requirement <span class="leads__req">*</span></span>
                 <input
                   class="leads__control leads__control--soft"
                   type="text"
                   formControlName="requirement"
                   placeholder="What is the customer looking for?"
                 />
+                @if (fieldInvalid('requirement')) {
+                  <span class="leads__err">Requirement is required.</span>
+                }
               </label>
               <label class="leads__field leads__field--full">
                 <span class="leads__label">Additional details</span>
@@ -362,7 +363,7 @@
         </button>
         @if (columnMenuOpen()) {
           <div class="leads__columns-menu" role="menu" aria-label="Choose lead table columns">
-            <p class="leads__columns-help">Name and source are required.</p>
+            <p class="leads__columns-help">Name, source, and requirement cannot be hidden.</p>
             @for (column of columnOptions(); track column.id) {
               <label class="leads__column-option" [class.is-required]="column.required">
                 <input
@@ -401,7 +402,7 @@
                 />
               </th>
               @for (column of visibleColumns(); track column.id) {
-                <th>{{ column.label }}</th>
+                <th [class.leads__th--mobile]="column.id === 'mobile'">{{ column.label }}</th>
               }
             </tr>
           </thead>
@@ -418,13 +419,19 @@
                   />
                 </td>
                 @for (column of visibleColumns(); track column.id) {
-                  <td [class.leads__strong]="column.id === 'name'" [class.leads__muted]="column.id === 'email' || column.id === 'updated'">
+                  <td
+                    [class.leads__strong]="column.id === 'name'"
+                    [class.leads__muted]="column.id === 'email' || column.id === 'updated'"
+                    [class.leads__td--mobile]="column.id === 'mobile'"
+                  >
                     @switch (column.id) {
                       @case ('name') {
                         <a [routerLink]="['/leads', row.id]" class="leads__name-link">{{ row.name }}</a>
                       }
                       @case ('status') {
-                        @if (leadSourceLabel(row) === 'IndiaMART') {
+                        @if (isAdminViewer()) {
+                          <span [class]="statusClass(row.status)">{{ row.status }}</span>
+                        } @else if (leadSourceLabel(row) === 'IndiaMART') {
                           <select
                             class="leads__status-select"
                             [value]="row.status"
@@ -457,6 +464,17 @@
                               <option [value]="st">{{ st }}</option>
                             }
                           </select>
+                        } @else if (canEditLeadStatusInTable(row)) {
+                          <select
+                            class="leads__status-select"
+                            [value]="statusSelectValueForRow(row)"
+                            (change)="onManualLeadStatusChange(row, $event)"
+                            [attr.aria-label]="'Status for ' + row.name"
+                          >
+                            @for (opt of statusSelectOptions(); track opt.id + opt.name) {
+                              <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
+                            }
+                          </select>
                         } @else {
                           <span [class]="statusClass(row.status)">{{ row.status }}</span>
                         }
@@ -483,6 +501,9 @@
                             <span class="leads__owner-name">{{ row.leadOwnerName || '—' }}</span>
                           </span>
                         }
+                      }
+                      @case ('mobile') {
+                        <span class="leads__cell-mobile">{{ formatMobileCell(row.mobile) }}</span>
                       }
                       @default {
                         {{ displayColumnValue(row, column.id) }}
