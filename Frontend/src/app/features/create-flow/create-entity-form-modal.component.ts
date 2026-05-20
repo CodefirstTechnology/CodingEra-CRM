@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { take } from 'rxjs';
 import type { CreateEntityKind } from '../../core/create-flow/create-entity-kind';
@@ -14,9 +14,12 @@ import { NotesService } from '../../core/services/notes.service';
 import { OrganizationsService } from '../../core/services/organizations.service';
 import { OrganizationMasterSelectService } from '../../core/services/organizations/organization-master-select.service';
 import type { MasterDataOption } from '../../core/services/leads/lead-master-data.service';
+import { LeadMasterDataService } from '../../core/services/leads/lead-master-data.service';
 import {
   masterOptionFormValue,
   resolveOrgMasterPick,
+  resolveSalutationLabel,
+  salutationSelectOptions,
 } from '../../core/services/organizations/organization-master-select.util';
 import { TasksService } from '../../core/services/tasks.service';
 import type { ContactRow } from '../contacts/contacts.component';
@@ -28,7 +31,7 @@ import type { OrganizationRow } from '../organizations/organizations.component';
 import type { NoteRelatedType, NoteRow, NoteVisibility } from '../notes/notes.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
-import type { AssigneeOption, TaskPriority, TaskRow, TaskStatus } from '../tasks/tasks.component';
+import type { TaskPriority, TaskRow, TaskStatus } from '../tasks/tasks.component';
 
 @Component({
   selector: 'app-create-entity-form-modal',
@@ -52,8 +55,14 @@ export class CreateEntityFormModalComponent {
   protected readonly auth = inject(AuthService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly leadRoundRobin = inject(LeadRoundRobinService);
+  private readonly leadMasterData = inject(LeadMasterDataService);
 
-  protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
+  private readonly salutationsFromApi = signal<MasterDataOption[]>([]);
+  protected readonly salutationSelectOptions = computed(() =>
+    salutationSelectOptions(this.salutationsFromApi()),
+  );
+  protected readonly masterOptionFormValue = masterOptionFormValue;
+
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
   protected readonly employeeOptions = ['1-10', '11-50', '51-200', '201-500', '500+'] as const;
   protected readonly territoryOptions = ['', 'India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
@@ -112,12 +121,7 @@ export class CreateEntityFormModalComponent {
     { value: 'High', label: 'High' },
   ];
 
-  protected readonly assigneeOptions: AssigneeOption[] = [
-    { id: 'RD', label: 'Rohit Dhaygude', initials: 'R' },
-    { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
-    { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
-    { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
-  ];
+  protected readonly assigneeOptions = this.leadOwnerOpts.options;
 
   protected readonly noteRelatedTypeOptions = [
     { value: 'lead', label: 'Lead' },
@@ -189,7 +193,7 @@ export class CreateEntityFormModalComponent {
     title: ['', [Validators.required, Validators.maxLength(200)]],
     description: ['', Validators.maxLength(2000)],
     status: this.fb.nonNullable.control<TaskStatus>('Backlog', Validators.required),
-    assignee: ['RD', Validators.required],
+    assignee: ['', Validators.required],
     dueDate: ['', Validators.required],
     priority: this.fb.nonNullable.control<TaskPriority>('Low', Validators.required),
   });
@@ -204,6 +208,10 @@ export class CreateEntityFormModalComponent {
 
   constructor() {
     this.leadOwnerOpts.load();
+    this.leadMasterData
+      .loadSalutations()
+      .pipe(take(1))
+      .subscribe((rows) => this.salutationsFromApi.set(rows));
     effect(() => {
       const k = this.flow.formKind();
       if (!k) return;
@@ -227,6 +235,12 @@ export class CreateEntityFormModalComponent {
   private defaultOrgModalEmployees(): string {
     const o = this.orgMaster.employeeSelectOptions()[0];
     return o ? masterOptionFormValue(o) : '';
+  }
+
+  private defaultTaskAssigneeId(): string {
+    const sessionId = this.auth.user()?.id?.trim();
+    if (sessionId && this.leadOwnerOpts.findById(sessionId)) return sessionId;
+    return this.leadOwnerOpts.options()[0]?.id ?? '';
   }
 
   private resetFor(kind: CreateEntityKind): void {
@@ -303,7 +317,7 @@ export class CreateEntityFormModalComponent {
           title: '',
           description: '',
           status: 'Backlog',
-          assignee: 'RD',
+          assignee: this.defaultTaskAssigneeId(),
           dueDate: this.localDatetimeInputValue(),
           priority: 'Low',
         });
@@ -434,11 +448,14 @@ export class CreateEntityFormModalComponent {
     const initials = ownerOpt?.initials ?? raw.leadOwner;
     const leadOwnerName = ownerOpt?.label ?? raw.leadOwner;
 
+    const salPick = resolveOrgMasterPick(raw.salutation, this.salutationSelectOptions());
+
     const payload: Omit<LeadRow, 'id'> = {
-      salutation: raw.salutation || undefined,
+      salutation: salPick.label || undefined,
+      salutationId: salPick.masterId ?? null,
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
-      name: this.buildDisplayName(raw.salutation, raw.firstName, raw.lastName),
+      name: this.buildDisplayName(salPick.label, raw.firstName, raw.lastName),
       mobile: raw.mobile.trim(),
       leadOwnerId: raw.leadOwner,
       gender: raw.gender || undefined,
@@ -480,6 +497,8 @@ export class CreateEntityFormModalComponent {
     const emailTrim = raw.primaryEmail.trim();
     const owner = this.dealOwnerOptions.find((o) => o.id === raw.dealOwner);
 
+    const salLabel = resolveSalutationLabel(raw.salutation, this.salutationSelectOptions());
+
     const payload: Omit<DealRow, 'id'> = {
       organizationName: raw.organizationName.trim(),
       employees: raw.employees,
@@ -487,7 +506,7 @@ export class CreateEntityFormModalComponent {
       website: raw.website.trim(),
       territory: raw.territory,
       industry: raw.industry,
-      salutation: raw.salutation,
+      salutation: salLabel,
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
       email: emailTrim,
@@ -518,7 +537,7 @@ export class CreateEntityFormModalComponent {
 
     const raw = this.contactForm.getRawValue();
     const payload: Omit<ContactRow, 'id'> = {
-      salutation: raw.salutation,
+      salutation: resolveSalutationLabel(raw.salutation, this.salutationSelectOptions()),
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
       email: raw.email.trim(),
@@ -600,9 +619,12 @@ export class CreateEntityFormModalComponent {
     if (this.taskForm.invalid) return;
 
     const raw = this.taskForm.getRawValue();
-    const person = this.assigneeOptions.find((a) => a.id === raw.assignee);
+    const person =
+      this.leadOwnerOpts.findById(raw.assignee) ??
+      this.assigneeOptions().find((a) => a.id === raw.assignee);
     const dueRaw = raw.dueDate.trim();
     const dueDisplay = dueRaw ? this.formatDueDisplay(dueRaw) : '—';
+    const assigneeUserId = person?.id?.trim();
 
     const payload: Omit<TaskRow, 'id'> = {
       title: raw.title.trim(),
@@ -613,6 +635,8 @@ export class CreateEntityFormModalComponent {
       dueDateRaw: dueRaw,
       assignedTo: person?.label ?? raw.assignee,
       assignedInitials: person?.initials ?? '?',
+      assignedToUserId:
+        assigneeUserId && /^\d+$/.test(assigneeUserId) ? assigneeUserId : undefined,
       lastModified: 'Just now',
     };
     const leadCtx = this.flow.taskFromLeadFormContext();
@@ -640,7 +664,9 @@ export class CreateEntityFormModalComponent {
     const body = raw.body.trim();
     const bodyPreview = body.length > 140 ? `${body.slice(0, 140)}…` : body;
 
-    const author = this.auth.user()?.name?.trim() || 'You';
+    const sessionUser = this.auth.user();
+    const author = sessionUser?.name?.trim() || 'You';
+    const authorUserId = sessionUser?.id?.trim();
 
     const payload: Omit<NoteRow, 'id'> = {
       title: raw.title.trim(),
@@ -649,6 +675,7 @@ export class CreateEntityFormModalComponent {
       visibility: raw.visibility as NoteVisibility,
       body,
       author,
+      authorUserId: authorUserId && /^\d+$/.test(authorUserId) ? authorUserId : undefined,
       when: 'Just now',
       bodyPreview,
     };

@@ -10,8 +10,9 @@
         <label class="create-form__field">
           <span class="create-form__label">Salutation</span>
           <select class="create-form__control" formControlName="salutation">
-            @for (s of salutationOptions; track s) {
-              <option [value]="s">{{ s === '' ? '—' : s }}</option>
+            <option value="">—</option>
+            @for (opt of salutationSelectOptions(); track opt.id + opt.name) {
+              <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
             }
           </select>
         </label>
@@ -214,8 +215,9 @@
         <label class="create-form__field">
           <span class="create-form__label">Salutation</span>
           <select class="create-form__control" formControlName="salutation">
-            @for (s of salutationOptions; track s) {
-              <option [value]="s">{{ s === '' ? '—' : s }}</option>
+            <option value="">—</option>
+            @for (opt of salutationSelectOptions(); track opt.id + opt.name) {
+              <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
             }
           </select>
         </label>
@@ -378,7 +380,7 @@
         <label class="create-form__field">
           <span class="create-form__label">Assignee</span>
           <select class="create-form__control" formControlName="assignee">
-            @for (a of assigneeOptions; track a.id) {
+            @for (a of assigneeOptions(); track a.id) {
               <option [value]="a.id">{{ a.label }}</option>
             }
           </select>
