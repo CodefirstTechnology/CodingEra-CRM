@@ -1,4 +1,5 @@
 import type { NoteRelatedType, NoteRow, NoteVisibility } from '../../../features/notes/notes.component';
+import { formatActivityWhen } from '../activities/activity-api.mapper';
 
 function readOptionalInt(v: unknown): number | null {
   if (v == null || v === '') return null;
@@ -8,10 +9,14 @@ function readOptionalInt(v: unknown): number | null {
 
 function readAuthorUserId(r: Record<string, unknown>): number | null {
   for (const key of [
+    'authorId',
+    'AuthorId',
     'authorUserId',
     'AuthorUserId',
     'createdByUserId',
     'CreatedByUserId',
+    'createdBy',
+    'CreatedBy',
     'userId',
     'UserId',
   ]) {
@@ -54,8 +59,16 @@ export function mapNoteApiRecord(raw: unknown): NoteRow {
   const body = String(r['body'] ?? r['content'] ?? r['text'] ?? '').trim();
   const bodyPreview = body.length > 120 ? `${body.slice(0, 117)}…` : body;
   const authorUserId = readAuthorUserId(r);
-  let author = String(r['author'] ?? r['authorName'] ?? r['createdByName'] ?? '').trim();
+  let author = String(
+    r['author'] ?? r['authorName'] ?? r['AuthorName'] ?? r['createdByName'] ?? r['CreatedByName'] ?? '',
+  ).trim();
   if (!author && authorUserId != null) author = `User #${authorUserId}`;
+
+  const createdAt = String(r['createdAt'] ?? r['CreatedAt'] ?? r['lastModified'] ?? r['LastModified'] ?? '').trim();
+  const whenRaw = String(r['when'] ?? r['When'] ?? '').trim();
+  const when = whenRaw && whenRaw !== '—' && !whenRaw.includes('T')
+    ? whenRaw
+    : formatActivityWhen(createdAt || whenRaw || null);
 
   const relatedType = coerceRelatedType(String(r['relatedType'] ?? r['entityType'] ?? ''));
   const relatedLeadId =
@@ -73,16 +86,58 @@ export function mapNoteApiRecord(raw: unknown): NoteRow {
     relatedType,
     relatedName: String(r['relatedName'] ?? r['entityName'] ?? '').trim() || '—',
     relatedId:
-      readOptionalInt(r['relatedId']) != null ? String(readOptionalInt(r['relatedId'])) : undefined,
+      readOptionalInt(r['relatedId'] ?? r['recordId']) != null
+        ? String(readOptionalInt(r['relatedId'] ?? r['recordId']))
+        : undefined,
     visibility: coerceVisibility(String(r['visibility'] ?? '')),
     body,
     author: author || '—',
-    when: String(r['when'] ?? r['createdAt'] ?? r['lastModified'] ?? '—').trim() || '—',
+    when,
     bodyPreview,
     bodyStorage: body,
     relatedLeadId,
     relatedDealId,
     authorUserId:
       authorUserId != null && authorUserId > 0 ? String(authorUserId) : undefined,
+  };
+}
+
+export interface NoteUpsertDto {
+  id?: number;
+  recordId: number;
+  authorId?: number | null;
+  title?: string | null;
+  body?: string | null;
+  relatedType?: string | null;
+  relatedName?: string | null;
+  visibility?: string | null;
+  relatedLeadId?: number | null;
+  relatedDealId?: number | null;
+  relatedContactId?: number | null;
+  relatedOrganizationId?: number | null;
+  status?: string | null;
+  priority?: string | null;
+}
+
+export function noteRowToUpsertDto(data: Omit<NoteRow, 'id'>, id?: number): NoteUpsertDto {
+  const leadId = data.relatedLeadId ? readOptionalInt(data.relatedLeadId) : null;
+  const dealId = data.relatedDealId ? readOptionalInt(data.relatedDealId) : null;
+  const recordId = leadId ?? dealId ?? readOptionalInt(data.relatedId) ?? 0;
+
+  const authorId = data.authorUserId ? readOptionalInt(data.authorUserId) : null;
+
+  return {
+    id,
+    recordId,
+    authorId,
+    title: data.title?.trim() || 'Note',
+    body: data.body?.trim() || '',
+    relatedType: data.relatedType,
+    relatedName: data.relatedName?.trim() || '',
+    visibility: data.visibility,
+    relatedLeadId: leadId,
+    relatedDealId: dealId,
+    status: 'active',
+    priority: 'medium',
   };
 }
