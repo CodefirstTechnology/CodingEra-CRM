@@ -64,8 +64,9 @@
             <label class="contact-detail__row">
               <span class="contact-detail__row-label">Salutation</span>
               <select class="contact-detail__input" formControlName="salutation">
-                @for (s of salutationOptions; track s) {
-                <option [value]="s">{{ s === '' ? sidebarPlaceholder('Salutation') : s }}</option>
+                <option value="">{{ sidebarPlaceholder('Salutation') }}</option>
+                @for (opt of salutationSelectOptions(); track opt.id + opt.name) {
+                  <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
               </select>
             </label>
