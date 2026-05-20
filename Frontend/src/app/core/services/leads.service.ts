@@ -180,8 +180,12 @@ export class LeadsService {
   ): Observable<LeadNormalized> {
     if (prev.organizationId != null && prev.organizationId > 0) return of(prev);
 
-    /** User cleared org on this save — do not hydrate FK from stale server name */
-    if (patch != null && 'organization' in patch && !String(patch.organization ?? '').trim()) {
+    /** Only treat organization as cleared when the user explicitly edited that field. */
+    if (
+      patch != null &&
+      'organization' in patch &&
+      !String(patch.organization ?? '').trim()
+    ) {
       return of(prev);
     }
 

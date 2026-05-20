@@ -78,7 +78,37 @@
 
   <section class="lead-detail__layout">
     <article class="lead-detail__main card">
-      @if (activeTab() === 'Emails') {
+      @if (activeTab() === 'Activity') {
+      <header class="lead-detail__main-head lead-detail__main-head--activity">
+        <h2>Activity</h2>
+        <button type="button" class="lead-detail__btn lead-detail__btn--dark lead-detail__btn--with-caret" (click)="openCreatePicker()">
+          + New
+        </button>
+      </header>
+      <app-entity-activity-timeline
+        [groups]="leadActivityGroups()"
+        [loading]="leadActivityLoading()"
+        ariaLabel="Activity on this lead"
+        emptyMessage="No activity on this lead yet."
+        (reply)="setTab('Emails')"
+        (comment)="setTab('Comments')"
+      />
+      <footer class="lead-detail__compose lead-detail__compose--activity">
+        <button type="button" class="lead-detail__link lead-detail__link--with-icon" (click)="setTab('Emails')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M4 4h16v16H4z" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="m22 6-10 7L2 6" stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          Reply
+        </button>
+        <button type="button" class="lead-detail__link lead-detail__link--with-icon" (click)="setTab('Comments')">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+          </svg>
+          Comment
+        </button>
+      </footer>
+      } @else if (activeTab() === 'Emails') {
       <header class="lead-detail__main-head lead-detail__main-head--tasks">
         <h2>Emails</h2>
         <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="openNewEmailFromLead()">+ New Email</button>
@@ -175,16 +205,18 @@
             <button
               type="button"
               class="lead-detail__btn lead-detail__btn--compose-send"
-              [disabled]="!emailToLooksValid()"
+              [disabled]="!emailComposeValid() || emailSending()"
               (click)="submitLeadDraftEmail()"
             >
-              Send
+              {{ emailSending() ? 'Sending…' : 'Send' }}
             </button>
           </div>
         </footer>
       </div>
       }
-      @if (leadEmails().length === 0) {
+      @if (leadEmailsLoading()) {
+      <p class="lead-detail__email-loading" role="status">Loading emails…</p>
+      } @else if (leadEmails().length === 0) {
       <div class="lead-detail__email-empty">
         <span class="lead-detail__email-empty-icon" aria-hidden="true">
           <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
@@ -229,11 +261,16 @@
             <div class="lead-detail__email-meta-row">
               @if (m.status === 'Sent') {
               <span class="lead-detail__email-status lead-detail__email-status--sent">{{ m.status }}</span>
+              } @else if (m.status === 'Failed') {
+              <span class="lead-detail__email-status lead-detail__email-status--draft">Failed</span>
               } @else {
               <span class="lead-detail__email-status lead-detail__email-status--draft">{{ m.status }}</span>
               }
               <time class="lead-detail__email-time">{{ m.whenLabel }}</time>
             </div>
+            @if (m.status === 'Failed' && m.failureMessage) {
+            <p class="lead-detail__email-failure">{{ m.failureMessage }}</p>
+            }
             <div class="lead-detail__email-body-box">{{ m.body }}</div>
           </article>
         </div>
@@ -271,7 +308,7 @@
         ></textarea>
         <div class="lead-detail__comment-composer-actions">
           <button type="button" class="lead-detail__btn lead-detail__btn--light" (click)="cancelLeadCommentComposer()">Cancel</button>
-          <button type="button" class="lead-detail__btn lead-detail__btn--solid" (click)="postLeadComment()" [disabled]="!commentDraft().trim()">Post</button>
+          <button type="button" class="lead-detail__btn lead-detail__btn--solid" (click)="postLeadComment()" [disabled]="!commentDraft().trim() || commentPosting()">Post</button>
         </div>
       </div>
       }
@@ -522,7 +559,7 @@
         @for (note of leadNotes(); track note.id) {
         <li class="lead-detail__note-row">
           <p class="lead-detail__note-title">{{ note.title }}</p>
-          <p class="lead-detail__note-meta">{{ note.author }} · {{ noteRelatedLabel(note) }} · {{ note.when }}</p>
+          <p class="lead-detail__note-meta">{{ note.author }} · {{ note.when }}</p>
           @if (note.bodyPreview?.trim()) {
           <p class="lead-detail__note-preview">{{ note.bodyPreview }}</p>
           }

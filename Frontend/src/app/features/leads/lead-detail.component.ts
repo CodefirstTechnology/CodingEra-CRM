@@ -7,6 +7,12 @@ import { concatMap, defaultIfEmpty, last, take, tap } from 'rxjs/operators';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { ActivitiesService } from '../../core/services/activities.service';
+import type { ActivityGroup } from '../../core/services/activities/activity-api.models';
+import { EmailsService, emailSendErrorMessage } from '../../core/services/emails.service';
+import type { EntityEmailItem } from '../../core/services/emails/email-api.models';
+import type { EntityCommentItem } from '../../core/services/comments/comment-api.models';
+import { CommentsService } from '../../core/services/comments.service';
 import { DealsService } from '../../core/services/deals.service';
 import {
   LeadMasterDataService,
@@ -19,6 +25,7 @@ import { NotesService } from '../../core/services/notes.service';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
 import { environment } from '../../../environments/environment';
 import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
+import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
@@ -44,28 +51,11 @@ interface LeadAttachmentItem {
   uploadedAt: string;
 }
 
-interface LeadCommentItem {
-  id: string;
-  authorName: string;
-  authorInitial: string;
-  body: string;
-  whenLabel: string;
-}
-
-interface LeadEmailThreadItem {
-  id: string;
-  senderDisplay: string;
-  senderInitial: string;
-  subjectLine: string;
-  toAddress: string;
-  status: 'Sent' | 'Draft';
-  whenLabel: string;
-  body: string;
-}
+interface LeadCommentItem extends EntityCommentItem {}
 
 @Component({
   selector: 'app-lead-detail',
-  imports: [RouterLink, ReactiveFormsModule],
+  imports: [RouterLink, ReactiveFormsModule, EntityActivityTimelineComponent],
   templateUrl: './lead-detail.component.html',
   styleUrl: './lead-detail.component.scss',
 })
@@ -74,6 +64,9 @@ export class LeadDetailComponent {
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly leadsService = inject(LeadsService);
+  private readonly activitiesService = inject(ActivitiesService);
+  private readonly commentsService = inject(CommentsService);
+  private readonly emailsService = inject(EmailsService);
   private readonly toast = inject(ToastService);
   private readonly dealsService = inject(DealsService);
   private readonly tasksService = inject(TasksService);
@@ -95,13 +88,18 @@ export class LeadDetailComponent {
   protected readonly leadNotes = signal<NoteRow[]>([]);
   /** Client-side attachments for this lead (sessionStorage until backend exists). */
   protected readonly leadAttachments = signal<LeadAttachmentItem[]>([]);
-  /** Client-side timeline comments for this lead (sessionStorage demo until backend exists). */
+  /** Comments for this lead from the comments API. */
   protected readonly leadComments = signal<LeadCommentItem[]>([]);
+  protected readonly leadActivityGroups = signal<ActivityGroup[]>([]);
+  protected readonly leadActivityLoading = signal(false);
   protected readonly commentComposerOpen = signal(false);
   protected readonly commentDraft = signal('');
+  protected readonly commentPosting = signal(false);
 
-  /** Client-side sent/draft emails for this lead timeline (sessionStorage until backend exists). */
-  protected readonly leadEmails = signal<LeadEmailThreadItem[]>([]);
+  /** Sent emails for this lead from the emails API. */
+  protected readonly leadEmails = signal<EntityEmailItem[]>([]);
+  protected readonly leadEmailsLoading = signal(false);
+  protected readonly emailSending = signal(false);
   protected readonly emailComposerOpen = signal(false);
   protected readonly emailComposeEmojiOpen = signal(false);
 
@@ -151,6 +149,12 @@ export class LeadDetailComponent {
   });
 
   protected readonly emailToLooksValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.emailTo().trim()));
+  protected readonly emailComposeValid = computed(
+    () =>
+      this.emailToLooksValid() &&
+      this.emailSubject().trim().length > 0 &&
+      this.emailBody().trim().length > 0,
+  );
 
   protected readonly sourceOptions = ['', 'Website', 'Referral', 'Ads', 'Cold Call', 'Event', 'Other'] as const;
 
@@ -245,8 +249,14 @@ export class LeadDetailComponent {
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
-      if (e.kind === 'task') this.refreshLeadTasks();
-      if (e.kind === 'note') this.refreshLeadNotes();
+      if (e.kind === 'task') {
+        this.refreshLeadTasks();
+        this.refreshLeadActivities();
+      }
+      if (e.kind === 'note') {
+        this.refreshLeadNotes();
+        this.refreshLeadActivities();
+      }
     });
   }
 
@@ -255,6 +265,7 @@ export class LeadDetailComponent {
     this.leadNotes.set([]);
     this.leadAttachments.set([]);
     this.leadComments.set([]);
+    this.leadActivityGroups.set([]);
     this.leadEmails.set([]);
     this.commentComposerOpen.set(false);
     this.commentDraft.set('');
@@ -271,11 +282,12 @@ export class LeadDetailComponent {
     this.emailBody.set('');
     this.refreshLeadTasks();
     this.refreshLeadNotes();
+    this.refreshLeadActivities();
     const lid = row.id.trim();
     if (lid) {
       this.loadLeadAttachments(lid);
-      this.loadLeadComments(lid);
-      this.loadLeadEmails(lid, row);
+      this.refreshLeadComments();
+      this.refreshLeadEmails();
     } else {
       this.leadAttachments.set([]);
       this.leadComments.set([]);
@@ -317,29 +329,47 @@ export class LeadDetailComponent {
       return;
     }
     this.tasksService
-      .getAll()
+      .getByRelatedLead(lid)
       .pipe(take(1))
       .subscribe((rows) => {
-        const idNorm = lid.trim();
-        const forLead = rows.filter((r) => (r.relatedLeadId ?? '').trim() === idNorm);
-        this.leadTasks.set(forLead);
+        this.leadTasks.set(rows);
+      });
+  }
+
+  private refreshLeadActivities(): void {
+    const id = this.numericId();
+    if (id == null) {
+      this.leadActivityGroups.set([]);
+      return;
+    }
+    this.leadActivityLoading.set(true);
+    this.activitiesService
+      .getLeadGroups(id)
+      .pipe(take(1))
+      .subscribe({
+        next: (groups) => {
+          this.leadActivityGroups.set(groups);
+          this.leadActivityLoading.set(false);
+        },
+        error: () => {
+          this.leadActivityGroups.set([]);
+          this.leadActivityLoading.set(false);
+        },
       });
   }
 
   private refreshLeadNotes(): void {
-    const l = this.lead();
-    const lid = l?.id;
-    if (lid == null || lid === '') {
+    const id = this.numericId();
+    if (id == null) {
       this.leadNotes.set([]);
       return;
     }
     this.notesService
-      .getAll()
+      .getByRecord(id)
       .pipe(take(1))
-      .subscribe((rows) => {
-        const idNorm = lid.trim();
-        const forLead = rows.filter((r) => (r.relatedLeadId ?? '').trim() === idNorm);
-        this.leadNotes.set(forLead);
+      .subscribe({
+        next: (rows) => this.leadNotes.set(rows),
+        error: () => this.leadNotes.set([]),
       });
   }
 
@@ -427,61 +457,41 @@ export class LeadDetailComponent {
     input.value = '';
   }
 
-  private commentsStorageKey(leadId: string): string {
-    return `crm.lead-detail.comments.v1:${leadId}`;
-  }
-
-  private isCommentRow(x: unknown): x is LeadCommentItem {
-    if (x == null || typeof x !== 'object') return false;
-    const o = x as Record<string, unknown>;
-    return (
-      typeof o['id'] === 'string' &&
-      typeof o['authorName'] === 'string' &&
-      typeof o['authorInitial'] === 'string' &&
-      typeof o['body'] === 'string' &&
-      typeof o['whenLabel'] === 'string'
-    );
-  }
-
-  private loadLeadComments(leadId: string): void {
-    const key = this.commentsStorageKey(leadId);
-    const raw = sessionStorage.getItem(key);
-    if (raw === null) {
-      const seed: LeadCommentItem[] = [
-        {
-          id: 'seed-crm-demo-comment',
-          authorName: 'CRM Demo',
-          authorInitial: 'C',
-          body: 'had word with CEO',
-          whenLabel: '8 months ago',
-        },
-      ];
-      this.leadComments.set(seed);
-      try {
-        sessionStorage.setItem(key, JSON.stringify(seed));
-      } catch {
-        /* ignore quota */
-      }
+  private refreshLeadComments(): void {
+    const id = this.numericId();
+    if (id == null) {
+      this.leadComments.set([]);
       return;
     }
-    let rows: LeadCommentItem[] = [];
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      rows = Array.isArray(parsed)
-        ? (parsed.filter((item) => this.isCommentRow(item)) as LeadCommentItem[]).slice(0, 200)
-        : [];
-    } catch {
-      rows = [];
-    }
-    this.leadComments.set(rows);
+    this.commentsService
+      .listForEntity('lead', id)
+      .pipe(take(1))
+      .subscribe({
+        next: (rows) => this.leadComments.set(rows),
+        error: () => this.leadComments.set([]),
+      });
   }
 
-  private persistLeadComments(leadId: string): void {
-    try {
-      sessionStorage.setItem(this.commentsStorageKey(leadId), JSON.stringify(this.leadComments()));
-    } catch {
-      /* ignore quota */
+  private refreshLeadEmails(): void {
+    const id = this.numericId();
+    if (id == null) {
+      this.leadEmails.set([]);
+      return;
     }
+    this.leadEmailsLoading.set(true);
+    this.emailsService
+      .listForEntity('lead', id)
+      .pipe(take(1))
+      .subscribe({
+        next: (rows) => {
+          this.leadEmails.set(rows);
+          this.leadEmailsLoading.set(false);
+        },
+        error: () => {
+          this.leadEmails.set([]);
+          this.leadEmailsLoading.set(false);
+        },
+      });
   }
 
   protected openNewCommentFromLead(): void {
@@ -494,97 +504,32 @@ export class LeadDetailComponent {
   }
 
   protected postLeadComment(): void {
-    const lid = this.lead()?.id?.trim();
-    if (!lid) return;
+    const id = this.numericId();
     const text = this.commentDraft().trim();
-    if (!text) return;
-    const authName = this.auth.user()?.name?.trim() || 'User';
-    const row: LeadCommentItem = {
-      id:
-        typeof crypto !== 'undefined' && 'randomUUID' in crypto
-          ? crypto.randomUUID()
-          : `lead-comment-${Date.now()}`,
-      authorName: authName,
-      authorInitial: authName.trim() ? authName.trim().charAt(0).toUpperCase() : '?',
-      body: text,
-      whenLabel: 'Just now',
-    };
-    this.leadComments.update((list) => [row, ...list]);
-    this.persistLeadComments(lid);
-    this.commentDraft.set('');
-    this.commentComposerOpen.set(false);
+    if (id == null || !text || this.commentPosting()) return;
+
+    this.commentPosting.set(true);
+    this.commentsService
+      .createForEntity('lead', id, text)
+      .pipe(take(1))
+      .subscribe({
+        next: (row) => {
+          this.leadComments.update((list) => [row, ...list]);
+          this.commentDraft.set('');
+          this.commentComposerOpen.set(false);
+          this.commentPosting.set(false);
+          this.refreshLeadActivities();
+          this.toast.show('Comment posted.');
+        },
+        error: () => {
+          this.commentPosting.set(false);
+          this.toast.show('Could not post comment. Try again.');
+        },
+      });
   }
 
   protected openReplyFromLeadComments(): void {
     this.setTab('Emails');
-  }
-
-  private emailsStorageKey(leadId: string): string {
-    return `crm.lead-detail.emails.v1:${leadId}`;
-  }
-
-  private isEmailThreadRow(x: unknown): x is LeadEmailThreadItem {
-    if (x == null || typeof x !== 'object') return false;
-    const o = x as Record<string, unknown>;
-    const status = o['status'];
-    return (
-      typeof o['id'] === 'string' &&
-      typeof o['senderDisplay'] === 'string' &&
-      typeof o['senderInitial'] === 'string' &&
-      typeof o['subjectLine'] === 'string' &&
-      typeof o['toAddress'] === 'string' &&
-      (status === 'Sent' || status === 'Draft') &&
-      typeof o['whenLabel'] === 'string' &&
-      typeof o['body'] === 'string'
-    );
-  }
-
-  private loadLeadEmails(leadId: string, row: LeadRow): void {
-    const key = this.emailsStorageKey(leadId);
-    const raw = sessionStorage.getItem(key);
-    const displayName = row.name.trim() || row.firstName?.trim() || 'Lead';
-    const code = this.leadCode();
-    const makeSeed = (): LeadEmailThreadItem[] => [
-      {
-        id: 'seed-crm-email',
-        senderDisplay: 'CRM Demo <crm-demo@assimilate.com>',
-        senderInitial: 'C',
-        subjectLine: `${displayName} (#${code})`,
-        toAddress: 'abhijeet136@gmail.com',
-        status: 'Sent',
-        whenLabel: '8 months ago',
-        body: 'Hello Sir, Test',
-      },
-    ];
-
-    if (raw === null) {
-      const seed = makeSeed();
-      this.leadEmails.set(seed);
-      try {
-        sessionStorage.setItem(key, JSON.stringify(seed));
-      } catch {
-        /* ignore */
-      }
-      return;
-    }
-    let emails: LeadEmailThreadItem[] = [];
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      emails = Array.isArray(parsed)
-        ? (parsed.filter((item) => this.isEmailThreadRow(item)) as LeadEmailThreadItem[]).slice(0, 200)
-        : [];
-    } catch {
-      emails = [];
-    }
-    this.leadEmails.set(emails);
-  }
-
-  private persistLeadEmails(leadId: string): void {
-    try {
-      sessionStorage.setItem(this.emailsStorageKey(leadId), JSON.stringify(this.leadEmails()));
-    } catch {
-      /* ignore */
-    }
   }
 
   protected openNewEmailFromLead(): void {
@@ -634,43 +579,44 @@ export class LeadDetailComponent {
   }
 
   protected submitLeadDraftEmail(): void {
-    const lid = this.lead()?.id?.trim();
-    const l = this.lead();
-    if (!lid || !l) return;
+    const id = this.numericId();
+    if (id == null || this.emailSending()) return;
+
     const to = this.emailTo().trim();
-    const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to);
-    if (!emailLooksValid) {
-      return;
-    }
     const subject = this.emailSubject().trim();
     const body = this.emailBody().trim();
-    const authName = this.auth.user()?.name?.trim() || 'User';
-    const safeLocal = authName
-      .toLowerCase()
-      .replace(/\s+/g, '.')
-      .replace(/[^a-z0-9.]/g, '')
-      .replace(/^\.+|\.+$/g, '');
-    const localPart = safeLocal.length > 0 ? safeLocal : 'user';
-    const senderDisplay = `${authName} <${localPart}@crm.local>`;
-    const leadDisplayName = l.name.trim() || l.firstName?.trim() || 'Lead';
-    const item: LeadEmailThreadItem = {
-      id:
-        typeof crypto !== 'undefined' && 'randomUUID' in crypto
-          ? crypto.randomUUID()
-          : `email-${Date.now()}`,
-      senderDisplay,
-      senderInitial: authName.trim() ? authName.trim().charAt(0).toUpperCase() : '?',
-      subjectLine: subject || `${leadDisplayName} (#${this.leadCode()})`,
-      toAddress: to,
-      status: 'Sent',
-      whenLabel: 'Just now',
-      body: body.length > 0 ? body : '(No message body)',
-    };
-    this.leadEmails.update((list) => [item, ...list]);
-    this.persistLeadEmails(lid);
-    this.emailBody.set('');
-    this.emailComposerOpen.set(false);
-    this.emailComposeEmojiOpen.set(false);
+    if (!this.emailComposeValid()) return;
+
+    this.emailSending.set(true);
+    this.emailsService
+      .sendForEntity({
+        entityType: 'lead',
+        entityId: id,
+        toEmail: to,
+        subject,
+        body,
+        isHtml: true,
+      })
+      .pipe(take(1))
+      .subscribe({
+        next: (row) => {
+          this.leadEmails.update((list) => [row, ...list]);
+          this.emailBody.set('');
+          this.emailComposerOpen.set(false);
+          this.emailComposeEmojiOpen.set(false);
+          this.emailSending.set(false);
+          this.refreshLeadActivities();
+          if (row.status === 'Failed') {
+            this.toast.show(row.failureMessage || 'Email could not be sent.');
+          } else {
+            this.toast.show('Email sent.');
+          }
+        },
+        error: (err) => {
+          this.emailSending.set(false);
+          this.toast.show(emailSendErrorMessage(err));
+        },
+      });
   }
 
   protected openLeadEmailComposer(): void {
@@ -679,8 +625,11 @@ export class LeadDetailComponent {
   }
 
   /** Card header reply / reply all — opens compose panel. */
-  protected openLeadEmailReply(_thread?: LeadEmailThreadItem): void {
-    void _thread;
+  protected openLeadEmailReply(thread?: EntityEmailItem): void {
+    if (thread?.subjectLine) {
+      const subj = thread.subjectLine.trim();
+      this.emailSubjectText.set(/^re:/i.test(subj) ? subj : `Re: ${subj}`);
+    }
     this.emailComposeEmojiOpen.set(false);
     this.emailComposerOpen.set(true);
   }
@@ -805,6 +754,9 @@ export class LeadDetailComponent {
 
   protected setTab(tab: DetailTab): void {
     this.activeTab.set(tab);
+    if (tab === 'Activity') this.refreshLeadActivities();
+    if (tab === 'Comments') this.refreshLeadComments();
+    if (tab === 'Emails') this.refreshLeadEmails();
   }
 
   protected ownerInitial(): string {
@@ -899,43 +851,10 @@ export class LeadDetailComponent {
       return;
     }
 
-    const v = this.dataForm.getRawValue();
-    const salPick = this.resolveMasterPick(v.salutation, this.salutationSelectOptions());
-    const terrPick = this.resolveMasterPick(v.territory, this.territorySelectOptions());
-    const indPick = this.resolveMasterPick(v.industry, this.industrySelectOptions());
-    const salBase = salPick.label.trim().replace(/\.$/, '');
-    const salutationNorm = salBase ? `${salBase}.` : '';
-    const name =
-      [salutationNorm, v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(' ').trim() ||
-      v.firstName.trim() ||
-      row.name;
-
-    const ownerId = v.owner.trim();
-    const opt = this.leadOwnerOpts.findById(ownerId);
-    const leadOwnerName = opt?.label ?? row.leadOwnerName;
+    const payload = this.buildDirtyLeadSavePatch(row);
+    if (Object.keys(payload).length <= 1) return;
 
     this.dataSaving.set(true);
-    const payload: Partial<Omit<LeadRow, 'id'>> = {
-      name,
-      firstName: v.firstName.trim(),
-      lastName: v.lastName.trim(),
-      salutation: salutationNorm || undefined,
-      salutationId: salPick.masterId,
-      email: v.email.trim(),
-      mobile: v.mobile.trim() || undefined,
-      organization: v.organization.trim(),
-      website: v.website.trim() || undefined,
-      territory: terrPick.label.trim() || undefined,
-      territoryId: terrPick.masterId,
-      industry: indPick.label.trim() || undefined,
-      industryId: indPick.masterId,
-      jobTitle: v.jobTitle.trim() || undefined,
-      source: v.source.trim() || undefined,
-      leadOwnerId: ownerId || undefined,
-      owner: opt?.initials ?? row.owner,
-      leadOwnerName,
-      updated: 'Just now',
-    };
 
     try {
       const updated = await this.leadsService.updateAsync(idn, payload);
@@ -944,6 +863,7 @@ export class LeadDetailComponent {
         this.lead.set(enriched);
         this.patchDataForm(enriched);
         this.emailSubjectText.set(`Mr ${updated.name} (${this.leadCode()})`);
+        this.refreshLeadActivities();
         this.toast.show('Lead saved.');
       }
     } catch (e) {
@@ -951,6 +871,71 @@ export class LeadDetailComponent {
     } finally {
       this.dataSaving.set(false);
     }
+  }
+
+  /** Sends only fields the user actually edited so unrelated columns (e.g. organization) are not cleared. */
+  private buildDirtyLeadSavePatch(row: LeadRow): Partial<Omit<LeadRow, 'id'>> {
+    const v = this.dataForm.getRawValue();
+    const patch: Partial<Omit<LeadRow, 'id'>> = {};
+
+    if (this.dataForm.controls.email.dirty) {
+      patch.email = v.email.trim();
+    }
+    if (this.dataForm.controls.mobile.dirty) {
+      patch.mobile = v.mobile.trim() || undefined;
+    }
+    if (this.dataForm.controls.organization.dirty) {
+      patch.organization = v.organization.trim();
+    }
+    if (this.dataForm.controls.website.dirty) {
+      patch.website = v.website.trim() || undefined;
+    }
+    if (this.dataForm.controls.territory.dirty) {
+      const terrPick = this.resolveMasterPick(v.territory, this.territorySelectOptions());
+      patch.territory = terrPick.label.trim() || undefined;
+      patch.territoryId = terrPick.masterId;
+    }
+    if (this.dataForm.controls.industry.dirty) {
+      const indPick = this.resolveMasterPick(v.industry, this.industrySelectOptions());
+      patch.industry = indPick.label.trim() || undefined;
+      patch.industryId = indPick.masterId;
+    }
+    if (this.dataForm.controls.jobTitle.dirty) {
+      patch.jobTitle = v.jobTitle.trim() || undefined;
+    }
+    if (this.dataForm.controls.source.dirty) {
+      patch.source = v.source.trim() || undefined;
+    }
+    if (this.dataForm.controls.owner.dirty) {
+      const ownerId = v.owner.trim();
+      const opt = this.leadOwnerOpts.findById(ownerId);
+      patch.leadOwnerId = ownerId || undefined;
+      patch.owner = opt?.initials ?? row.owner;
+      patch.leadOwnerName = opt?.label ?? row.leadOwnerName;
+    }
+    if (
+      this.dataForm.controls.firstName.dirty ||
+      this.dataForm.controls.lastName.dirty ||
+      this.dataForm.controls.salutation.dirty
+    ) {
+      const salPick = this.resolveMasterPick(v.salutation, this.salutationSelectOptions());
+      const salBase = salPick.label.trim().replace(/\.$/, '');
+      const salutationNorm = salBase ? `${salBase}.` : '';
+      patch.firstName = v.firstName.trim();
+      patch.lastName = v.lastName.trim();
+      patch.salutation = salutationNorm || undefined;
+      patch.salutationId = salPick.masterId;
+      patch.name =
+        [salutationNorm, v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(' ').trim() ||
+        v.firstName.trim() ||
+        row.name;
+    }
+
+    if (Object.keys(patch).length > 0) {
+      patch.updated = 'Just now';
+    }
+
+    return patch;
   }
 
   protected convertToDeal(): void {
