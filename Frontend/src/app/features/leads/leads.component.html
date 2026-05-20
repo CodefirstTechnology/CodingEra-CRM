@@ -429,7 +429,9 @@
                         <a [routerLink]="['/leads', row.id]" class="leads__name-link">{{ row.name }}</a>
                       }
                       @case ('status') {
-                        @if (leadSourceLabel(row) === 'IndiaMART') {
+                        @if (isAdminViewer()) {
+                          <span [class]="statusClass(row.status)">{{ row.status }}</span>
+                        } @else if (leadSourceLabel(row) === 'IndiaMART') {
                           <select
                             class="leads__status-select"
                             [value]="row.status"
@@ -460,6 +462,17 @@
                           >
                             @for (st of tradeindiaStatusOptions; track st) {
                               <option [value]="st">{{ st }}</option>
+                            }
+                          </select>
+                        } @else if (canEditLeadStatusInTable(row)) {
+                          <select
+                            class="leads__status-select"
+                            [value]="statusSelectValueForRow(row)"
+                            (change)="onManualLeadStatusChange(row, $event)"
+                            [attr.aria-label]="'Status for ' + row.name"
+                          >
+                            @for (opt of statusSelectOptions(); track opt.id + opt.name) {
+                              <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                             }
                           </select>
                         } @else {

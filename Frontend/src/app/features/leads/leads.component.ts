@@ -8,6 +8,10 @@ import { CreateRowBusService } from '../../core/create-flow/create-row-bus.servi
 import { DealsService } from '../../core/services/deals.service';
 import { coerceLeadStatus } from '../../core/services/leads/lead-api.mapper';
 import {
+  FALLBACK_LEAD_STATUS_OPTIONS,
+  resolveLeadStatusIdFromName,
+} from '../../core/services/leads/lead-status.constants';
+import {
   LeadMasterDataService,
   type MasterDataOption,
 } from '../../core/services/leads/lead-master-data.service';
@@ -74,7 +78,6 @@ const FALLBACK_INDUSTRY_NAMES = [
   'Education',
   'Other',
 ] as const;
-const FALLBACK_LEAD_STATUS_NAMES = ['New', 'Contacted', 'Qualified', 'Lost', 'Converted'] as const;
 
 const LEADS_TABLE_COLUMNS_STORAGE_PREFIX = 'crm.leadsTableColumns';
 const DEFAULT_OPTIONAL_LEAD_COLUMN_IDS = ['status', 'owner'] as const;
@@ -174,7 +177,7 @@ export class LeadsComponent {
   });
   protected readonly statusSelectOptions = computed<MasterDataOption[]>(() => {
     const api = this.leadStatusesFromApi();
-    return api.length > 0 ? api : FALLBACK_LEAD_STATUS_NAMES.map((name) => ({ id: 0, name }));
+    return api.length > 0 ? api : [...FALLBACK_LEAD_STATUS_OPTIONS];
   });
 
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
@@ -278,6 +281,9 @@ export class LeadsComponent {
   protected readonly rows = computed(() =>
     this.userScope.filterLeads(this.leadOwnerOpts.enrichRows(this.buildMergedRows())),
   );
+
+  /** Admins see lead status as read-only text in the table; users get dropdowns. */
+  protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
 
   private persistMarketplaceLeadsToDb(): boolean {
     const flag = (environment as { persistMarketplaceLeadsToDb?: boolean }).persistMarketplaceLeadsToDb;
@@ -996,7 +1002,8 @@ export class LeadsComponent {
       industry: indPick.label || 'Other',
       industryId: indPick.masterId,
       status: coerceLeadStatus(statPick.label),
-      leadStatusId: statPick.masterId,
+      leadStatusId:
+        statPick.masterId ?? resolveLeadStatusIdFromName(statPick.label) ?? undefined,
       requestType: rtPick.label || undefined,
       requestTypeId: rtPick.masterId,
       requirement: raw.requirement.trim(),
@@ -1032,6 +1039,45 @@ export class LeadsComponent {
     }
   }
 
+  protected canEditLeadStatusInTable(row: LeadRow): boolean {
+    return (
+      !this.isAdminViewer() &&
+      isPersistedApiLeadRow(row.id) &&
+      row.status !== 'Converted'
+    );
+  }
+
+  protected statusSelectValueForRow(row: LeadRow): string {
+    return this.masterSelectControlValue(row.leadStatusId, row.status, this.statusSelectOptions());
+  }
+
+  protected onManualLeadStatusChange(row: LeadRow, ev: Event): void {
+    const raw = (ev.target as HTMLSelectElement).value;
+    const pick = this.resolveMasterPick(raw, this.statusSelectOptions());
+    const label = pick.label.trim();
+    if (!label) return;
+    const leadStatusId =
+      pick.masterId ?? resolveLeadStatusIdFromName(label) ?? row.leadStatusId ?? null;
+    if (leadStatusId == null || leadStatusId <= 0) {
+      this.toast.show('Could not resolve lead status. Check master data or API connection.');
+      return;
+    }
+    const status = coerceLeadStatus(label);
+    const idn = Number(row.id);
+    if (!Number.isFinite(idn) || !isPersistedApiLeadRow(row.id)) return;
+    this.leadsService
+      .update(idn, {
+        status,
+        leadStatusId,
+        updated: 'Just now',
+      })
+      .pipe(take(1))
+      .subscribe({
+        next: () => this.refreshLeads(),
+        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+      });
+  }
+
   protected onIndiaMartStatusChange(row: LeadRow, ev: Event): void {
     const v = (ev.target as HTMLSelectElement).value as IndiaMartLeadStatus;
     if (this.updateMarketplaceStatusOnApi(row, v, 'IndiaMART')) return;
@@ -1064,8 +1110,13 @@ export class LeadsComponent {
     if (!this.persistMarketplaceLeadsToDb() || row.leadSource !== source) return false;
     const id = Number(row.id);
     if (!Number.isFinite(id)) return false;
+    const leadStatusId =
+      row.leadStatusId ?? resolveLeadStatusIdFromName(status) ?? undefined;
     this.leadsService
-      .update(id, { status })
+      .update(id, {
+        status,
+        ...(leadStatusId != null && leadStatusId > 0 ? { leadStatusId } : {}),
+      })
       .pipe(take(1))
       .subscribe({
         next: () => this.refreshLeads(),
@@ -1150,13 +1201,15 @@ export class LeadsComponent {
   protected statusClass(status: LeadStatus): string {
     switch (status) {
       case 'Qualified':
-        return 'leads__tag leads__tag--ok';
-      case 'Contacted':
-        return 'leads__tag leads__tag--accent';
-      case 'Lost':
-        return 'leads__tag leads__tag--bad';
       case 'Converted':
         return 'leads__tag leads__tag--ok';
+      case 'Contacted':
+      case 'Nurture':
+        return 'leads__tag leads__tag--accent';
+      case 'Unqualified':
+      case 'Junk':
+      case 'Lost':
+        return 'leads__tag leads__tag--bad';
       default:
         return 'leads__tag leads__tag--muted';
     }

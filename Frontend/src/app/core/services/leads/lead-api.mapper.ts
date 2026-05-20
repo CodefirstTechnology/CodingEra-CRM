@@ -3,11 +3,20 @@ import type { LeadRow, LeadSource, LeadStatus } from '../../../features/leads/le
 import { applyMarketplaceNotesToLeadRow, extractMarketplaceExternalRef, parseMarketplaceNotesDisplay } from './marketplace-lead-to-api.mapper';
 import type { LeadNormalized, LeadUpsertDto } from './lead-api.models';
 
-const LEAD_STATUSES: LeadStatus[] = ['New', 'Contacted', 'Qualified', 'Lost', 'Converted'];
+const LEAD_STATUS_BY_KEY: Record<string, LeadStatus> = {
+  new: 'New',
+  contacted: 'Contacted',
+  nurture: 'Nurture',
+  unqualified: 'Unqualified',
+  qualified: 'Qualified',
+  junk: 'Junk',
+  lost: 'Lost',
+  converted: 'Converted',
+};
 
 export function coerceLeadStatus(raw: string | undefined | null): LeadStatus {
-  const s = (raw ?? 'New').trim();
-  return (LEAD_STATUSES.includes(s as LeadStatus) ? s : 'New') as LeadStatus;
+  const key = (raw ?? 'New').trim().toLowerCase();
+  return LEAD_STATUS_BY_KEY[key] ?? 'New';
 }
 
 function coerceLeadSource(raw: string | undefined | null): LeadSource {
@@ -433,6 +442,10 @@ export function enrichLeadNormalizedFromPatch(
         : baseline.salutationName,
     salutationId:
       patch.salutationId !== undefined ? patch.salutationId ?? baseline.salutationId : baseline.salutationId,
+    leadStatusId:
+      patch.leadStatusId !== undefined ? patch.leadStatusId ?? baseline.leadStatusId : baseline.leadStatusId,
+    statusName:
+      patch.status !== undefined ? String(patch.status).trim() || baseline.statusName : baseline.statusName,
   };
 }
 
@@ -454,7 +467,7 @@ function coalesceFkAfterPut(
   fromApi: number | null | undefined,
   baseline: number | null | undefined,
   patch: Partial<Omit<LeadRow, 'id'>>,
-  key: 'territoryId' | 'industryId' | 'employeeCountId' | 'salutationId',
+  key: 'territoryId' | 'industryId' | 'employeeCountId' | 'salutationId' | 'leadStatusId',
 ): number | null {
   if (key in patch && patch[key] !== undefined && patch[key] != null) {
     const n = Number(patch[key]);
@@ -595,6 +608,13 @@ export function reconcileLeadNormalizedAfterPut(
     'employeeCountId',
   );
 
+  out.leadStatusId = coalesceFkAfterPut(fromApi.leadStatusId, baseline.leadStatusId, patch, 'leadStatusId');
+  if ('status' in patch && patch.status != null) {
+    out.statusName = String(patch.status).trim() || out.statusName;
+  } else if (!out.statusName?.trim()) {
+    out.statusName = baseline.statusName?.trim() || fromApi.statusName?.trim() || 'New';
+  }
+
   if (
     !(fromApi.annualRevenue != null && Number.isFinite(Number(fromApi.annualRevenue)))
   ) {
@@ -646,6 +666,9 @@ export function mergeLeadApiDtoWithRowPatch(
 ): LeadUpsertDto {
   const row = mergeLeadPatch(mapLeadNormalizedToRow(previous), patch);
   const merged = rowToNormalized(row, previous);
+  if (patch.leadStatusId != null && patch.leadStatusId > 0) {
+    merged.leadStatusId = patch.leadStatusId;
+  }
   if (patch.status != null) {
     merged.statusName = patch.status;
   }
