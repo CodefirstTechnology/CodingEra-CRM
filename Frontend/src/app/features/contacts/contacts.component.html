@@ -43,8 +43,9 @@
           <label class="contacts__field">
             <span class="contacts__label">Salutation</span>
             <select class="contacts__control contacts__control--soft" formControlName="salutation">
-              @for (s of salutationOptions; track s) {
-                <option [value]="s">{{ s === '' ? 'Salutation' : s }}</option>
+              <option value="">Salutation</option>
+              @for (opt of salutationSelectOptions(); track opt.id + opt.name) {
+                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
               }
             </select>
           </label>

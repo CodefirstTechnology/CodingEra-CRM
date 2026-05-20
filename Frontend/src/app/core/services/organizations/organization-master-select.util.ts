@@ -15,6 +15,8 @@ export const ORG_EMPLOYEE_FALLBACK_LABELS = ['1-10', '11-50', '51-200', '201-500
 
 export const ORG_TERRITORY_FALLBACK_LABELS = ['India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
 
+export const SALUTATION_FALLBACK_LABELS = ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
+
 export function labelsToMasterOptions(labels: readonly string[]): MasterDataOption[] {
   return labels.map((name) => ({ id: 0, name }));
 }
@@ -69,4 +71,14 @@ export function resolveOrgMasterPick(
     return { label: byName.name };
   }
   return { label: v };
+}
+
+/** Salutation dropdown rows from `GET /api/MasterData/salutations` with legacy fallback. */
+export function salutationSelectOptions(fromApi: MasterDataOption[]): MasterDataOption[] {
+  return mergeApiOrFallback(fromApi, labelsToMasterOptions(SALUTATION_FALLBACK_LABELS));
+}
+
+/** Maps salutation form control (id or label) to display label for API string fields. */
+export function resolveSalutationLabel(formValue: string, options: MasterDataOption[]): string {
+  return resolveOrgMasterPick(formValue, options).label;
 }

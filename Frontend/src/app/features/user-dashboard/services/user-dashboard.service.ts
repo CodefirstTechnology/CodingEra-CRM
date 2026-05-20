@@ -1,15 +1,15 @@
 import { inject, Injectable } from '@angular/core';
 import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
+import { ActivitiesService } from '../../../core/services/activities.service';
+import type { ActivityRow } from '../../../core/services/activities/activity-api.models';
 import { AuthService } from '../../../core/auth/auth.service';
 import { DealsService } from '../../../core/services/deals.service';
 import { LeadOwnerOptionsService } from '../../../core/services/leads/lead-owner-options.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../../core/services/leads.service';
-import { NotesService } from '../../../core/services/notes.service';
 import { TasksService } from '../../../core/services/tasks.service';
 import type { DealRow } from '../../deals/deals.component';
 import type { LeadRow } from '../../leads/lead-row.model';
-import type { NoteRow } from '../../notes/notes.component';
 import type { TaskRow } from '../../tasks/tasks.component';
 import { parseSessionUserId } from '../utils/user-ownership.util';
 import type {
@@ -28,7 +28,7 @@ export class UserDashboardService {
   private readonly leadsService = inject(LeadsService);
   private readonly dealsService = inject(DealsService);
   private readonly tasksService = inject(TasksService);
-  private readonly notesService = inject(NotesService);
+  private readonly activitiesService = inject(ActivitiesService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
 
   /**
@@ -59,20 +59,25 @@ export class UserDashboardService {
     }).pipe(
       switchMap(({ leads, deals, tasks }) => {
         const enriched = this.leadOwnerOpts.enrichRows(leads);
-        const leadIds = new Set(enriched.map((l) => l.id));
-        const dealIds = new Set(deals.map((d) => d.id));
 
-        return this.notesService
-          .getAssignedToUser(userId, userName, userEmail, leadIds, dealIds)
+        const leadNumericIds = enriched
+          .map((l) => Number(l.id))
+          .filter((n) => Number.isFinite(n) && n > 0);
+        const dealNumericIds = deals
+          .map((d) => Number(d.id))
+          .filter((n) => Number.isFinite(n) && n > 0);
+
+        return this.activitiesService
+          .getRecentForRecords(leadNumericIds, dealNumericIds, 12)
           .pipe(
-            catchError(() => of([] as NoteRow[])),
-            map((notes) => {
+            catchError(() => of([] as ActivityRow[])),
+            map((activities) => {
               const taskDueByLead = this.buildLeadNextFollowUpMap(tasks);
               const tableRows = enriched.map((l) =>
                 this.toLeadTableRow(l, taskDueByLead.get(l.id)),
               );
               return {
-                data: this.buildSnapshot(tableRows, enriched, deals, tasks, notes),
+                data: this.buildSnapshot(tableRows, enriched, deals, tasks, activities),
                 error: null as string | null,
               };
             }),
@@ -89,7 +94,7 @@ export class UserDashboardService {
     myLeads: LeadRow[],
     myDeals: DealRow[],
     myTasks: TaskRow[],
-    myNotes: NoteRow[],
+    activities: ActivityRow[],
   ): UserDashboardSnapshot {
     const today = this.startOfDay(new Date());
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -140,7 +145,7 @@ export class UserDashboardService {
         .slice(0, 8)
         .map((l) => this.toLeadTableRow(l, undefined)),
       followUps: followUpsToday,
-      activities: this.buildActivities(myLeads, myTasks, myNotes, myDeals).slice(0, 12),
+      activities: activities.map((row) => this.toDashboardActivityItem(row)),
       performance: {
         conversionPct,
         monthlyClosureRate,
@@ -198,56 +203,21 @@ export class UserDashboardService {
       .slice(0, 10);
   }
 
-  private buildActivities(
-    leads: LeadRow[],
-    tasks: TaskRow[],
-    notes: NoteRow[],
-    deals: DealRow[],
-  ): UserDashboardActivityItem[] {
-    const items: UserDashboardActivityItem[] = [];
+  private toDashboardActivityItem(row: ActivityRow): UserDashboardActivityItem {
+    const action = row.actionType.toLowerCase();
+    let type: UserDashboardActivityItem['type'] = 'status';
+    if (action.includes('call')) type = 'call';
+    else if (action.includes('meeting')) type = 'meeting';
+    else if (action.includes('task')) type = 'task';
+    else if (action.includes('note') || action.includes('comment')) type = 'note';
 
-    for (const l of leads) {
-      items.push({
-        id: `lead-${l.id}`,
-        type: 'status',
-        title: `Lead · ${l.status}`,
-        subtitle: `${this.leadDisplayName(l)} · ${l.organization || '—'}`,
-        timeLabel: l.updated || '—',
-      });
-    }
-
-    for (const t of tasks.slice(0, 20)) {
-      const type = /call/i.test(t.title) ? 'call' : /meeting/i.test(t.title) ? 'meeting' : 'task';
-      items.push({
-        id: `task-${t.id}`,
-        type,
-        title: t.title,
-        subtitle: `${t.status} · ${t.priority} priority`,
-        timeLabel: t.lastModified || t.dueDate,
-      });
-    }
-
-    for (const n of notes.slice(0, 15)) {
-      items.push({
-        id: `note-${n.id}`,
-        type: 'note',
-        title: n.title,
-        subtitle: `${n.relatedType} · ${n.relatedName}`,
-        timeLabel: n.when,
-      });
-    }
-
-    for (const d of deals.slice(0, 10)) {
-      items.push({
-        id: `deal-${d.id}`,
-        type: 'status',
-        title: `Deal · ${d.status}`,
-        subtitle: d.organizationName,
-        timeLabel: d.lastModified,
-      });
-    }
-
-    return items.sort((a, b) => (a.timeLabel < b.timeLabel ? 1 : -1));
+    return {
+      id: `activity-${row.id}`,
+      type,
+      title: row.message,
+      subtitle: `${row.entityType} #${row.entityId} · ${row.actorName}`,
+      timeLabel: row.whenLabel,
+    };
   }
 
   private buildLeadNextFollowUpMap(tasks: TaskRow[]): Map<string, string> {

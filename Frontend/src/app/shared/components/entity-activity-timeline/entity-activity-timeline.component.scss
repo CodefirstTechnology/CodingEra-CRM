@@ -1,0 +1,121 @@
+.crm-activity__status {
+  margin: 0;
+  padding: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+}
+
+.crm-activity__list {
+  list-style: none;
+  margin: 0;
+  padding: 0.5rem 0 1rem;
+  flex: 1;
+}
+
+.crm-activity__item {
+  display: flex;
+  gap: 0.75rem;
+  padding: 0.65rem 1rem;
+  align-items: flex-start;
+}
+
+.crm-activity__ico {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  color: #4b5563;
+  border: 1px solid color-mix(in srgb, var(--card-border) 90%, transparent);
+  background: color-mix(in srgb, var(--text-muted) 7%, var(--surface));
+}
+
+.crm-activity__ico--bolt {
+  color: #92400e;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.crm-activity__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.crm-activity__line {
+  margin: 0;
+  font-size: 0.895rem;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+
+.crm-activity__when {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.775rem;
+  color: var(--text-muted);
+}
+
+.crm-activity__item--nested {
+  display: block;
+  padding-inline: 1rem;
+  padding-block: 0.15rem;
+}
+
+.crm-activity__expand {
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 0.5rem 0 0.5rem calc(38px + 0.75rem);
+  margin: 0;
+  text-align: left;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  gap: 0.5rem 0.65rem;
+  align-items: start;
+  font: inherit;
+  border-radius: 8px;
+
+  &:hover {
+    background: color-mix(in srgb, var(--text-muted) 5%, transparent);
+  }
+}
+
+.crm-activity__mini-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 0.35rem;
+  border: 2px solid #9ca3af;
+}
+
+.crm-activity__expand-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8625rem;
+  color: var(--text-muted);
+}
+
+.crm-activity__expand-chev {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.18s ease;
+
+  &.is-open {
+    transform: rotate(180deg);
+  }
+}
+
+.crm-activity__sub {
+  margin: 0.25rem 0 0.5rem calc(38px + 0.75rem + 12px + 0.65rem);
+  padding-left: 1rem;
+  border-left: 2px solid var(--card-border);
+  font-size: 0.785rem;
+  color: var(--text-muted);
+
+  li {
+    margin-bottom: 0.25rem;
+  }
+}
