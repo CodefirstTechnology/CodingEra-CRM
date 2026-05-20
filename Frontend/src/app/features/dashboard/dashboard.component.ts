@@ -1,8 +1,24 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { forkJoin, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
+import { ActivitiesService } from '../../core/services/activities.service';
+import type { ActivityRow } from '../../core/services/activities/activity-api.models';
+import { DealsService } from '../../core/services/deals.service';
+import { LeadsService } from '../../core/services/leads.service';
+import { formatUsdAsInr } from '../../shared/utils/format-inr.util';
 
 type ActivityType = 'call' | 'meeting' | 'email' | 'task';
 type StreamTab = 'all' | 'calls' | 'meetings';
+
+interface StreamActivityItem {
+  type: ActivityType;
+  title: string;
+  company: string;
+  description: string;
+  time: string;
+  rep: string;
+}
 
 @Component({
   selector: 'app-dashboard',
@@ -10,8 +26,11 @@ type StreamTab = 'all' | 'calls' | 'meetings';
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })
-export class DashboardComponent {
+export class DashboardComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
+  private readonly activitiesService = inject(ActivitiesService);
+  private readonly leadsService = inject(LeadsService);
+  private readonly dealsService = inject(DealsService);
 
   protected readonly periodOptions = ['Q4 2024', 'Q3 2024', 'Q2 2024', 'Q1 2024'] as const;
 
@@ -19,10 +38,12 @@ export class DashboardComponent {
     period: ['Q4 2024', Validators.required],
   });
 
+  protected readonly formatInr = formatUsdAsInr;
+
   protected readonly monthlyTarget = {
     achievedPct: 75,
-    current: '$750k',
-    target: '$1.0M',
+    currentUsd: 750_000,
+    targetUsd: 1_000_000,
   };
 
   protected readonly conversion = {
@@ -34,80 +55,63 @@ export class DashboardComponent {
   };
 
   protected readonly revenueForecast = {
-    total: '$4.12M',
+    totalUsd: 4_120_000,
     confidence: 'High (92%)',
     segments: [
-      { label: 'Enterprise', value: '$2.2M', pct: 53 },
-      { label: 'Mid-Market', value: '$1.4M', pct: 34 },
-      { label: 'SMB', value: '$0.5M', pct: 13 },
+      { label: 'Enterprise', usd: 2_200_000, pct: 53 },
+      { label: 'Mid-Market', usd: 1_400_000, pct: 34 },
+      { label: 'SMB', usd: 500_000, pct: 13 },
     ],
   };
 
   protected readonly quarterlyProgress = {
-    current: '$2.4M',
-    goal: '$3.0M',
+    currentUsd: 2_400_000,
+    goalUsd: 3_000_000,
   };
 
   protected streamTab: StreamTab = 'all';
+  protected readonly activities = signal<StreamActivityItem[]>([]);
+  protected readonly activitiesLoading = signal(true);
+
+  ngOnInit(): void {
+    forkJoin({
+      leads: this.leadsService.getAll().pipe(catchError(() => of([]))),
+      deals: this.dealsService.getAll().pipe(catchError(() => of([]))),
+    })
+      .pipe(
+        map(({ leads, deals }) => ({
+          leadIds: leads
+            .map((l) => Number(l.id))
+            .filter((n) => Number.isFinite(n) && n > 0),
+          dealIds: deals
+            .map((d) => Number(d.id))
+            .filter((n) => Number.isFinite(n) && n > 0),
+        })),
+        catchError(() => of({ leadIds: [] as number[], dealIds: [] as number[] })),
+      )
+      .subscribe(({ leadIds, dealIds }) => {
+        this.activitiesService.getRecentForRecords(leadIds, dealIds, 20).subscribe({
+          next: (rows) => {
+            this.activities.set(rows.map((row) => this.toStreamItem(row)));
+            this.activitiesLoading.set(false);
+          },
+          error: () => {
+            this.activities.set([]);
+            this.activitiesLoading.set(false);
+          },
+        });
+      });
+  }
 
   protected setStreamTab(tab: StreamTab): void {
     this.streamTab = tab;
   }
 
-  protected readonly activities: {
-    type: ActivityType;
-    title: string;
-    company: string;
-    description: string;
-    time: string;
-    rep: string;
-  }[] = [
-      {
-        type: 'call',
-        title: 'Call with',
-        company: 'Global Logistics Corp',
-        description: 'Initial discovery call — 45 mins',
-        time: '10:24 AM',
-        rep: 'Alex Rivera',
-      },
-      {
-        type: 'meeting',
-        title: 'Quarterly review',
-        company: 'Northwind Trading',
-        description: 'Executive alignment — quarterly targets',
-        time: 'Yesterday',
-        rep: 'Jordan Lee',
-      },
-      {
-        type: 'email',
-        title: 'Proposal sent',
-        company: 'Acme Industries',
-        description: 'Enterprise licensing package',
-        time: 'Yesterday',
-        rep: 'Sam Carter',
-      },
-      {
-        type: 'task',
-        title: 'Follow-up task',
-        company: 'Globex Systems',
-        description: 'Pricing approval checkpoint',
-        time: 'Mon',
-        rep: 'Alex Rivera',
-      },
-      {
-        type: 'call',
-        title: 'Call with',
-        company: 'Initech Partners',
-        description: 'Renewal discussion — 30 mins',
-        time: 'Mon',
-        rep: 'Priya Shah',
-      },
-    ];
-
-  protected get filteredActivities(): typeof this.activities {
-    if (this.streamTab === 'all') return this.activities;
-    if (this.streamTab === 'calls') return this.activities.filter((a) => a.type === 'call');
-    return this.activities.filter((a) => a.type === 'meeting');
+  protected get filteredActivities(): StreamActivityItem[] {
+    const list = this.activities();
+    if (this.streamTab === 'all') return list;
+    if (this.streamTab === 'calls') return list.filter((a) => a.type === 'call');
+    return list.filter((a) => a.type === 'meeting');
   }
 
   protected readonly stuckDeals = [
@@ -115,21 +119,21 @@ export class DashboardComponent {
       company: 'Sterling Freight Co.',
       stage: 'Proposal Sent',
       inactiveDays: 14,
-      value: '$410K',
+      valueUsd: 410_000,
       action: 'Trigger Nudge Sequence',
     },
     {
       company: 'Blue Ridge Labs',
       stage: 'Negotiation',
       inactiveDays: 9,
-      value: '$285K',
+      valueUsd: 285_000,
       action: 'Schedule Executive Sync',
     },
     {
       company: 'Harborline Retail',
       stage: 'Discovery',
       inactiveDays: 21,
-      value: '$132K',
+      valueUsd: 132_000,
       action: 'Escalate to Manager',
     },
   ];
@@ -140,5 +144,27 @@ export class DashboardComponent {
   /** Dash offset so only achievedPct of the ring is visible (stroke from top). */
   protected gaugeDashOffset(): number {
     return this.gaugeCircumference * (1 - this.monthlyTarget.achievedPct / 100);
+  }
+
+  private toStreamItem(row: ActivityRow): StreamActivityItem {
+    const action = row.actionType.toLowerCase();
+    let type: ActivityType = 'task';
+    if (action.includes('call')) type = 'call';
+    else if (action.includes('meeting')) type = 'meeting';
+    else if (action.includes('email') || action.includes('mail')) type = 'email';
+
+    const description =
+      row.fieldName && (row.oldValue != null || row.newValue != null)
+        ? `${row.fieldName}: ${row.oldValue ?? '—'} → ${row.newValue ?? '—'}`
+        : row.message;
+
+    return {
+      type,
+      title: row.message,
+      company: `${row.entityType} #${row.entityId}`,
+      description,
+      time: row.whenLabel,
+      rep: row.actorName,
+    };
   }
 }

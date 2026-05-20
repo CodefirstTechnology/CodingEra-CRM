@@ -81,60 +81,14 @@
           + New
         </button>
       </header>
-      <ul class="deal-detail__activity-list" aria-label="Activity on this deal">
-        <li class="deal-detail__activity-item">
-          <span class="deal-detail__activity-ico deal-detail__activity-ico--people" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-          </span>
-          <div class="deal-detail__activity-body">
-            <p class="deal-detail__activity-line"><strong>{{ dealActivityActor() }}</strong> created this lead</p>
-            <time class="deal-detail__activity-when">8 months ago</time>
-          </div>
-        </li>
-        <li class="deal-detail__activity-item deal-detail__activity-item--nested">
-          <button type="button" class="deal-detail__activity-expand" (click)="toggleActivityExtras()">
-            <span class="deal-detail__activity-mini-dot" aria-hidden="true"></span>
-            <span class="deal-detail__activity-expand-main">
-              <span>Show +2 changes from {{ dealActivityActor() }}</span>
-              <svg
-                class="deal-detail__activity-expand-chev"
-                [class.is-open]="activityExtrasOpen()"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                aria-hidden="true"
-              >
-                <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-            </span>
-            <time class="deal-detail__activity-when">8 months ago</time>
-          </button>
-          @if (activityExtrasOpen()) {
-          <ul class="deal-detail__activity-sub">
-            <li>{{ dealActivityActor() }} updated the organization.</li>
-            <li>{{ dealActivityActor() }} adjusted deal fields.</li>
-          </ul>
-          }
-        </li>
-        <li class="deal-detail__activity-item">
-          <span class="deal-detail__activity-ico deal-detail__activity-ico--bolt" aria-hidden="true">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
-            </svg>
-          </span>
-          <div class="deal-detail__activity-body">
-            <p class="deal-detail__activity-line"><strong>{{ dealActivityActor() }}</strong> converted the lead to this deal</p>
-            <time class="deal-detail__activity-when">8 months ago</time>
-          </div>
-        </li>
-      </ul>
+      <app-entity-activity-timeline
+        [groups]="dealActivityGroups()"
+        [loading]="dealActivityLoading()"
+        ariaLabel="Activity on this deal"
+        emptyMessage="No activity on this deal yet."
+        (reply)="setTab('Emails')"
+        (comment)="setTab('Comments')"
+      />
       <footer class="deal-detail__compose deal-detail__compose--activity">
         <button type="button" class="deal-detail__link deal-detail__link--with-icon" (click)="setTab('Emails')">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -247,16 +201,18 @@
             <button
               type="button"
               class="deal-detail__btn deal-detail__btn--compose-send"
-              [disabled]="!emailToLooksValid()"
+              [disabled]="!emailComposeValid() || emailSending()"
               (click)="submitDealDraftEmail()"
             >
-              Send
+              {{ emailSending() ? 'Sending…' : 'Send' }}
             </button>
           </div>
         </footer>
       </div>
       }
-      @if (dealEmails().length === 0) {
+      @if (dealEmailsLoading()) {
+      <p class="deal-detail__email-loading" role="status">Loading emails…</p>
+      } @else if (dealEmails().length === 0) {
       <div class="deal-detail__email-empty">
         <span class="deal-detail__email-empty-icon" aria-hidden="true">
           <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
@@ -301,11 +257,16 @@
             <div class="deal-detail__email-meta-row">
               @if (m.status === 'Sent') {
               <span class="deal-detail__email-status deal-detail__email-status--sent">{{ m.status }}</span>
+              } @else if (m.status === 'Failed') {
+              <span class="deal-detail__email-status deal-detail__email-status--draft">Failed</span>
               } @else {
               <span class="deal-detail__email-status deal-detail__email-status--draft">{{ m.status }}</span>
               }
               <time class="deal-detail__email-time">{{ m.whenLabel }}</time>
             </div>
+            @if (m.status === 'Failed' && m.failureMessage) {
+            <p class="deal-detail__email-failure">{{ m.failureMessage }}</p>
+            }
             <div class="deal-detail__email-body-box">{{ m.body }}</div>
           </article>
         </div>
@@ -343,7 +304,7 @@
         ></textarea>
         <div class="deal-detail__comment-composer-actions">
           <button type="button" class="deal-detail__btn deal-detail__btn--light" (click)="cancelDealCommentComposer()">Cancel</button>
-          <button type="button" class="deal-detail__btn deal-detail__btn--solid" (click)="postDealComment()" [disabled]="!commentDraft().trim()">Post</button>
+          <button type="button" class="deal-detail__btn deal-detail__btn--solid" (click)="postDealComment()" [disabled]="!commentDraft().trim() || commentPosting()">Post</button>
         </div>
       </div>
       }
@@ -552,7 +513,7 @@
         @for (note of dealNotes(); track note.id) {
         <li class="deal-detail__note-row">
           <p class="deal-detail__note-title">{{ note.title }}</p>
-          <p class="deal-detail__note-meta">{{ note.author }} · {{ noteRelatedLabel(note) }} · {{ note.when }}</p>
+          <p class="deal-detail__note-meta">{{ note.author }} · {{ note.when }}</p>
           @if (note.bodyPreview?.trim()) {
           <p class="deal-detail__note-preview">{{ note.bodyPreview }}</p>
           }

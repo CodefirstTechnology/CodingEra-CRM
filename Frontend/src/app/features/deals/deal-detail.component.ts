@@ -6,9 +6,17 @@ import { take } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { ActivitiesService } from '../../core/services/activities.service';
+import type { ActivityGroup } from '../../core/services/activities/activity-api.models';
+import { CommentsService } from '../../core/services/comments.service';
+import type { EntityCommentItem } from '../../core/services/comments/comment-api.models';
 import { DealsService } from '../../core/services/deals.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
+import { EmailsService, emailSendErrorMessage } from '../../core/services/emails.service';
+import type { EntityEmailItem } from '../../core/services/emails/email-api.models';
+import { ToastService } from '../../core/toast/toast.service';
+import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from './deals.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
@@ -23,28 +31,11 @@ interface DealAttachmentItem {
   uploadedAt: string;
 }
 
-interface DealCommentItem {
-  id: string;
-  authorName: string;
-  authorInitial: string;
-  body: string;
-  whenLabel: string;
-}
-
-interface DealEmailThreadItem {
-  id: string;
-  senderDisplay: string;
-  senderInitial: string;
-  subjectLine: string;
-  toAddress: string;
-  status: 'Sent' | 'Draft';
-  whenLabel: string;
-  body: string;
-}
+interface DealCommentItem extends EntityCommentItem {}
 
 @Component({
   selector: 'app-deal-detail',
-  imports: [RouterLink, ReactiveFormsModule],
+  imports: [RouterLink, ReactiveFormsModule, EntityActivityTimelineComponent],
   templateUrl: './deal-detail.component.html',
   styleUrl: './deal-detail.component.scss',
 })
@@ -53,8 +44,12 @@ export class DealDetailComponent {
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly dealsService = inject(DealsService);
+  private readonly activitiesService = inject(ActivitiesService);
+  private readonly commentsService = inject(CommentsService);
+  private readonly emailsService = inject(EmailsService);
   private readonly tasksService = inject(TasksService);
   private readonly notesService = inject(NotesService);
+  private readonly toast = inject(ToastService);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly createFlow = inject(CreateFlowService);
   protected readonly auth = inject(AuthService);
@@ -67,10 +62,15 @@ export class DealDetailComponent {
   protected readonly dealNotes = signal<NoteRow[]>([]);
   protected readonly dealAttachments = signal<DealAttachmentItem[]>([]);
   protected readonly dealComments = signal<DealCommentItem[]>([]);
+  protected readonly dealActivityGroups = signal<ActivityGroup[]>([]);
+  protected readonly dealActivityLoading = signal(false);
   protected readonly commentComposerOpen = signal(false);
   protected readonly commentDraft = signal('');
+  protected readonly commentPosting = signal(false);
 
-  protected readonly dealEmails = signal<DealEmailThreadItem[]>([]);
+  protected readonly dealEmails = signal<EntityEmailItem[]>([]);
+  protected readonly dealEmailsLoading = signal(false);
+  protected readonly emailSending = signal(false);
   protected readonly emailComposerOpen = signal(false);
   protected readonly emailComposeEmojiOpen = signal(false);
 
@@ -78,9 +78,6 @@ export class DealDetailComponent {
 
   protected readonly sidebarDetailsOpen = signal(true);
   protected readonly sidebarContactsOpen = signal(true);
-  /** Expandable timeline row (+N changes). */
-  protected readonly activityExtrasOpen = signal(false);
-
   protected readonly emailTo = signal('');
   protected readonly emailCc = signal('');
   protected readonly emailBcc = signal('');
@@ -119,6 +116,12 @@ export class DealDetailComponent {
   });
 
   protected readonly emailToLooksValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(this.emailTo().trim()));
+  protected readonly emailComposeValid = computed(
+    () =>
+      this.emailToLooksValid() &&
+      this.emailSubject().trim().length > 0 &&
+      this.emailBody().trim().length > 0,
+  );
 
   protected readonly dealStatuses: DealPipelineStatus[] = [
     'Qualification',
@@ -190,11 +193,12 @@ export class DealDetailComponent {
             this.emailBody.set('');
             this.refreshDealTasks();
             this.refreshDealNotes();
+            this.refreshDealActivities();
             const did = row.id.trim();
             if (did) {
               this.loadDealAttachments(did);
-              this.loadDealComments(did);
-              this.loadDealEmails(did, row);
+              this.refreshDealComments();
+              this.refreshDealEmails();
             } else {
               this.dealAttachments.set([]);
               this.dealComments.set([]);
@@ -207,6 +211,7 @@ export class DealDetailComponent {
           } else {
             this.dealTasks.set([]);
             this.dealNotes.set([]);
+            this.dealActivityGroups.set([]);
             this.dealAttachments.set([]);
             this.dealComments.set([]);
             this.dealEmails.set([]);
@@ -219,8 +224,14 @@ export class DealDetailComponent {
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
-      if (e.kind === 'task') this.refreshDealTasks();
-      if (e.kind === 'note') this.refreshDealNotes();
+      if (e.kind === 'task') {
+        this.refreshDealTasks();
+        this.refreshDealActivities();
+      }
+      if (e.kind === 'note') {
+        this.refreshDealNotes();
+        this.refreshDealActivities();
+      }
     });
   }
 
@@ -232,29 +243,47 @@ export class DealDetailComponent {
       return;
     }
     this.tasksService
-      .getAll()
+      .getByRelatedDeal(did)
       .pipe(take(1))
       .subscribe((rows) => {
-        const idNorm = did.trim();
-        const scoped = rows.filter((r) => (r.relatedDealId ?? '').trim() === idNorm);
-        this.dealTasks.set(scoped);
+        this.dealTasks.set(rows);
+      });
+  }
+
+  private refreshDealActivities(): void {
+    const id = this.numericId();
+    if (id == null) {
+      this.dealActivityGroups.set([]);
+      return;
+    }
+    this.dealActivityLoading.set(true);
+    this.activitiesService
+      .getDealGroups(id)
+      .pipe(take(1))
+      .subscribe({
+        next: (groups) => {
+          this.dealActivityGroups.set(groups);
+          this.dealActivityLoading.set(false);
+        },
+        error: () => {
+          this.dealActivityGroups.set([]);
+          this.dealActivityLoading.set(false);
+        },
       });
   }
 
   private refreshDealNotes(): void {
-    const d = this.deal();
-    const did = d?.id;
-    if (did == null || did === '') {
+    const id = this.numericId();
+    if (id == null) {
       this.dealNotes.set([]);
       return;
     }
     this.notesService
-      .getAll()
+      .getByRecord(id)
       .pipe(take(1))
-      .subscribe((rows) => {
-        const idNorm = did.trim();
-        const scoped = rows.filter((r) => (r.relatedDealId ?? '').trim() === idNorm);
-        this.dealNotes.set(scoped);
+      .subscribe({
+        next: (rows) => this.dealNotes.set(rows),
+        error: () => this.dealNotes.set([]),
       });
   }
 
@@ -341,61 +370,19 @@ export class DealDetailComponent {
     input.value = '';
   }
 
-  private commentsStorageKey(dealId: string): string {
-    return `crm.deal-detail.comments.v1:${dealId}`;
-  }
-
-  private isCommentRow(x: unknown): x is DealCommentItem {
-    if (x == null || typeof x !== 'object') return false;
-    const o = x as Record<string, unknown>;
-    return (
-      typeof o['id'] === 'string' &&
-      typeof o['authorName'] === 'string' &&
-      typeof o['authorInitial'] === 'string' &&
-      typeof o['body'] === 'string' &&
-      typeof o['whenLabel'] === 'string'
-    );
-  }
-
-  private loadDealComments(dealId: string): void {
-    const key = this.commentsStorageKey(dealId);
-    const raw = sessionStorage.getItem(key);
-    if (raw === null) {
-      const seed: DealCommentItem[] = [
-        {
-          id: 'seed-crm-demo-comment-deal',
-          authorName: 'CRM Demo',
-          authorInitial: 'C',
-          body: 'had word with CEO',
-          whenLabel: '8 months ago',
-        },
-      ];
-      this.dealComments.set(seed);
-      try {
-        sessionStorage.setItem(key, JSON.stringify(seed));
-      } catch {
-        /* ignore quota */
-      }
+  private refreshDealComments(): void {
+    const id = this.numericId();
+    if (id == null) {
+      this.dealComments.set([]);
       return;
     }
-    let rows: DealCommentItem[] = [];
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      rows = Array.isArray(parsed)
-        ? (parsed.filter((item) => this.isCommentRow(item)) as DealCommentItem[]).slice(0, 200)
-        : [];
-    } catch {
-      rows = [];
-    }
-    this.dealComments.set(rows);
-  }
-
-  private persistDealComments(dealId: string): void {
-    try {
-      sessionStorage.setItem(this.commentsStorageKey(dealId), JSON.stringify(this.dealComments()));
-    } catch {
-      /* ignore quota */
-    }
+    this.commentsService
+      .listForEntity('deal', id)
+      .pipe(take(1))
+      .subscribe({
+        next: (rows) => this.dealComments.set(rows),
+        error: () => this.dealComments.set([]),
+      });
   }
 
   protected openNewCommentFromDeal(): void {
@@ -408,97 +395,52 @@ export class DealDetailComponent {
   }
 
   protected postDealComment(): void {
-    const did = this.deal()?.id?.trim();
-    if (!did) return;
+    const id = this.numericId();
     const text = this.commentDraft().trim();
-    if (!text) return;
-    const authName = this.auth.user()?.name?.trim() || 'User';
-    const row: DealCommentItem = {
-      id:
-        typeof crypto !== 'undefined' && 'randomUUID' in crypto
-          ? crypto.randomUUID()
-          : `deal-comment-${Date.now()}`,
-      authorName: authName,
-      authorInitial: authName.trim() ? authName.trim().charAt(0).toUpperCase() : '?',
-      body: text,
-      whenLabel: 'Just now',
-    };
-    this.dealComments.update((list) => [row, ...list]);
-    this.persistDealComments(did);
-    this.commentDraft.set('');
-    this.commentComposerOpen.set(false);
+    if (id == null || !text || this.commentPosting()) return;
+
+    this.commentPosting.set(true);
+    this.commentsService
+      .createForEntity('deal', id, text)
+      .pipe(take(1))
+      .subscribe({
+        next: (row) => {
+          this.dealComments.update((list) => [row, ...list]);
+          this.commentDraft.set('');
+          this.commentComposerOpen.set(false);
+          this.commentPosting.set(false);
+          this.refreshDealActivities();
+        },
+        error: () => {
+          this.commentPosting.set(false);
+        },
+      });
+  }
+
+  private refreshDealEmails(): void {
+    const id = this.numericId();
+    if (id == null) {
+      this.dealEmails.set([]);
+      return;
+    }
+    this.dealEmailsLoading.set(true);
+    this.emailsService
+      .listForEntity('deal', id)
+      .pipe(take(1))
+      .subscribe({
+        next: (rows) => {
+          this.dealEmails.set(rows);
+          this.dealEmailsLoading.set(false);
+        },
+        error: () => {
+          this.dealEmails.set([]);
+          this.dealEmailsLoading.set(false);
+        },
+      });
   }
 
   protected openReplyFromDealComments(): void {
     this.setTab('Emails');
-  }
-
-  private emailsStorageKey(dealId: string): string {
-    return `crm.deal-detail.emails.v1:${dealId}`;
-  }
-
-  private isEmailThreadRow(x: unknown): x is DealEmailThreadItem {
-    if (x == null || typeof x !== 'object') return false;
-    const o = x as Record<string, unknown>;
-    const status = o['status'];
-    return (
-      typeof o['id'] === 'string' &&
-      typeof o['senderDisplay'] === 'string' &&
-      typeof o['senderInitial'] === 'string' &&
-      typeof o['subjectLine'] === 'string' &&
-      typeof o['toAddress'] === 'string' &&
-      (status === 'Sent' || status === 'Draft') &&
-      typeof o['whenLabel'] === 'string' &&
-      typeof o['body'] === 'string'
-    );
-  }
-
-  private loadDealEmails(dealId: string, row: DealRow): void {
-    const key = this.emailsStorageKey(dealId);
-    const raw = sessionStorage.getItem(key);
-    const displayName = row.organizationName.trim() || 'Deal';
-    const code = this.dealCode();
-    const makeSeed = (): DealEmailThreadItem[] => [
-      {
-        id: 'seed-crm-email-deal',
-        senderDisplay: 'CRM Demo <crm-demo@assimilate.com>',
-        senderInitial: 'C',
-        subjectLine: `${displayName} (#${code})`,
-        toAddress: 'abhijeet136@gmail.com',
-        status: 'Sent',
-        whenLabel: '8 months ago',
-        body: 'Hello Sir, Test',
-      },
-    ];
-
-    if (raw === null) {
-      const seed = makeSeed();
-      this.dealEmails.set(seed);
-      try {
-        sessionStorage.setItem(key, JSON.stringify(seed));
-      } catch {
-        /* ignore */
-      }
-      return;
-    }
-    let emails: DealEmailThreadItem[] = [];
-    try {
-      const parsed = JSON.parse(raw) as unknown;
-      emails = Array.isArray(parsed)
-        ? (parsed.filter((item) => this.isEmailThreadRow(item)) as DealEmailThreadItem[]).slice(0, 200)
-        : [];
-    } catch {
-      emails = [];
-    }
-    this.dealEmails.set(emails);
-  }
-
-  private persistDealEmails(dealId: string): void {
-    try {
-      sessionStorage.setItem(this.emailsStorageKey(dealId), JSON.stringify(this.dealEmails()));
-    } catch {
-      /* ignore */
-    }
   }
 
   protected openNewEmailFromDeal(): void {
@@ -545,43 +487,44 @@ export class DealDetailComponent {
   }
 
   protected submitDealDraftEmail(): void {
-    const did = this.deal()?.id?.trim();
-    const d = this.deal();
-    if (!did || !d) return;
+    const id = this.numericId();
+    if (id == null || this.emailSending()) return;
+
     const to = this.emailTo().trim();
-    const emailLooksValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to);
-    if (!emailLooksValid) {
-      return;
-    }
     const subject = this.emailSubject().trim();
     const body = this.emailBody().trim();
-    const authName = this.auth.user()?.name?.trim() || 'User';
-    const safeLocal = authName
-      .toLowerCase()
-      .replace(/\s+/g, '.')
-      .replace(/[^a-z0-9.]/g, '')
-      .replace(/^\.+|\.+$/g, '');
-    const localPart = safeLocal.length > 0 ? safeLocal : 'user';
-    const senderDisplay = `${authName} <${localPart}@crm.local>`;
-    const orgName = d.organizationName.trim() || 'Deal';
-    const item: DealEmailThreadItem = {
-      id:
-        typeof crypto !== 'undefined' && 'randomUUID' in crypto
-          ? crypto.randomUUID()
-          : `email-${Date.now()}`,
-      senderDisplay,
-      senderInitial: authName.trim() ? authName.trim().charAt(0).toUpperCase() : '?',
-      subjectLine: subject || `${orgName} (#${this.dealCode()})`,
-      toAddress: to,
-      status: 'Sent',
-      whenLabel: 'Just now',
-      body: body.length > 0 ? body : '(No message body)',
-    };
-    this.dealEmails.update((list) => [item, ...list]);
-    this.persistDealEmails(did);
-    this.emailBody.set('');
-    this.emailComposerOpen.set(false);
-    this.emailComposeEmojiOpen.set(false);
+    if (!this.emailComposeValid()) return;
+
+    this.emailSending.set(true);
+    this.emailsService
+      .sendForEntity({
+        entityType: 'deal',
+        entityId: id,
+        toEmail: to,
+        subject,
+        body,
+        isHtml: true,
+      })
+      .pipe(take(1))
+      .subscribe({
+        next: (row) => {
+          this.dealEmails.update((list) => [row, ...list]);
+          this.emailBody.set('');
+          this.emailComposerOpen.set(false);
+          this.emailComposeEmojiOpen.set(false);
+          this.emailSending.set(false);
+          this.refreshDealActivities();
+          if (row.status === 'Failed') {
+            this.toast.show(row.failureMessage || 'Email could not be sent.');
+          } else {
+            this.toast.show('Email sent.');
+          }
+        },
+        error: (err) => {
+          this.emailSending.set(false);
+          this.toast.show(emailSendErrorMessage(err));
+        },
+      });
   }
 
   protected openDealEmailComposer(): void {
@@ -589,8 +532,11 @@ export class DealDetailComponent {
     this.emailComposerOpen.set(true);
   }
 
-  protected openDealEmailReply(_thread?: DealEmailThreadItem): void {
-    void _thread;
+  protected openDealEmailReply(thread?: EntityEmailItem): void {
+    if (thread?.subjectLine) {
+      const subj = thread.subjectLine.trim();
+      this.emailSubjectText.set(/^re:/i.test(subj) ? subj : `Re: ${subj}`);
+    }
     this.emailComposeEmojiOpen.set(false);
     this.emailComposerOpen.set(true);
   }
@@ -641,10 +587,6 @@ export class DealDetailComponent {
     this.sidebarContactsOpen.update((o) => !o);
   }
 
-  protected toggleActivityExtras(): void {
-    this.activityExtrasOpen.update((o) => !o);
-  }
-
   private revenueNumberToInputString(value: number | undefined): string {
     if (value == null || !Number.isFinite(value) || value === 0) return '';
     return value.toLocaleString('en-IN');
@@ -684,6 +626,9 @@ export class DealDetailComponent {
 
   protected setTab(tab: DetailTab): void {
     this.activeTab.set(tab);
+    if (tab === 'Activity') this.refreshDealActivities();
+    if (tab === 'Comments') this.refreshDealComments();
+    if (tab === 'Emails') this.refreshDealEmails();
   }
 
   protected ownerInitial(): string {
@@ -763,33 +708,10 @@ export class DealDetailComponent {
       return;
     }
 
-    const v = this.dataForm.getRawValue();
-    const opt = this.dealOwnerOptions.find((o) => o.id === v.dealOwner.trim());
-    const emailTrim = v.email.trim();
-
-    let probabilityPercent = row.probabilityPercent ?? 10;
-    const rawProb = String(v.probabilityPercent ?? '').replace(/,/g, '').trim();
-    if (rawProb !== '') {
-      const p = Number.parseFloat(rawProb);
-      if (Number.isFinite(p)) probabilityPercent = p;
-    }
+    const payload = this.buildDirtyDealSavePatch(row);
+    if (Object.keys(payload).length <= 1) return;
 
     this.dataSaving.set(true);
-    const payload: Partial<Omit<DealRow, 'id'>> = {
-      organizationName: v.organization.trim(),
-      annualRevenue: parseRevenueInputToNumber(v.annualRevenue),
-      status: v.status,
-      email: emailTrim || '—',
-      mobile: v.mobile.trim() || '—',
-      assignedTo: opt?.label ?? row.assignedTo,
-      assignedInitials: opt?.initials ?? row.assignedInitials,
-      dealOwnerId: v.dealOwner.trim(),
-      website: v.website.trim(),
-      territory: v.territory.trim(),
-      probabilityPercent,
-      nextStep: v.nextStep.trim(),
-      lastModified: 'Just now',
-    };
 
     this.dealsService
       .update(idn, payload)
@@ -802,10 +724,63 @@ export class DealDetailComponent {
             this.patchDataForm(updated);
             const org = updated.organizationName.trim() || 'Deal';
             this.emailSubjectText.set(`${org} (${this.dealCode()})`);
+            this.refreshDealActivities();
           }
         },
         error: () => this.dataSaving.set(false),
       });
+  }
+
+  /** Sends only fields the user actually edited so unrelated columns are not cleared on save. */
+  private buildDirtyDealSavePatch(row: DealRow): Partial<Omit<DealRow, 'id'>> {
+    const v = this.dataForm.getRawValue();
+    const patch: Partial<Omit<DealRow, 'id'>> = {};
+
+    if (this.dataForm.controls.organization.dirty) {
+      patch.organizationName = v.organization.trim();
+    }
+    if (this.dataForm.controls.annualRevenue.dirty) {
+      patch.annualRevenue = parseRevenueInputToNumber(v.annualRevenue);
+    }
+    if (this.dataForm.controls.status.dirty) {
+      patch.status = v.status;
+    }
+    if (this.dataForm.controls.email.dirty) {
+      patch.email = v.email.trim() || '—';
+    }
+    if (this.dataForm.controls.mobile.dirty) {
+      patch.mobile = v.mobile.trim() || '—';
+    }
+    if (this.dataForm.controls.dealOwner.dirty) {
+      const opt = this.dealOwnerOptions.find((o) => o.id === v.dealOwner.trim());
+      patch.dealOwnerId = v.dealOwner.trim();
+      patch.assignedTo = opt?.label ?? row.assignedTo;
+      patch.assignedInitials = opt?.initials ?? row.assignedInitials;
+    }
+    if (this.dataForm.controls.website.dirty) {
+      patch.website = v.website.trim();
+    }
+    if (this.dataForm.controls.territory.dirty) {
+      patch.territory = v.territory.trim();
+    }
+    if (this.dataForm.controls.probabilityPercent.dirty) {
+      let probabilityPercent = row.probabilityPercent ?? 10;
+      const rawProb = String(v.probabilityPercent ?? '').replace(/,/g, '').trim();
+      if (rawProb !== '') {
+        const p = Number.parseFloat(rawProb);
+        if (Number.isFinite(p)) probabilityPercent = p;
+      }
+      patch.probabilityPercent = probabilityPercent;
+    }
+    if (this.dataForm.controls.nextStep.dirty) {
+      patch.nextStep = v.nextStep.trim();
+    }
+
+    if (Object.keys(patch).length > 0) {
+      patch.lastModified = 'Just now';
+    }
+
+    return patch;
   }
 
   protected openCreatePicker(): void {
@@ -814,10 +789,6 @@ export class DealDetailComponent {
 
   protected onCreateQuotationDemo(): void {
     /* Demo: quotation builder not wired in this CRM shell. */
-  }
-
-  protected dealActivityActor(): string {
-    return this.auth.user()?.name?.trim() || 'CRM Demo';
   }
 
   protected sidebarAnnualRevenueLabel(): string {

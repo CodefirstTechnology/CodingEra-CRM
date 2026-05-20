@@ -25,7 +25,7 @@
       <div class="sales-dash__quarterly" aria-label="Quarterly target summary">
         <span class="sales-dash__quarterly-label">Quarterly target</span>
         <span class="sales-dash__quarterly-values">
-          {{ quarterlyProgress.current }} / {{ quarterlyProgress.goal }}
+          {{ formatInr(quarterlyProgress.currentUsd) }} / {{ formatInr(quarterlyProgress.goalUsd) }}
         </span>
       </div>
       <button type="button" class="sales-dash__btn sales-dash__btn--export">Export Ledger</button>
@@ -51,11 +51,11 @@
       <div class="sales-dash__target-metrics">
         <div>
           <span class="sales-dash__metric-k">Current</span>
-          <span class="sales-dash__metric-v">{{ monthlyTarget.current }}</span>
+          <span class="sales-dash__metric-v">{{ formatInr(monthlyTarget.currentUsd) }}</span>
         </div>
         <div>
           <span class="sales-dash__metric-k">Target</span>
-          <span class="sales-dash__metric-v">{{ monthlyTarget.target }}</span>
+          <span class="sales-dash__metric-v">{{ formatInr(monthlyTarget.targetUsd) }}</span>
         </div>
       </div>
     </article>
@@ -80,13 +80,13 @@
 
     <article class="sales-dash__card">
       <h2 class="sales-dash__card-title">Revenue forecast</h2>
-      <p class="sales-dash__forecast-total">{{ revenueForecast.total }}</p>
+      <p class="sales-dash__forecast-total">{{ formatInr(revenueForecast.totalUsd) }}</p>
       <ul class="sales-dash__forecast-list">
         @for (seg of revenueForecast.segments; track seg.label) {
         <li class="sales-dash__forecast-row">
           <div class="sales-dash__forecast-meta">
             <span class="sales-dash__forecast-label">{{ seg.label }}</span>
-            <span class="sales-dash__forecast-value">{{ seg.value }}</span>
+            <span class="sales-dash__forecast-value">{{ formatInr(seg.usd) }}</span>
           </div>
           <div class="sales-dash__forecast-track">
             <span class="sales-dash__forecast-bar" [style.width.%]="seg.pct"></span>
@@ -121,7 +121,12 @@
         </div>
       </div>
       <ul class="sales-dash__stream-list">
-        @for (item of filteredActivities; track item.description + item.time) {
+        @if (activitiesLoading()) {
+        <li class="sales-dash__stream-item sales-dash__stream-item--empty">Loading activity…</li>
+        } @else if (filteredActivities.length === 0) {
+        <li class="sales-dash__stream-item sales-dash__stream-item--empty">No recent activity.</li>
+        } @else {
+        @for (item of filteredActivities; track item.description + item.time + item.rep) {
         <li class="sales-dash__stream-item">
           <span class="sales-dash__stream-icon" aria-hidden="true">
             @switch (item.type) {
@@ -165,6 +170,7 @@
           </div>
         </li>
         }
+        }
       </ul>
       <div class="sales-dash__stream-footer">
         <button type="button" class="sales-dash__audit-link">View full audit trail</button>
@@ -189,7 +195,7 @@
           <li class="sales-dash__stuck-item">
             <div class="sales-dash__stuck-top">
               <span class="sales-dash__stuck-co">{{ deal.company }}</span>
-              <span class="sales-dash__stuck-val">{{ deal.value }}</span>
+              <span class="sales-dash__stuck-val">{{ formatInr(deal.valueUsd) }}</span>
             </div>
             <p class="sales-dash__stuck-stage">{{ deal.stage }}</p>
             <div class="sales-dash__stuck-meta">
