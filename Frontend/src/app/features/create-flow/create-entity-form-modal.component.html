@@ -67,13 +67,16 @@
           }
         </label>
         <label class="create-form__field create-form__field--span2">
-          <span class="create-form__label">Requirement</span>
+          <span class="create-form__label">Requirement <span class="create-form__req">*</span></span>
           <input
             class="create-form__control"
             type="text"
             formControlName="requirement"
             placeholder="What is the customer looking for?"
           />
+          @if (fieldInvalid('lead', 'requirement')) {
+            <span class="create-form__err">Requirement is required.</span>
+          }
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Employees</span>

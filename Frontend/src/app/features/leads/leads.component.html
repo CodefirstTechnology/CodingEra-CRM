@@ -268,13 +268,16 @@
                 </select>
               </label>
               <label class="leads__field leads__field--full">
-                <span class="leads__label">Requirement</span>
+                <span class="leads__label">Requirement <span class="leads__req">*</span></span>
                 <input
                   class="leads__control leads__control--soft"
                   type="text"
                   formControlName="requirement"
                   placeholder="What is the customer looking for?"
                 />
+                @if (fieldInvalid('requirement')) {
+                  <span class="leads__err">Requirement is required.</span>
+                }
               </label>
               <label class="leads__field leads__field--full">
                 <span class="leads__label">Additional details</span>
@@ -360,7 +363,7 @@
         </button>
         @if (columnMenuOpen()) {
           <div class="leads__columns-menu" role="menu" aria-label="Choose lead table columns">
-            <p class="leads__columns-help">Name and source are required.</p>
+            <p class="leads__columns-help">Name, source, and requirement cannot be hidden.</p>
             @for (column of columnOptions(); track column.id) {
               <label class="leads__column-option" [class.is-required]="column.required">
                 <input
@@ -399,7 +402,7 @@
                 />
               </th>
               @for (column of visibleColumns(); track column.id) {
-                <th>{{ column.label }}</th>
+                <th [class.leads__th--mobile]="column.id === 'mobile'">{{ column.label }}</th>
               }
             </tr>
           </thead>
@@ -416,7 +419,11 @@
                   />
                 </td>
                 @for (column of visibleColumns(); track column.id) {
-                  <td [class.leads__strong]="column.id === 'name'" [class.leads__muted]="column.id === 'email' || column.id === 'updated'">
+                  <td
+                    [class.leads__strong]="column.id === 'name'"
+                    [class.leads__muted]="column.id === 'email' || column.id === 'updated'"
+                    [class.leads__td--mobile]="column.id === 'mobile'"
+                  >
                     @switch (column.id) {
                       @case ('name') {
                         <a [routerLink]="['/leads', row.id]" class="leads__name-link">{{ row.name }}</a>
@@ -481,6 +488,9 @@
                             <span class="leads__owner-name">{{ row.leadOwnerName || '—' }}</span>
                           </span>
                         }
+                      }
+                      @case ('mobile') {
+                        <span class="leads__cell-mobile">{{ formatMobileCell(row.mobile) }}</span>
                       }
                       @default {
                         {{ displayColumnValue(row, column.id) }}
