@@ -68,7 +68,7 @@
             <label class="tasks__field tasks__field--meta">
               <span class="tasks__label">Assignee</span>
               <select class="tasks__control tasks__control--soft" formControlName="assignee">
-                @for (a of assigneeOptions; track a.id) {
+                @for (a of assigneeOptions(); track a.id) {
                   <option [value]="a.id">{{ a.label }}</option>
                 }
               </select>

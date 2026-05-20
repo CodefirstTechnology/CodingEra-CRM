@@ -4,6 +4,8 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { AuthService } from '../../core/auth/auth.service';
+import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
@@ -48,6 +50,8 @@ export class TasksComponent {
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly tasksService = inject(TasksService);
   private readonly userScope = inject(UserDataScopeService);
+  private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
+  private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -76,16 +80,12 @@ export class TasksComponent {
     { value: 'High', label: '● High' },
   ];
 
-  protected readonly assigneeOptions: AssigneeOption[] = [
-    { id: 'RD', label: 'Rohit Dhaygude', initials: 'R' },
-    { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
-    { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
-    { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
-  ];
+  protected readonly assigneeOptions = this.leadOwnerOpts.options;
 
   protected readonly rows = signal<TaskRow[]>([]);
 
   constructor() {
+    this.leadOwnerOpts.load();
     this.refreshTasks();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'task') return;
@@ -114,7 +114,7 @@ export class TasksComponent {
     title: ['', [Validators.required, Validators.maxLength(200)]],
     description: ['', Validators.maxLength(2000)],
     status: this.fb.nonNullable.control<TaskStatus>('Backlog', Validators.required),
-    assignee: ['RD', Validators.required],
+    assignee: ['', Validators.required],
     dueDate: ['', Validators.required],
     priority: this.fb.nonNullable.control<TaskPriority>('Low', Validators.required),
   });
@@ -141,6 +141,12 @@ export class TasksComponent {
     this.sel.toggleSelectAll(this.rows().map((r) => r.id));
   }
 
+  private defaultAssigneeId(): string {
+    const sessionId = this.auth.user()?.id?.trim();
+    if (sessionId && this.leadOwnerOpts.findById(sessionId)) return sessionId;
+    return this.leadOwnerOpts.options()[0]?.id ?? '';
+  }
+
   protected openForm(): void {
     this.editingNumericId.set(null);
     this.clearEditQuery();
@@ -148,7 +154,7 @@ export class TasksComponent {
       title: '',
       description: '',
       status: 'Backlog',
-      assignee: 'RD',
+      assignee: this.defaultAssigneeId(),
       dueDate: this.localDatetimeInputValue(),
       priority: 'Low',
     });
@@ -164,7 +170,7 @@ export class TasksComponent {
       title: '',
       description: '',
       status: 'Backlog',
-      assignee: 'RD',
+      assignee: this.defaultAssigneeId(),
       dueDate: this.localDatetimeInputValue(),
       priority: 'Low',
     });
@@ -182,14 +188,16 @@ export class TasksComponent {
       .subscribe((row) => {
         if (!row) return;
         this.editingNumericId.set(id);
-        const person = this.assigneeOptions.find(
-          (a) => a.initials === row.assignedInitials || a.label === row.assignedTo,
-        );
+        const person =
+          this.leadOwnerOpts.findById(row.assignedToUserId) ??
+          this.assigneeOptions().find(
+            (a) => a.initials === row.assignedInitials || a.label === row.assignedTo,
+          );
         this.createForm.patchValue({
           title: row.title,
           description: row.description ?? '',
           status: row.status,
-          assignee: person?.id ?? 'RD',
+          assignee: person?.id ?? row.assignedToUserId ?? this.defaultAssigneeId(),
           dueDate: row.dueDateRaw?.trim() || this.localDatetimeInputValue(),
           priority: row.priority,
         });
@@ -253,9 +261,12 @@ export class TasksComponent {
     if (this.createForm.invalid) return;
 
     const raw = this.createForm.getRawValue();
-    const person = this.assigneeOptions.find((a) => a.id === raw.assignee);
+    const person =
+      this.leadOwnerOpts.findById(raw.assignee) ??
+      this.assigneeOptions().find((a) => a.id === raw.assignee);
     const dueRaw = raw.dueDate.trim();
     const dueDisplay = dueRaw ? this.formatDueDisplay(dueRaw) : '—';
+    const assigneeUserId = person?.id?.trim();
 
     const payload: Omit<TaskRow, 'id'> = {
       title: raw.title.trim(),
@@ -266,6 +277,8 @@ export class TasksComponent {
       dueDateRaw: dueRaw,
       assignedTo: person?.label ?? raw.assignee,
       assignedInitials: person?.initials ?? '?',
+      assignedToUserId:
+        assigneeUserId && /^\d+$/.test(assigneeUserId) ? assigneeUserId : undefined,
       lastModified: 'Just now',
     };
 

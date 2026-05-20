@@ -82,21 +82,64 @@ export function extractTaskRecords(raw: unknown): unknown[] {
   return [];
 }
 
+export interface TaskUpsertDto {
+  taskId?: number;
+  taskTitle?: string | null;
+  taskDescription?: string | null;
+  taskStatus?: string | null;
+  taskAssignee?: string | null;
+  taskDueDate: string;
+  taskPriority?: string | null;
+  assigneeUserId?: number | null;
+  relatedLeadId?: number | null;
+  relatedDealId?: number | null;
+}
+
+function dueLocalOrIsoToIso(raw: string | undefined | null): string {
+  const s = (raw ?? '').trim();
+  if (!s) return new Date().toISOString();
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? s : d.toISOString();
+}
+
+/** Maps UI / form state to `POST|PUT /api/tasks` body (`TaskUpsertDto`). */
+export function taskRowToUpsertDto(data: Omit<TaskRow, 'id'>, taskId?: number): TaskUpsertDto {
+  const assigneeUserId = data.assignedToUserId ? readOptionalInt(data.assignedToUserId) : null;
+  const relatedLeadId = data.relatedLeadId ? readOptionalInt(data.relatedLeadId) : null;
+  const relatedDealId = data.relatedDealId ? readOptionalInt(data.relatedDealId) : null;
+
+  return {
+    taskId: taskId != null && taskId > 0 ? taskId : 0,
+    taskTitle: data.title?.trim() || '',
+    taskDescription: data.description?.trim() || null,
+    taskStatus: data.status,
+    taskAssignee: data.assignedTo?.trim() || null,
+    taskDueDate: dueLocalOrIsoToIso(data.dueDateRaw),
+    taskPriority: data.priority,
+    assigneeUserId,
+    relatedLeadId,
+    relatedDealId,
+  };
+}
+
 /** Maps `GET /api/tasks` records to {@link TaskRow} (includes `assignedToUserId` when API sends it). */
 export function mapTaskApiRecord(raw: unknown): TaskRow {
   const r = (raw ?? {}) as Record<string, unknown>;
-  const id = String(readOptionalInt(r['id']) ?? r['id'] ?? '');
+  const id = String(readOptionalInt(r['taskId']) ?? readOptionalInt(r['id']) ?? r['id'] ?? '');
   const assignedToUserId = readAssignedUserId(r);
-  const assignedTo = readAssigneeLabel(r);
-  const dueRaw = String(r['dueDate'] ?? r['dueDateTime'] ?? r['DueDate'] ?? '').trim();
+  const taskAssignee = String(r['taskAssignee'] ?? r['TaskAssignee'] ?? '').trim();
+  const assignedTo = taskAssignee || readAssigneeLabel(r);
+  const dueRaw = String(
+    r['taskDueDate'] ?? r['TaskDueDate'] ?? r['dueDate'] ?? r['dueDateTime'] ?? r['DueDate'] ?? '',
+  ).trim();
   const initials = String(r['assignedInitials'] ?? r['assigneeInitials'] ?? '').trim();
 
   return {
     id,
-    title: String(r['title'] ?? r['name'] ?? '').trim() || 'Task',
-    description: String(r['description'] ?? '').trim(),
-    status: coerceStatus(String(r['status'] ?? r['taskStatus'] ?? '')),
-    priority: coercePriority(String(r['priority'] ?? '')),
+    title: String(r['taskTitle'] ?? r['TaskTitle'] ?? r['title'] ?? r['name'] ?? '').trim() || 'Task',
+    description: String(r['taskDescription'] ?? r['TaskDescription'] ?? r['description'] ?? '').trim(),
+    status: coerceStatus(String(r['taskStatus'] ?? r['TaskStatus'] ?? r['status'] ?? '')),
+    priority: coercePriority(String(r['taskPriority'] ?? r['TaskPriority'] ?? r['priority'] ?? '')),
     dueDate: dueRaw ? formatLastModified(dueRaw) : '—',
     dueDateRaw: dueRaw,
     assignedTo,
