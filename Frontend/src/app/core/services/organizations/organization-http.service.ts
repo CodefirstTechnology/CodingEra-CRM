@@ -8,6 +8,7 @@ import type { OrganizationRow } from '../../../features/organizations/organizati
 import {
   normalizeOrganizationApiRecord,
   organizationCreatePayload,
+  readOrganizationIdFromApiRaw,
   type OrganizationCreateInput,
 } from './organization-api.mapper';
 
@@ -71,9 +72,16 @@ export class OrganizationHttpService {
 
   create(input: OrganizationCreateInput): Observable<OrganizationRow> {
     const payload = organizationCreatePayload(input);
-    return this.http
-      .post<unknown>(this.baseUrl, payload, { headers: this.jsonHeaders() })
-      .pipe(map((raw) => normalizeOrganizationApiRecord(raw)));
+    return this.http.post<unknown>(this.baseUrl, payload, { headers: this.jsonHeaders() }).pipe(
+      map((raw) => {
+        const row = normalizeOrganizationApiRecord(raw);
+        const id = readOrganizationIdFromApiRaw(raw);
+        if (id != null && (!row.id || !String(row.id).trim())) {
+          return { ...row, id: String(id) };
+        }
+        return row;
+      }),
+    );
   }
 
   /** `PUT /api/organizations/{id}` — partial upsert fields merged with `id` in body. */

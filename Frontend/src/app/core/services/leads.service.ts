@@ -12,6 +12,8 @@ import type { LeadRow } from '../../features/leads/lead-row.model';
 import {
   leadCreatePayloadToApiJson,
   mapLeadNormalizedToRow,
+  applyLeadRowOrgFieldsFromPatch,
+  enrichLeadNormalizedFromPatch,
   mergeLeadApiDtoWithRowPatch,
   reconcileLeadNormalizedAfterPut,
 } from './leads/lead-api.mapper';
@@ -113,7 +115,11 @@ export class LeadsService {
     return this.withResolvedOrganization(withOwner).pipe(
       switchMap((body) => {
         const dto = this.roundRobin.applyToUpsertDto(body);
-        return this.leadHttp.create(dto).pipe(map(mapLeadNormalizedToRow));
+        const orgPatch = this.orgFieldsPatchFromLeadData(data, dto.organizationId ?? null);
+        return this.leadHttp.create(dto).pipe(
+          map(mapLeadNormalizedToRow),
+          map((row) => applyLeadRowOrgFieldsFromPatch(row, orgPatch)),
+        );
       }),
       tap(() => this.roundRobin.advanceAfterLeadCreated()),
     );
@@ -134,31 +140,42 @@ export class LeadsService {
         return this.ensureLeadOrganizationFk(prev, patch).pipe(
           switchMap((prevWithOrg) =>
             this.resolveOrganizationForPatch(patch).pipe(
-              switchMap((organizationId) => {
-                const prevForMerge =
-                  organizationId != null
-                    ? {
-                        ...prevWithOrg,
-                        organizationId,
-                        organizationName:
-                          patch.organization?.trim() || prevWithOrg.organizationName,
-                      }
-                    : prevWithOrg;
+              switchMap((resolvedOrgId) => {
+                const linkedOrgId =
+                  resolvedOrgId != null && resolvedOrgId > 0
+                    ? resolvedOrgId
+                    : prevWithOrg.organizationId != null && prevWithOrg.organizationId > 0
+                      ? prevWithOrg.organizationId
+                      : null;
+                const prevForMerge: LeadNormalized = {
+                  ...prevWithOrg,
+                  organizationId: linkedOrgId ?? prevWithOrg.organizationId,
+                  organizationName:
+                    patch.organization?.trim() || prevWithOrg.organizationName || '',
+                };
                 const dto = mergeLeadApiDtoWithRowPatch(prevForMerge, patch);
-                if (organizationId != null && organizationId > 0) {
-                  dto.organizationId = organizationId;
-                }
-                if (
-                  (dto.organizationId == null || dto.organizationId <= 0) &&
-                  prevForMerge.organizationId != null &&
-                  prevForMerge.organizationId > 0
-                ) {
-                  dto.organizationId = prevForMerge.organizationId;
+                if (linkedOrgId != null && linkedOrgId > 0) {
+                  dto.organizationId = linkedOrgId;
                 }
                 const body = buildLeadPutJson(dto, prevForMerge);
+                if (linkedOrgId != null && linkedOrgId > 0) {
+                  body['organizationId'] = linkedOrgId;
+                }
+                const orgName = patch.organization?.trim() || prevForMerge.organizationName?.trim();
+                if (orgName) {
+                  body['organizationName'] = orgName;
+                }
+                const reconcileBaseline = enrichLeadNormalizedFromPatch(prevForMerge, patch);
                 return this.leadHttp.put(id, body).pipe(
-                  map((norm) => reconcileLeadNormalizedAfterPut(norm, prevForMerge, patch)),
+                  map((norm) => reconcileLeadNormalizedAfterPut(norm, reconcileBaseline, patch)),
                   map(mapLeadNormalizedToRow),
+                  map((row) => {
+                    const orgPatch: Partial<Omit<LeadRow, 'id'>> = { ...patch };
+                    if (linkedOrgId != null && linkedOrgId > 0) {
+                      orgPatch.organizationId = String(linkedOrgId);
+                    }
+                    return applyLeadRowOrgFieldsFromPatch(row, orgPatch);
+                  }),
                 );
               }),
             ),
@@ -237,10 +254,32 @@ export class LeadsService {
         employeeCountId: data.employeeCountId,
       })
       .pipe(
-        map((organizationId) =>
-          organizationId != null && organizationId > 0 ? { ...body, organizationId } : body,
-        ),
+        map((organizationId) => {
+          const out: LeadUpsertDto = { ...body, organizationName: name };
+          if (organizationId != null && organizationId > 0) {
+            out.organizationId = organizationId;
+          }
+          return out;
+        }),
       );
+  }
+
+  private orgFieldsPatchFromLeadData(
+    data: Omit<LeadRow, 'id'>,
+    organizationId: number | null,
+  ): Partial<Omit<LeadRow, 'id'>> {
+    const patch: Partial<Omit<LeadRow, 'id'>> = {
+      organization: data.organization?.trim() || '',
+      website: data.website?.trim() || undefined,
+      territory: data.territory?.trim() || undefined,
+      territoryId: data.territoryId,
+      industry: data.industry?.trim() || undefined,
+      industryId: data.industryId,
+    };
+    if (organizationId != null && organizationId > 0) {
+      patch.organizationId = String(organizationId);
+    }
+    return patch;
   }
 
   async updateAsync(id: number, patch: Partial<Omit<LeadRow, 'id'>>): Promise<LeadRow | null> {

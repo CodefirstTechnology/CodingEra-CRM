@@ -124,6 +124,13 @@
                 </select>
               </label>
               <label class="leads__field">
+                <span class="leads__label">First name <span class="leads__req">*</span></span>
+                <input class="leads__control leads__control--soft" type="text" formControlName="firstName" autocomplete="given-name" />
+                @if (fieldInvalid('firstName')) {
+                  <span class="leads__err">First name is required.</span>
+                }
+              </label>
+              <label class="leads__field">
                 <span class="leads__label">Last name <span class="leads__req">*</span></span>
                 <input class="leads__control leads__control--soft" type="text" formControlName="lastName" autocomplete="family-name" />
                 @if (fieldInvalid('lastName')) {
@@ -132,18 +139,9 @@
               </label>
               <label class="leads__field">
                 <span class="leads__label">Mobile no.</span>
-                <input class="leads__control leads__control--soft" type="tel" formControlName="mobile" autocomplete="tel" />
-                @if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['required']) {
-                  <span class="leads__err">Mobile is required.</span>
-                } @else if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['pattern']) {
+                <input class="leads__control leads__control--soft" type="tel" formControlName="mobile" autocomplete="tel" inputmode="numeric" />
+                @if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['pattern']) {
                   <span class="leads__err">Enter exactly 10 digits.</span>
-                }
-              </label>
-              <label class="leads__field">
-                <span class="leads__label">First name <span class="leads__req">*</span></span>
-                <input class="leads__control leads__control--soft" type="text" formControlName="firstName" autocomplete="given-name" />
-                @if (fieldInvalid('firstName')) {
-                  <span class="leads__err">First name is required.</span>
                 }
               </label>
               <label class="leads__field">

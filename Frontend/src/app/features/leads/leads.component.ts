@@ -22,7 +22,7 @@ import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-pic
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
 import { createIdSelection } from '../../shared/utils/selection-manager';
-import { optionalUrlValidator } from '../../shared/validators/crm-validators';
+import { optionalMobile10Validator, optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { environment } from '../../../environments/environment';
 import type { IndiaMartLeadStatus } from '../indiamartlead/indiamart-lead.model';
 import { INDIA_MART_LEAD_STATUSES } from '../indiamartlead/indiamart-lead.model';
@@ -438,7 +438,7 @@ export class LeadsComponent {
   protected readonly createForm = this.fb.nonNullable.group({
     salutation: [''],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
-    mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
+    mobile: ['', [optionalMobile10Validator()]],
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
