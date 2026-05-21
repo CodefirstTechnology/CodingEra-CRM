@@ -1,3 +1,4 @@
+import { coerceLeadStatus } from '../../core/services/leads/lead-api.mapper';
 import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { IndiaMartLead } from './indiamart-lead.model';
 
@@ -15,7 +16,10 @@ export function parseIndiamartNumericIdFromRowId(id: string): number | null {
 }
 
 function mapIndiaMartStatusToLeadStatus(status: IndiaMartLead['status']): LeadStatus {
-  return status as LeadStatus;
+  const coerced = coerceLeadStatus(status);
+  if (coerced === 'Converted') return 'Qualified';
+  if (coerced === 'Lost') return 'Unqualified';
+  return coerced;
 }
 
 /**

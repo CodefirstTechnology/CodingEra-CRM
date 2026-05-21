@@ -16,6 +16,10 @@ import { OrganizationMasterSelectService } from '../../core/services/organizatio
 import type { MasterDataOption } from '../../core/services/leads/lead-master-data.service';
 import { LeadMasterDataService } from '../../core/services/leads/lead-master-data.service';
 import {
+  FALLBACK_LEAD_STATUS_OPTIONS,
+  resolveLeadStatusIdFromName,
+} from '../../core/services/leads/lead-status.constants';
+import {
   masterOptionFormValue,
   resolveOrgMasterPick,
   resolveSalutationLabel,
@@ -62,9 +66,14 @@ export class CreateEntityFormModalComponent {
   private readonly leadMasterData = inject(LeadMasterDataService);
 
   private readonly salutationsFromApi = signal<MasterDataOption[]>([]);
+  private readonly leadStatusesFromApi = signal<MasterDataOption[]>([]);
   protected readonly salutationSelectOptions = computed(() =>
     salutationSelectOptions(this.salutationsFromApi()),
   );
+  protected readonly leadStatusSelectOptions = computed(() => {
+    const api = this.leadStatusesFromApi();
+    return api.length > 0 ? api : [...FALLBACK_LEAD_STATUS_OPTIONS];
+  });
   protected readonly masterOptionFormValue = masterOptionFormValue;
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
@@ -108,8 +117,6 @@ export class CreateEntityFormModalComponent {
     'Closed Won',
     'Closed Lost',
   ];
-
-  protected readonly leadStatusOptions: LeadStatus[] = ['New', 'Contacted', 'Qualified', 'Lost'];
 
   protected readonly taskStatusOptions: { value: TaskStatus; label: string }[] = [
     { value: 'Backlog', label: 'Backlog' },
@@ -216,6 +223,10 @@ export class CreateEntityFormModalComponent {
       .loadSalutations()
       .pipe(take(1))
       .subscribe((rows) => this.salutationsFromApi.set(rows));
+    this.leadMasterData
+      .loadLeadStatuses()
+      .pipe(take(1))
+      .subscribe((rows) => this.leadStatusesFromApi.set(rows));
     effect(() => {
       const k = this.flow.formKind();
       if (!k) return;
@@ -471,6 +482,7 @@ export class CreateEntityFormModalComponent {
       territory: raw.territory || undefined,
       industry: raw.industry,
       status: raw.status,
+      leadStatusId: resolveLeadStatusIdFromName(raw.status) ?? undefined,
       requestType: raw.requestType || undefined,
       requirement: raw.requirement.trim(),
       notes: raw.customField.trim() || undefined,

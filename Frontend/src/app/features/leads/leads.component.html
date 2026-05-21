@@ -325,7 +325,7 @@
       }
     </label>
     <div class="leads__filters" role="group" aria-label="Filter by status">
-      @for (chip of filterChips; track chip.id) {
+      @for (chip of filterChips(); track chip.id) {
         <button
           type="button"
           class="leads__chip"
@@ -440,44 +440,13 @@
                       @case ('status') {
                         @if (isAdminViewer()) {
                           <span [class]="statusClass(row.status)">{{ row.status }}</span>
-                        } @else if (leadSourceLabel(row) === 'IndiaMART') {
-                          <select
-                            class="leads__status-select"
-                            [value]="row.status"
-                            (change)="onIndiaMartStatusChange(row, $event)"
-                            [attr.aria-label]="'Status for ' + row.name"
-                          >
-                            @for (st of indiaMartStatusOptions; track st) {
-                              <option [value]="st">{{ st }}</option>
-                            }
-                          </select>
-                        } @else if (leadSourceLabel(row) === 'Justdial') {
-                          <select
-                            class="leads__status-select"
-                            [value]="row.status"
-                            (change)="onJustdialStatusChange(row, $event)"
-                            [attr.aria-label]="'Status for ' + row.name"
-                          >
-                            @for (st of justdialStatusOptions; track st) {
-                              <option [value]="st">{{ st }}</option>
-                            }
-                          </select>
-                        } @else if (leadSourceLabel(row) === 'TradeIndia') {
-                          <select
-                            class="leads__status-select"
-                            [value]="row.status"
-                            (change)="onTradeIndiaStatusChange(row, $event)"
-                            [attr.aria-label]="'Status for ' + row.name"
-                          >
-                            @for (st of tradeindiaStatusOptions; track st) {
-                              <option [value]="st">{{ st }}</option>
-                            }
-                          </select>
                         } @else if (canEditLeadStatusInTable(row)) {
                           <select
                             class="leads__status-select"
-                            [value]="statusSelectValueForRow(row)"
-                            (change)="onManualLeadStatusChange(row, $event)"
+                            [ngModel]="statusSelectValueForRow(row)"
+                            [ngModelOptions]="{ standalone: true }"
+                            (ngModelChange)="onLeadStatusSelectModelChange(row, $event)"
+                            (click)="$event.stopPropagation()"
                             [attr.aria-label]="'Status for ' + row.name"
                           >
                             @for (opt of statusSelectOptions(); track opt.id + opt.name) {

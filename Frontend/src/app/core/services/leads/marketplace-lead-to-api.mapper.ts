@@ -1,4 +1,5 @@
 import { environment } from '../../../../environments/environment';
+import { coerceLeadStatus } from './lead-api.mapper';
 import type { LeadRow, LeadSource, LeadStatus } from '../../../features/leads/lead-row.model';
 import type { IndiaMartLead } from '../../../features/indiamartlead/indiamart-lead.model';
 import type { JustdialLead } from '../../../features/justdiallead/justdial-lead.model';
@@ -114,9 +115,17 @@ export function indiaMartRequirementText(lead: MarketplaceLeadShape): string {
   return `${product}${qtySuffix}`;
 }
 
+/** Maps marketplace-only labels onto the six CRM `lead_statuses` names before API save. */
+function crmMasterStatusFromMarketplace(raw: string | undefined): LeadStatus {
+  const coerced = coerceLeadStatus(raw?.trim() || 'New');
+  if (coerced === 'Converted') return 'Qualified';
+  if (coerced === 'Lost') return 'Unqualified';
+  return coerced;
+}
+
 function toUpsertDto(source: MarketplaceApiSource, lead: MarketplaceLeadShape): LeadUpsertDto {
   const { firstName, lastName } = splitCustomerName(lead.customerName);
-  const status = (lead.status?.trim() || 'New') as LeadStatus;
+  const status = crmMasterStatusFromMarketplace(lead.status);
 
   return {
     id: 0,

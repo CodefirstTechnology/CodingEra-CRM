@@ -1,3 +1,4 @@
+import { coerceLeadStatus } from '../../core/services/leads/lead-api.mapper';
 import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { JustdialLead } from './justdial-lead.model';
 
@@ -15,7 +16,10 @@ export function parseJustdialNumericIdFromRowId(id: string): number | null {
 }
 
 function mapJustdialStatusToLeadStatus(status: JustdialLead['status']): LeadStatus {
-  return status as LeadStatus;
+  const coerced = coerceLeadStatus(status);
+  if (coerced === 'Converted') return 'Qualified';
+  if (coerced === 'Lost') return 'Unqualified';
+  return coerced;
 }
 
 /**

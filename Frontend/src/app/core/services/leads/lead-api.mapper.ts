@@ -1,5 +1,6 @@
 import { parseRevenueInputToNumber } from '../../../shared/utils/revenue-parse';
 import type { LeadRow, LeadSource, LeadStatus } from '../../../features/leads/lead-row.model';
+import { resolveLeadStatusIdFromName } from './lead-status.constants';
 import { applyMarketplaceNotesToLeadRow, extractMarketplaceExternalRef, parseMarketplaceNotesDisplay } from './marketplace-lead-to-api.mapper';
 import type { LeadNormalized, LeadUpsertDto } from './lead-api.models';
 
@@ -359,6 +360,17 @@ export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
   const tsRaw = dto.updatedAt?.trim() || dto.createdAt?.trim() || '';
   const parsedSort = tsRaw ? Date.parse(tsRaw) : NaN;
 
+  const status = coerceLeadStatus(dto.statusName);
+  const statusIdFromName = resolveLeadStatusIdFromName(status);
+  const apiStatusId = dto.leadStatusId != null && dto.leadStatusId > 0 ? dto.leadStatusId : undefined;
+  /** Keep FK aligned with resolved status label when API FK drifts (common on marketplace imports). */
+  const leadStatusId =
+    statusIdFromName != null && statusIdFromName > 0
+      ? apiStatusId != null && apiStatusId !== statusIdFromName
+        ? statusIdFromName
+        : (apiStatusId ?? statusIdFromName)
+      : apiStatusId;
+
   const row: LeadRow = {
     id,
     name,
@@ -376,14 +388,14 @@ export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
     website: dto.website || undefined,
     territory: dto.territory || undefined,
     industry: dto.industry || 'Other',
-    status: coerceLeadStatus(dto.statusName),
+    status,
     requestType: dto.requestTypeName || undefined,
     salutationId: dto.salutationId != null && dto.salutationId > 0 ? dto.salutationId : undefined,
     requestTypeId: dto.requestTypeId != null && dto.requestTypeId > 0 ? dto.requestTypeId : undefined,
     territoryId: dto.territoryId != null && dto.territoryId > 0 ? dto.territoryId : undefined,
     employeeCountId: dto.employeeCountId != null && dto.employeeCountId > 0 ? dto.employeeCountId : undefined,
     industryId: dto.industryId != null && dto.industryId > 0 ? dto.industryId : undefined,
-    leadStatusId: dto.leadStatusId != null && dto.leadStatusId > 0 ? dto.leadStatusId : undefined,
+    leadStatusId,
     notes: dto.notes || undefined,
     requirement: dto.requirement || undefined,
     leadOwnerName:

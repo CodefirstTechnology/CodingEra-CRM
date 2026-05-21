@@ -25,6 +25,7 @@ import { NotesService } from '../../core/services/notes.service';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
 import { environment } from '../../../environments/environment';
 import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
+import { resolveLeadStatusIdFromName } from '../../core/services/leads/lead-status.constants';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
@@ -920,8 +921,14 @@ export class LeadDetailComponent {
   protected convertToDeal(): void {
     const row = this.lead();
     const idn = this.numericId();
-    if (!row || idn == null || row.status === 'Converted') return;
+    if (!row || idn == null) return;
+    const alreadyQualified =
+      row.status === 'Qualified' ||
+      row.status === 'Converted' ||
+      row.leadStatusId === resolveLeadStatusIdFromName('Qualified');
+    if (alreadyQualified) return;
 
+    const qualifiedStatusId = resolveLeadStatusIdFromName('Qualified');
     const after = environment.leadConversionAfterDeal;
     this.dealsService
       .create(mapLeadToDealRow(row))
@@ -932,7 +939,10 @@ export class LeadDetailComponent {
           after === 'delete'
             ? this.leadsService.delete(idn).pipe(take(1))
             : this.leadsService.update(idn, {
-                status: 'Converted' satisfies LeadStatus,
+                status: 'Qualified' satisfies LeadStatus,
+                ...(qualifiedStatusId != null && qualifiedStatusId > 0
+                  ? { leadStatusId: qualifiedStatusId }
+                  : {}),
                 updated: 'Just now',
               }),
         ),
@@ -944,7 +954,16 @@ export class LeadDetailComponent {
           if (after === 'delete') {
             void this.router.navigateByUrl('/leads');
           } else {
-            this.lead.update((cur) => (cur ? { ...cur, status: 'Converted', updated: 'Just now' } : cur));
+            this.lead.update((cur) =>
+              cur
+                ? {
+                    ...cur,
+                    status: 'Qualified',
+                    leadStatusId: qualifiedStatusId ?? cur.leadStatusId,
+                    updated: 'Just now',
+                  }
+                : cur,
+            );
           }
           if (environment.showLeadConvertSuccessMessage) {
             window.alert('Lead converted to deal successfully');
