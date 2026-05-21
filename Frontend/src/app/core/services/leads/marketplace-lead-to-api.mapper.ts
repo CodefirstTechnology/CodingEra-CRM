@@ -1,4 +1,5 @@
 import { environment } from '../../../../environments/environment';
+import { plainTextFromHtml } from '../../../shared/utils/plain-text-from-html';
 import { coerceLeadStatus } from './lead-api.mapper';
 import type { LeadRow, LeadSource, LeadStatus } from '../../../features/leads/lead-row.model';
 import type { IndiaMartLead } from '../../../features/indiamartlead/indiamart-lead.model';
@@ -106,9 +107,9 @@ function apiStoredLeadSourceField(): string {
 
 /** Inquiry text for IndiaMART → DB `requirement` column (not organization name). */
 export function indiaMartRequirementText(lead: MarketplaceLeadShape): string {
-  const message = lead.message.trim();
+  const message = plainTextFromHtml(lead.message);
   if (message) return message;
-  const product = lead.product.trim();
+  const product = plainTextFromHtml(lead.product);
   if (!product) return '';
   const qty = lead.quantity.trim();
   const qtySuffix = qty && qty !== '—' ? ` · ${qty}` : '';
@@ -241,11 +242,11 @@ export function applyMarketplaceNotesToLeadRow(row: LeadRow, notes: string | nul
         status: '',
       });
     } else if (parsed.message) {
-      out.requirement = parsed.message;
+      out.requirement = plainTextFromHtml(parsed.message);
     }
   }
   if (!out.notes?.trim() && parsed.message) {
-    out.notes = parsed.message;
+    out.notes = plainTextFromHtml(parsed.message);
   }
   if (parsed.inquirySource) {
     out.source = parsed.inquirySource;

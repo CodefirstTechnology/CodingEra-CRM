@@ -1,5 +1,6 @@
 import { parseRevenueInputToNumber } from '../../../shared/utils/revenue-parse';
 import type { LeadRow, LeadSource, LeadStatus } from '../../../features/leads/lead-row.model';
+import { plainTextFromHtml } from '../../../shared/utils/plain-text-from-html';
 import { resolveLeadStatusIdFromName } from './lead-status.constants';
 import { applyMarketplaceNotesToLeadRow, extractMarketplaceExternalRef, parseMarketplaceNotesDisplay } from './marketplace-lead-to-api.mapper';
 import type { LeadNormalized, LeadUpsertDto } from './lead-api.models';
@@ -333,7 +334,7 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
     requestTypeId,
     requestTypeName,
     notes: String(r['notes'] ?? '').trim(),
-    requirement: String(r['requirement'] ?? r['Requirement'] ?? '').trim(),
+    requirement: plainTextFromHtml(String(r['requirement'] ?? r['Requirement'] ?? '')),
     leadOwnerId: readLeadOwnerFk(r),
     leadOwnerName: readLeadOwnerDisplayName(r),
     leadSource: String(r['leadSource'] ?? r['source'] ?? r['Source'] ?? '').trim(),

@@ -26,6 +26,7 @@ import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
+import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { optionalMobile10Validator, optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { environment } from '../../../environments/environment';
@@ -874,7 +875,7 @@ export class LeadsComponent {
     const value = (row as unknown as Record<string, unknown>)[id];
     if (value == null) return '—';
     if (typeof value === 'string') {
-      const t = value.trim();
+      const t = id === 'requirement' || id === 'notes' ? plainTextFromHtml(value) : value.trim();
       if (!t || /^null$/i.test(t) || /^undefined$/i.test(t)) return '—';
       return t;
     }

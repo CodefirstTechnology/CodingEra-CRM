@@ -1,4 +1,5 @@
 import { coerceLeadStatus } from '../../core/services/leads/lead-api.mapper';
+import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { IndiaMartLead } from './indiamart-lead.model';
 
@@ -51,8 +52,8 @@ export function mapIndiaMartLeadToLeadRow(im: IndiaMartLead): LeadRow {
     owner: 'IM',
     updated: updatedLabel,
     source: im.source.trim(),
-    requirement: im.message.trim(),
-    notes: im.message.trim(),
+    requirement: plainTextFromHtml(im.message),
+    notes: plainTextFromHtml(im.message),
     leadSource: 'IndiaMART',
     sortTimestamp: ts,
   };

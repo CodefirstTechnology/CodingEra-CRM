@@ -1,4 +1,5 @@
 import { coerceLeadStatus } from '../../core/services/leads/lead-api.mapper';
+import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { TradeIndiaLead } from './tradeindia-lead.model';
 
@@ -51,7 +52,7 @@ export function mapTradeIndiaLeadToLeadRow(ti: TradeIndiaLead): LeadRow {
     owner: 'TI',
     updated: updatedLabel,
     source: ti.source.trim(),
-    requirement: ti.message.trim(),
+    requirement: plainTextFromHtml(ti.message),
     notes: ti.message.trim(),
     leadSource: 'TradeIndia',
     sortTimestamp: ts,
