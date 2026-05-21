@@ -145,6 +145,15 @@
   }
 }
 
+.tasks__th--record {
+  min-width: 160px;
+}
+
+.tasks__td--record {
+  color: #5a6a85;
+  font-weight: 500;
+}
+
 .tasks__td--muted {
   color: var(--text-muted);
 }

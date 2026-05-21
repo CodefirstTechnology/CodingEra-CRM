@@ -226,6 +226,29 @@
   color: var(--deals-text-primary);
 }
 
+.deals__inline-input {
+  width: 100%;
+  min-width: 10rem;
+  max-width: 16rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--deals-border, #e5e7eb);
+  border-radius: 6px;
+  font-size: inherit;
+  font-family: inherit;
+  color: var(--deals-text-primary);
+  background: #fff;
+
+  &:hover {
+    border-color: #cbd5e1;
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--deals-action-blue, #2563eb);
+    box-shadow: 0 0 0 2px rgb(37 99 235 / 0.15);
+  }
+}
+
 .deals__assign {
   display: inline-flex;
   align-items: center;

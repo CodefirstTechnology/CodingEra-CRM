@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 import type { TaskRow } from '../../features/tasks/tasks.component';
 import { filterTasksForUser } from '../../features/user-dashboard/utils/user-ownership.util';
@@ -7,7 +7,9 @@ import { AuthService } from '../auth/auth.service';
 import { AdminUsersService, type AdminUserRow } from './admin-users.service';
 import { initialsFromDisplayName } from './leads/lead-owner-options.service';
 import { LeadsService } from './leads.service';
+import { DealsService } from './deals.service';
 import { TaskHttpService } from './tasks/task-http.service';
+import { dealActivityDisplayName } from '../../shared/utils/activity-entity-display.util';
 import {
   attachRelatedLeadName,
   buildLeadNameByIdMap,
@@ -20,6 +22,7 @@ export class TasksService {
   private readonly auth = inject(AuthService);
   private readonly adminUsers = inject(AdminUsersService);
   private readonly leadsService = inject(LeadsService);
+  private readonly dealsService = inject(DealsService);
 
   getAll(): Observable<TaskRow[]> {
     return this.enrichRows(this.taskHttp.list());
@@ -74,20 +77,19 @@ export class TasksService {
 
   private enrichRows(source: Observable<TaskRow[]>): Observable<TaskRow[]> {
     return this.withUsers((users) =>
-      this.leadsService.getAll().pipe(
-        catchError(() => of([])),
-        switchMap((leads) => {
+      forkJoin({
+        leads: this.leadsService.getAll().pipe(catchError(() => of([]))),
+        deals: this.dealsService.getAll().pipe(catchError(() => of([]))),
+      }).pipe(
+        switchMap(({ leads, deals }) => {
           const leadNames = buildLeadNameByIdMap(leads);
+          const dealNames = new Map<string, string>();
+          for (const deal of deals) {
+            const id = String(deal.id).trim();
+            if (id) dealNames.set(id, dealActivityDisplayName(deal));
+          }
           return source.pipe(
-            map((rows) =>
-              rows.map((row) =>
-                attachRelatedLeadName(
-                  this.enrichTask(row, users),
-                  resolveTaskRelatedLeadId(row),
-                  leadNames,
-                ),
-              ),
-            ),
+            map((rows) => rows.map((row) => this.enrichTaskRecord(row, users, leadNames, dealNames))),
           );
         }),
       ),
@@ -96,24 +98,44 @@ export class TasksService {
 
   private enrichRow(source: Observable<TaskRow | null>): Observable<TaskRow | null> {
     return this.withUsers((users) =>
-      this.leadsService.getAll().pipe(
-        catchError(() => of([])),
-        switchMap((leads) => {
+      forkJoin({
+        leads: this.leadsService.getAll().pipe(catchError(() => of([]))),
+        deals: this.dealsService.getAll().pipe(catchError(() => of([]))),
+      }).pipe(
+        switchMap(({ leads, deals }) => {
           const leadNames = buildLeadNameByIdMap(leads);
+          const dealNames = new Map<string, string>();
+          for (const deal of deals) {
+            const id = String(deal.id).trim();
+            if (id) dealNames.set(id, dealActivityDisplayName(deal));
+          }
           return source.pipe(
             map((row) =>
-              row != null
-                ? attachRelatedLeadName(
-                    this.enrichTask(row, users),
-                    resolveTaskRelatedLeadId(row),
-                    leadNames,
-                  )
-                : null,
+              row != null ? this.enrichTaskRecord(row, users, leadNames, dealNames) : null,
             ),
           );
         }),
       ),
     );
+  }
+
+  private enrichTaskRecord(
+    row: TaskRow,
+    users: AdminUserRow[],
+    leadNames: Map<string, string>,
+    dealNames: Map<string, string>,
+  ): TaskRow {
+    let enriched = attachRelatedLeadName(
+      this.enrichTask(row, users),
+      resolveTaskRelatedLeadId(row),
+      leadNames,
+    );
+    const dealId = row.relatedDealId?.trim();
+    if (dealId) {
+      const name = dealNames.get(dealId);
+      if (name) enriched = { ...enriched, relatedDealName: name };
+    }
+    return enriched;
   }
 
   private withUsers<T>(project: (users: AdminUserRow[]) => Observable<T>): Observable<T> {

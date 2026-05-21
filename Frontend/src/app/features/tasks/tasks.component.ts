@@ -41,6 +41,8 @@ export interface TaskRow {
   relatedLeadName?: string;
   /** When created from deal detail — used to scope tasks on the deal. */
   relatedDealId?: string;
+  /** Resolved from `deals` via `relatedDealId`. */
+  relatedDealName?: string;
 }
 
 @Component({
@@ -365,5 +367,18 @@ export class TasksComponent {
       default:
         return 'tasks__pri tasks__pri--low';
     }
+  }
+
+  /** e.g. `Lead · Appa Contact` or `Deal · Acme Corp` (matches Notes table). */
+  protected taskRecordLabel(row: TaskRow): string {
+    if (row.relatedLeadId?.trim()) {
+      const name = row.relatedLeadName?.trim() || '—';
+      return `Lead · ${name}`;
+    }
+    if (row.relatedDealId?.trim()) {
+      const name = row.relatedDealName?.trim() || `Deal #${row.relatedDealId}`;
+      return `Deal · ${name}`;
+    }
+    return '—';
   }
 }

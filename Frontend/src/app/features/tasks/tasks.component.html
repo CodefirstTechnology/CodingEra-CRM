@@ -115,7 +115,7 @@
               />
             </th>
             <th class="tasks__th">Title</th>
-            <th class="tasks__th">Related lead</th>
+            <th class="tasks__th tasks__th--record">Record</th>
             <th class="tasks__th">Status</th>
             <th class="tasks__th">Priority</th>
             <th class="tasks__th">Due Date</th>
@@ -141,7 +141,7 @@
                   {{ row.title }}
                 </button>
               </td>
-              <td class="tasks__td tasks__td--muted">{{ row.relatedLeadName ?? '—' }}</td>
+              <td class="tasks__td tasks__td--record">{{ taskRecordLabel(row) }}</td>
               <td class="tasks__td"><span [class]="statusClass(row.status)">{{ row.status }}</span></td>
               <td class="tasks__td"><span [class]="priorityClass(row.priority)">{{ row.priority }}</span></td>
               <td class="tasks__td">{{ row.dueDate }}</td>

@@ -13,6 +13,7 @@ import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
+import { leadPersonName } from '../../shared/utils/lead-person-name.util';
 
 export type DealPipelineStatus =
   | 'Qualification'
@@ -120,13 +121,12 @@ export class DealsComponent {
   ];
 
   protected readonly rows = signal<DealRow[]>([]);
-  private readonly requiredColumnIds = new Set(['organizationName', 'email', 'assignedTo']);
+  private readonly requiredColumnIds = new Set(['contactName', 'organizationName', 'assignedTo']);
   private readonly selectedColumnIds = signal<string[]>([
+    'contactName',
     'organizationName',
-    'email',
     'assignedTo',
     'annualRevenue',
-    'mobile',
     'status',
   ]);
   private readonly ignoredColumnIds = new Set([
@@ -135,8 +135,12 @@ export class DealsComponent {
     'assignedInitials',
     'relatedContactId',
     'relatedOrganizationId',
+    'firstName',
+    'lastName',
+    'salutation',
   ]);
   private readonly preferredColumnOrder = [
+    'contactName',
     'organizationName',
     'annualRevenue',
     'status',
@@ -144,25 +148,23 @@ export class DealsComponent {
     'mobile',
     'assignedTo',
     'lastModified',
-    'firstName',
-    'lastName',
     'employees',
     'website',
     'territory',
     'industry',
     'requirement',
-    'salutation',
     'gender',
     'probabilityPercent',
     'nextStep',
   ];
   private readonly columnLabels: Record<string, string> = {
+    contactName: 'Name',
     organizationName: 'Organization',
+    email: 'Email',
+    mobile: 'Mobile',
     annualRevenue: 'Annual revenue',
     assignedTo: 'Assigned to',
     lastModified: 'Last modified',
-    firstName: 'First name',
-    lastName: 'Last name',
     probabilityPercent: 'Probability',
     nextStep: 'Next step',
   };
@@ -285,12 +287,92 @@ export class DealsComponent {
     return this.requiredColumnIds.has(id) || this.selectedColumnIds().includes(id);
   }
 
+  /** Primary contact name from `first_name` + `last_name` on the deal row. */
+  protected dealContactName(row: DealRow): string {
+    return leadPersonName({
+      firstName: row.firstName,
+      lastName: row.lastName,
+      name: '',
+    });
+  }
+
   protected displayColumnValue(row: DealRow, id: string): string {
+    if (id === 'contactName') {
+      return this.dealContactName(row);
+    }
     const value = (row as unknown as Record<string, unknown>)[id];
     if (value == null) return '-';
     if (typeof value === 'string') return value.trim() || '-';
     if (typeof value === 'number' || typeof value === 'boolean') return String(value);
     return '-';
+  }
+
+  protected dealEmailInputValue(row: DealRow): string {
+    const e = row.email?.trim();
+    return e && e !== '—' ? e : '';
+  }
+
+  protected dealMobileInputValue(row: DealRow): string {
+    const m = row.mobile?.trim();
+    return m && m !== '—' ? m : '';
+  }
+
+  protected onDealEmailBlur(row: DealRow, ev: Event): void {
+    const input = ev.target as HTMLInputElement;
+    const raw = input.value.trim();
+    const previous = this.dealEmailInputValue(row);
+    if (raw === previous) return;
+
+    if (raw && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw)) {
+      input.value = previous;
+      this.toast.error('Enter a valid email.');
+      return;
+    }
+
+    const idn = Number(row.id);
+    if (!Number.isFinite(idn)) return;
+    if (
+      raw &&
+      this.rows().some(
+        (r) => r.id !== row.id && r.email.trim().toLowerCase() === raw.toLowerCase(),
+      )
+    ) {
+      input.value = previous;
+      this.toast.error('This email is already used on a deal.');
+      return;
+    }
+
+    this.patchDealInline(row, { email: raw || '—' });
+  }
+
+  protected onDealMobileBlur(row: DealRow, ev: Event): void {
+    const input = ev.target as HTMLInputElement;
+    const raw = input.value.trim();
+    const previous = this.dealMobileInputValue(row);
+    if (raw === previous) return;
+    this.patchDealInline(row, { mobile: raw || '—' });
+  }
+
+  private patchDealInline(row: DealRow, patch: Partial<DealRow>): void {
+    const idn = Number(row.id);
+    if (!Number.isFinite(idn)) return;
+
+    this.dealsService
+      .update(idn, { ...patch, lastModified: 'Just now' })
+      .pipe(take(1))
+      .subscribe({
+        next: (updated) => {
+          if (updated) {
+            this.rows.update((rows) => rows.map((r) => (r.id === row.id ? updated : r)));
+            const field =
+              'email' in patch ? 'Email' : 'mobile' in patch ? 'Mobile' : 'Deal';
+            this.toast.success(`${field} updated.`);
+          } else {
+            this.refreshDeals();
+          }
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+      });
   }
 
   protected openForm(): void {

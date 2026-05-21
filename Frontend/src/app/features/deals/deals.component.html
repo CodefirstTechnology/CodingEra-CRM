@@ -246,7 +246,7 @@
         </button>
         @if (columnMenuOpen()) {
           <div class="deals__columns-menu" role="menu" aria-label="Choose deal table columns">
-            <p class="deals__columns-help">Organization, email, and assigned to are required.</p>
+            <p class="deals__columns-help">Name, organization, and assigned to are required. Email and mobile are optional.</p>
             @for (column of columnOptions(); track column.id) {
               <label class="deals__column-option" [class.is-required]="column.required">
                 <input
@@ -301,8 +301,35 @@
                   [class.deals__td--muted]="column.id === 'lastModified'"
                 >
                   @switch (column.id) {
+                    @case ('contactName') {
+                      <a class="deals__name-link deals__td--strong" [routerLink]="['/deals', row.id]">
+                        {{ dealContactName(row) }}
+                      </a>
+                    }
                     @case ('organizationName') {
                       <a class="deals__name-link" [routerLink]="['/deals', row.id]">{{ row.organizationName }}</a>
+                    }
+                    @case ('email') {
+                      <input
+                        type="email"
+                        class="deals__inline-input"
+                        [value]="dealEmailInputValue(row)"
+                        (blur)="onDealEmailBlur(row, $event)"
+                        (click)="$event.stopPropagation()"
+                        [attr.aria-label]="'Email for ' + dealContactName(row)"
+                        autocomplete="off"
+                      />
+                    }
+                    @case ('mobile') {
+                      <input
+                        type="tel"
+                        class="deals__inline-input"
+                        [value]="dealMobileInputValue(row)"
+                        (blur)="onDealMobileBlur(row, $event)"
+                        (click)="$event.stopPropagation()"
+                        [attr.aria-label]="'Mobile for ' + dealContactName(row)"
+                        autocomplete="tel"
+                      />
                     }
                     @case ('annualRevenue') {
                       {{ formatDealRevenue(row.annualRevenue) }}
