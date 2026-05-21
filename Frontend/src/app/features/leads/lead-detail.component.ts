@@ -25,6 +25,7 @@ import { NotesService } from '../../core/services/notes.service';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
 import { environment } from '../../../environments/environment';
 import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
+import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
@@ -185,7 +186,10 @@ export class LeadDetailComponent {
     return base;
   });
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
+  private readonly userScope = inject(UserDataScopeService);
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
+  /** Only admins may change lead owner; users see read-only owner text. */
+  protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
 
   private readonly noteRelatedTypeLabels: Record<NoteRelatedType, string> = {
     lead: 'Lead',
@@ -805,6 +809,11 @@ export class LeadDetailComponent {
     return this.leadInitial();
   }
 
+  protected displayLeadOwnerName(): string {
+    const row = this.lead();
+    return row?.leadOwnerName?.trim() || row?.owner?.trim() || '—';
+  }
+
   /** Lead owner initial beside the owner select (follows selected owner option). */
   protected sidebarOwnerChipInitial(): string {
     const id = this.dataForm.controls.owner.value?.trim();
@@ -865,8 +874,8 @@ export class LeadDetailComponent {
       v.firstName.trim() ||
       row.name;
 
-    const ownerId = v.owner.trim();
-    const opt = this.leadOwnerOpts.findById(ownerId);
+    const ownerId = this.isAdminViewer() ? v.owner.trim() : (row.leadOwnerId ?? '').trim();
+    const opt = this.isAdminViewer() ? this.leadOwnerOpts.findById(ownerId) : null;
     const leadOwnerName = opt?.label ?? row.leadOwnerName;
 
     this.dataSaving.set(true);

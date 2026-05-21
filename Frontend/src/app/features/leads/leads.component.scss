@@ -237,10 +237,17 @@
   }
 }
 
-.leads__owner-cell {
+.leads__owner-cell,
+.leads__owner-readonly {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
+}
+
+.leads__owner-readonly {
+  min-height: 2.25rem;
+  padding: 0.35rem 0;
+  color: var(--text-primary);
 }
 
 .leads__owner-name {

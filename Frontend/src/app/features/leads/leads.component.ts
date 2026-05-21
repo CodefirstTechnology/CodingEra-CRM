@@ -427,6 +427,7 @@ export class LeadsComponent {
   });
 
   protected readonly bulkAssignEnabled = computed(() => {
+    if (!this.isAdminViewer()) return false;
     const ids = this.sel.selectedItems();
     if (ids.length === 0) return false;
     return ids.every((id) => isPersistedApiLeadRow(id));
@@ -675,8 +676,18 @@ export class LeadsComponent {
     return this.leadOwnerOpts.resolveSelectValue(row);
   }
 
+  /** Read-only lead owner line in create/edit modal for non-admin users. */
+  protected createFormLeadOwnerDisplay(): { initials: string; label: string } {
+    const id = this.createForm.controls.leadOwner.value?.trim() ?? '';
+    const opt = this.leadOwnerOpts.findById(id);
+    return {
+      initials: opt?.initials ?? '',
+      label: opt?.label ?? '—',
+    };
+  }
+
   protected onLeadOwnerSelectChange(row: LeadRow, ownerKey: string): void {
-    if (!isPersistedApiLeadRow(row.id)) return;
+    if (!this.isAdminViewer() || !isPersistedApiLeadRow(row.id)) return;
     const idn = Number(row.id);
     if (!Number.isFinite(idn)) return;
 
@@ -970,9 +981,16 @@ export class LeadsComponent {
       return;
     }
 
-    const ownerOpt = this.leadOwnerOpts.findById(raw.leadOwner);
-    const initials = ownerOpt?.initials ?? raw.leadOwner;
-    const leadOwnerName = ownerOpt?.label ?? raw.leadOwner;
+    let leadOwnerId = raw.leadOwner;
+    if (!this.isAdminViewer() && editId != null) {
+      const existing = this.rows().find((r) => Number(r.id) === editId);
+      if (existing?.leadOwnerId) {
+        leadOwnerId = existing.leadOwnerId;
+      }
+    }
+    const ownerOpt = this.leadOwnerOpts.findById(leadOwnerId);
+    const initials = ownerOpt?.initials ?? leadOwnerId;
+    const leadOwnerName = ownerOpt?.label ?? leadOwnerId;
 
     const salPick = this.resolveMasterPick(raw.salutation, this.salutationSelectOptions());
     const empPick = this.resolveMasterPick(raw.employees, this.employeeSelectOptions());
@@ -989,7 +1007,7 @@ export class LeadsComponent {
       lastName: raw.lastName.trim(),
       name: this.buildDisplayName(this.salutationLabelFromFormValue(raw.salutation), raw.firstName, raw.lastName),
       mobile: raw.mobile.trim(),
-      leadOwnerId: raw.leadOwner,
+      leadOwnerId,
       gender: raw.gender || undefined,
       email: emailTrim,
       organization: raw.organization.trim(),

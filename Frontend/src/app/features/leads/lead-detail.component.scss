@@ -1362,6 +1362,15 @@
   color: var(--text-primary);
 }
 
+.lead-detail__owner-readonly {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0;
+  color: var(--text-primary);
+}
+
 .lead-detail__name {
   margin: 0;
   font-size: 1.0625rem;
