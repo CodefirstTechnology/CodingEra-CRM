@@ -19,6 +19,7 @@ import type { EntityEmailItem } from '../../core/services/emails/email-api.model
 import { ToastService } from '../../core/toast/toast.service';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
 import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
+import { dealRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from './deals.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
@@ -558,7 +559,10 @@ export class DealDetailComponent {
     const d = this.deal();
     if (!d?.id) return;
     this.createFlow.selectEntity('task', {
-      taskFromLead: { relatedDealId: String(d.id) },
+      taskFromLead: {
+        relatedDealId: String(d.id),
+        recordOwnerUserId: dealRecordOwnerUserId(d),
+      },
     });
   }
 
@@ -576,6 +580,7 @@ export class DealDetailComponent {
       noteFromLead: {
         relatedDealId: String(d.id),
         dealRelatedName: displayName,
+        recordOwnerUserId: dealRecordOwnerUserId(d),
       },
     });
   }

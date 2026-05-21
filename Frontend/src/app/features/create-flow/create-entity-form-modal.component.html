@@ -380,11 +380,22 @@
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Assignee</span>
-          <select class="create-form__control" formControlName="assignee">
-            @for (a of assigneeOptions(); track a.id) {
-              <option [value]="a.id">{{ a.label }}</option>
-            }
-          </select>
+          @if (taskAssigneeLockedToRecordOwner()) {
+            <input
+              class="create-form__control"
+              type="text"
+              [value]="taskRecordOwnerLabel()"
+              readonly
+              aria-readonly="true"
+            />
+            <span class="create-form__hint">Assigned to the lead or deal owner.</span>
+          } @else {
+            <select class="create-form__control" formControlName="assignee">
+              @for (a of assigneeOptions(); track a.id) {
+                <option [value]="a.id">{{ a.label }}</option>
+              }
+            </select>
+          }
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Due date <span class="create-form__req">*</span></span>
@@ -422,10 +433,16 @@
       } @else if (flow.noteFromLeadFormContext()?.relatedLeadId) {
       <p class="create-form__muted">
         This note will be linked to lead <strong>{{ flow.noteFromLeadFormContext()?.leadRelatedName }}</strong>.
+        @if (noteAuthorLockedToRecordOwner()) {
+          Author: <strong>{{ noteRecordOwnerLabel() }}</strong> (lead owner).
+        }
       </p>
       } @else if (flow.noteFromLeadFormContext()?.relatedDealId) {
       <p class="create-form__muted">
         This note will be linked to deal <strong>{{ flow.noteFromLeadFormContext()?.dealRelatedName }}</strong>.
+        @if (noteAuthorLockedToRecordOwner()) {
+          Author: <strong>{{ noteRecordOwnerLabel() }}</strong> (deal owner).
+        }
       </p>
       }
 

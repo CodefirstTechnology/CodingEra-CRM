@@ -5,6 +5,8 @@ import type { CreateEntityKind } from './create-entity-kind';
 export interface TaskFormContext {
   relatedLeadId?: string;
   relatedDealId?: string;
+  /** Lead/deal owner (`users.id`) — task assignee is forced to this user. */
+  recordOwnerUserId?: string;
 }
 
 /** When opening the note form from a lead or deal, pre-fill record and associate the saved note. */
@@ -14,6 +16,8 @@ export interface NoteFormContext {
   leadRelatedName?: string;
   relatedDealId?: string;
   dealRelatedName?: string;
+  /** Lead/deal owner (`users.id`) — note author is forced to this user. */
+  recordOwnerUserId?: string;
 }
 
 const FORM_TITLES: Record<CreateEntityKind, string> = {

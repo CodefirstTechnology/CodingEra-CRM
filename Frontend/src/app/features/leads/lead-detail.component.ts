@@ -31,6 +31,7 @@ import { CrmPaginatedSelectComponent } from '../../shared/components/crm-paginat
 import { masterDataToPaginatedOptions } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
 import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
+import { leadRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
@@ -686,7 +687,10 @@ export class LeadDetailComponent {
     const l = this.lead();
     if (!l?.id) return;
     this.createFlow.selectEntity('task', {
-      taskFromLead: { relatedLeadId: String(l.id) },
+      taskFromLead: {
+        relatedLeadId: String(l.id),
+        recordOwnerUserId: leadRecordOwnerUserId(l),
+      },
     });
   }
 
@@ -702,7 +706,11 @@ export class LeadDetailComponent {
     const displayName =
       [l.firstName?.trim(), l.lastName?.trim()].filter(Boolean).join(' ') || l.name.trim() || 'Lead';
     this.createFlow.selectEntity('note', {
-      noteFromLead: { relatedLeadId: String(l.id), leadRelatedName: displayName },
+      noteFromLead: {
+        relatedLeadId: String(l.id),
+        leadRelatedName: displayName,
+        recordOwnerUserId: leadRecordOwnerUserId(l),
+      },
     });
   }
 

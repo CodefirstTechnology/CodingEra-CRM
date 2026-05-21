@@ -40,6 +40,8 @@ import {
   optionalUrlValidator,
 } from '../../shared/validators/crm-validators';
 import type { AssigneeOption, TaskPriority, TaskRow, TaskStatus } from '../tasks/tasks.component';
+import { resolveNumericRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
+import { initialsFromDisplayName } from '../../core/services/leads/lead-owner-options.service';
 
 @Component({
   selector: 'app-create-entity-form-modal',
@@ -252,7 +254,55 @@ export class CreateEntityFormModalComponent {
     return o ? masterOptionFormValue(o) : '';
   }
 
+  private taskFormRecordOwnerUserId(): string | undefined {
+    return resolveNumericRecordOwnerUserId(
+      this.flow.taskFromLeadFormContext()?.recordOwnerUserId,
+    );
+  }
+
+  private noteFormRecordOwnerUserId(): string | undefined {
+    return resolveNumericRecordOwnerUserId(
+      this.flow.noteFromLeadFormContext()?.recordOwnerUserId,
+    );
+  }
+
+  protected taskAssigneeLockedToRecordOwner(): boolean {
+    return !!this.taskFormRecordOwnerUserId();
+  }
+
+  protected taskRecordOwnerLabel(): string {
+    const id = this.taskFormRecordOwnerUserId();
+    if (!id) return '';
+    return this.leadOwnerOpts.findById(id)?.label ?? `User #${id}`;
+  }
+
+  protected noteAuthorLockedToRecordOwner(): boolean {
+    return !!this.noteFormRecordOwnerUserId();
+  }
+
+  protected noteRecordOwnerLabel(): string {
+    const id = this.noteFormRecordOwnerUserId();
+    if (!id) return '';
+    return this.leadOwnerOpts.findById(id)?.label ?? `User #${id}`;
+  }
+
+  private resolveAssigneeFromOwnerUserId(ownerUserId: string | undefined): {
+    id: string;
+    label: string;
+    initials: string;
+  } | null {
+    const id = resolveNumericRecordOwnerUserId(ownerUserId);
+    if (!id) return null;
+    const opt = this.leadOwnerOpts.findById(id);
+    if (opt) {
+      return { id: opt.id, label: opt.label, initials: opt.initials };
+    }
+    return { id, label: `User #${id}`, initials: initialsFromDisplayName(`User #${id}`) };
+  }
+
   private defaultTaskAssigneeId(): string {
+    const recordOwner = this.taskFormRecordOwnerUserId();
+    if (recordOwner) return recordOwner;
     const sessionId = this.auth.user()?.id?.trim();
     if (sessionId && this.leadOwnerOpts.findById(sessionId)) return sessionId;
     return this.leadOwnerOpts.options()[0]?.id ?? '';
@@ -327,7 +377,9 @@ export class CreateEntityFormModalComponent {
         });
         this.orgForm.markAsUntouched();
         break;
-      case 'task':
+      case 'task': {
+        const assigneeCtl = this.taskForm.get('assignee');
+        const ownerLocked = this.taskAssigneeLockedToRecordOwner();
         this.taskForm.reset({
           title: '',
           description: '',
@@ -336,8 +388,14 @@ export class CreateEntityFormModalComponent {
           dueDate: this.localDatetimeInputValue(),
           priority: 'Low',
         });
+        if (ownerLocked) {
+          assigneeCtl?.disable({ emitEvent: false });
+        } else {
+          assigneeCtl?.enable({ emitEvent: false });
+        }
         this.taskForm.markAsUntouched();
         break;
+      }
       case 'note': {
         const rtCtl = this.noteForm.get('relatedType');
         const rnCtl = this.noteForm.get('relatedName');
@@ -647,7 +705,11 @@ export class CreateEntityFormModalComponent {
     if (this.taskForm.invalid) return;
 
     const raw = this.taskForm.getRawValue();
+    const forcedOwner = this.resolveAssigneeFromOwnerUserId(
+      this.flow.taskFromLeadFormContext()?.recordOwnerUserId,
+    );
     const person =
+      forcedOwner ??
       this.leadOwnerOpts.findById(raw.assignee) ??
       this.assigneeOptions().find((a) => a.id === raw.assignee);
     const dueRaw = raw.dueDate.trim();
@@ -696,9 +758,12 @@ export class CreateEntityFormModalComponent {
     const body = raw.body.trim();
     const bodyPreview = body.length > 140 ? `${body.slice(0, 140)}…` : body;
 
+    const forcedOwner = this.resolveAssigneeFromOwnerUserId(
+      this.flow.noteFromLeadFormContext()?.recordOwnerUserId,
+    );
     const sessionUser = this.auth.user();
-    const author = sessionUser?.name?.trim() || 'You';
-    const authorUserId = sessionUser?.id?.trim();
+    const author = (forcedOwner?.label ?? sessionUser?.name?.trim()) || 'You';
+    const authorUserId = forcedOwner?.id ?? sessionUser?.id?.trim();
 
     const payload: Omit<NoteRow, 'id'> = {
       title: raw.title.trim(),
