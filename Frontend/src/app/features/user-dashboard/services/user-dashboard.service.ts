@@ -11,6 +11,10 @@ import { TasksService } from '../../../core/services/tasks.service';
 import type { DealRow } from '../../deals/deals.component';
 import type { LeadRow } from '../../leads/lead-row.model';
 import type { TaskRow } from '../../tasks/tasks.component';
+import {
+  activityEntityDisplayLabel,
+  buildActivityEntityNameMap,
+} from '../../../shared/utils/activity-entity-display.util';
 import { parseSessionUserId } from '../utils/user-ownership.util';
 import type {
   UserDashboardActivityItem,
@@ -76,8 +80,9 @@ export class UserDashboardService {
               const tableRows = enriched.map((l) =>
                 this.toLeadTableRow(l, taskDueByLead.get(l.id)),
               );
+              const entityNames = buildActivityEntityNameMap(enriched, deals);
               return {
-                data: this.buildSnapshot(tableRows, enriched, deals, tasks, activities),
+                data: this.buildSnapshot(tableRows, enriched, deals, tasks, activities, entityNames),
                 error: null as string | null,
               };
             }),
@@ -95,6 +100,7 @@ export class UserDashboardService {
     myDeals: DealRow[],
     myTasks: TaskRow[],
     activities: ActivityRow[],
+    entityNames: Map<string, string>,
   ): UserDashboardSnapshot {
     const today = this.startOfDay(new Date());
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -145,7 +151,7 @@ export class UserDashboardService {
         .slice(0, 8)
         .map((l) => this.toLeadTableRow(l, undefined)),
       followUps: followUpsToday,
-      activities: activities.map((row) => this.toDashboardActivityItem(row)),
+      activities: activities.map((row) => this.toDashboardActivityItem(row, entityNames)),
       performance: {
         conversionPct,
         monthlyClosureRate,
@@ -203,7 +209,10 @@ export class UserDashboardService {
       .slice(0, 10);
   }
 
-  private toDashboardActivityItem(row: ActivityRow): UserDashboardActivityItem {
+  private toDashboardActivityItem(
+    row: ActivityRow,
+    entityNames: Map<string, string>,
+  ): UserDashboardActivityItem {
     const action = row.actionType.toLowerCase();
     let type: UserDashboardActivityItem['type'] = 'status';
     if (action.includes('call')) type = 'call';
@@ -215,7 +224,7 @@ export class UserDashboardService {
       id: `activity-${row.id}`,
       type,
       title: row.message,
-      subtitle: `${row.entityType} #${row.entityId} · ${row.actorName}`,
+      subtitle: `${activityEntityDisplayLabel(row.entityType, row.entityId, entityNames)} · ${row.actorName}`,
       timeLabel: row.whenLabel,
     };
   }

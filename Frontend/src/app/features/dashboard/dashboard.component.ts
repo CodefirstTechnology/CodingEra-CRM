@@ -6,6 +6,10 @@ import { ActivitiesService } from '../../core/services/activities.service';
 import type { ActivityRow } from '../../core/services/activities/activity-api.models';
 import { DealsService } from '../../core/services/deals.service';
 import { LeadsService } from '../../core/services/leads.service';
+import {
+  activityEntityDisplayLabel,
+  buildActivityEntityNameMap,
+} from '../../shared/utils/activity-entity-display.util';
 import { formatUsdAsInr } from '../../shared/utils/format-inr.util';
 
 type ActivityType = 'call' | 'meeting' | 'email' | 'task';
@@ -86,13 +90,20 @@ export class DashboardComponent implements OnInit {
           dealIds: deals
             .map((d) => Number(d.id))
             .filter((n) => Number.isFinite(n) && n > 0),
+          entityNames: buildActivityEntityNameMap(leads, deals),
         })),
-        catchError(() => of({ leadIds: [] as number[], dealIds: [] as number[] })),
+        catchError(() =>
+          of({
+            leadIds: [] as number[],
+            dealIds: [] as number[],
+            entityNames: new Map<string, string>(),
+          }),
+        ),
       )
-      .subscribe(({ leadIds, dealIds }) => {
+      .subscribe(({ leadIds, dealIds, entityNames }) => {
         this.activitiesService.getRecentForRecords(leadIds, dealIds, 20).subscribe({
           next: (rows) => {
-            this.activities.set(rows.map((row) => this.toStreamItem(row)));
+            this.activities.set(rows.map((row) => this.toStreamItem(row, entityNames)));
             this.activitiesLoading.set(false);
           },
           error: () => {
@@ -146,7 +157,7 @@ export class DashboardComponent implements OnInit {
     return this.gaugeCircumference * (1 - this.monthlyTarget.achievedPct / 100);
   }
 
-  private toStreamItem(row: ActivityRow): StreamActivityItem {
+  private toStreamItem(row: ActivityRow, entityNames: Map<string, string>): StreamActivityItem {
     const action = row.actionType.toLowerCase();
     let type: ActivityType = 'task';
     if (action.includes('call')) type = 'call';
@@ -161,7 +172,7 @@ export class DashboardComponent implements OnInit {
     return {
       type,
       title: row.message,
-      company: `${row.entityType} #${row.entityId}`,
+      company: activityEntityDisplayLabel(row.entityType, row.entityId, entityNames),
       description,
       time: row.whenLabel,
       rep: row.actorName,
