@@ -32,6 +32,8 @@ export interface NoteRow {
   bodyStorage?: string;
   /** When created from lead detail — used to scope notes on the lead. */
   relatedLeadId?: string;
+  /** Resolved from `leads` via `related_lead_id` (first + last name). */
+  relatedLeadName?: string;
   /** When created from deal detail — used to scope notes on the deal. */
   relatedDealId?: string;
 }
@@ -277,7 +279,11 @@ export class NotesComponent {
   protected noteRelatedLabel(row: NoteRow): string {
     const label = this.relatedTypeLabels[row.relatedType] ?? row.relatedType;
     const suffix = row.visibility === 'private' ? ' · Private' : '';
-    return `${label} · ${row.relatedName}${suffix}`;
+    const recordName =
+      row.relatedType === 'lead' && row.relatedLeadName?.trim()
+        ? row.relatedLeadName.trim()
+        : row.relatedName?.trim() || '—';
+    return `${label} · ${recordName}${suffix}`;
   }
 
   protected fieldInvalid(name: 'relatedType' | 'relatedName' | 'title' | 'body' | 'visibility'): boolean {

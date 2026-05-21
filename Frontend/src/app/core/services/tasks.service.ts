@@ -6,13 +6,20 @@ import { filterTasksForUser } from '../../features/user-dashboard/utils/user-own
 import { AuthService } from '../auth/auth.service';
 import { AdminUsersService, type AdminUserRow } from './admin-users.service';
 import { initialsFromDisplayName } from './leads/lead-owner-options.service';
+import { LeadsService } from './leads.service';
 import { TaskHttpService } from './tasks/task-http.service';
+import {
+  attachRelatedLeadName,
+  buildLeadNameByIdMap,
+  resolveTaskRelatedLeadId,
+} from '../../shared/utils/lead-person-name.util';
 
 @Injectable({ providedIn: 'root' })
 export class TasksService {
   private readonly taskHttp = inject(TaskHttpService);
   private readonly auth = inject(AuthService);
   private readonly adminUsers = inject(AdminUsersService);
+  private readonly leadsService = inject(LeadsService);
 
   getAll(): Observable<TaskRow[]> {
     return this.enrichRows(this.taskHttp.list());
@@ -67,13 +74,45 @@ export class TasksService {
 
   private enrichRows(source: Observable<TaskRow[]>): Observable<TaskRow[]> {
     return this.withUsers((users) =>
-      source.pipe(map((rows) => rows.map((row) => this.enrichTask(row, users)))),
+      this.leadsService.getAll().pipe(
+        catchError(() => of([])),
+        switchMap((leads) => {
+          const leadNames = buildLeadNameByIdMap(leads);
+          return source.pipe(
+            map((rows) =>
+              rows.map((row) =>
+                attachRelatedLeadName(
+                  this.enrichTask(row, users),
+                  resolveTaskRelatedLeadId(row),
+                  leadNames,
+                ),
+              ),
+            ),
+          );
+        }),
+      ),
     );
   }
 
   private enrichRow(source: Observable<TaskRow | null>): Observable<TaskRow | null> {
     return this.withUsers((users) =>
-      source.pipe(map((row) => (row != null ? this.enrichTask(row, users) : null))),
+      this.leadsService.getAll().pipe(
+        catchError(() => of([])),
+        switchMap((leads) => {
+          const leadNames = buildLeadNameByIdMap(leads);
+          return source.pipe(
+            map((row) =>
+              row != null
+                ? attachRelatedLeadName(
+                    this.enrichTask(row, users),
+                    resolveTaskRelatedLeadId(row),
+                    leadNames,
+                  )
+                : null,
+            ),
+          );
+        }),
+      ),
     );
   }
 

@@ -37,6 +37,8 @@ export interface TaskRow {
   lastModified: string;
   /** When created from lead detail — used to scope tasks on the lead. */
   relatedLeadId?: string;
+  /** Resolved from `leads` via `relatedLeadId` (first + last name). */
+  relatedLeadName?: string;
   /** When created from deal detail — used to scope tasks on the deal. */
   relatedDealId?: string;
 }
