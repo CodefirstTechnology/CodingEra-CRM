@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -26,31 +26,25 @@ import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
+import { CRM_PAGINATED_SELECT_PAGE_SIZE } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
+import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { optionalMobile10Validator, optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { environment } from '../../../environments/environment';
-import type { IndiaMartLeadStatus } from '../indiamartlead/indiamart-lead.model';
-import { INDIA_MART_LEAD_STATUSES } from '../indiamartlead/indiamart-lead.model';
 import {
   isIndiamartLeadRowId,
   mapIndiaMartLeadToLeadRow,
-  parseIndiamartNumericIdFromRowId,
 } from '../indiamartlead/indiamart-lead.mapper';
 import { IndiamartLeadsService } from '../indiamartlead/indiamart-leads.service';
-import type { JustdialLeadStatus } from '../justdiallead/justdial-lead.model';
-import { JUSTDIAL_LEAD_STATUSES } from '../justdiallead/justdial-lead.model';
 import {
   isJustdialLeadRowId,
   mapJustdialLeadToLeadRow,
-  parseJustdialNumericIdFromRowId,
 } from '../justdiallead/justdial-lead.mapper';
 import { JustdialLeadsService } from '../justdiallead/justdial-leads.service';
-import type { TradeIndiaLeadStatus } from '../tradeindialead/tradeindia-lead.model';
-import { TRADEINDIA_LEAD_STATUSES } from '../tradeindialead/tradeindia-lead.model';
 import {
   isTradeIndiaLeadRowId,
   mapTradeIndiaLeadToLeadRow,
-  parseTradeIndiaNumericIdFromRowId,
 } from '../tradeindialead/tradeindia-lead.mapper';
 import { TradeIndiaLeadsService } from '../tradeindialead/tradeindia-leads.service';
 import type {
@@ -96,6 +90,7 @@ interface LeadColumnOption {
     RouterLink,
     CrmSelectionBarComponent,
     CrmAssignPickerComponent,
+    CrmPaginationFooterComponent,
   ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
@@ -141,10 +136,9 @@ export class LeadsComponent {
   protected readonly statusFilter = signal<LeadListStatusFilter>('all');
   protected readonly sourceFilter = signal<LeadListSourceFilter>('all');
   protected readonly columnMenuOpen = signal(false);
+  protected readonly tablePage = signal(0);
+  protected readonly tablePageSize = CRM_PAGINATED_SELECT_PAGE_SIZE;
 
-  protected readonly indiaMartStatusOptions = [...INDIA_MART_LEAD_STATUSES];
-  protected readonly justdialStatusOptions = [...JUSTDIAL_LEAD_STATUSES];
-  protected readonly tradeindiaStatusOptions = [...TRADEINDIA_LEAD_STATUSES];
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
 
   private readonly salutationsFromApi = signal<MasterDataOption[]>([]);
@@ -183,13 +177,16 @@ export class LeadsComponent {
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
   protected readonly isPersistedApiLeadRow = isPersistedApiLeadRow;
 
-  protected readonly filterChips: { id: LeadListStatusFilter; label: string }[] = [
-    { id: 'all', label: 'All' },
-    { id: 'New', label: 'New' },
-    { id: 'Contacted', label: 'Contacted' },
-    { id: 'Qualified', label: 'Qualified' },
-    { id: 'Lost', label: 'Lost' },
-  ];
+  /** Status filter chips driven by `lead_statuses` master (same list as table dropdown). */
+  protected readonly filterChips = computed(() => {
+    const chips: { id: LeadListStatusFilter; label: string }[] = [{ id: 'all', label: 'All' }];
+    for (const opt of this.statusSelectOptions()) {
+      const label = opt.name.trim();
+      if (!label) continue;
+      chips.push({ id: coerceLeadStatus(label), label });
+    }
+    return chips;
+  });
 
   protected readonly sourceFilterChips: { id: LeadListSourceFilter; label: string }[] = [
     { id: 'all', label: 'All' },
@@ -245,6 +242,10 @@ export class LeadsComponent {
   constructor() {
     this.selectedColumnIds.set(this.loadStoredOptionalColumnIds());
     this.leadOwnerOpts.load();
+    effect(() => {
+      const max = this.tableTotalPages() - 1;
+      if (this.tablePage() > max) this.tablePage.set(Math.max(0, max));
+    });
     this.refreshLeads();
     forkJoin({
       salutations: this.leadMasterData.loadSalutations(),
@@ -360,7 +361,7 @@ export class LeadsComponent {
     const src = this.sourceFilter();
     return this.rows().filter((row) => {
       if (src !== 'all' && (row.leadSource ?? 'Manual') !== src) return false;
-      if (st !== 'all' && row.status !== st) return false;
+      if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) return false;
       if (!q) return true;
       const srcLabel = (row.leadSource ?? 'Manual').toLowerCase();
       return (
@@ -380,6 +381,26 @@ export class LeadsComponent {
       );
     });
   });
+
+  protected readonly tableTotalPages = computed(() => {
+    const n = this.filtered().length;
+    return Math.max(1, Math.ceil(n / this.tablePageSize));
+  });
+
+  protected readonly paginatedFiltered = computed(() => {
+    const all = this.filtered();
+    const start = this.tablePage() * this.tablePageSize;
+    return all.slice(start, start + this.tablePageSize);
+  });
+
+  protected setTablePage(page: number): void {
+    const max = this.tableTotalPages() - 1;
+    this.tablePage.set(Math.min(Math.max(0, page), max));
+  }
+
+  private resetTablePage(): void {
+    this.tablePage.set(0);
+  }
 
   protected readonly allSelectedFiltered = computed(() =>
     this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
@@ -427,6 +448,7 @@ export class LeadsComponent {
   });
 
   protected readonly bulkAssignEnabled = computed(() => {
+    if (!this.isAdminViewer()) return false;
     const ids = this.sel.selectedItems();
     if (ids.length === 0) return false;
     return ids.every((id) => isPersistedApiLeadRow(id));
@@ -675,8 +697,18 @@ export class LeadsComponent {
     return this.leadOwnerOpts.resolveSelectValue(row);
   }
 
+  /** Read-only lead owner line in create/edit modal for non-admin users. */
+  protected createFormLeadOwnerDisplay(): { initials: string; label: string } {
+    const id = this.createForm.controls.leadOwner.value?.trim() ?? '';
+    const opt = this.leadOwnerOpts.findById(id);
+    return {
+      initials: opt?.initials ?? '',
+      label: opt?.label ?? '—',
+    };
+  }
+
   protected onLeadOwnerSelectChange(row: LeadRow, ownerKey: string): void {
-    if (!isPersistedApiLeadRow(row.id)) return;
+    if (!this.isAdminViewer() || !isPersistedApiLeadRow(row.id)) return;
     const idn = Number(row.id);
     if (!Number.isFinite(idn)) return;
 
@@ -781,22 +813,27 @@ export class LeadsComponent {
     this.searchQuery.set('');
     this.statusFilter.set('all');
     this.sourceFilter.set('all');
+    this.resetTablePage();
   }
 
   protected onSearchInput(ev: Event): void {
     this.searchQuery.set((ev.target as HTMLInputElement).value);
+    this.resetTablePage();
   }
 
   protected clearSearch(): void {
     this.searchQuery.set('');
+    this.resetTablePage();
   }
 
   protected setStatusFilter(id: LeadListStatusFilter): void {
     this.statusFilter.set(id);
+    this.resetTablePage();
   }
 
   protected setSourceFilter(id: LeadListSourceFilter): void {
     this.sourceFilter.set(id);
+    this.resetTablePage();
   }
 
   protected toggleColumnMenu(): void {
@@ -872,7 +909,7 @@ export class LeadsComponent {
     const value = (row as unknown as Record<string, unknown>)[id];
     if (value == null) return '—';
     if (typeof value === 'string') {
-      const t = value.trim();
+      const t = id === 'requirement' || id === 'notes' ? plainTextFromHtml(value) : value.trim();
       if (!t || /^null$/i.test(t) || /^undefined$/i.test(t)) return '—';
       return t;
     }
@@ -970,9 +1007,16 @@ export class LeadsComponent {
       return;
     }
 
-    const ownerOpt = this.leadOwnerOpts.findById(raw.leadOwner);
-    const initials = ownerOpt?.initials ?? raw.leadOwner;
-    const leadOwnerName = ownerOpt?.label ?? raw.leadOwner;
+    let leadOwnerId = raw.leadOwner;
+    if (!this.isAdminViewer() && editId != null) {
+      const existing = this.rows().find((r) => Number(r.id) === editId);
+      if (existing?.leadOwnerId) {
+        leadOwnerId = existing.leadOwnerId;
+      }
+    }
+    const ownerOpt = this.leadOwnerOpts.findById(leadOwnerId);
+    const initials = ownerOpt?.initials ?? leadOwnerId;
+    const leadOwnerName = ownerOpt?.label ?? leadOwnerId;
 
     const salPick = this.resolveMasterPick(raw.salutation, this.salutationSelectOptions());
     const empPick = this.resolveMasterPick(raw.employees, this.employeeSelectOptions());
@@ -989,7 +1033,7 @@ export class LeadsComponent {
       lastName: raw.lastName.trim(),
       name: this.buildDisplayName(this.salutationLabelFromFormValue(raw.salutation), raw.firstName, raw.lastName),
       mobile: raw.mobile.trim(),
-      leadOwnerId: raw.leadOwner,
+      leadOwnerId,
       gender: raw.gender || undefined,
       email: emailTrim,
       organization: raw.organization.trim(),
@@ -1040,19 +1084,62 @@ export class LeadsComponent {
   }
 
   protected canEditLeadStatusInTable(row: LeadRow): boolean {
-    return (
-      !this.isAdminViewer() &&
-      isPersistedApiLeadRow(row.id) &&
-      row.status !== 'Converted'
-    );
+    return !this.isAdminViewer() && isPersistedApiLeadRow(row.id);
   }
 
+  /** Select value (master id string) — prefers {@link LeadRow.status} so it matches admin read-only text. */
   protected statusSelectValueForRow(row: LeadRow): string {
-    return this.masterSelectControlValue(row.leadStatusId, row.status, this.statusSelectOptions());
+    const options = this.statusSelectOptions();
+    const label = this.resolvedLeadStatusLabel(row);
+    const norm = (s: string) => s.trim().toLowerCase();
+    const key = norm(label);
+    const byName = options.find((o) => o.id > 0 && norm(o.name) === key);
+    if (byName) return String(byName.id);
+    const legacy = options.find((o) => o.id === 0 && norm(o.name) === key);
+    if (legacy) return legacy.name;
+    if (row.leadStatusId != null && row.leadStatusId > 0) return String(row.leadStatusId);
+    return label;
   }
 
-  protected onManualLeadStatusChange(row: LeadRow, ev: Event): void {
+  /** CRM master status label for display/filter; aligns with admin `row.status` column. */
+  private resolvedLeadStatusLabel(row: LeadRow): string {
+    const options = this.statusSelectOptions();
+    const norm = (s: string) => s.trim().toLowerCase();
+    let label = row.status?.trim() || '';
+    if (label === 'Converted') label = 'Qualified';
+    if (label === 'Lost') label = 'Unqualified';
+    if (label) {
+      const byName = options.find((o) => o.id > 0 && norm(o.name) === norm(label));
+      if (byName?.name.trim()) return byName.name.trim();
+    }
+    if (row.leadStatusId != null && row.leadStatusId > 0) {
+      const byId = options.find((o) => o.id === row.leadStatusId);
+      if (byId?.name.trim()) return byId.name.trim();
+    }
+    return label || 'New';
+  }
+
+  /** Filter by `lead_status_id` when present; falls back to label match (incl. legacy Converted → Qualified). */
+  private rowMatchesStatusFilter(row: LeadRow, filter: LeadListStatusFilter): boolean {
+    if (filter === 'all') return true;
+    const filterId = resolveLeadStatusIdFromName(filter);
+    if (row.leadStatusId != null && row.leadStatusId > 0 && filterId != null) {
+      return row.leadStatusId === filterId;
+    }
+    const display = this.resolvedLeadStatusLabel(row);
+    return display === filter || coerceLeadStatus(display) === filter;
+  }
+
+  protected onLeadStatusChange(row: LeadRow, ev: Event): void {
     const raw = (ev.target as HTMLSelectElement).value;
+    this.applyLeadStatusChange(row, raw);
+  }
+
+  protected onLeadStatusSelectModelChange(row: LeadRow, raw: string): void {
+    this.applyLeadStatusChange(row, raw);
+  }
+
+  private applyLeadStatusChange(row: LeadRow, raw: string): void {
     const pick = this.resolveMasterPick(raw, this.statusSelectOptions());
     const label = pick.label.trim();
     if (!label) return;
@@ -1076,53 +1163,6 @@ export class LeadsComponent {
         next: () => this.refreshLeads(),
         error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
       });
-  }
-
-  protected onIndiaMartStatusChange(row: LeadRow, ev: Event): void {
-    const v = (ev.target as HTMLSelectElement).value as IndiaMartLeadStatus;
-    if (this.updateMarketplaceStatusOnApi(row, v, 'IndiaMART')) return;
-    const n = parseIndiamartNumericIdFromRowId(row.id);
-    if (n == null) return;
-    this.indiamartLeadsService.updateLeadStatus(n, v);
-  }
-
-  protected onJustdialStatusChange(row: LeadRow, ev: Event): void {
-    const v = (ev.target as HTMLSelectElement).value as JustdialLeadStatus;
-    if (this.updateMarketplaceStatusOnApi(row, v, 'Justdial')) return;
-    const n = parseJustdialNumericIdFromRowId(row.id);
-    if (n == null) return;
-    this.justdialLeadsService.updateLeadStatus(n, v);
-  }
-
-  protected onTradeIndiaStatusChange(row: LeadRow, ev: Event): void {
-    const v = (ev.target as HTMLSelectElement).value as TradeIndiaLeadStatus;
-    if (this.updateMarketplaceStatusOnApi(row, v, 'TradeIndia')) return;
-    const n = parseTradeIndiaNumericIdFromRowId(row.id);
-    if (n == null) return;
-    this.tradeindiaLeadsService.updateLeadStatus(n, v);
-  }
-
-  private updateMarketplaceStatusOnApi(
-    row: LeadRow,
-    status: LeadStatus,
-    source: LeadSource,
-  ): boolean {
-    if (!this.persistMarketplaceLeadsToDb() || row.leadSource !== source) return false;
-    const id = Number(row.id);
-    if (!Number.isFinite(id)) return false;
-    const leadStatusId =
-      row.leadStatusId ?? resolveLeadStatusIdFromName(status) ?? undefined;
-    this.leadsService
-      .update(id, {
-        status,
-        ...(leadStatusId != null && leadStatusId > 0 ? { leadStatusId } : {}),
-      })
-      .pipe(take(1))
-      .subscribe({
-        next: () => this.refreshLeads(),
-        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
-      });
-    return true;
   }
 
   private dbPersistToastSuffix(r: {

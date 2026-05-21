@@ -1,0 +1,21 @@
+<footer class="crm-pagination-footer" [attr.aria-label]="ariaLabel()">
+  <button
+    type="button"
+    class="crm-pagination-footer__btn"
+    [disabled]="page() === 0"
+    (click)="prev()"
+    aria-label="Previous page"
+  >
+    ‹
+  </button>
+  <span class="crm-pagination-footer__meta">Page {{ page() + 1 }} of {{ totalPages() }}</span>
+  <button
+    type="button"
+    class="crm-pagination-footer__btn"
+    [disabled]="page() >= totalPages() - 1"
+    (click)="next()"
+    aria-label="Next page"
+  >
+    ›
+  </button>
+</footer>

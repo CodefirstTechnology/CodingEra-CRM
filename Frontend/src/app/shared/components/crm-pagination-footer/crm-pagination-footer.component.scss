@@ -1,0 +1,44 @@
+.crm-pagination-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  padding: 0.55rem 0.75rem;
+  border-top: 1px solid var(--card-border);
+  background: color-mix(in srgb, var(--text-muted) 4%, var(--surface));
+}
+
+.crm-pagination-footer__meta {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 6.5rem;
+  text-align: center;
+}
+
+.crm-pagination-footer__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.85rem;
+  height: 1.65rem;
+  margin: 0;
+  padding: 0 0.4rem;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.crm-pagination-footer__btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--tertiary-color) 45%, var(--card-border));
+  background: color-mix(in srgb, var(--tertiary-color) 10%, var(--surface));
+}
+
+.crm-pagination-footer__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

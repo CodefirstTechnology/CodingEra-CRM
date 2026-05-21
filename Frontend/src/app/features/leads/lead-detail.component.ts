@@ -25,6 +25,10 @@ import { NotesService } from '../../core/services/notes.service';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
 import { environment } from '../../../environments/environment';
 import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
+import { resolveLeadStatusIdFromName } from '../../core/services/leads/lead-status.constants';
+import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { CrmPaginatedSelectComponent } from '../../shared/components/crm-paginated-select/crm-paginated-select.component';
+import { masterDataToPaginatedOptions } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
@@ -55,7 +59,7 @@ interface LeadCommentItem extends EntityCommentItem {}
 
 @Component({
   selector: 'app-lead-detail',
-  imports: [RouterLink, ReactiveFormsModule, EntityActivityTimelineComponent],
+  imports: [RouterLink, ReactiveFormsModule, EntityActivityTimelineComponent, CrmPaginatedSelectComponent],
   templateUrl: './lead-detail.component.html',
   styleUrl: './lead-detail.component.scss',
 })
@@ -184,8 +188,36 @@ export class LeadDetailComponent {
     }
     return base;
   });
+
+  protected readonly territoryPaginatedOptions = computed(() =>
+    masterDataToPaginatedOptions(this.territorySelectOptions(), {
+      value: '',
+      label: '— Select —',
+    }),
+  );
+  protected readonly industryPaginatedOptions = computed(() =>
+    masterDataToPaginatedOptions(this.industrySelectOptions(), {
+      value: '',
+      label: '— Select —',
+    }),
+  );
+  protected readonly salutationPaginatedOptions = computed(() =>
+    masterDataToPaginatedOptions(this.salutationSelectOptions(), { value: '', label: '—' }),
+  );
+  protected readonly sourcePaginatedOptions = computed(() =>
+    this.sourceOptionsForLead().map((s) => ({
+      value: s,
+      label: s === '' ? '— Select —' : s,
+    })),
+  );
+  protected readonly leadOwnerPaginatedOptions = computed(() =>
+    this.leadOwnerOptions().map((o) => ({ value: o.id, label: o.label })),
+  );
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
+  private readonly userScope = inject(UserDataScopeService);
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
+  /** Only admins may change lead owner; users see read-only owner text. */
+  protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
 
   private readonly noteRelatedTypeLabels: Record<NoteRelatedType, string> = {
     lead: 'Lead',
@@ -805,6 +837,11 @@ export class LeadDetailComponent {
     return this.leadInitial();
   }
 
+  protected displayLeadOwnerName(): string {
+    const row = this.lead();
+    return row?.leadOwnerName?.trim() || row?.owner?.trim() || '—';
+  }
+
   /** Lead owner initial beside the owner select (follows selected owner option). */
   protected sidebarOwnerChipInitial(): string {
     const id = this.dataForm.controls.owner.value?.trim();
@@ -865,8 +902,8 @@ export class LeadDetailComponent {
       v.firstName.trim() ||
       row.name;
 
-    const ownerId = v.owner.trim();
-    const opt = this.leadOwnerOpts.findById(ownerId);
+    const ownerId = this.isAdminViewer() ? v.owner.trim() : (row.leadOwnerId ?? '').trim();
+    const opt = this.isAdminViewer() ? this.leadOwnerOpts.findById(ownerId) : null;
     const leadOwnerName = opt?.label ?? row.leadOwnerName;
 
     this.dataSaving.set(true);
@@ -911,8 +948,14 @@ export class LeadDetailComponent {
   protected convertToDeal(): void {
     const row = this.lead();
     const idn = this.numericId();
-    if (!row || idn == null || row.status === 'Converted') return;
+    if (!row || idn == null) return;
+    const alreadyQualified =
+      row.status === 'Qualified' ||
+      row.status === 'Converted' ||
+      row.leadStatusId === resolveLeadStatusIdFromName('Qualified');
+    if (alreadyQualified) return;
 
+    const qualifiedStatusId = resolveLeadStatusIdFromName('Qualified');
     const after = environment.leadConversionAfterDeal;
     this.dealsService
       .create(mapLeadToDealRow(row))
@@ -923,7 +966,10 @@ export class LeadDetailComponent {
           after === 'delete'
             ? this.leadsService.delete(idn).pipe(take(1))
             : this.leadsService.update(idn, {
-                status: 'Converted' satisfies LeadStatus,
+                status: 'Qualified' satisfies LeadStatus,
+                ...(qualifiedStatusId != null && qualifiedStatusId > 0
+                  ? { leadStatusId: qualifiedStatusId }
+                  : {}),
                 updated: 'Just now',
               }),
         ),
@@ -935,7 +981,16 @@ export class LeadDetailComponent {
           if (after === 'delete') {
             void this.router.navigateByUrl('/leads');
           } else {
-            this.lead.update((cur) => (cur ? { ...cur, status: 'Converted', updated: 'Just now' } : cur));
+            this.lead.update((cur) =>
+              cur
+                ? {
+                    ...cur,
+                    status: 'Qualified',
+                    leadStatusId: qualifiedStatusId ?? cur.leadStatusId,
+                    updated: 'Just now',
+                  }
+                : cur,
+            );
           }
           if (environment.showLeadConvertSuccessMessage) {
             window.alert('Lead converted to deal successfully');

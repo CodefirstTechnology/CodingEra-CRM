@@ -1,0 +1,136 @@
+:host {
+  display: block;
+  position: relative;
+  min-width: 0;
+}
+
+.crm-paginated-select__root {
+  position: relative;
+  min-width: 0;
+}
+
+.crm-paginated-select__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+}
+
+.crm-paginated-select__trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.crm-paginated-select__trigger-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crm-paginated-select__chevron {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  transition: transform 0.15s ease;
+}
+
+.crm-paginated-select__chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.crm-paginated-select__panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  min-width: 12rem;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--text-primary) 14%, transparent);
+  overflow: hidden;
+}
+
+.crm-paginated-select__list {
+  list-style: none;
+  margin: 0;
+  padding: 0.28rem 0;
+  max-height: 14.5rem;
+  overflow-y: auto;
+}
+
+.crm-paginated-select__option {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0.42rem 0.65rem;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.crm-paginated-select__option:hover {
+  background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+}
+
+.crm-paginated-select__option.is-selected {
+  background: color-mix(in srgb, var(--tertiary-color) 14%, var(--surface));
+  color: var(--text-primary);
+}
+
+.crm-paginated-select__pager {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  padding: 0.38rem 0.5rem 0.45rem;
+  border-top: 1px solid var(--card-border);
+  background: color-mix(in srgb, var(--text-muted) 4%, var(--surface));
+}
+
+.crm-paginated-select__pager-meta {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 3.2rem;
+  text-align: center;
+}
+
+.crm-paginated-select__pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.65rem;
+  height: 1.55rem;
+  margin: 0;
+  padding: 0 0.35rem;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.crm-paginated-select__pager-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--tertiary-color) 45%, var(--card-border));
+  background: color-mix(in srgb, var(--tertiary-color) 10%, var(--surface));
+}
+
+.crm-paginated-select__pager-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

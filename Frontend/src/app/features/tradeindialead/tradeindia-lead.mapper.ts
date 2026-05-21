@@ -1,3 +1,5 @@
+import { coerceLeadStatus } from '../../core/services/leads/lead-api.mapper';
+import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { TradeIndiaLead } from './tradeindia-lead.model';
 
@@ -15,7 +17,10 @@ export function parseTradeIndiaNumericIdFromRowId(id: string): number | null {
 }
 
 function mapTradeIndiaStatusToLeadStatus(status: TradeIndiaLead['status']): LeadStatus {
-  return status as LeadStatus;
+  const coerced = coerceLeadStatus(status);
+  if (coerced === 'Converted') return 'Qualified';
+  if (coerced === 'Lost') return 'Unqualified';
+  return coerced;
 }
 
 /**
@@ -47,7 +52,7 @@ export function mapTradeIndiaLeadToLeadRow(ti: TradeIndiaLead): LeadRow {
     owner: 'TI',
     updated: updatedLabel,
     source: ti.source.trim(),
-    requirement: ti.message.trim(),
+    requirement: plainTextFromHtml(ti.message),
     notes: ti.message.trim(),
     leadSource: 'TradeIndia',
     sortTimestamp: ts,

@@ -1,3 +1,4 @@
+import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import type { IndiaMartLeadInput, IndiaMartLeadStatus } from './indiamart-lead.model';
 import { isIndiaMartLeadStatus } from './indiamart-lead.model';
 
@@ -140,7 +141,7 @@ export function mapUnknownRecordToIndiaMartLeadInput(value: unknown): IndiaMartL
     city: city || '—',
     product: product || '—',
     quantity,
-    message: message || '—',
+    message: plainTextFromHtml(message) || '—',
     source,
     status: mapStatus(statusRaw),
   };

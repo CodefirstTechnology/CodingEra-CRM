@@ -101,8 +101,8 @@
         <label class="create-form__field">
           <span class="create-form__label">Status <span class="create-form__req">*</span></span>
           <select class="create-form__control" formControlName="status">
-            @for (s of leadStatusOptions; track s) {
-              <option [value]="s">{{ s }}</option>
+            @for (opt of leadStatusSelectOptions(); track opt.id + opt.name) {
+              <option [value]="opt.name">{{ opt.name }}</option>
             }
           </select>
         </label>
