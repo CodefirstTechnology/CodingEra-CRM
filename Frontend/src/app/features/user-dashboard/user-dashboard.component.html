@@ -1,0 +1,233 @@
+<div class="udash">
+  <header class="udash__hero">
+    <div class="udash__hero-glow" aria-hidden="true"></div>
+    <div class="udash__hero-glow udash__hero-glow--2" aria-hidden="true"></div>
+    <div class="udash__hero-inner">
+      <div class="udash__hero-copy">
+        <p class="udash__eyebrow">{{ today | date: 'EEEE, MMMM d, y' }}</p>
+        <h1 class="udash__title">
+          Welcome back,
+          <span class="udash__title-name">{{ user()?.name ?? 'there' }}</span>
+        </h1>
+        <p class="udash__sub">
+          <span class="udash__role-pill">{{ roleLabel() }}</span>
+          {{ motivationalLine() }}
+        </p>
+      </div>
+      <div class="udash__hero-actions">
+        <button type="button" class="udash__btn udash__btn--ghost" (click)="refresh()" [disabled]="loading()">
+          Refresh
+        </button>
+      </div>
+    </div>
+  </header>
+
+  @if (error(); as err) {
+    <p class="udash__banner udash__banner--error" role="alert">{{ err }}</p>
+  }
+
+  @if (loading()) {
+    <section class="udash__kpis" aria-busy="true" aria-label="Loading metrics">
+      @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+        <div class="udash__kpi udash__kpi--skeleton"></div>
+      }
+    </section>
+    <section class="udash__grid udash__grid--main">
+      <div class="udash__panel udash__panel--skeleton"></div>
+      <div class="udash__panel udash__panel--skeleton udash__panel--tall"></div>
+    </section>
+  } @else if (snapshot(); as data) {
+    <section class="udash__kpis" aria-label="Key metrics">
+      <article class="udash__kpi udash__kpi--leads">
+        <p class="udash__kpi-label">My Leads</p>
+        <p class="udash__kpi-value">{{ data.kpis.myLeads }}</p>
+      </article>
+      <article class="udash__kpi udash__kpi--deals">
+        <p class="udash__kpi-label">Active Deals</p>
+        <p class="udash__kpi-value">{{ data.kpis.activeDeals }}</p>
+      </article>
+      <article class="udash__kpi udash__kpi--follow">
+        <p class="udash__kpi-label">Follow-ups Today</p>
+        <p class="udash__kpi-value">{{ data.kpis.followUpsToday }}</p>
+      </article>
+      <article class="udash__kpi udash__kpi--tasks">
+        <p class="udash__kpi-label">Tasks Pending</p>
+        <p class="udash__kpi-value">{{ data.kpis.tasksPending }}</p>
+      </article>
+      <article class="udash__kpi udash__kpi--meet">
+        <p class="udash__kpi-label">Meetings</p>
+        <p class="udash__kpi-value">{{ data.kpis.meetingsToday }}</p>
+      </article>
+      <article class="udash__kpi udash__kpi--rev">
+        <p class="udash__kpi-label">Monthly Revenue</p>
+        <p class="udash__kpi-value">{{ formatRevenue(data.kpis.monthlyRevenue) }}</p>
+      </article>
+    </section>
+
+    <section class="udash__quick" aria-label="Quick actions">
+      <button type="button" class="udash__quick-btn" (click)="openCreate('lead')">+ Add Lead</button>
+      <button type="button" class="udash__quick-btn" (click)="openCreate('task')">+ Add Follow-up</button>
+      <button type="button" class="udash__quick-btn" (click)="openCreate('deal')">+ Create Deal</button>
+      <button type="button" class="udash__quick-btn" (click)="scheduleMeeting()">Schedule Meeting</button>
+    </section>
+
+    <section class="udash__grid udash__grid--main">
+      <div class="udash__col udash__col--wide">
+        <article class="udash__panel">
+          <header class="udash__panel-head">
+            <h2 class="udash__panel-title">My assigned leads</h2>
+            <a routerLink="/leads" class="udash__link">View all</a>
+          </header>
+          @if (data.assignedLeads.length === 0) {
+            <div class="udash__empty">
+              <p>No leads assigned to you yet.</p>
+              <button type="button" class="udash__btn udash__btn--solid" (click)="openCreate('lead')">Create lead</button>
+            </div>
+          } @else {
+            <div class="udash__table-wrap">
+              <table class="udash__table">
+                <thead>
+                  <tr>
+                    <th>Lead Name</th>
+                    <th>Company</th>
+                    <th>Status</th>
+                    <th>Priority</th>
+                    <th>Assigned Date</th>
+                    <th>Next Follow-up</th>
+                    <th>Source</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (row of data.assignedLeads; track row.id) {
+                    <tr>
+                      <td>
+                        <a [routerLink]="['/leads', row.id]" class="udash__row-link">{{ row.leadName }}</a>
+                      </td>
+                      <td>{{ row.company }}</td>
+                      <td><span class="udash__status">{{ row.status }}</span></td>
+                      <td>{{ row.priority }}</td>
+                      <td>{{ row.assignedDate }}</td>
+                      <td>{{ row.nextFollowUp }}</td>
+                      <td>{{ row.source }}</td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+        </article>
+
+        <article class="udash__panel udash__panel--timeline">
+          <header class="udash__panel-head">
+            <h2 class="udash__panel-title">Recent activity</h2>
+          </header>
+          @if (data.activities.length === 0) {
+            <p class="udash__muted">No recent activity on your records.</p>
+          } @else {
+            <ul class="udash__timeline">
+              @for (item of data.activities; track item.id) {
+                <li class="udash__timeline-item" [attr.data-type]="item.type">
+                  <span class="udash__timeline-dot" aria-hidden="true"></span>
+                  <div>
+                    <p class="udash__timeline-title">{{ item.title }}</p>
+                    <p class="udash__timeline-sub">{{ item.subtitle }}</p>
+                    <time class="udash__timeline-time">{{ item.timeLabel }}</time>
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+        </article>
+      </div>
+
+      <div class="udash__col udash__col--side">
+        <article class="udash__panel">
+          <header class="udash__panel-head">
+            <h2 class="udash__panel-title">Follow-ups &amp; meetings</h2>
+          </header>
+          @if (data.followUps.length === 0) {
+            <p class="udash__muted">Nothing due today — great job staying on top of work.</p>
+          } @else {
+            <ul class="udash__follow-list">
+              @for (f of data.followUps; track f.id) {
+                <li class="udash__follow" [class.udash__follow--overdue]="f.kind === 'overdue'">
+                  <span class="udash__follow-badge">{{ f.kind }}</span>
+                  <p class="udash__follow-title">{{ f.title }}</p>
+                  <p class="udash__follow-due">{{ f.dueLabel }}</p>
+                </li>
+              }
+            </ul>
+          }
+        </article>
+
+        <article class="udash__panel">
+          <header class="udash__panel-head">
+            <h2 class="udash__panel-title">Lead status</h2>
+          </header>
+          <ul class="udash__status-bars">
+            @for (s of data.statusSummary; track s.status) {
+              <li>
+                <div class="udash__status-row">
+                  <span>{{ s.status }}</span>
+                  <span class="udash__muted">{{ s.count }}</span>
+                </div>
+                <div class="udash__bar-track">
+                  <div class="udash__bar-fill" [style.width.%]="s.pct"></div>
+                </div>
+              </li>
+            }
+          </ul>
+        </article>
+
+        <article class="udash__panel udash__panel--perf">
+          <header class="udash__panel-head">
+            <h2 class="udash__panel-title">Performance</h2>
+          </header>
+          <dl class="udash__perf-grid">
+            <div>
+              <dt>Conversion</dt>
+              <dd>{{ data.performance.conversionPct | number: '1.0-1' }}%</dd>
+            </div>
+            <div>
+              <dt>Monthly closure</dt>
+              <dd>{{ data.performance.monthlyClosureRate | number: '1.0-1' }}%</dd>
+            </div>
+            <div>
+              <dt>Tasks done</dt>
+              <dd>{{ data.performance.completedTasks }}</dd>
+            </div>
+            <div>
+              <dt>Closed deals</dt>
+              <dd>{{ data.performance.closedDeals }}</dd>
+            </div>
+            <div>
+              <dt>Pending calls</dt>
+              <dd>{{ data.performance.pendingCalls }}</dd>
+            </div>
+          </dl>
+          <p class="udash__target-label">Monthly target</p>
+          <div class="udash__target-track">
+            <div class="udash__target-fill" [style.width.%]="data.performance.targetProgressPct"></div>
+          </div>
+          <p class="udash__muted udash__target-pct">{{ data.performance.targetProgressPct }}% of goal</p>
+        </article>
+
+        @if (data.todaysLeads.length > 0) {
+          <article class="udash__panel">
+            <header class="udash__panel-head">
+              <h2 class="udash__panel-title">Today&apos;s leads</h2>
+            </header>
+            <ul class="udash__mini-list">
+              @for (l of data.todaysLeads; track l.id) {
+                <li>
+                  <a [routerLink]="['/leads', l.id]" class="udash__row-link">{{ l.leadName }}</a>
+                  <span class="udash__muted">{{ l.company }}</span>
+                </li>
+              }
+            </ul>
+          </article>
+        }
+      </div>
+    </section>
+  }
+</div>

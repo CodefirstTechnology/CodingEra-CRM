@@ -66,7 +66,16 @@ export class LeadMasterDataService {
           }),
           catchError((err) => {
             console.warn('[LeadMasterData] Failed to load lead statuses', err);
-            return of(new Map<string, number>([['new', 1]]));
+            return of(
+              new Map<string, number>([
+                ['new', 1],
+                ['contacted', 2],
+                ['nurture', 3],
+                ['unqualified', 4],
+                ['qualified', 5],
+                ['junk', 6],
+              ]),
+            );
           }),
           shareReplay(1),
         );
@@ -79,8 +88,11 @@ export class LeadMasterDataService {
     if (!key) return map.get('new') ?? null;
     const direct = map.get(key);
     if (direct != null) return direct;
-    if (key === 'converted' || key === 'qualified' || key === 'contacted') {
-      return map.get(key) ?? map.get('new') ?? null;
+    if (key === 'lost') {
+      return map.get('unqualified') ?? map.get('lost') ?? map.get('new') ?? null;
+    }
+    if (key === 'converted') {
+      return map.get('qualified') ?? map.get('converted') ?? map.get('new') ?? null;
     }
     return map.get('new') ?? [...map.values()][0] ?? null;
   }

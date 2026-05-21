@@ -9,6 +9,8 @@ import type { TradeIndiaLead } from '../../../features/tradeindialead/tradeindia
 import { OrganizationResolveService } from '../organizations/organization-resolve.service';
 import { LeadHttpService } from './lead-http.service';
 import { LeadMasterDataService } from './lead-master-data.service';
+import { LeadOwnerOptionsService } from './lead-owner-options.service';
+import { LeadRoundRobinService } from './lead-round-robin.service';
 import type { LeadNormalized, LeadUpsertDto } from './lead-api.models';
 import {
   extractMarketplaceExternalRef,
@@ -34,6 +36,8 @@ export class MarketplaceLeadDbSyncService {
   private readonly leadHttp = inject(LeadHttpService);
   private readonly masterData = inject(LeadMasterDataService);
   private readonly orgResolve = inject(OrganizationResolveService);
+  private readonly ownerOpts = inject(LeadOwnerOptionsService);
+  private readonly roundRobin = inject(LeadRoundRobinService);
 
   enabled(): boolean {
     const flag = (environment as { persistMarketplaceLeadsToDb?: boolean }).persistMarketplaceLeadsToDb;
@@ -74,12 +78,16 @@ export class MarketplaceLeadDbSyncService {
       return of({ saved: 0, skipped: bodies.length, failed: 0 });
     }
 
-    return forkJoin({
-      statusMap: this.masterData.loadLeadStatusIds(),
-      existing: this.leadHttp.list(),
-      orgsReady: this.orgResolve.preload(),
-    }).pipe(
+    return this.ownerOpts.ensureLoaded().pipe(
+      switchMap(() =>
+        forkJoin({
+          statusMap: this.masterData.loadLeadStatusIds(),
+          existing: this.leadHttp.list(),
+          orgsReady: this.orgResolve.preload(),
+        }),
+      ),
       switchMap(({ statusMap, existing }) => {
+        this.roundRobin.seedIndexFromExistingLeadCount(existing.length);
         const existingKeys = this.buildExistingKeySet(source, existing);
         const toCreate: LeadUpsertDto[] = [];
         let skipped = 0;
@@ -115,17 +123,21 @@ export class MarketplaceLeadDbSyncService {
 
         return from(toCreate).pipe(
           concatMap((body) =>
-            this.attachOrganizationId(body).pipe(
-              switchMap((withOrg) =>
-                this.leadHttp.create(withOrg).pipe(
-                  map(() => ({ ok: true as const })),
+            this.prepareBodyForCreate(source, body).pipe(
+              switchMap((prepared) => {
+                const withOwner = this.roundRobin.applyToUpsertDto(prepared);
+                return this.leadHttp.create(withOwner).pipe(
+                  map(() => {
+                    this.roundRobin.advanceAfterLeadCreated();
+                    return { ok: true as const };
+                  }),
                   catchError((err: unknown) => {
                     lastError = this.formatPersistError(err);
-                    console.warn(`[${source}] failed to save lead to API`, lastError, withOrg);
+                    console.warn(`[${source}] failed to save lead to API`, lastError, withOwner);
                     return of({ ok: false as const });
                   }),
-                ),
-              ),
+                );
+              }),
             ),
           ),
           toArray(),
@@ -144,6 +156,7 @@ export class MarketplaceLeadDbSyncService {
       }),
     );
   }
+
 
   private formatPersistError(err: unknown): string {
     if (err instanceof HttpErrorResponse) {
@@ -170,6 +183,14 @@ export class MarketplaceLeadDbSyncService {
     }
     if (err instanceof Error) return err.message;
     return 'Request failed';
+  }
+
+  /** IndiaMART leads: `requirement` only, no organization FK. Other marketplaces resolve org from product/city. */
+  private prepareBodyForCreate(source: MarketplaceApiSource, body: LeadUpsertDto) {
+    if (source === 'IndiaMART') {
+      return of({ ...body, organizationId: null });
+    }
+    return this.attachOrganizationId(body);
   }
 
   private attachOrganizationId(body: LeadUpsertDto) {

@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal, untracked } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked } from '@angular/core';
 import { FormBuilder, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { take } from 'rxjs';
 import type { CreateEntityKind } from '../../core/create-flow/create-entity-kind';
@@ -6,22 +6,39 @@ import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { CrmModalComponent } from '../../core/modal/crm-modal.component';
 import { AuthService } from '../../core/auth/auth.service';
-import { CallLogsService } from '../../core/services/call-logs.service';
 import { ContactsService } from '../../core/services/contacts.service';
 import { DealsService } from '../../core/services/deals.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { NotesService } from '../../core/services/notes.service';
 import { OrganizationsService } from '../../core/services/organizations.service';
+import { OrganizationMasterSelectService } from '../../core/services/organizations/organization-master-select.service';
+import type { MasterDataOption } from '../../core/services/leads/lead-master-data.service';
+import { LeadMasterDataService } from '../../core/services/leads/lead-master-data.service';
+import {
+  FALLBACK_LEAD_STATUS_OPTIONS,
+  resolveLeadStatusIdFromName,
+} from '../../core/services/leads/lead-status.constants';
+import {
+  masterOptionFormValue,
+  resolveOrgMasterPick,
+  resolveSalutationLabel,
+  salutationSelectOptions,
+} from '../../core/services/organizations/organization-master-select.util';
 import { TasksService } from '../../core/services/tasks.service';
-import type { CallLogRow } from '../call-logs/call-logs.component';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from '../deals/deals.component';
-import type { LeadOwnerOption, LeadRow, LeadStatus } from '../leads/lead-row.model';
+import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
+import { LeadRoundRobinService } from '../../core/services/leads/lead-round-robin.service';
+import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { OrganizationRow } from '../organizations/organizations.component';
 import type { NoteRelatedType, NoteRow, NoteVisibility } from '../notes/notes.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
-import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
+import {
+  optionalMobile10Validator,
+  optionalPhoneValidator,
+  optionalUrlValidator,
+} from '../../shared/validators/crm-validators';
 import type { AssigneeOption, TaskPriority, TaskRow, TaskStatus } from '../tasks/tasks.component';
 
 @Component({
@@ -40,12 +57,25 @@ export class CreateEntityFormModalComponent {
   private readonly dealsService = inject(DealsService);
   private readonly contactsService = inject(ContactsService);
   private readonly organizationsService = inject(OrganizationsService);
+  protected readonly orgMaster = inject(OrganizationMasterSelectService);
   private readonly tasksService = inject(TasksService);
-  private readonly callLogsService = inject(CallLogsService);
   private readonly notesService = inject(NotesService);
   protected readonly auth = inject(AuthService);
+  private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
+  private readonly leadRoundRobin = inject(LeadRoundRobinService);
+  private readonly leadMasterData = inject(LeadMasterDataService);
 
-  protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
+  private readonly salutationsFromApi = signal<MasterDataOption[]>([]);
+  private readonly leadStatusesFromApi = signal<MasterDataOption[]>([]);
+  protected readonly salutationSelectOptions = computed(() =>
+    salutationSelectOptions(this.salutationsFromApi()),
+  );
+  protected readonly leadStatusSelectOptions = computed(() => {
+    const api = this.leadStatusesFromApi();
+    return api.length > 0 ? api : [...FALLBACK_LEAD_STATUS_OPTIONS];
+  });
+  protected readonly masterOptionFormValue = masterOptionFormValue;
+
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
   protected readonly employeeOptions = ['1-10', '11-50', '51-200', '201-500', '500+'] as const;
   protected readonly territoryOptions = ['', 'India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
@@ -69,11 +99,7 @@ export class CreateEntityFormModalComponent {
     'Other',
   ] as const;
 
-  protected readonly leadOwnerOptions: LeadOwnerOption[] = [
-    { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
-    { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
-    { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
-  ];
+  protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
 
   protected readonly leadSubmitting = signal(false);
 
@@ -92,8 +118,6 @@ export class CreateEntityFormModalComponent {
     'Closed Lost',
   ];
 
-  protected readonly leadStatusOptions: LeadStatus[] = ['New', 'Contacted', 'Qualified', 'Lost'];
-
   protected readonly taskStatusOptions: { value: TaskStatus; label: string }[] = [
     { value: 'Backlog', label: 'Backlog' },
     { value: 'Todo', label: 'Todo' },
@@ -108,12 +132,7 @@ export class CreateEntityFormModalComponent {
     { value: 'High', label: 'High' },
   ];
 
-  protected readonly assigneeOptions: AssigneeOption[] = [
-    { id: 'RD', label: 'Rohit Dhaygude', initials: 'R' },
-    { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
-    { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
-    { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
-  ];
+  protected readonly assigneeOptions = this.leadOwnerOpts.options;
 
   protected readonly noteRelatedTypeOptions = [
     { value: 'lead', label: 'Lead' },
@@ -125,7 +144,7 @@ export class CreateEntityFormModalComponent {
   protected readonly leadForm = this.fb.nonNullable.group({
     salutation: [''],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
-    mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
+    mobile: ['', [optionalMobile10Validator()]],
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
@@ -135,9 +154,9 @@ export class CreateEntityFormModalComponent {
     territory: [''],
     industry: ['Technology', Validators.required],
     status: this.fb.nonNullable.control<LeadStatus>('New', Validators.required),
-    leadOwner: ['SK', Validators.required],
+    leadOwner: ['', Validators.required],
     requestType: [''],
-    requirement: ['', Validators.maxLength(240)],
+    requirement: ['', [Validators.required, Validators.maxLength(240)]],
     customField: ['', Validators.maxLength(240)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
   });
@@ -175,9 +194,9 @@ export class CreateEntityFormModalComponent {
   protected readonly orgForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
-    industry: ['Technology', Validators.required],
+    industry: ['', Validators.required],
     annualRevenue: ['', Validators.maxLength(40)],
-    employees: ['1-10'],
+    employees: [''],
     territory: [''],
   });
 
@@ -185,20 +204,9 @@ export class CreateEntityFormModalComponent {
     title: ['', [Validators.required, Validators.maxLength(200)]],
     description: ['', Validators.maxLength(2000)],
     status: this.fb.nonNullable.control<TaskStatus>('Backlog', Validators.required),
-    assignee: ['RD', Validators.required],
+    assignee: ['', Validators.required],
     dueDate: ['', Validators.required],
     priority: this.fb.nonNullable.control<TaskPriority>('Low', Validators.required),
-  });
-
-  protected readonly callForm = this.fb.nonNullable.group({
-    direction: ['outbound', Validators.required],
-    phoneNumber: ['', [Validators.required, Validators.maxLength(40)]],
-    contactName: ['', [Validators.required, Validators.maxLength(200)]],
-    startedAt: ['', Validators.required],
-    durationMin: [0, [Validators.required, Validators.min(0), Validators.max(99)]],
-    durationSec: [0, [Validators.required, Validators.min(0), Validators.max(59)]],
-    outcome: ['connected', Validators.required],
-    summary: ['', Validators.maxLength(2000)],
   });
 
   protected readonly noteForm = this.fb.nonNullable.group({
@@ -210,6 +218,15 @@ export class CreateEntityFormModalComponent {
   });
 
   constructor() {
+    this.leadOwnerOpts.load();
+    this.leadMasterData
+      .loadSalutations()
+      .pipe(take(1))
+      .subscribe((rows) => this.salutationsFromApi.set(rows));
+    this.leadMasterData
+      .loadLeadStatuses()
+      .pipe(take(1))
+      .subscribe((rows) => this.leadStatusesFromApi.set(rows));
     effect(() => {
       const k = this.flow.formKind();
       if (!k) return;
@@ -219,6 +236,26 @@ export class CreateEntityFormModalComponent {
 
   protected close(): void {
     this.flow.closeFormModal();
+  }
+
+  protected orgMasterOptValue(opt: MasterDataOption): string {
+    return masterOptionFormValue(opt);
+  }
+
+  private defaultOrgModalIndustry(): string {
+    const o = this.orgMaster.industrySelectOptions()[0];
+    return o ? masterOptionFormValue(o) : '';
+  }
+
+  private defaultOrgModalEmployees(): string {
+    const o = this.orgMaster.employeeSelectOptions()[0];
+    return o ? masterOptionFormValue(o) : '';
+  }
+
+  private defaultTaskAssigneeId(): string {
+    const sessionId = this.auth.user()?.id?.trim();
+    if (sessionId && this.leadOwnerOpts.findById(sessionId)) return sessionId;
+    return this.leadOwnerOpts.options()[0]?.id ?? '';
   }
 
   private resetFor(kind: CreateEntityKind): void {
@@ -238,7 +275,7 @@ export class CreateEntityFormModalComponent {
           territory: '',
           industry: 'Technology',
           status: 'New',
-          leadOwner: 'SK',
+          leadOwner: this.leadRoundRobin.nextOwnerIdForForm(),
           requestType: '',
           requirement: '',
           customField: '',
@@ -283,9 +320,9 @@ export class CreateEntityFormModalComponent {
         this.orgForm.reset({
           organizationName: '',
           website: '',
-          industry: 'Technology',
+          industry: this.defaultOrgModalIndustry(),
           annualRevenue: '',
-          employees: '1-10',
+          employees: this.defaultOrgModalEmployees(),
           territory: '',
         });
         this.orgForm.markAsUntouched();
@@ -295,7 +332,7 @@ export class CreateEntityFormModalComponent {
           title: '',
           description: '',
           status: 'Backlog',
-          assignee: 'RD',
+          assignee: this.defaultTaskAssigneeId(),
           dueDate: this.localDatetimeInputValue(),
           priority: 'Low',
         });
@@ -339,24 +376,6 @@ export class CreateEntityFormModalComponent {
         this.noteForm.markAsUntouched();
         break;
       }
-      case 'callLog': {
-        const p = (n: number) => String(n).padStart(2, '0');
-        const d = new Date();
-        const local = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-        const ctx = this.flow.callLogFormContext();
-        this.callForm.reset({
-          startedAt: local,
-          direction: 'outbound',
-          phoneNumber: (ctx?.phoneNumber ?? '').trim(),
-          contactName: (ctx?.contactName ?? '').trim(),
-          durationMin: 0,
-          durationSec: 0,
-          outcome: 'connected',
-          summary: '',
-        });
-        this.callForm.markAsUntouched();
-        break;
-      }
     }
   }
 
@@ -371,7 +390,7 @@ export class CreateEntityFormModalComponent {
   }
 
   private formGroupFor(
-    group: 'lead' | 'deal' | 'contact' | 'org' | 'task' | 'call' | 'note',
+    group: 'lead' | 'deal' | 'contact' | 'org' | 'task' | 'note',
   ): FormGroup {
     switch (group) {
       case 'lead':
@@ -386,13 +405,11 @@ export class CreateEntityFormModalComponent {
         return this.taskForm;
       case 'note':
         return this.noteForm;
-      case 'call':
-        return this.callForm;
     }
   }
 
   protected fieldInvalid(
-    group: 'lead' | 'deal' | 'contact' | 'org' | 'task' | 'call' | 'note',
+    group: 'lead' | 'deal' | 'contact' | 'org' | 'task' | 'note',
     name: string,
   ): boolean {
     const c = this.formGroupFor(group).get(name);
@@ -442,15 +459,18 @@ export class CreateEntityFormModalComponent {
     const raw = this.leadForm.getRawValue();
     const emailTrim = raw.email.trim();
 
-    const ownerOpt = this.leadOwnerOptions.find((o) => o.id === raw.leadOwner);
+    const ownerOpt = this.leadOwnerOpts.findById(raw.leadOwner);
     const initials = ownerOpt?.initials ?? raw.leadOwner;
     const leadOwnerName = ownerOpt?.label ?? raw.leadOwner;
 
+    const salPick = resolveOrgMasterPick(raw.salutation, this.salutationSelectOptions());
+
     const payload: Omit<LeadRow, 'id'> = {
-      salutation: raw.salutation || undefined,
+      salutation: salPick.label || undefined,
+      salutationId: salPick.masterId ?? null,
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
-      name: this.buildDisplayName(raw.salutation, raw.firstName, raw.lastName),
+      name: this.buildDisplayName(salPick.label, raw.firstName, raw.lastName),
       mobile: raw.mobile.trim(),
       leadOwnerId: raw.leadOwner,
       gender: raw.gender || undefined,
@@ -462,8 +482,9 @@ export class CreateEntityFormModalComponent {
       territory: raw.territory || undefined,
       industry: raw.industry,
       status: raw.status,
+      leadStatusId: resolveLeadStatusIdFromName(raw.status) ?? undefined,
       requestType: raw.requestType || undefined,
-      requirement: raw.requirement.trim() || undefined,
+      requirement: raw.requirement.trim(),
       notes: raw.customField.trim() || undefined,
       leadOwnerName,
       owner: initials,
@@ -492,6 +513,8 @@ export class CreateEntityFormModalComponent {
     const emailTrim = raw.primaryEmail.trim();
     const owner = this.dealOwnerOptions.find((o) => o.id === raw.dealOwner);
 
+    const salLabel = resolveSalutationLabel(raw.salutation, this.salutationSelectOptions());
+
     const payload: Omit<DealRow, 'id'> = {
       organizationName: raw.organizationName.trim(),
       employees: raw.employees,
@@ -499,7 +522,7 @@ export class CreateEntityFormModalComponent {
       website: raw.website.trim(),
       territory: raw.territory,
       industry: raw.industry,
-      salutation: raw.salutation,
+      salutation: salLabel,
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
       email: emailTrim,
@@ -530,7 +553,7 @@ export class CreateEntityFormModalComponent {
 
     const raw = this.contactForm.getRawValue();
     const payload: Omit<ContactRow, 'id'> = {
-      salutation: raw.salutation,
+      salutation: resolveSalutationLabel(raw.salutation, this.salutationSelectOptions()),
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
       email: raw.email.trim(),
@@ -561,13 +584,26 @@ export class CreateEntityFormModalComponent {
     if (web && !/^https?:\/\//i.test(web)) {
       web = `https://${web}`;
     }
+    const industryPick = resolveOrgMasterPick(raw.industry, this.orgMaster.industrySelectOptions());
+    const employeePick = resolveOrgMasterPick(raw.employees, this.orgMaster.employeeSelectOptions());
+    const territoryPick = resolveOrgMasterPick(raw.territory, this.orgMaster.territorySelectOptions());
+
     const payload: Omit<OrganizationRow, 'id'> = {
       name: nameTrim,
       website: web || '',
-      industry: raw.industry,
+      industry:
+        industryPick.label ||
+        this.orgMaster.industrySelectOptions()[0]?.name ||
+        'Technology',
       annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
-      employees: raw.employees,
-      territory: raw.territory,
+      employees:
+        employeePick.label ||
+        this.orgMaster.employeeSelectOptions()[0]?.name ||
+        '1-10',
+      territory: territoryPick.label.trim() || undefined,
+      industryId: industryPick.masterId,
+      employeeCountId: employeePick.masterId,
+      territoryId: territoryPick.masterId,
       lastModified: 'Just now',
     };
 
@@ -599,9 +635,12 @@ export class CreateEntityFormModalComponent {
     if (this.taskForm.invalid) return;
 
     const raw = this.taskForm.getRawValue();
-    const person = this.assigneeOptions.find((a) => a.id === raw.assignee);
+    const person =
+      this.leadOwnerOpts.findById(raw.assignee) ??
+      this.assigneeOptions().find((a) => a.id === raw.assignee);
     const dueRaw = raw.dueDate.trim();
     const dueDisplay = dueRaw ? this.formatDueDisplay(dueRaw) : '—';
+    const assigneeUserId = person?.id?.trim();
 
     const payload: Omit<TaskRow, 'id'> = {
       title: raw.title.trim(),
@@ -612,6 +651,8 @@ export class CreateEntityFormModalComponent {
       dueDateRaw: dueRaw,
       assignedTo: person?.label ?? raw.assignee,
       assignedInitials: person?.initials ?? '?',
+      assignedToUserId:
+        assigneeUserId && /^\d+$/.test(assigneeUserId) ? assigneeUserId : undefined,
       lastModified: 'Just now',
     };
     const leadCtx = this.flow.taskFromLeadFormContext();
@@ -639,7 +680,9 @@ export class CreateEntityFormModalComponent {
     const body = raw.body.trim();
     const bodyPreview = body.length > 140 ? `${body.slice(0, 140)}…` : body;
 
-    const author = this.auth.user()?.name?.trim() || 'You';
+    const sessionUser = this.auth.user();
+    const author = sessionUser?.name?.trim() || 'You';
+    const authorUserId = sessionUser?.id?.trim();
 
     const payload: Omit<NoteRow, 'id'> = {
       title: raw.title.trim(),
@@ -648,6 +691,7 @@ export class CreateEntityFormModalComponent {
       visibility: raw.visibility as NoteVisibility,
       body,
       author,
+      authorUserId: authorUserId && /^\d+$/.test(authorUserId) ? authorUserId : undefined,
       when: 'Just now',
       bodyPreview,
     };
@@ -668,69 +712,4 @@ export class CreateEntityFormModalComponent {
       });
   }
 
-  private pad2(n: number): string {
-    return String(Math.max(0, Math.min(99, n))).padStart(2, '0');
-  }
-
-  private outcomeLabel(code: string): string {
-    const map: Record<string, string> = {
-      connected: 'Connected',
-      voicemail: 'Voicemail',
-      no_answer: 'No answer',
-      busy: 'Busy',
-      wrong_number: 'Wrong number',
-    };
-    return map[code] ?? code;
-  }
-
-  protected submitCall(): void {
-    this.callForm.markAllAsTouched();
-    if (this.callForm.invalid) return;
-
-    const v = this.callForm.getRawValue();
-    const direction: 'Inbound' | 'Outbound' = v.direction === 'inbound' ? 'Inbound' : 'Outbound';
-    const mm = Math.max(0, Math.min(99, Number(v.durationMin)));
-    const ss = Math.max(0, Math.min(59, Number(v.durationSec)));
-    const durationSeconds = mm * 60 + ss;
-    const outcome = this.outcomeLabel(v.outcome);
-    const summaryTrim = v.summary.trim();
-
-    const payload: Omit<CallLogRow, 'id'> = {
-      direction,
-      phoneNumber: v.phoneNumber.trim(),
-      contactName: v.contactName.trim(),
-      startedAt: v.startedAt,
-      durationSeconds,
-      outcome,
-      summary: summaryTrim,
-      lastModified: 'Just now',
-    };
-    const leadCtx = this.flow.callLogFormContext();
-    if (leadCtx?.relatedLeadId) {
-      payload.relatedLeadId = leadCtx.relatedLeadId;
-    }
-    if (leadCtx?.relatedDealId) {
-      payload.relatedDealId = leadCtx.relatedDealId;
-    }
-
-    this.callLogsService
-      .create(payload)
-      .pipe(take(1))
-      .subscribe((saved) => {
-        this.bus.publish('callLog', saved);
-        this.flow.closeFormModal();
-      });
-  }
-
-  private formatWhen(isoLocal: string): string {
-    const d = new Date(isoLocal);
-    if (Number.isNaN(d.getTime())) return 'Just now';
-    return d.toLocaleString(undefined, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  }
 }

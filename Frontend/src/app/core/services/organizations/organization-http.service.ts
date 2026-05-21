@@ -1,13 +1,14 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import type { OrganizationRow } from '../../../features/organizations/organizations.component';
 import {
   normalizeOrganizationApiRecord,
   organizationCreatePayload,
+  readOrganizationIdFromApiRaw,
   type OrganizationCreateInput,
 } from './organization-api.mapper';
 
@@ -62,11 +63,25 @@ export class OrganizationHttpService {
       .pipe(map((raw) => extractOrganizationRecords(raw).map((item) => normalizeOrganizationApiRecord(item))));
   }
 
+  getById(id: number): Observable<OrganizationRow | null> {
+    return this.http.get<unknown>(`${this.baseUrl}/${id}`, { headers: this.jsonHeaders() }).pipe(
+      map((raw) => (raw != null && typeof raw === 'object' ? normalizeOrganizationApiRecord(raw) : null)),
+      catchError(() => of(null)),
+    );
+  }
+
   create(input: OrganizationCreateInput): Observable<OrganizationRow> {
     const payload = organizationCreatePayload(input);
-    return this.http
-      .post<unknown>(this.baseUrl, payload, { headers: this.jsonHeaders() })
-      .pipe(map((raw) => normalizeOrganizationApiRecord(raw)));
+    return this.http.post<unknown>(this.baseUrl, payload, { headers: this.jsonHeaders() }).pipe(
+      map((raw) => {
+        const row = normalizeOrganizationApiRecord(raw);
+        const id = readOrganizationIdFromApiRaw(raw);
+        if (id != null && (!row.id || !String(row.id).trim())) {
+          return { ...row, id: String(id) };
+        }
+        return row;
+      }),
+    );
   }
 
   /** `PUT /api/organizations/{id}` — partial upsert fields merged with `id` in body. */

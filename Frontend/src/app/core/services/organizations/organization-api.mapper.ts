@@ -6,6 +6,18 @@ function readOptionalInt(v: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
+/** Reads organization PK from POST/PUT JSON (camelCase or PascalCase). */
+export function readOrganizationIdFromApiRaw(raw: unknown): number | null {
+  if (raw == null || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  return (
+    readOptionalInt(r['id']) ??
+    readOptionalInt(r['Id']) ??
+    readOptionalInt(r['organizationId']) ??
+    readOptionalInt(r['OrganizationId'])
+  );
+}
+
 function readRefName(v: unknown): string {
   if (typeof v === 'string') return v.trim();
   if (v != null && typeof v === 'object') {
@@ -15,22 +27,61 @@ function readRefName(v: unknown): string {
   return '';
 }
 
+function readNestedRecord(v: unknown): Record<string, unknown> | null {
+  return v != null && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : null;
+}
+
+function readOrganizationIndustryId(r: Record<string, unknown>): number | null {
+  return (
+    readOptionalInt(r['industryId']) ??
+    readOptionalInt(r['IndustryId']) ??
+    readOptionalInt(readNestedRecord(r['industry'])?.['id'])
+  );
+}
+
+function readOrganizationEmployeeCountId(r: Record<string, unknown>): number | null {
+  return (
+    readOptionalInt(r['employeeCountId']) ??
+    readOptionalInt(r['EmployeeCountId']) ??
+    readOptionalInt(readNestedRecord(r['employeeCount'])?.['id'])
+  );
+}
+
+function readOrganizationTerritoryId(r: Record<string, unknown>): number | null {
+  return (
+    readOptionalInt(r['territoryId']) ??
+    readOptionalInt(r['TerritoryId']) ??
+    readOptionalInt(readNestedRecord(r['territory'])?.['id'])
+  );
+}
+
 export function normalizeOrganizationApiRecord(raw: unknown): OrganizationRow {
   const r = (raw != null && typeof raw === 'object' ? raw : {}) as Record<string, unknown>;
   const industryRaw = r['industry'];
   const territoryRaw = r['territory'];
   const employeesRaw = r['employeeCount'] ?? r['employees'];
 
+  const industryId = readOrganizationIndustryId(r);
+  const employeeCountId = readOrganizationEmployeeCountId(r);
+  const territoryId = readOrganizationTerritoryId(r);
+
   return normalizeOrganizationRow({
-    id: r['id'],
-    name: r['name'] ?? r['organizationName'],
+    id: r['id'] ?? r['Id'],
+    name: r['name'] ?? r['Name'] ?? r['organizationName'],
     website: r['website'],
-    industry: readRefName(industryRaw) || industryRaw,
+    industry:
+      readRefName(industryRaw) || (typeof industryRaw === 'string' ? industryRaw.trim() : ''),
     annualRevenue: r['annualRevenue'],
-    employees: readRefName(employeesRaw) || employeesRaw,
-    territory: readRefName(territoryRaw) || territoryRaw,
-    lastModified: r['lastModified'] ?? r['updatedAt'],
+    employees:
+      readRefName(employeesRaw) || (typeof employeesRaw === 'string' ? employeesRaw.trim() : ''),
+    territory:
+      readRefName(territoryRaw) || (typeof territoryRaw === 'string' ? territoryRaw.trim() : ''),
+    lastModified:
+      r['lastModified'] ?? r['updatedAt'] ?? r['UpdatedAt'] ?? r['modifyDate'] ?? r['modifiedAt'],
     address: r['address'],
+    industryId,
+    employeeCountId,
+    territoryId,
   });
 }
 
@@ -47,37 +98,35 @@ export interface OrganizationCreateInput {
   website?: string;
   employees?: string;
   employeeCountId?: number | null;
+  /** Sent as `annualRevenue` on `OrganizationUpsertDto`; defaults to `0` when omitted. */
+  annualRevenue?: number | null;
 }
 
 /** Options passed when resolving/creating an organization from lead data (no required `name`). */
 export type OrganizationEnsureOptions = Omit<OrganizationCreateInput, 'name'>;
 
-/** JSON body for `POST /api/organizations` (Swagger-style flat DTO). */
+/** JSON body for `POST /api/organizations` (must match Swagger `OrganizationUpsertDto` — no extra keys). */
 export function organizationCreatePayload(input: OrganizationCreateInput): Record<string, unknown> {
   const name = input.name.trim();
   const body: Record<string, unknown> = {
     name,
-    website: input.website?.trim() || '',
-    annualRevenue: 0,
+    website: input.website?.trim() ?? '',
+    annualRevenue:
+      input.annualRevenue != null && Number.isFinite(Number(input.annualRevenue))
+        ? Number(input.annualRevenue)
+        : 0,
   };
 
   if (input.industryId != null && input.industryId > 0) {
     body['industryId'] = input.industryId;
-  } else {
-    body['industry'] = input.industry?.trim() || 'Other';
   }
 
   if (input.territoryId != null && input.territoryId > 0) {
     body['territoryId'] = input.territoryId;
-  } else {
-    const territory = input.territory?.trim();
-    if (territory) body['territory'] = territory;
   }
 
   if (input.employeeCountId != null && input.employeeCountId > 0) {
     body['employeeCountId'] = input.employeeCountId;
-  } else {
-    body['employees'] = input.employees?.trim() || '1-10';
   }
 
   return body;
@@ -106,10 +155,8 @@ export function organizationLeadSyncPayload(
   if (hasIndustry) {
     if (options.industryId != null && options.industryId > 0) {
       body['industryId'] = options.industryId;
-    } else if (options.industry?.trim()) {
-      body['industry'] = options.industry.trim();
+      extras++;
     }
-    extras++;
   }
 
   const hasTerritory =
@@ -118,10 +165,8 @@ export function organizationLeadSyncPayload(
   if (hasTerritory) {
     if (options.territoryId != null && options.territoryId > 0) {
       body['territoryId'] = options.territoryId;
-    } else if (options.territory?.trim()) {
-      body['territory'] = options.territory.trim();
+      extras++;
     }
-    extras++;
   }
 
   const hasEmployees =
@@ -130,11 +175,40 @@ export function organizationLeadSyncPayload(
   if (hasEmployees) {
     if (options.employeeCountId != null && options.employeeCountId > 0) {
       body['employeeCountId'] = options.employeeCountId;
-    } else if (options.employees?.trim()) {
-      body['employees'] = options.employees.trim();
+      extras++;
     }
-    extras++;
   }
 
   return extras > 0 ? body : null;
+}
+
+/**
+ * Merges an existing organization row into a lead-sync PUT so omitted FKs are not cleared
+ * when ASP.NET deserializes missing JSON properties as null.
+ */
+export function mergeOrganizationLeadSyncWithExisting(
+  existing: OrganizationRow | null | undefined,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = { ...patch };
+  if (!existing) return body;
+
+  if (!('territoryId' in body) && existing.territoryId != null && existing.territoryId > 0) {
+    body['territoryId'] = existing.territoryId;
+  }
+  if (!('industryId' in body) && existing.industryId != null && existing.industryId > 0) {
+    body['industryId'] = existing.industryId;
+  }
+  if (
+    !('employeeCountId' in body) &&
+    existing.employeeCountId != null &&
+    existing.employeeCountId > 0
+  ) {
+    body['employeeCountId'] = existing.employeeCountId;
+  }
+  if (!('website' in body) && existing.website?.trim()) {
+    body['website'] = existing.website.trim();
+  }
+
+  return body;
 }

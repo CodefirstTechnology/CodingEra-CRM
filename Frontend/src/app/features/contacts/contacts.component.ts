@@ -5,6 +5,16 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { ContactsService } from '../../core/services/contacts.service';
+import {
+  LeadMasterDataService,
+  type MasterDataOption,
+} from '../../core/services/leads/lead-master-data.service';
+import {
+  masterOptionFormValue,
+  masterSelectControlValue,
+  resolveSalutationLabel,
+  salutationSelectOptions,
+} from '../../core/services/organizations/organization-master-select.util';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 
@@ -17,10 +27,11 @@ export interface ContactRow {
   phone: string;
   gender: string;
   organization: string;
+  /** Backend FK when returned by API. */
+  organizationId?: string;
   designation: string;
   address: string;
   lastModified: string;
-  
 }
 
 @Component({
@@ -33,6 +44,7 @@ export class ContactsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly contactsService = inject(ContactsService);
+  private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -42,7 +54,12 @@ export class ContactsComponent {
 
   protected readonly formOpen = signal(false);
 
-  protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
+  private readonly salutationsFromApi = signal<MasterDataOption[]>([]);
+  protected readonly salutationSelectOptions = computed(() =>
+    salutationSelectOptions(this.salutationsFromApi()),
+  );
+  protected readonly masterOptionFormValue = masterOptionFormValue;
+
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
   protected readonly addressOptions = [
     '',
@@ -58,6 +75,10 @@ export class ContactsComponent {
   protected readonly rows = signal<ContactRow[]>([]);
 
   constructor() {
+    this.leadMasterData
+      .loadSalutations()
+      .pipe(take(1))
+      .subscribe((rows) => this.salutationsFromApi.set(rows));
     this.refreshContacts();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'contact') return;
@@ -164,7 +185,11 @@ export class ContactsComponent {
         if (!row) return;
         this.editingNumericId.set(id);
         this.createForm.patchValue({
-          salutation: row.salutation ?? '',
+          salutation: masterSelectControlValue(
+            null,
+            row.salutation,
+            this.salutationSelectOptions(),
+          ),
           firstName: row.firstName ?? '',
           lastName: row.lastName ?? '',
           email: row.email,
@@ -237,7 +262,7 @@ export class ContactsComponent {
     }
 
     const payload: Omit<ContactRow, 'id'> = {
-      salutation: raw.salutation,
+      salutation: resolveSalutationLabel(raw.salutation, this.salutationSelectOptions()),
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
       email: raw.email.trim(),

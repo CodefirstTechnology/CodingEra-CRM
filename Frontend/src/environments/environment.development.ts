@@ -8,6 +8,11 @@ import {
 export const environment = {
   production: false,
   /**
+   * If login/JWT omit your numeric DB user id, uncomment and set to your `users.id` (e.g. `'3'`) so
+   * `?userId=` is sent until the auth API returns `userId` / `user.id`.
+   */
+  apiQueryUserIdFallback: undefined as string | undefined,
+  /**
    * Set to `true` to show IndiaMART Leads in the admin sidebar and enable `/dashboard/indiamart-leads`.
    * Set to `false` to hide it completely (direct URLs redirect to `/dashboard`).
    */

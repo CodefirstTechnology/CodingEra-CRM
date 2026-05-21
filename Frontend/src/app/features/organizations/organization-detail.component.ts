@@ -7,6 +7,13 @@ import { CreateRowBusService } from '../../core/create-flow/create-row-bus.servi
 import { ContactsService } from '../../core/services/contacts.service';
 import { DealsService } from '../../core/services/deals.service';
 import { OrganizationsService } from '../../core/services/organizations.service';
+import { OrganizationMasterSelectService } from '../../core/services/organizations/organization-master-select.service';
+import type { MasterDataOption } from '../../core/services/leads/lead-master-data.service';
+import {
+  masterOptionFormValue,
+  masterSelectControlValue,
+  resolveOrgMasterPick,
+} from '../../core/services/organizations/organization-master-select.util';
 import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { OrganizationRow } from './organizations.component';
@@ -30,6 +37,7 @@ export class OrganizationDetailComponent {
 
   protected readonly numericId = signal<number | null>(null);
   protected readonly organization = signal<OrganizationRow | null>(null);
+  protected readonly orgMaster = inject(OrganizationMasterSelectService);
   protected readonly relatedDeals = signal<DealRow[]>([]);
   protected readonly relatedContacts = signal<ContactRow[]>([]);
   protected readonly mainTab = signal<OrganizationMainTab>('deals');
@@ -37,17 +45,6 @@ export class OrganizationDetailComponent {
   protected readonly resolved = signal(false);
   protected readonly detailsOpen = signal(true);
 
-  protected readonly employeeOptions = ['1-10', '11-50', '51-200', '201-500', '500+'] as const;
-  protected readonly territoryOptions = ['', 'India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
-  protected readonly industryOptions = [
-    'Technology',
-    'Finance',
-    'Healthcare',
-    'Manufacturing',
-    'Retail',
-    'Education',
-    'Other',
-  ] as const;
   protected readonly addressOptions = [
     '',
     'Mumbai, Maharashtra',
@@ -64,7 +61,7 @@ export class OrganizationDetailComponent {
     website: ['', Validators.maxLength(200)],
     territory: [''],
     industry: [''],
-    employees: ['1-10'],
+    employees: [''],
     address: [''],
   });
 
@@ -114,6 +111,10 @@ export class OrganizationDetailComponent {
       });
   }
 
+  protected masterOptValue(opt: MasterDataOption): string {
+    return masterOptionFormValue(opt);
+  }
+
   private patchDetailForm(row: OrganizationRow): void {
     let web = row.website === '—' ? '' : row.website;
     if (web.startsWith('https://')) web = web.slice(8);
@@ -123,9 +124,9 @@ export class OrganizationDetailComponent {
       {
         organizationName: row.name,
         website: web,
-        industry: row.industry ?? '',
-        employees: row.employees ?? '1-10',
-        territory: row.territory ?? '',
+        industry: masterSelectControlValue(row.industryId, row.industry, this.orgMaster.industrySelectOptions()),
+        employees: masterSelectControlValue(row.employeeCountId, row.employees, this.orgMaster.employeeSelectOptions()),
+        territory: masterSelectControlValue(row.territoryId, row.territory, this.orgMaster.territorySelectOptions()),
         address: row.address ?? '',
       },
       { emitEvent: false },
@@ -262,16 +263,29 @@ export class OrganizationDetailComponent {
           web = `https://${web}`;
         }
 
-        const industryResolved = v.industry.trim() || row.industry || 'Technology';
+        const industryPick = resolveOrgMasterPick(v.industry, this.orgMaster.industrySelectOptions());
+        const employeePick = resolveOrgMasterPick(v.employees, this.orgMaster.employeeSelectOptions());
+        const territoryPick = resolveOrgMasterPick(v.territory, this.orgMaster.territorySelectOptions());
 
-        const payload: Partial<Omit<OrganizationRow, 'id'>> = {
+        const payload: Omit<OrganizationRow, 'id'> = {
           name: nameTrim,
           website: web || '—',
-          industry: industryResolved,
+          industry:
+            industryPick.label ||
+            this.orgMaster.industrySelectOptions()[0]?.name ||
+            row.industry ||
+            '',
           annualRevenue: row.annualRevenue,
           lastModified: 'Just now',
-          employees: v.employees,
-          territory: v.territory.trim() || undefined,
+          employees:
+            employeePick.label ||
+            this.orgMaster.employeeSelectOptions()[0]?.name ||
+            row.employees ||
+            '1-10',
+          territory: territoryPick.label.trim() || undefined,
+          industryId: industryPick.masterId,
+          employeeCountId: employeePick.masterId,
+          territoryId: territoryPick.masterId,
           address: v.address.trim() || undefined,
         };
 

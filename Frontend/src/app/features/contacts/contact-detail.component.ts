@@ -6,6 +6,16 @@ import { take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { ContactsService } from '../../core/services/contacts.service';
 import { DealsService } from '../../core/services/deals.service';
+import {
+  LeadMasterDataService,
+  type MasterDataOption,
+} from '../../core/services/leads/lead-master-data.service';
+import {
+  masterOptionFormValue,
+  masterSelectControlValue,
+  resolveSalutationLabel,
+  salutationSelectOptions,
+} from '../../core/services/organizations/organization-master-select.util';
 import type { ContactRow } from './contacts.component';
 import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
 
@@ -21,6 +31,7 @@ export class ContactDetailComponent {
   private readonly fb = inject(FormBuilder);
   private readonly contactsService = inject(ContactsService);
   private readonly dealsService = inject(DealsService);
+  private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly createRowBus = inject(CreateRowBusService);
 
   protected readonly numericId = signal<number | null>(null);
@@ -30,7 +41,12 @@ export class ContactDetailComponent {
   protected readonly resolved = signal(false);
   protected readonly detailsOpen = signal(true);
 
-  protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
+  private readonly salutationsFromApi = signal<MasterDataOption[]>([]);
+  protected readonly salutationSelectOptions = computed(() =>
+    salutationSelectOptions(this.salutationsFromApi()),
+  );
+  protected readonly masterOptionFormValue = masterOptionFormValue;
+
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
   protected readonly addressOptions = [
     '',
@@ -58,6 +74,10 @@ export class ContactDetailComponent {
   protected readonly dealCount = computed(() => this.relatedDeals().length);
 
   constructor() {
+    this.leadMasterData
+      .loadSalutations()
+      .pipe(take(1))
+      .subscribe((rows) => this.salutationsFromApi.set(rows));
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const raw = params.get('id');
       const id = raw != null ? Number(raw) : NaN;
@@ -97,7 +117,11 @@ export class ContactDetailComponent {
   private patchDetailForm(row: ContactRow): void {
     this.detailForm.patchValue(
       {
-        salutation: row.salutation ?? '',
+        salutation: masterSelectControlValue(
+          null,
+          row.salutation,
+          this.salutationSelectOptions(),
+        ),
         firstName: row.firstName ?? '',
         lastName: row.lastName ?? '',
         email: row.email,
@@ -188,7 +212,7 @@ export class ContactDetailComponent {
           phone: v.mobile.trim() || '—',
           organization: v.companyName.trim(),
           lastModified: 'Just now',
-          salutation: v.salutation.trim() || undefined,
+          salutation: resolveSalutationLabel(v.salutation, this.salutationSelectOptions()) || undefined,
           firstName: v.firstName.trim() || undefined,
           lastName: v.lastName.trim() || undefined,
           gender: v.gender.trim() || undefined,

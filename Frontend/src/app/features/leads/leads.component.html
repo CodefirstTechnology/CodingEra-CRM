@@ -64,8 +64,8 @@
     [convertLeadEnabled]="bulkConvertEnabled()"
     [showAssignActions]="true"
     [showConvertLead]="true"
+    [showDelete]="false"
     (edit)="onBulkEdit()"
-    (delete)="onBulkDelete()"
     (assignTo)="onAssignToMenu()"
     (clearAssignment)="onClearAssignmentBulk()"
     (convertToDeal)="convertToDeal()"
@@ -75,7 +75,7 @@
   <app-crm-assign-picker
     [open]="assignPickerOpen()"
     title="Assign leads"
-    [options]="leadOwnerOptions"
+    [options]="leadOwnerOptions()"
     [selectedId]="assignDefaultOwnerId()"
     (picked)="onAssignPicked($event)"
     (closed)="onAssignClosed()"
@@ -124,6 +124,13 @@
                 </select>
               </label>
               <label class="leads__field">
+                <span class="leads__label">First name <span class="leads__req">*</span></span>
+                <input class="leads__control leads__control--soft" type="text" formControlName="firstName" autocomplete="given-name" />
+                @if (fieldInvalid('firstName')) {
+                  <span class="leads__err">First name is required.</span>
+                }
+              </label>
+              <label class="leads__field">
                 <span class="leads__label">Last name <span class="leads__req">*</span></span>
                 <input class="leads__control leads__control--soft" type="text" formControlName="lastName" autocomplete="family-name" />
                 @if (fieldInvalid('lastName')) {
@@ -132,18 +139,9 @@
               </label>
               <label class="leads__field">
                 <span class="leads__label">Mobile no.</span>
-                <input class="leads__control leads__control--soft" type="tel" formControlName="mobile" autocomplete="tel" />
-                @if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['required']) {
-                  <span class="leads__err">Mobile is required.</span>
-                } @else if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['pattern']) {
+                <input class="leads__control leads__control--soft" type="tel" formControlName="mobile" autocomplete="tel" inputmode="numeric" />
+                @if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['pattern']) {
                   <span class="leads__err">Enter exactly 10 digits.</span>
-                }
-              </label>
-              <label class="leads__field">
-                <span class="leads__label">First name <span class="leads__req">*</span></span>
-                <input class="leads__control leads__control--soft" type="text" formControlName="firstName" autocomplete="given-name" />
-                @if (fieldInvalid('firstName')) {
-                  <span class="leads__err">First name is required.</span>
                 }
               </label>
               <label class="leads__field">
@@ -254,11 +252,20 @@
               </label>
               <label class="leads__field leads__field--span2-md">
                 <span class="leads__label">Lead owner</span>
-                <select class="leads__control leads__control--soft leads__control--owner" formControlName="leadOwner">
-                  @for (o of leadOwnerOptions; track o.id) {
-                    <option [value]="o.id">{{ o.label }}</option>
-                  }
-                </select>
+                @if (isAdminViewer()) {
+                  <select class="leads__control leads__control--soft leads__control--owner" formControlName="leadOwner">
+                    @for (o of leadOwnerOptions(); track o.id) {
+                      <option [value]="o.id">{{ o.label }}</option>
+                    }
+                  </select>
+                } @else {
+                  <span class="leads__owner-readonly">
+                    @if (createFormLeadOwnerDisplay().initials) {
+                      <span class="leads__avatar">{{ createFormLeadOwnerDisplay().initials }}</span>
+                    }
+                    <span class="leads__owner-name">{{ createFormLeadOwnerDisplay().label }}</span>
+                  </span>
+                }
               </label>
               <label class="leads__field">
                 <span class="leads__label">Request type</span>
@@ -270,13 +277,16 @@
                 </select>
               </label>
               <label class="leads__field leads__field--full">
-                <span class="leads__label">Requirement</span>
+                <span class="leads__label">Requirement <span class="leads__req">*</span></span>
                 <input
                   class="leads__control leads__control--soft"
                   type="text"
                   formControlName="requirement"
                   placeholder="What is the customer looking for?"
                 />
+                @if (fieldInvalid('requirement')) {
+                  <span class="leads__err">Requirement is required.</span>
+                }
               </label>
               <label class="leads__field leads__field--full">
                 <span class="leads__label">Additional details</span>
@@ -315,7 +325,7 @@
       }
     </label>
     <div class="leads__filters" role="group" aria-label="Filter by status">
-      @for (chip of filterChips; track chip.id) {
+      @for (chip of filterChips(); track chip.id) {
         <button
           type="button"
           class="leads__chip"
@@ -362,7 +372,7 @@
         </button>
         @if (columnMenuOpen()) {
           <div class="leads__columns-menu" role="menu" aria-label="Choose lead table columns">
-            <p class="leads__columns-help">Name, email, and source are required.</p>
+            <p class="leads__columns-help">Name, source, and requirement cannot be hidden.</p>
             @for (column of columnOptions(); track column.id) {
               <label class="leads__column-option" [class.is-required]="column.required">
                 <input
@@ -401,13 +411,12 @@
                 />
               </th>
               @for (column of visibleColumns(); track column.id) {
-                <th>{{ column.label }}</th>
+                <th [class.leads__th--mobile]="column.id === 'mobile'">{{ column.label }}</th>
               }
-              <th class="hide-narrow">Actions</th>
             </tr>
           </thead>
           <tbody>
-            @for (row of filtered(); track row.id) {
+            @for (row of paginatedFiltered(); track row.id) {
               <tr>
                 <td class="leads__td leads__td--check">
                   <input
@@ -419,46 +428,29 @@
                   />
                 </td>
                 @for (column of visibleColumns(); track column.id) {
-                  <td [class.leads__strong]="column.id === 'name'" [class.leads__muted]="column.id === 'email' || column.id === 'updated'">
+                  <td
+                    [class.leads__strong]="column.id === 'name'"
+                    [class.leads__muted]="column.id === 'email' || column.id === 'updated'"
+                    [class.leads__td--mobile]="column.id === 'mobile'"
+                  >
                     @switch (column.id) {
                       @case ('name') {
                         <a [routerLink]="['/leads', row.id]" class="leads__name-link">{{ row.name }}</a>
                       }
-                      @case ('leadSource') {
-                        <span [class]="leadSourceClass(row)">{{ leadSourceLabel(row) }}</span>
-                      }
                       @case ('status') {
-                        @if (leadSourceLabel(row) === 'IndiaMART') {
+                        @if (isAdminViewer()) {
+                          <span [class]="statusClass(row.status)">{{ row.status }}</span>
+                        } @else if (canEditLeadStatusInTable(row)) {
                           <select
                             class="leads__status-select"
-                            [value]="row.status"
-                            (change)="onIndiaMartStatusChange(row, $event)"
+                            [ngModel]="statusSelectValueForRow(row)"
+                            [ngModelOptions]="{ standalone: true }"
+                            (ngModelChange)="onLeadStatusSelectModelChange(row, $event)"
+                            (click)="$event.stopPropagation()"
                             [attr.aria-label]="'Status for ' + row.name"
                           >
-                            @for (st of indiaMartStatusOptions; track st) {
-                              <option [value]="st">{{ st }}</option>
-                            }
-                          </select>
-                        } @else if (leadSourceLabel(row) === 'Justdial') {
-                          <select
-                            class="leads__status-select"
-                            [value]="row.status"
-                            (change)="onJustdialStatusChange(row, $event)"
-                            [attr.aria-label]="'Status for ' + row.name"
-                          >
-                            @for (st of justdialStatusOptions; track st) {
-                              <option [value]="st">{{ st }}</option>
-                            }
-                          </select>
-                        } @else if (leadSourceLabel(row) === 'TradeIndia') {
-                          <select
-                            class="leads__status-select"
-                            [value]="row.status"
-                            (change)="onTradeIndiaStatusChange(row, $event)"
-                            [attr.aria-label]="'Status for ' + row.name"
-                          >
-                            @for (st of tradeindiaStatusOptions; track st) {
-                              <option [value]="st">{{ st }}</option>
+                            @for (opt of statusSelectOptions(); track opt.id + opt.name) {
+                              <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                             }
                           </select>
                         } @else {
@@ -466,10 +458,30 @@
                         }
                       }
                       @case ('owner') {
-                        <span class="leads__owner-cell">
-                          <span class="leads__avatar">{{ row.owner }}</span>
-                          <span class="leads__owner-name">{{ row.leadOwnerName }}</span>
-                        </span>
+                        @if (isAdminViewer() && isPersistedApiLeadRow(row.id) && leadOwnerOptions().length > 0) {
+                          <select
+                            class="leads__owner-select"
+                            [ngModel]="resolveOwnerSelectValue(row)"
+                            (ngModelChange)="onLeadOwnerSelectChange(row, $event)"
+                            (click)="$event.stopPropagation()"
+                            [attr.aria-label]="'Lead owner for ' + row.name"
+                          >
+                            <option value="">Unassigned</option>
+                            @for (o of leadOwnerOptions(); track o.id) {
+                              <option [value]="o.id">{{ o.label }}</option>
+                            }
+                          </select>
+                        } @else {
+                          <span class="leads__owner-cell">
+                            @if (row.owner) {
+                              <span class="leads__avatar">{{ row.owner }}</span>
+                            }
+                            <span class="leads__owner-name">{{ row.leadOwnerName || '—' }}</span>
+                          </span>
+                        }
+                      }
+                      @case ('mobile') {
+                        <span class="leads__cell-mobile">{{ formatMobileCell(row.mobile) }}</span>
                       }
                       @default {
                         {{ displayColumnValue(row, column.id) }}
@@ -477,14 +489,19 @@
                     }
                   </td>
                 }
-                <td class="hide-narrow">
-                  <button type="button" class="leads__linkish" (click)="deleteLead(row, $event)">Delete</button>
-                </td>
               </tr>
             }
           </tbody>
         </table>
       }
     </div>
+    @if (filtered().length > tablePageSize) {
+      <app-crm-pagination-footer
+        ariaLabel="Leads table pages"
+        [page]="tablePage()"
+        [totalPages]="tableTotalPages()"
+        (pageChange)="setTablePage($event)"
+      />
+    }
   </div>
 </div>

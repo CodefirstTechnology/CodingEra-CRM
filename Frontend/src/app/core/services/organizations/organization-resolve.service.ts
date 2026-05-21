@@ -4,6 +4,7 @@ import { catchError, map, switchMap, tap } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import type { OrganizationRow } from '../../../features/organizations/organizations.component';
 import {
+  mergeOrganizationLeadSyncWithExisting,
   organizationLeadSyncPayload,
   organizationNumericId,
   type OrganizationEnsureOptions,
@@ -121,7 +122,11 @@ export class OrganizationResolveService {
   ): Observable<number | null> {
     const patch = organizationLeadSyncPayload(orgName, options);
     if (!patch) return of(organizationId);
-    return this.orgHttp.put(organizationId, patch).pipe(
+    return this.orgHttp.getById(organizationId).pipe(
+      switchMap((existing) => {
+        const merged = mergeOrganizationLeadSyncWithExisting(existing, patch);
+        return this.orgHttp.put(organizationId, merged);
+      }),
       map(() => organizationId),
       catchError((err) => {
         console.warn('[organizations] sync existing org failed', organizationId, err);

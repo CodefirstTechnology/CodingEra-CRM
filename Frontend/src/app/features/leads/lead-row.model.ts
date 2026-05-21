@@ -1,5 +1,13 @@
-/** CRM pipeline status (manual leads + unified list). */
-export type LeadStatus = 'New' | 'Contacted' | 'Qualified' | 'Lost' | 'Converted';
+/** CRM pipeline status (manual leads + unified list; aligns with `lead_statuses` master). */
+export type LeadStatus =
+  | 'New'
+  | 'Contacted'
+  | 'Nurture'
+  | 'Unqualified'
+  | 'Qualified'
+  | 'Junk'
+  | 'Lost'
+  | 'Converted';
 
 /** Marketplace origins shown in the unified Leads view. */
 export type MarketplaceLeadSource = 'IndiaMART' | 'Justdial' | 'TradeIndia';
@@ -25,6 +33,8 @@ export interface LeadRow {
   gender?: string;
   email: string;
   organization: string;
+  /** Persisted FK when known (from GET normalization); keeps PUT payloads linked when PATCH omits organization. */
+  organizationId?: string;
   employees?: string;
   /** Master data FK (`/api/MasterData/employee-counts`) when resolving organization. */
   employeeCountId?: number | null;
@@ -46,11 +56,13 @@ export interface LeadRow {
   requestTypeId?: number | null;
   requirement?: string;
   notes?: string;
+  /** Human-readable created time when known (API/manual); aligns with Updates tab “created” line. */
+  created?: string;
   leadOwnerName: string;
   owner: string;
   updated: string;
   source?: string;
-  /** Owner picker key (e.g. SK), mirrors form `leadOwner`. */
+  /** Backend user id (`Users` table), mirrors form `leadOwner`. */
   leadOwnerId?: string;
   /** Set for unified list: manual CRM vs IndiaMART import. */
   leadSource?: LeadSource;

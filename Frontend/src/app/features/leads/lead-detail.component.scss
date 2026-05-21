@@ -1362,6 +1362,15 @@
   color: var(--text-primary);
 }
 
+.lead-detail__owner-readonly {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+  min-height: 2.25rem;
+  padding: 0.35rem 0;
+  color: var(--text-primary);
+}
+
 .lead-detail__name {
   margin: 0;
   font-size: 1.0625rem;
@@ -1529,6 +1538,11 @@
   align-items: center;
 }
 
+.lead-detail__owner-paginated-select {
+  flex: 1;
+  min-width: 0;
+}
+
 .lead-detail__side-save {
   margin-top: auto;
   flex-shrink: 0;
@@ -1589,6 +1603,18 @@
 .lead-detail__back {
   color: var(--tertiary-color);
   text-decoration: none;
+}
+
+.lead-detail__main-head--activity h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.lead-detail__compose--activity {
+  border-top: 1px solid var(--card-border);
+  margin-top: auto;
+  padding: 0.65rem 1rem 0.85rem;
 }
 
 @media (max-width: 980px) {

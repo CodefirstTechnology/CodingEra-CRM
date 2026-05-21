@@ -1,6 +1,7 @@
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable, map, of, timeout } from 'rxjs';
+import { readUsersTableRoleId, ROLE_ID_USER, sessionRoleLabel } from '../auth/auth-role.util';
 import { environment } from '../../../environments/environment';
 
 export interface AdminUserRow {
@@ -8,6 +9,7 @@ export interface AdminUserRow {
   name: string;
   email: string;
   role: string;
+  roleId?: number;
 }
 
 function pickStr(obj: Record<string, unknown>, keys: string[]): string | undefined {
@@ -68,15 +70,19 @@ export class AdminUsersService {
       this.nameFromEmail(email);
 
     const roleRaw = pickStr(o, ['role', 'Role', 'userRole', 'UserRole']) ?? 'User';
+    const roleId = readUsersTableRoleId(o) ?? ROLE_ID_USER;
 
     const id =
       pickStr(o, ['id', 'Id', 'userId', 'UserId']) ?? email;
+
+    const role = sessionRoleLabel(roleId);
 
     return {
       id,
       name,
       email,
-      role: this.normalizeRoleLabel(roleRaw),
+      role,
+      roleId,
     };
   }
 

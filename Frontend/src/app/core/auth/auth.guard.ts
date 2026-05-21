@@ -1,5 +1,6 @@
 import { inject } from '@angular/core';
 import { CanMatchFn, Router } from '@angular/router';
+import { defaultHomeUrl } from './auth-role.util';
 import { AuthService } from './auth.service';
 
 /** Blocks CRM shell when there is no valid session; sends user to `/login`. */
@@ -19,5 +20,5 @@ export const guestGuard: CanMatchFn = () => {
   if (!auth.isAuthenticated()) {
     return true;
   }
-  return router.parseUrl('/dashboard');
+  return router.parseUrl(defaultHomeUrl(auth.user()));
 };

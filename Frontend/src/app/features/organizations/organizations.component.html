@@ -70,8 +70,8 @@
             <label class="org__field">
               <span class="org__label">Industry <span class="org__req">*</span></span>
               <select class="org__control org__control--soft" formControlName="industry">
-                @for (ind of industryOptions; track ind) {
-                  <option [value]="ind">{{ ind }}</option>
+                @for (opt of orgMaster.industrySelectOptions(); track opt.id + opt.name) {
+                  <option [value]="masterOptValue(opt)">{{ opt.name }}</option>
                 }
               </select>
               @if (fieldInvalid('industry')) {
@@ -92,8 +92,8 @@
             <label class="org__field">
               <span class="org__label">No. of employees</span>
               <select class="org__control org__control--soft" formControlName="employees">
-                @for (e of employeeOptions; track e) {
-                  <option [value]="e">{{ e }}</option>
+                @for (opt of orgMaster.employeeSelectOptions(); track opt.id + opt.name) {
+                  <option [value]="masterOptValue(opt)">{{ opt.name }}</option>
                 }
               </select>
             </label>
@@ -101,8 +101,10 @@
             <label class="org__field">
               <span class="org__label">Territory</span>
               <select class="org__control org__control--soft" formControlName="territory">
-                @for (t of territoryOptions; track t) {
-                  <option [value]="t">{{ t === '' ? '— Select —' : t }}</option>
+                @for (opt of orgMaster.territorySelectOptions(); track opt.id + '_' + opt.name) {
+                  <option [value]="masterOptValue(opt)">{{
+                    opt.name.trim() === '' ? '— Select —' : opt.name
+                  }}</option>
                 }
               </select>
             </label>

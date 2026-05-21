@@ -1,5 +1,7 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './core/auth/auth.guard';
+import { roleGuard } from './core/guards/role.guard';
+import { HomeRedirectComponent } from './core/routing/home-redirect.component';
 import { CrmShellComponent } from './shell/crm-shell/crm-shell.component';
 
 export const routes: Routes = [
@@ -26,11 +28,20 @@ export const routes: Routes = [
     component: CrmShellComponent,
     canMatch: [authGuard],
     children: [
-      { path: '', pathMatch: 'full', redirectTo: 'dashboard' },
+      { path: '', pathMatch: 'full', component: HomeRedirectComponent },
       {
         path: 'dashboard',
+        canMatch: [roleGuard],
+        data: { roles: ['admin'] },
         loadChildren: () =>
           import('./features/dashboard/dashboard.module').then((m) => m.DashboardModule),
+      },
+      {
+        path: 'user-dashboard',
+        canMatch: [roleGuard],
+        data: { roles: ['user'] },
+        loadChildren: () =>
+          import('./features/user-dashboard/user-dashboard.routes').then((m) => m.USER_DASHBOARD_ROUTES),
       },
       {
         path: 'leads',
@@ -57,11 +68,6 @@ export const routes: Routes = [
       {
         path: 'notes',
         loadChildren: () => import('./features/notes/notes.module').then((m) => m.NotesModule),
-      },
-      {
-        path: 'call-logs',
-        loadChildren: () =>
-          import('./features/call-logs/call-logs.module').then((m) => m.CallLogsModule),
       },
       {
         path: 'help',

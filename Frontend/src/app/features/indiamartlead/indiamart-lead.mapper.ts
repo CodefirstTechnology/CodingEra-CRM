@@ -1,3 +1,5 @@
+import { coerceLeadStatus } from '../../core/services/leads/lead-api.mapper';
+import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { IndiaMartLead } from './indiamart-lead.model';
 
@@ -15,7 +17,10 @@ export function parseIndiamartNumericIdFromRowId(id: string): number | null {
 }
 
 function mapIndiaMartStatusToLeadStatus(status: IndiaMartLead['status']): LeadStatus {
-  return status as LeadStatus;
+  const coerced = coerceLeadStatus(status);
+  if (coerced === 'Converted') return 'Qualified';
+  if (coerced === 'Lost') return 'Unqualified';
+  return coerced;
 }
 
 /**
@@ -40,15 +45,15 @@ export function mapIndiaMartLeadToLeadRow(im: IndiaMartLead): LeadRow {
     lastName,
     mobile: im.mobile.trim(),
     email: im.email.trim(),
-    organization: `${im.product.trim()}${im.quantity ? ` · ${im.quantity.trim()}` : ''} (${im.city.trim()})`,
+    organization: '',
     industry: 'Other',
     status: mapIndiaMartStatusToLeadStatus(im.status),
     leadOwnerName: '—',
     owner: 'IM',
     updated: updatedLabel,
     source: im.source.trim(),
-    requirement: im.message.trim(),
-    notes: im.message.trim(),
+    requirement: plainTextFromHtml(im.message),
+    notes: plainTextFromHtml(im.message),
     leadSource: 'IndiaMART',
     sortTimestamp: ts,
   };

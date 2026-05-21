@@ -1,4 +1,6 @@
 import { environment } from '../../../../environments/environment';
+import { plainTextFromHtml } from '../../../shared/utils/plain-text-from-html';
+import { coerceLeadStatus } from './lead-api.mapper';
 import type { LeadRow, LeadSource, LeadStatus } from '../../../features/leads/lead-row.model';
 import type { IndiaMartLead } from '../../../features/indiamartlead/indiamart-lead.model';
 import type { JustdialLead } from '../../../features/justdiallead/justdial-lead.model';
@@ -103,9 +105,28 @@ function apiStoredLeadSourceField(): string {
   return v?.trim() || 'Website';
 }
 
+/** Inquiry text for IndiaMART → DB `requirement` column (not organization name). */
+export function indiaMartRequirementText(lead: MarketplaceLeadShape): string {
+  const message = plainTextFromHtml(lead.message);
+  if (message) return message;
+  const product = plainTextFromHtml(lead.product);
+  if (!product) return '';
+  const qty = lead.quantity.trim();
+  const qtySuffix = qty && qty !== '—' ? ` · ${qty}` : '';
+  return `${product}${qtySuffix}`;
+}
+
+/** Maps marketplace-only labels onto the six CRM `lead_statuses` names before API save. */
+function crmMasterStatusFromMarketplace(raw: string | undefined): LeadStatus {
+  const coerced = coerceLeadStatus(raw?.trim() || 'New');
+  if (coerced === 'Converted') return 'Qualified';
+  if (coerced === 'Lost') return 'Unqualified';
+  return coerced;
+}
+
 function toUpsertDto(source: MarketplaceApiSource, lead: MarketplaceLeadShape): LeadUpsertDto {
   const { firstName, lastName } = splitCustomerName(lead.customerName);
-  const status = (lead.status?.trim() || 'New') as LeadStatus;
+  const status = crmMasterStatusFromMarketplace(lead.status);
 
   return {
     id: 0,
@@ -126,7 +147,12 @@ export function withLeadStatusId(dto: LeadUpsertDto, leadStatusId: number | null
 }
 
 export function indiaMartLeadToUpsertDto(lead: IndiaMartLead): LeadUpsertDto {
-  return toUpsertDto('IndiaMART', lead);
+  const requirement = indiaMartRequirementText(lead);
+  return {
+    ...toUpsertDto('IndiaMART', lead),
+    requirement: requirement || null,
+    organizationId: null,
+  };
 }
 
 export function justdialLeadToUpsertDto(lead: JustdialLead): LeadUpsertDto {
@@ -169,9 +195,15 @@ export function parseMarketplaceNotesDisplay(notes: string | null | undefined): 
   }
 
   const message = msgLines.join('\n').trim();
-  const organizationLabel = product
-    ? `${product}${city ? ` (${city})` : ''}`
-    : city || message.slice(0, 120) || '';
+  const ext = extractMarketplaceExternalRef(notes);
+  const organizationLabel =
+    ext?.source === 'IndiaMART'
+      ? product
+        ? `${product}${city ? ` (${city})` : ''}`
+        : city
+      : product
+        ? `${product}${city ? ` (${city})` : ''}`
+        : city || message.slice(0, 120) || '';
 
   return { message, product, city, inquirySource, organizationLabel };
 }
@@ -188,17 +220,33 @@ export function applyMarketplaceNotesToLeadRow(row: LeadRow, notes: string | nul
   const parsed = parseMarketplaceNotesDisplay(notes);
   const out: LeadRow = { ...row };
 
-  if (!out.organization?.trim() && parsed.organizationLabel) {
+  if (ext?.source === 'IndiaMART') {
+    out.organization = '';
+  } else if (!out.organization?.trim() && parsed.organizationLabel) {
     out.organization = parsed.organizationLabel;
   }
   if (!out.territory?.trim() && parsed.city) {
     out.territory = parsed.city;
   }
-  if (!out.requirement?.trim() && parsed.message) {
-    out.requirement = parsed.message;
+  if (!out.requirement?.trim()) {
+    if (ext?.source === 'IndiaMART') {
+      out.requirement = indiaMartRequirementText({
+        customerName: '',
+        mobile: '',
+        email: '',
+        city: parsed.city,
+        product: parsed.product,
+        quantity: '',
+        message: parsed.message,
+        source: parsed.inquirySource,
+        status: '',
+      });
+    } else if (parsed.message) {
+      out.requirement = plainTextFromHtml(parsed.message);
+    }
   }
   if (!out.notes?.trim() && parsed.message) {
-    out.notes = parsed.message;
+    out.notes = plainTextFromHtml(parsed.message);
   }
   if (parsed.inquirySource) {
     out.source = parsed.inquirySource;

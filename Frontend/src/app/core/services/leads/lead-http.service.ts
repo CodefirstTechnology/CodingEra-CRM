@@ -11,6 +11,10 @@ import { stripLeadUpsertForPost } from './lead-upsert-body.util';
 export interface LeadListQuery {
   leadSource?: string;
   status?: string;
+  /** `users.id` / `users.role_id` owner FK on leads. */
+  leadOwnerId?: number;
+  assignedToUserId?: number;
+  userId?: number;
 }
 
 function extractLeadRecords(raw: unknown): unknown[] {
@@ -56,6 +60,16 @@ export class LeadHttpService {
     if (query?.status?.trim()) {
       params = params.set('status', query.status.trim());
     }
+    const ownerId = query?.leadOwnerId ?? query?.assignedToUserId ?? query?.userId;
+    if (ownerId != null && ownerId > 0) {
+      const id = String(ownerId);
+      params = params
+        .set('leadOwnerId', id)
+        .set('lead_owner_id', id)
+        .set('assignedToUserId', id)
+        .set('assigned_to_user_id', id)
+        .set('userId', id);
+    }
     return this.http
       .get<unknown>(this.baseUrl, {
         headers: this.jsonHeaders(),
@@ -80,7 +94,7 @@ export class LeadHttpService {
       .pipe(map((raw) => normalizeLeadApiRecord(raw)));
   }
 
-  put(id: number, body: LeadUpsertDto): Observable<LeadNormalized> {
+  put(id: number, body: LeadUpsertDto | Record<string, unknown>): Observable<LeadNormalized> {
     return this.http
       .put<unknown>(`${this.baseUrl}/${id}`, body, { headers: this.jsonHeaders() })
       .pipe(map((raw) => normalizeLeadApiRecord(raw)));

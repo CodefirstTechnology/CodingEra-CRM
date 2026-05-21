@@ -3,6 +3,8 @@ export interface UserSession {
   email: string;
   name: string;
   role: string;
+  /** `users.role_id` — `1` User, `2` Admin. */
+  roleId: number;
 }
 
 /** Sent to POST /auth/register — password is never persisted on the client. */

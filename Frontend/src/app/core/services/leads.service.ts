@@ -1,15 +1,24 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom, Observable, of } from 'rxjs';
-import { map, switchMap } from 'rxjs/operators';
+import { catchError, map, switchMap, tap } from 'rxjs/operators';
+import {
+  filterLeadsByLeadOwnerId,
+  parseSessionUserId,
+} from '../../features/user-dashboard/utils/user-ownership.util';
+import { LeadRoundRobinService } from './leads/lead-round-robin.service';
 import { OrganizationResolveService } from './organizations/organization-resolve.service';
 import type { LeadRow } from '../../features/leads/lead-row.model';
 import {
   leadCreatePayloadToApiJson,
   mapLeadNormalizedToRow,
+  applyLeadRowOrgFieldsFromPatch,
+  enrichLeadNormalizedFromPatch,
   mergeLeadApiDtoWithRowPatch,
+  reconcileLeadNormalizedAfterPut,
 } from './leads/lead-api.mapper';
-import type { LeadUpsertDto } from './leads/lead-api.models';
+import type { LeadNormalized, LeadUpsertDto } from './leads/lead-api.models';
+import { buildLeadPutJson } from './leads/lead-upsert-body.util';
 import { LeadHttpService } from './leads/lead-http.service';
 
 /** Maps failed lead HTTP calls to a short user-facing message. */
@@ -21,9 +30,12 @@ export function leadsHttpErrorMessage(err: unknown): string {
     const body = err.error;
     if (typeof body === 'string' && body.trim()) return body.trim().slice(0, 200);
     if (body && typeof body === 'object') {
-      const title = (body as { title?: string }).title;
-      const detail = (body as { detail?: string }).detail;
-      const message = (body as { message?: string }).message;
+      const o = body as Record<string, unknown>;
+      const validation = formatAspNetValidationErrors(o);
+      if (validation) return validation.slice(0, 500);
+      const title = o['title'];
+      const detail = o['detail'];
+      const message = o['message'];
       if (typeof title === 'string' && title.trim()) return title.trim();
       if (typeof detail === 'string' && detail.trim()) return detail.trim();
       if (typeof message === 'string' && message.trim()) return message.trim();
@@ -34,13 +46,56 @@ export function leadsHttpErrorMessage(err: unknown): string {
   return 'Something went wrong';
 }
 
+function formatAspNetValidationErrors(body: Record<string, unknown>): string | null {
+  const errors = body['errors'];
+  if (errors == null || typeof errors !== 'object' || Array.isArray(errors)) return null;
+  const parts: string[] = [];
+  for (const [key, val] of Object.entries(errors as Record<string, unknown>)) {
+    if (Array.isArray(val)) {
+      const msgs = val.filter((v): v is string => typeof v === 'string').join('; ');
+      if (msgs) parts.push(`${key}: ${msgs}`);
+    } else if (typeof val === 'string' && val.trim()) {
+      parts.push(`${key}: ${val.trim()}`);
+    }
+  }
+  return parts.length ? parts.join(' · ') : null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class LeadsService {
   private readonly leadHttp = inject(LeadHttpService);
   private readonly orgResolve = inject(OrganizationResolveService);
+  private readonly roundRobin = inject(LeadRoundRobinService);
 
   getAll(): Observable<LeadRow[]> {
     return this.leadHttp.list().pipe(map((rows) => rows.map(mapLeadNormalizedToRow)));
+  }
+
+  /**
+   * Leads where `users.id` = `leads.lead_owner_id`.
+   * Tries `GET /api/leads?leadOwnerId=` first; if empty or the request fails, loads all leads and filters client-side.
+   */
+  getAssignedToUser(
+    userId: string,
+    _userName = '',
+    _userEmail = '',
+  ): Observable<LeadRow[]> {
+    const ownerId = parseSessionUserId(userId);
+    if (ownerId == null) return of([]);
+
+    const toOwnedRows = (normalized: LeadNormalized[]) =>
+      filterLeadsByLeadOwnerId(normalized.map(mapLeadNormalizedToRow), String(ownerId));
+
+    const query = { leadOwnerId: ownerId };
+
+    return this.leadHttp.list(query).pipe(
+      switchMap((filtered) => {
+        const rows = toOwnedRows(filtered);
+        if (rows.length > 0) return of(rows);
+        return this.leadHttp.list().pipe(map((all) => toOwnedRows(all)));
+      }),
+      catchError(() => this.leadHttp.list().pipe(map((all) => toOwnedRows(all)))),
+    );
   }
 
   async getAllAsync(): Promise<LeadRow[]> {
@@ -56,8 +111,17 @@ export class LeadsService {
   }
 
   create(data: Omit<LeadRow, 'id'>): Observable<LeadRow> {
-    return this.withResolvedOrganization(data).pipe(
-      switchMap((body) => this.leadHttp.create(body).pipe(map(mapLeadNormalizedToRow))),
+    const withOwner = this.roundRobin.applyOwnerIfMissing(data);
+    return this.withResolvedOrganization(withOwner).pipe(
+      switchMap((body) => {
+        const dto = this.roundRobin.applyToUpsertDto(body);
+        const orgPatch = this.orgFieldsPatchFromLeadData(data, dto.organizationId ?? null);
+        return this.leadHttp.create(dto).pipe(
+          map(mapLeadNormalizedToRow),
+          map((row) => applyLeadRowOrgFieldsFromPatch(row, orgPatch)),
+        );
+      }),
+      tap(() => this.roundRobin.advanceAfterLeadCreated()),
     );
   }
 
@@ -73,21 +137,97 @@ export class LeadsService {
     return this.leadHttp.getById(id).pipe(
       switchMap((prev) => {
         if (!prev) return of(null);
-        return this.resolveOrganizationForPatch(patch).pipe(
-          switchMap((organizationId) => {
-            const prevForMerge =
-              organizationId != null
-                ? { ...prev, organizationId, organizationName: patch.organization?.trim() || prev.organizationName }
-                : prev;
-            const body = mergeLeadApiDtoWithRowPatch(prevForMerge, patch);
-            if (organizationId != null && organizationId > 0) {
-              body.organizationId = organizationId;
-            }
-            return this.leadHttp.put(id, body).pipe(map(mapLeadNormalizedToRow));
-          }),
+        return this.ensureLeadOrganizationFk(prev, patch).pipe(
+          switchMap((prevWithOrg) =>
+            this.resolveOrganizationForPatch(patch).pipe(
+              switchMap((resolvedOrgId) => {
+                const patchOrgId = this.parseLeadRowOrganizationFk(patch.organizationId);
+                const linkedOrgId =
+                  resolvedOrgId != null && resolvedOrgId > 0
+                    ? resolvedOrgId
+                    : patchOrgId != null
+                      ? patchOrgId
+                      : prevWithOrg.organizationId != null && prevWithOrg.organizationId > 0
+                        ? prevWithOrg.organizationId
+                        : null;
+                const prevForMerge: LeadNormalized = {
+                  ...prevWithOrg,
+                  organizationId: linkedOrgId ?? prevWithOrg.organizationId,
+                  organizationName:
+                    patch.organization?.trim() || prevWithOrg.organizationName || '',
+                };
+                const dto = mergeLeadApiDtoWithRowPatch(prevForMerge, patch);
+                if (linkedOrgId != null && linkedOrgId > 0) {
+                  dto.organizationId = linkedOrgId;
+                }
+                const body = buildLeadPutJson(dto, prevForMerge);
+                if (linkedOrgId != null && linkedOrgId > 0) {
+                  body['organizationId'] = linkedOrgId;
+                }
+                const orgName = patch.organization?.trim() || prevForMerge.organizationName?.trim();
+                if (orgName) {
+                  body['organizationName'] = orgName;
+                }
+                const reconcileBaseline = enrichLeadNormalizedFromPatch(prevForMerge, patch);
+                return this.leadHttp.put(id, body).pipe(
+                  map((norm) => reconcileLeadNormalizedAfterPut(norm, reconcileBaseline, patch)),
+                  map(mapLeadNormalizedToRow),
+                  map((row) => {
+                    const orgPatch: Partial<Omit<LeadRow, 'id'>> = { ...patch };
+                    if (linkedOrgId != null && linkedOrgId > 0) {
+                      orgPatch.organizationId = String(linkedOrgId);
+                    }
+                    return applyLeadRowOrgFieldsFromPatch(row, orgPatch);
+                  }),
+                );
+              }),
+            ),
+          ),
         );
       }),
     );
+  }
+
+  /**
+   * GET payloads sometimes omit `organizationId`. Marketplace leads often only expose the
+   * company/product label inside `notes` — that is mirrored into {@link normalizeLeadApiRecord}.
+   * This step resolves `/api/organizations` so PUT includes `organizationId` even when the PATCH
+   * omits `organization` (e.g. status-only updates).
+   */
+  private ensureLeadOrganizationFk(
+    prev: LeadNormalized,
+    patch?: Partial<Omit<LeadRow, 'id'>>,
+  ): Observable<LeadNormalized> {
+    if (prev.organizationId != null && prev.organizationId > 0) return of(prev);
+
+    /** Only treat organization as cleared when the user explicitly edited that field. */
+    if (
+      patch != null &&
+      'organization' in patch &&
+      !String(patch.organization ?? '').trim()
+    ) {
+      return of(prev);
+    }
+
+    const name = String(patch?.organization ?? '').trim() || prev.organizationName?.trim();
+    if (!name) return of(prev);
+    return this.orgResolve
+      .ensureOrganizationId(name, {
+        territory: patch?.territory?.trim() || prev.territory?.trim() || undefined,
+        territoryId: patch?.territoryId ?? prev.territoryId ?? undefined,
+        industry: patch?.industry?.trim() || prev.industry?.trim() || undefined,
+        industryId: patch?.industryId ?? prev.industryId ?? undefined,
+        website: patch?.website?.trim() || prev.website?.trim() || undefined,
+        employees: patch?.employees?.trim() || prev.employees?.trim() || undefined,
+        employeeCountId: patch?.employeeCountId ?? prev.employeeCountId ?? undefined,
+      })
+      .pipe(
+        map((organizationId) =>
+          organizationId != null && organizationId > 0
+            ? { ...prev, organizationId, organizationName: name || prev.organizationName }
+            : prev,
+        ),
+      );
   }
 
   private resolveOrganizationForPatch(
@@ -121,10 +261,38 @@ export class LeadsService {
         employeeCountId: data.employeeCountId,
       })
       .pipe(
-        map((organizationId) =>
-          organizationId != null && organizationId > 0 ? { ...body, organizationId } : body,
-        ),
+        map((organizationId) => {
+          const out: LeadUpsertDto = { ...body, organizationName: name };
+          if (organizationId != null && organizationId > 0) {
+            out.organizationId = organizationId;
+          }
+          return out;
+        }),
       );
+  }
+
+  private parseLeadRowOrganizationFk(id: string | undefined | null): number | null {
+    if (id == null || !String(id).trim()) return null;
+    const n = Number(String(id).trim());
+    return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+  }
+
+  private orgFieldsPatchFromLeadData(
+    data: Omit<LeadRow, 'id'>,
+    organizationId: number | null,
+  ): Partial<Omit<LeadRow, 'id'>> {
+    const patch: Partial<Omit<LeadRow, 'id'>> = {
+      organization: data.organization?.trim() || '',
+      website: data.website?.trim() || undefined,
+      territory: data.territory?.trim() || undefined,
+      territoryId: data.territoryId,
+      industry: data.industry?.trim() || undefined,
+      industryId: data.industryId,
+    };
+    if (organizationId != null && organizationId > 0) {
+      patch.organizationId = String(organizationId);
+    }
+    return patch;
   }
 
   async updateAsync(id: number, patch: Partial<Omit<LeadRow, 'id'>>): Promise<LeadRow | null> {

@@ -46,7 +46,10 @@ export interface LeadNormalized {
   requestTypeId: number | null;
   requestTypeName: string;
   notes: string;
+  requirement: string;
   leadOwnerId: number | null;
+  /** Display name when returned inline on GET (otherwise resolved from users list). */
+  leadOwnerName: string;
   leadSource: string;
   updatedAt: string;
   createdAt: string | null;
@@ -66,10 +69,13 @@ export interface LeadUpsertDto {
   mobile?: string | null;
   email?: string | null;
   organizationId?: number | null;
+  /** When FK is unknown, backend may bind Organization from display name / create org (align with Swagger). */
+  organizationName?: string | null;
   leadStatusId?: number | null;
   status?: string | null;
   requestTypeId?: number | null;
   notes?: string | null;
+  requirement?: string | null;
   leadOwnerId?: number | null;
   leadSource?: string | null;
   createdAt?: string | null;

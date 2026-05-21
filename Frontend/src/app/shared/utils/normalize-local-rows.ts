@@ -1,4 +1,3 @@
-import type { CallLogRow } from '../../features/call-logs/call-logs.component';
 import type { ContactRow } from '../../features/contacts/contacts.component';
 import type { DealPipelineStatus, DealRow } from '../../features/deals/deals.component';
 import type { NoteRelatedType, NoteRow, NoteVisibility } from '../../features/notes/notes.component';
@@ -89,8 +88,17 @@ export function normalizeDealRow(row: Record<string, unknown>): DealRow {
   };
 }
 
+function optPositiveIntField(v: unknown): number | undefined {
+  const n = typeof v === 'number' ? v : Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.trunc(n) : undefined;
+}
+
 export function normalizeOrganizationRow(row: Record<string, unknown>): OrganizationRow {
   const id = String(row['id'] ?? '');
+  const industryId = optPositiveIntField(row['industryId']);
+  const employeeCountId = optPositiveIntField(row['employeeCountId']);
+  const territoryId = optPositiveIntField(row['territoryId']);
+  const addressRaw = row['address'];
   return {
     id,
     name: String(row['name'] ?? ''),
@@ -100,6 +108,10 @@ export function normalizeOrganizationRow(row: Record<string, unknown>): Organiza
     employees: String(row['employees'] ?? '1-10'),
     territory: String(row['territory'] ?? ''),
     lastModified: String(row['lastModified'] ?? ''),
+    ...(addressRaw != null && String(addressRaw).trim() !== '' ? { address: String(addressRaw) } : {}),
+    ...(industryId != null ? { industryId } : {}),
+    ...(employeeCountId != null ? { employeeCountId } : {}),
+    ...(territoryId != null ? { territoryId } : {}),
   };
 }
 
@@ -188,78 +200,4 @@ export function normalizeNoteRow(row: Record<string, unknown>): NoteRow {
     when,
     bodyPreview,
   };
-}
-
-export function normalizeCallLogRow(row: Record<string, unknown>): CallLogRow {
-  const id = String(row['id'] ?? row['Id'] ?? row['callId'] ?? row['CallId'] ?? row['callLogId'] ?? row['CallLogId'] ?? '');
-  const directionRaw = String(row['direction'] ?? row['Direction'] ?? 'Outbound').trim();
-  const directionLower = directionRaw.toLowerCase();
-  const direction = (
-    directionLower === 'inbound' || directionLower === 'incoming'
-      ? 'Inbound'
-      : directionLower === 'outgoing'
-        ? 'Outbound'
-        : directionRaw === 'Inbound'
-          ? 'Inbound'
-          : 'Outbound'
-  ) as CallLogRow['direction'];
-  const phoneNumber = String(row['phoneNumber'] ?? row['PhoneNumber'] ?? row['number'] ?? row['Number'] ?? '');
-  let contactName = String(row['contactName'] ?? row['ContactName'] ?? '');
-  const summary = String(row['summary'] ?? row['Summary'] ?? row['callSummary'] ?? row['CallSummary'] ?? '');
-  let startedAt = String(
-    row['startedAt'] ??
-      row['StartedAt'] ??
-      row['callStarted'] ??
-      row['CallStarted'] ??
-      row['startedAtIso'] ??
-      row['StartedAtIso'] ??
-      '',
-  );
-  if (!startedAt) {
-    startedAt = new Date().toISOString();
-  }
-  let durationSeconds = 0;
-  if (row['durationMinutes'] != null || row['DurationMinutes'] != null) {
-    const m = Math.max(0, Math.floor(Number(row['durationMinutes'] ?? row['DurationMinutes']) || 0));
-    const s = Math.max(0, Math.floor(Number(row['durationSeconds'] ?? row['DurationSeconds']) || 0));
-    durationSeconds = m * 60 + s;
-  } else if (row['durationSeconds'] != null || row['DurationSeconds'] != null) {
-    durationSeconds = Math.max(
-      0,
-      Math.floor(Number(row['durationSeconds'] ?? row['DurationSeconds']) || 0),
-    );
-  } else {
-    durationSeconds = durationMmSsToSeconds(row['duration'] ?? row['Duration']);
-  }
-  const outcome = String(row['outcome'] ?? row['Outcome'] ?? 'Connected');
-  const lastModified = String(row['lastModified'] ?? row['LastModified'] ?? '');
-
-  let resolvedContactName = contactName;
-  if (!resolvedContactName && row['contact'] != null) {
-    const c = String(row['contact']);
-    const idx = c.indexOf(' · ');
-    resolvedContactName = idx < 0 ? c.trim() : c.slice(0, idx).trim();
-  }
-
-  const relatedLeadRaw = row['relatedLeadId'] ?? row['RelatedLeadId'];
-  const relatedDealRaw = row['relatedDealId'] ?? row['RelatedDealId'];
-  const relatedLeadId =
-    relatedLeadRaw != null && String(relatedLeadRaw).trim() !== '' ? String(relatedLeadRaw).trim() : undefined;
-  const relatedDealId =
-    relatedDealRaw != null && String(relatedDealRaw).trim() !== '' ? String(relatedDealRaw).trim() : undefined;
-
-  const out: CallLogRow = {
-    id,
-    direction,
-    phoneNumber,
-    contactName: resolvedContactName,
-    startedAt,
-    durationSeconds,
-    outcome,
-    summary,
-    lastModified,
-  };
-  if (relatedLeadId !== undefined) out.relatedLeadId = relatedLeadId;
-  if (relatedDealId !== undefined) out.relatedDealId = relatedDealId;
-  return out;
 }

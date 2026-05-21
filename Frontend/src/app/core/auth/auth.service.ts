@@ -1,4 +1,4 @@
-import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpContext, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { catchError, firstValueFrom, Observable, of, switchMap, timeout } from 'rxjs';
@@ -10,19 +10,102 @@ import { ProfilePanelService } from '../profile/profile-panel.service';
 import { ToastService } from '../toast/toast.service';
 import { AUTH_LEGACY_KEYS, AUTH_TOKEN_KEY, AUTH_USER_KEY } from './auth.constants';
 import { maskEmail, writeLoginLog } from './login-log';
+import {
+  buildSessionFromApiRecord,
+  homeUrlForRoleId,
+  readRoleIdFromJwt,
+  readUsersTableRoleId,
+  roleIdFromSession,
+  ROLE_ID_ADMIN,
+  ROLE_ID_USER,
+  sessionRoleLabel,
+  unwrapApiRecord,
+} from './auth-role.util';
 import type { RegisterApiRequest, RegisterPayload, UserSession } from './auth.models';
+import { SKIP_USER_ID_QUERY } from '../http/skip-user-id-query.context';
+
+/** CRM API query param `userId` must be a positive integer — same as `users.id` in the database. */
+function pickNumericDbUserId(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  if (!/^\d+$/.test(s)) return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 ? s : null;
+}
+
+function getEnvQueryUserIdFallback(): string | null {
+  return pickNumericDbUserId(
+    (environment as { apiQueryUserIdFallback?: string }).apiQueryUserIdFallback,
+  );
+}
+
+/** Pulls numeric DB user id from common login JSON shapes (root + nested `user`). */
+function pickNumericFromLoginResponse(res: LoginApiResponse): string | null {
+  const r = res as Record<string, unknown>;
+  const flat: unknown[] = [
+    res.userId,
+    res.id,
+    r['userId'],
+    r['UserId'],
+    r['userid'],
+    r['id'],
+  ];
+  for (const v of flat) {
+    const n = pickNumericDbUserId(v);
+    if (n) return n;
+  }
+  const nested = r['user'];
+  if (nested != null && typeof nested === 'object' && !Array.isArray(nested)) {
+    const o = nested as Record<string, unknown>;
+    for (const k of ['id', 'Id', 'userId', 'UserId', 'userid']) {
+      const n = pickNumericDbUserId(o[k]);
+      if (n) return n;
+    }
+  }
+  const u = res.user;
+  if (u != null && typeof u === 'object') {
+    const o = u as Record<string, unknown>;
+    for (const k of ['id', 'Id', 'userId', 'UserId', 'userid']) {
+      const n = pickNumericDbUserId(o[k]);
+      if (n) return n;
+    }
+  }
+  return null;
+}
+
+function parseJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length < 2) return null;
+    let base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) base64 += '=';
+    const json = atob(base64);
+    const parsed = JSON.parse(json) as unknown;
+    return parsed != null && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface LoginResult {
   ok: boolean;
   error?: string;
+  /** Set after login when `users.role_id` is resolved (`/dashboard` or `/user-dashboard`). */
+  redirectTo?: string;
 }
 
-/** Login API body — `userId` or `user.id` is used for `GET …/auth/users/{id}`. */
+/** Login API body — backend CRM routes need numeric `users.id` as query `userId`. */
 interface LoginApiResponse {
   access_token?: string;
   token?: string;
-  user?: Partial<UserSession>;
+  user?: Record<string, unknown>;
   userId?: string | number;
+  roleId?: number;
+  role_id?: number;
+  
+  id?: string | number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -58,14 +141,21 @@ export class AuthService {
       return;
     }
     try {
-      const user = JSON.parse(raw) as UserSession;
+      let user = JSON.parse(raw) as UserSession;
       if (!user?.email) throw new Error('invalid user');
+      if (user.id?.trim() && !pickNumericDbUserId(user.id)) {
+        user = { ...user, id: '' };
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
+      }
       this._token.set(token);
-      this._user.set(user);
+      const normalized = this.normalizeStoredSession(user);
+      this._user.set(normalized);
+      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized));
       writeLoginLog('session_restored', {
         maskedEmail: maskEmail(user.email),
         userId: user.id,
-        role: user.role,
+        role: normalized?.role ?? user.role,
+        roleId: normalized?.roleId ?? user.roleId,
       });
     } catch {
       writeLoginLog('session_invalid_cleared', { reason: 'corrupt_or_missing_user_payload' });
@@ -112,67 +202,80 @@ export class AuthService {
             });
             return of({ ok: false as const, error: 'No token in response.' });
           }
+
           const u = res.user;
-          const rawUserId = u?.id ?? res.userId;
-          const emailResolved = String(u?.email ?? trimmed);
+          const rawUserId = u?.['id'] ?? res.userId;
+          const emailResolved = String(u?.['email'] ?? trimmed);
+          const numericFromLogin = pickNumericFromLoginResponse(res);
           const serverUserId =
-            rawUserId != null && String(rawUserId).trim() !== ''
-              ? String(rawUserId)
-              : null;
-          const user: UserSession = {
-            id: serverUserId ?? crypto.randomUUID(),
-            email: emailResolved,
-            name: String(u?.name ?? this.displayNameFromEmail(trimmed)),
-            role: String(u?.role ?? 'User'),
-          };
-          this.setSession(token, user);
+            pickNumericDbUserId(rawUserId) ??
+            numericFromLogin ??
+            (rawUserId != null && String(rawUserId).trim() !== '' ? String(rawUserId).trim() : null);
 
-          if (!serverUserId) {
-            writeLoginLog('login_success', {
-              mode: 'api',
-              userId: user.id,
-              maskedEmail: maskEmail(user.email),
-            });
-            return of({ ok: true as const });
-          }
+          return this.resolveUsersTableRoleIdAtLogin(base, token, serverUserId, emailResolved, res).pipe(
+            map(({ roleId, profile }) => {
+              const numericUserId =
+                pickNumericDbUserId(profile?.['id'] ?? profile?.['userId']) ??
+                pickNumericDbUserId(serverUserId) ??
+                numericFromLogin;
 
-          return this.http
-            .get<Record<string, unknown>>(`${base}/auth/users/${encodeURIComponent(serverUserId)}`, {
-              headers: new HttpHeaders({ Authorization: `Bearer ${token}` }),
-            })
-            .pipe(
-              timeout(15000),
-              map((raw) => {
-                const enriched = this.mapApiUserToSession(raw, emailResolved);
-                if (enriched) {
-                  this.setSession(token, enriched);
-                }
-                const session = enriched ?? user;
-                writeLoginLog('login_success', {
-                  mode: 'api',
-                  userId: session.id,
-                  maskedEmail: maskEmail(session.email),
-                });
-                return { ok: true as const };
-              }),
-              catchError(() => {
-                writeLoginLog('login_success', {
-                  mode: 'api',
-                  userId: user.id,
-                  maskedEmail: maskEmail(user.email),
-                  detail: 'user_profile_fetch_skipped',
-                });
-                return of({ ok: true as const });
-              }),
-            );
+              const loginPayload: Record<string, unknown> = {
+                ...(u && typeof u === 'object' ? u : {}),
+                ...(profile ?? {}),
+                ...(numericUserId ? { id: numericUserId } : {}),
+                email: emailResolved,
+                role_id: roleId,
+                roleId,
+              };
+
+              const session =
+                buildSessionFromApiRecord(loginPayload, emailResolved, roleId) ??
+                ({
+                  id: numericUserId ?? '',
+                  email: emailResolved,
+                  name: String(
+                    u?.['name'] ?? u?.['fullName'] ?? profile?.['fullName'] ?? this.displayNameFromEmail(trimmed),
+                  ),
+                  role: sessionRoleLabel(roleId),
+                  roleId,
+                } satisfies UserSession);
+
+              if (numericUserId) {
+                session.id = numericUserId;
+              }
+
+              session.roleId = roleId;
+              session.role = sessionRoleLabel(roleId);
+              this.setSession(token, session);
+
+              const redirectTo = homeUrlForRoleId(roleId);
+              writeLoginLog('login_success', {
+                mode: 'api',
+                userId: session.id,
+                maskedEmail: maskEmail(session.email),
+                roleId,
+                redirectTo,
+              });
+              return { ok: true as const, redirectTo };
+            }),
+          );
         }),
         catchError((err: unknown) => {
           const status =
             err && typeof err === 'object' && 'status' in err
               ? Number((err as { status: number }).status)
               : undefined;
-          // Local dev safety net: if API route is missing, fallback to demo login.
+          // With a configured API base, do not fall back to demo login (avoids UUID "user id" vs required int userId).
           if (status === 404 || status === 0) {
+            if (base) {
+              return of({
+                ok: false as const,
+                error:
+                  status === 0
+                    ? 'Cannot reach the auth server. Start the CRM API and check the dev proxy for /api.'
+                    : 'Auth API not found (404). Start the CRM API on https://localhost:7172 and use ng serve with proxy.',
+              });
+            }
             const fallback = this.loginDemo(trimmed, password);
             writeLoginLog('login_failure', {
               mode: 'api',
@@ -204,11 +307,14 @@ export class AuthService {
       return { ok: false, error: 'Password must be at least 6 characters.' };
     }
 
+    const demoAdmin = /@admin\b/i.test(email) || email.toLowerCase().startsWith('admin@');
+    const roleId = demoAdmin ? ROLE_ID_ADMIN : ROLE_ID_USER;
     const user: UserSession = {
       id: crypto.randomUUID(),
       email,
       name: this.displayNameFromEmail(email),
-      role: 'User',
+      role: demoAdmin ? 'Admin' : 'User',
+      roleId,
     };
     const token = `demo.${crypto.randomUUID()}.${Date.now()}`;
     this.setSession(token, user);
@@ -216,9 +322,10 @@ export class AuthService {
       mode: 'demo',
       userId: user.id,
       maskedEmail: maskEmail(user.email),
-      role: 'User',
+      roleId: user.roleId,
+      redirectTo: homeUrlForRoleId(user.roleId),
     });
-    return { ok: true };
+    return { ok: true, redirectTo: homeUrlForRoleId(user.roleId) };
   }
 
   /**
@@ -391,6 +498,110 @@ export class AuthService {
     }
   }
 
+  /**
+   * Resolves `users.role_id` at login (priority):
+   * 1. `GET /auth/users/{id}`
+   * 2. `GET /auth/users` (match by id/email)
+   * 3. Login response / JWT
+   */
+  private resolveUsersTableRoleIdAtLogin(
+    base: string,
+    token: string,
+    userId: string | null,
+    email: string,
+    loginRes: LoginApiResponse,
+  ): Observable<{ roleId: number; profile: Record<string, unknown> | null }> {
+    const headers = new HttpHeaders({ Authorization: `Bearer ${token}` });
+
+    const fromLoginUser = loginRes.user ? readUsersTableRoleId(loginRes.user) : null;
+    const fromLoginRoot = readUsersTableRoleId(unwrapApiRecord(loginRes));
+
+    if (!userId) {
+      const roleId = fromLoginUser ?? fromLoginRoot ?? readRoleIdFromJwt(token) ?? ROLE_ID_USER;
+      return of({ roleId, profile: loginRes.user ?? null });
+    }
+
+    return this.http
+      .get<unknown>(`${base}/auth/users/${encodeURIComponent(userId)}`, { headers })
+      .pipe(
+        timeout(15000),
+        switchMap((body) => {
+          const profile = unwrapApiRecord(body);
+          const fromProfile = readUsersTableRoleId(profile);
+          if (fromProfile != null) {
+            return of({ roleId: fromProfile, profile });
+          }
+
+          return this.http.get<unknown>(`${base}/auth/users`, { headers }).pipe(
+            timeout(15000),
+            map((listBody) => {
+              const fromList = this.readRoleIdFromUsersList(listBody, userId, email);
+              const roleId =
+                fromList ??
+                fromLoginUser ??
+                fromLoginRoot ??
+                readRoleIdFromJwt(token) ??
+                ROLE_ID_USER;
+              return { roleId, profile };
+            }),
+            catchError(() =>
+              of({
+                roleId: fromLoginUser ?? fromLoginRoot ?? readRoleIdFromJwt(token) ?? ROLE_ID_USER,
+                profile,
+              }),
+            ),
+          );
+        }),
+        catchError(() =>
+          of({
+            roleId: fromLoginUser ?? fromLoginRoot ?? readRoleIdFromJwt(token) ?? ROLE_ID_USER,
+            profile: loginRes.user ?? null,
+          }),
+        ),
+      );
+  }
+
+  private readRoleIdFromUsersList(
+    body: unknown,
+    userId: string,
+    email: string,
+  ): number | null {
+    let arr: unknown[] = [];
+    if (Array.isArray(body)) {
+      arr = body;
+    } else {
+      const o = unwrapApiRecord(body);
+      const raw = o['users'] ?? o['items'] ?? o['data'] ?? o['results'];
+      if (Array.isArray(raw)) arr = raw;
+    }
+
+    const emailWant = email.trim().toLowerCase();
+    for (const item of arr) {
+      if (!item || typeof item !== 'object') continue;
+      const row = unwrapApiRecord(item);
+      const rowId = String(row['id'] ?? row['userId'] ?? '').trim();
+      const rowEmail = String(row['email'] ?? row['Email'] ?? '')
+        .trim()
+        .toLowerCase();
+      const idMatch = rowId && (rowId === userId || Number(rowId) === Number(userId));
+      const emailMatch = emailWant && rowEmail === emailWant;
+      if (!idMatch && !emailMatch) continue;
+      const roleId = readUsersTableRoleId(row);
+      if (roleId != null) return roleId;
+    }
+    return null;
+  }
+
+  /** Re-applies `users.role_id` rules to sessions saved before role mapping was fixed. */
+  private normalizeStoredSession(user: UserSession): UserSession {
+    const roleId = roleIdFromSession(user);
+    return {
+      ...user,
+      roleId,
+      role: sessionRoleLabel(roleId),
+    };
+  }
+
   private displayNameFromEmail(email: string): string {
     const local = email.split('@')[0] ?? email;
     return local
@@ -400,25 +611,4 @@ export class AuthService {
       .join(' ');
   }
 
-  /** Maps `GET {apiUrl}/auth/users/{id}` body to `UserSession` (tolerates common API shapes). */
-  private mapApiUserToSession(raw: Record<string, unknown>, fallbackEmail: string): UserSession | null {
-    const idVal = raw['id'] ?? raw['userId'];
-    const emailVal = raw['email'];
-    const email =
-      typeof emailVal === 'string' && emailVal.trim() ? emailVal.trim() : fallbackEmail;
-    if (idVal == null || String(idVal).trim() === '') {
-      return null;
-    }
-    const id = String(idVal);
-    let name: string;
-    if (typeof raw['name'] === 'string' && raw['name'].trim()) {
-      name = raw['name'].trim();
-    } else if (typeof raw['fullName'] === 'string' && raw['fullName'].trim()) {
-      name = raw['fullName'].trim();
-    } else {
-      name = this.displayNameFromEmail(email);
-    }
-    const role = typeof raw['role'] === 'string' && raw['role'].trim() ? raw['role'].trim() : 'User';
-    return { id, email, name, role };
-  }
 }

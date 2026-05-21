@@ -1,4 +1,4 @@
-import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable, of, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
@@ -6,6 +6,12 @@ import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { normalizeDealApiRecord } from './deal-api.mapper';
 import type { DealNormalized, DealUpsertDto } from './deal-api.models';
+
+export interface DealListQuery {
+  dealOwnerId?: number;
+  assignedToUserId?: number;
+  userId?: number;
+}
 
 function extractDealRecords(raw: unknown): unknown[] {
   if (Array.isArray(raw)) return raw;
@@ -42,10 +48,21 @@ export class DealHttpService {
     return h;
   }
 
-  list(): Observable<DealNormalized[]> {
-    return this.http.get<unknown>(this.baseUrl, { headers: this.jsonHeaders() }).pipe(
-      map((raw) => extractDealRecords(raw).map((item) => normalizeDealApiRecord(item))),
-    );
+  list(query?: DealListQuery): Observable<DealNormalized[]> {
+    let params = new HttpParams();
+    const uid = query?.assignedToUserId ?? query?.dealOwnerId ?? query?.userId;
+    if (uid != null && uid > 0) {
+      const id = String(uid);
+      params = params
+        .set('assignedToUserId', id)
+        .set('assigned_to_user_id', id)
+        .set('dealOwnerId', id)
+        .set('deal_owner_id', id)
+        .set('userId', id);
+    }
+    return this.http
+      .get<unknown>(this.baseUrl, { headers: this.jsonHeaders(), params })
+      .pipe(map((raw) => extractDealRecords(raw).map((item) => normalizeDealApiRecord(item))));
   }
 
   getById(id: number): Observable<DealNormalized | null> {

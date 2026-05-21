@@ -8,7 +8,9 @@ export interface IndiamartEnvironmentConfig {
    */
   pullApiUrl: string;
   pushApiUrl: string;
-  /** Pull API key → sent as query `glusr_crm_key` (seller.indiamart.com → Lead Manager → Pull API). */
+  /**
+   * Pull API key → query `glusr_crm_key`. Sync adds `start_time` / `end_time` for today 00:00–23:59 IST.
+   */
   apiKey: string;
   webhookToken: string;
 }
