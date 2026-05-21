@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -26,6 +26,8 @@ import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
+import { CRM_PAGINATED_SELECT_PAGE_SIZE } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
+import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
 import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { optionalMobile10Validator, optionalUrlValidator } from '../../shared/validators/crm-validators';
@@ -88,6 +90,7 @@ interface LeadColumnOption {
     RouterLink,
     CrmSelectionBarComponent,
     CrmAssignPickerComponent,
+    CrmPaginationFooterComponent,
   ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
@@ -133,6 +136,8 @@ export class LeadsComponent {
   protected readonly statusFilter = signal<LeadListStatusFilter>('all');
   protected readonly sourceFilter = signal<LeadListSourceFilter>('all');
   protected readonly columnMenuOpen = signal(false);
+  protected readonly tablePage = signal(0);
+  protected readonly tablePageSize = CRM_PAGINATED_SELECT_PAGE_SIZE;
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
 
@@ -237,6 +242,10 @@ export class LeadsComponent {
   constructor() {
     this.selectedColumnIds.set(this.loadStoredOptionalColumnIds());
     this.leadOwnerOpts.load();
+    effect(() => {
+      const max = this.tableTotalPages() - 1;
+      if (this.tablePage() > max) this.tablePage.set(Math.max(0, max));
+    });
     this.refreshLeads();
     forkJoin({
       salutations: this.leadMasterData.loadSalutations(),
@@ -372,6 +381,26 @@ export class LeadsComponent {
       );
     });
   });
+
+  protected readonly tableTotalPages = computed(() => {
+    const n = this.filtered().length;
+    return Math.max(1, Math.ceil(n / this.tablePageSize));
+  });
+
+  protected readonly paginatedFiltered = computed(() => {
+    const all = this.filtered();
+    const start = this.tablePage() * this.tablePageSize;
+    return all.slice(start, start + this.tablePageSize);
+  });
+
+  protected setTablePage(page: number): void {
+    const max = this.tableTotalPages() - 1;
+    this.tablePage.set(Math.min(Math.max(0, page), max));
+  }
+
+  private resetTablePage(): void {
+    this.tablePage.set(0);
+  }
 
   protected readonly allSelectedFiltered = computed(() =>
     this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
@@ -784,22 +813,27 @@ export class LeadsComponent {
     this.searchQuery.set('');
     this.statusFilter.set('all');
     this.sourceFilter.set('all');
+    this.resetTablePage();
   }
 
   protected onSearchInput(ev: Event): void {
     this.searchQuery.set((ev.target as HTMLInputElement).value);
+    this.resetTablePage();
   }
 
   protected clearSearch(): void {
     this.searchQuery.set('');
+    this.resetTablePage();
   }
 
   protected setStatusFilter(id: LeadListStatusFilter): void {
     this.statusFilter.set(id);
+    this.resetTablePage();
   }
 
   protected setSourceFilter(id: LeadListSourceFilter): void {
     this.sourceFilter.set(id);
+    this.resetTablePage();
   }
 
   protected toggleColumnMenu(): void {

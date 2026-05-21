@@ -1,0 +1,61 @@
+<div class="crm-paginated-select__root" [class]="stylePrefix() + '__paginated-select'">
+  <button
+    type="button"
+    class="crm-paginated-select__trigger"
+    [class]="stylePrefix() + '__side-field ' + stylePrefix() + '__side-field--select'"
+    [attr.aria-label]="ariaLabel()"
+    [attr.aria-expanded]="open()"
+    aria-haspopup="listbox"
+    [disabled]="disabled()"
+    (click)="togglePanel()"
+  >
+    <span class="crm-paginated-select__trigger-label">{{ displayLabel() }}</span>
+    <svg class="crm-paginated-select__chevron" [class.is-open]="open()" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+      <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  </button>
+
+  @if (open()) {
+    <div class="crm-paginated-select__panel" role="listbox" [attr.aria-label]="ariaLabel()">
+      <ul class="crm-paginated-select__list">
+        @for (opt of pageOptions(); track opt.value + opt.label) {
+          <li>
+            <button
+              type="button"
+              class="crm-paginated-select__option"
+              role="option"
+              [attr.aria-selected]="isSelected(opt)"
+              [class.is-selected]="isSelected(opt)"
+              (click)="selectOption(opt)"
+            >
+              {{ opt.label }}
+            </button>
+          </li>
+        }
+      </ul>
+      @if (showPager()) {
+        <footer class="crm-paginated-select__pager" aria-label="Options pages">
+          <button
+            type="button"
+            class="crm-paginated-select__pager-btn"
+            [disabled]="page() === 0"
+            (click)="prevPage($event)"
+            aria-label="Previous page"
+          >
+            ‹
+          </button>
+          <span class="crm-paginated-select__pager-meta">{{ page() + 1 }} / {{ totalPages() }}</span>
+          <button
+            type="button"
+            class="crm-paginated-select__pager-btn"
+            [disabled]="page() >= totalPages() - 1"
+            (click)="nextPage($event)"
+            aria-label="Next page"
+          >
+            ›
+          </button>
+        </footer>
+      }
+    </div>
+  }
+</div>

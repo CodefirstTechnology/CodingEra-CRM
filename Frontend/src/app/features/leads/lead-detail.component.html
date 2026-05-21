@@ -728,40 +728,43 @@
             </dd>
             <dt>Territory</dt>
             <dd class="lead-detail__kv-dd">
-              <select class="lead-detail__side-field lead-detail__side-field--select" [formControl]="dataForm.controls.territory" aria-label="Territory">
-                <option value="">— Select —</option>
-                @for (opt of territorySelectOptions(); track opt.id + opt.name) {
-                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-                }
-              </select>
+              <app-crm-paginated-select
+                stylePrefix="lead-detail"
+                ariaLabel="Territory"
+                [options]="territoryPaginatedOptions()"
+                [formControl]="dataForm.controls.territory"
+              />
             </dd>
             <dt>Industry</dt>
             <dd class="lead-detail__kv-dd">
-              <select class="lead-detail__side-field lead-detail__side-field--select" [formControl]="dataForm.controls.industry" aria-label="Industry">
-                <option value="">— Select —</option>
-                @for (opt of industrySelectOptions(); track opt.id + opt.name) {
-                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-                }
-              </select>
+              <app-crm-paginated-select
+                stylePrefix="lead-detail"
+                ariaLabel="Industry"
+                [options]="industryPaginatedOptions()"
+                [formControl]="dataForm.controls.industry"
+              />
             </dd>
             <dt>Source</dt>
             <dd class="lead-detail__kv-dd">
-              <select class="lead-detail__side-field lead-detail__side-field--select" [formControl]="dataForm.controls.source" aria-label="Source">
-                @for (s of sourceOptionsForLead(); track s) {
-                <option [value]="s">{{ s === '' ? '— Select —' : s }}</option>
-                }
-              </select>
+              <app-crm-paginated-select
+                stylePrefix="lead-detail"
+                ariaLabel="Source"
+                [options]="sourcePaginatedOptions()"
+                [formControl]="dataForm.controls.source"
+              />
             </dd>
             <dt>Lead Owner</dt>
             <dd class="lead-detail__kv-owner" [class.lead-detail__kv-owner--editable]="isAdminViewer()">
               <span class="lead-detail__owner-badge lead-detail__owner-badge--side">{{ sidebarOwnerChipInitial() }}</span>
               @if (isAdminViewer()) {
-                <select class="lead-detail__side-field lead-detail__side-field--select lead-detail__side-field--owner" [formControl]="dataForm.controls.owner" aria-label="Lead owner">
-                  <option value="">— Select owner —</option>
-                  @for (o of leadOwnerOptions(); track o.id) {
-                  <option [value]="o.id">{{ o.label }}</option>
-                  }
-                </select>
+                <app-crm-paginated-select
+                  class="lead-detail__owner-paginated-select"
+                  stylePrefix="lead-detail"
+                  ariaLabel="Lead owner"
+                  placeholder="— Select owner —"
+                  [options]="leadOwnerPaginatedOptions()"
+                  [formControl]="dataForm.controls.owner"
+                />
               } @else {
                 <span class="lead-detail__owner-chip-name">{{ displayLeadOwnerName() }}</span>
               }
@@ -785,12 +788,13 @@
           <dl class="lead-detail__kv lead-detail__kv--side lead-detail__kv--editable">
             <dt>Salutation</dt>
             <dd class="lead-detail__kv-dd">
-              <select class="lead-detail__side-field lead-detail__side-field--select" [formControl]="dataForm.controls.salutation" aria-label="Salutation">
-                <option value="">—</option>
-                @for (opt of salutationSelectOptions(); track opt.id + opt.name) {
-                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-                }
-              </select>
+              <app-crm-paginated-select
+                stylePrefix="lead-detail"
+                ariaLabel="Salutation"
+                placeholder="—"
+                [options]="salutationPaginatedOptions()"
+                [formControl]="dataForm.controls.salutation"
+              />
             </dd>
             <dt><span class="lead-detail__req">*</span> First Name</dt>
             <dd class="lead-detail__kv-dd">

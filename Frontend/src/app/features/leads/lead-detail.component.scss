@@ -1538,6 +1538,11 @@
   align-items: center;
 }
 
+.lead-detail__owner-paginated-select {
+  flex: 1;
+  min-width: 0;
+}
+
 .lead-detail__side-save {
   margin-top: auto;
   flex-shrink: 0;

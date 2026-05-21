@@ -27,6 +27,8 @@ import { environment } from '../../../environments/environment';
 import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
 import { resolveLeadStatusIdFromName } from '../../core/services/leads/lead-status.constants';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { CrmPaginatedSelectComponent } from '../../shared/components/crm-paginated-select/crm-paginated-select.component';
+import { masterDataToPaginatedOptions } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
@@ -57,7 +59,7 @@ interface LeadCommentItem extends EntityCommentItem {}
 
 @Component({
   selector: 'app-lead-detail',
-  imports: [RouterLink, ReactiveFormsModule, EntityActivityTimelineComponent],
+  imports: [RouterLink, ReactiveFormsModule, EntityActivityTimelineComponent, CrmPaginatedSelectComponent],
   templateUrl: './lead-detail.component.html',
   styleUrl: './lead-detail.component.scss',
 })
@@ -186,6 +188,31 @@ export class LeadDetailComponent {
     }
     return base;
   });
+
+  protected readonly territoryPaginatedOptions = computed(() =>
+    masterDataToPaginatedOptions(this.territorySelectOptions(), {
+      value: '',
+      label: '— Select —',
+    }),
+  );
+  protected readonly industryPaginatedOptions = computed(() =>
+    masterDataToPaginatedOptions(this.industrySelectOptions(), {
+      value: '',
+      label: '— Select —',
+    }),
+  );
+  protected readonly salutationPaginatedOptions = computed(() =>
+    masterDataToPaginatedOptions(this.salutationSelectOptions(), { value: '', label: '—' }),
+  );
+  protected readonly sourcePaginatedOptions = computed(() =>
+    this.sourceOptionsForLead().map((s) => ({
+      value: s,
+      label: s === '' ? '— Select —' : s,
+    })),
+  );
+  protected readonly leadOwnerPaginatedOptions = computed(() =>
+    this.leadOwnerOptions().map((o) => ({ value: o.id, label: o.label })),
+  );
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly userScope = inject(UserDataScopeService);
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
