@@ -18,6 +18,7 @@ import { EmailsService, emailSendErrorMessage } from '../../core/services/emails
 import type { EntityEmailItem } from '../../core/services/emails/email-api.models';
 import { ToastService } from '../../core/toast/toast.service';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
+import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from './deals.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
@@ -222,6 +223,11 @@ export class DealDetailComponent {
             this.emailComposeEmojiOpen.set(false);
           }
         });
+    });
+
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((query) => {
+      const tab = parseEntityDetailTab(query.get('tab'));
+      if (tab) this.setTab(tab);
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {

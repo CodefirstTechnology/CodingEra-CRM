@@ -154,6 +154,18 @@
   font-weight: 500;
 }
 
+.tasks__record-link {
+  color: inherit;
+  font-weight: inherit;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--tertiary-color);
+    text-decoration: underline;
+  }
+}
+
 .tasks__td--muted {
   color: var(--text-muted);
 }

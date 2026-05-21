@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { AuthService } from '../../core/auth/auth.service';
@@ -12,6 +12,7 @@ import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
+import { resolveTaskRecordActivityLink } from '../../shared/utils/entity-record-nav.util';
 
 export type TaskStatus = 'Backlog' | 'Todo' | 'In Progress' | 'Done' | 'Canceled';
 export type TaskPriority = 'Low' | 'Medium' | 'High';
@@ -47,7 +48,7 @@ export interface TaskRow {
 
 @Component({
   selector: 'app-tasks',
-  imports: [ReactiveFormsModule, CrmSelectionBarComponent],
+  imports: [ReactiveFormsModule, CrmSelectionBarComponent, RouterLink],
   templateUrl: './tasks.component.html',
   styleUrl: './tasks.component.scss',
 })
@@ -367,6 +368,10 @@ export class TasksComponent {
       default:
         return 'tasks__pri tasks__pri--low';
     }
+  }
+
+  protected taskRecordActivityLink(row: TaskRow) {
+    return resolveTaskRecordActivityLink(row);
   }
 
   /** e.g. `Lead · Appa Contact` or `Deal · Acme Corp` (matches Notes table). */

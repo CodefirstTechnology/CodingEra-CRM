@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { NotesService } from '../../core/services/notes.service';
@@ -10,6 +10,7 @@ import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
+import { resolveNoteRecordActivityLink } from '../../shared/utils/entity-record-nav.util';
 
 export type NoteRelatedType = 'lead' | 'deal' | 'contact' | 'organization';
 export type NoteVisibility = 'team' | 'private';
@@ -40,7 +41,7 @@ export interface NoteRow {
 
 @Component({
   selector: 'app-notes',
-  imports: [ReactiveFormsModule, CrmSelectionBarComponent],
+  imports: [ReactiveFormsModule, CrmSelectionBarComponent, RouterLink],
   templateUrl: './notes.component.html',
   styleUrl: './notes.component.scss',
 })
@@ -274,6 +275,10 @@ export class NotesComponent {
         },
         error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
+  }
+
+  protected noteRecordActivityLink(row: NoteRow) {
+    return resolveNoteRecordActivityLink(row);
   }
 
   protected noteRelatedLabel(row: NoteRow): string {

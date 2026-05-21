@@ -30,6 +30,7 @@ import { UserDataScopeService } from '../../core/services/user-data-scope.servic
 import { CrmPaginatedSelectComponent } from '../../shared/components/crm-paginated-select/crm-paginated-select.component';
 import { masterDataToPaginatedOptions } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
+import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
@@ -278,6 +279,11 @@ export class LeadDetailComponent {
       }
       this.numericId.set(id);
       void this.hydrateLeadFromRoute(id);
+    });
+
+    this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((query) => {
+      const tab = parseEntityDetailTab(query.get('tab'));
+      if (tab) this.setTab(tab);
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {

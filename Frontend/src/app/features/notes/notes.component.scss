@@ -310,6 +310,18 @@
   }
 }
 
+.notes__record-link {
+  color: inherit;
+  font-weight: inherit;
+  text-decoration: none;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--tertiary-color);
+    text-decoration: underline;
+  }
+}
+
 .notes__linkish {
   border: none;
   background: none;

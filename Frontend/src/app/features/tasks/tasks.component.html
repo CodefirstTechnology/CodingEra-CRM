@@ -141,7 +141,18 @@
                   {{ row.title }}
                 </button>
               </td>
-              <td class="tasks__td tasks__td--record">{{ taskRecordLabel(row) }}</td>
+              <td class="tasks__td tasks__td--record">
+                @if (taskRecordActivityLink(row); as link) {
+                  <a
+                    class="tasks__record-link"
+                    [routerLink]="link.routerLink"
+                    [queryParams]="link.queryParams"
+                    (click)="$event.stopPropagation()"
+                  >{{ taskRecordLabel(row) }}</a>
+                } @else {
+                  {{ taskRecordLabel(row) }}
+                }
+              </td>
               <td class="tasks__td"><span [class]="statusClass(row.status)">{{ row.status }}</span></td>
               <td class="tasks__td"><span [class]="priorityClass(row.priority)">{{ row.priority }}</span></td>
               <td class="tasks__td">{{ row.dueDate }}</td>
