@@ -5,6 +5,8 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { DealsService } from '../../core/services/deals.service';
+import { leadsHttpErrorMessage } from '../../core/services/leads.service';
+import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
@@ -75,6 +77,7 @@ export class DealsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly dealsService = inject(DealsService);
+  private readonly toast = inject(ToastService);
   private readonly userScope = inject(UserDataScopeService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -396,9 +399,14 @@ export class DealsComponent {
   protected onBulkDelete(): void {
     const ids = this.sel.selectedItems();
     if (ids.length === 0) return;
-    forkJoin(ids.map((sid) => this.dealsService.delete(Number(sid)).pipe(take(1)))).subscribe(() => {
-      this.sel.clear();
-      this.refreshDeals();
+    forkJoin(ids.map((sid) => this.dealsService.delete(Number(sid)).pipe(take(1)))).subscribe({
+      next: () => {
+        this.sel.clear();
+        this.refreshDeals();
+        const n = ids.length;
+        this.toast.success(n === 1 ? 'Deal deleted.' : `${n} deals deleted.`);
+      },
+      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -432,10 +440,17 @@ export class DealsComponent {
         })
         .pipe(take(1)),
     );
-    forkJoin(streams).subscribe(() => {
-      this.assignPickerOpen.set(false);
-      this.sel.clear();
-      this.refreshDeals();
+    forkJoin(streams).subscribe({
+      next: () => {
+        this.assignPickerOpen.set(false);
+        this.sel.clear();
+        this.refreshDeals();
+        const n = ids.length;
+        this.toast.success(
+          n === 1 ? 'Deal owner assigned.' : `Deal owner assigned for ${n} deals.`,
+        );
+      },
+      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -452,9 +467,16 @@ export class DealsComponent {
         })
         .pipe(take(1)),
     );
-    forkJoin(streams).subscribe(() => {
-      this.sel.clear();
-      this.refreshDeals();
+    forkJoin(streams).subscribe({
+      next: () => {
+        this.sel.clear();
+        this.refreshDeals();
+        const n = ids.length;
+        this.toast.success(
+          n === 1 ? 'Deal owner cleared.' : `Deal owner cleared for ${n} deals.`,
+        );
+      },
+      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -528,12 +550,24 @@ export class DealsComponent {
       this.dealsService
         .update(editId, payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => {
+            this.toast.success('Deal updated.');
+            done();
+          },
+          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+        });
     } else {
       this.dealsService
         .create(payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => {
+            this.toast.success('Deal created.');
+            done();
+          },
+          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+        });
     }
   }
 
@@ -544,9 +578,13 @@ export class DealsComponent {
     this.dealsService
       .delete(id)
       .pipe(take(1))
-      .subscribe(() => {
-        this.sel.removeId(row.id);
-        this.refreshDeals();
+      .subscribe({
+        next: () => {
+          this.sel.removeId(row.id);
+          this.refreshDeals();
+          this.toast.success('Deal deleted.');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
   }
 

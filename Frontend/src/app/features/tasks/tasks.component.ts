@@ -7,6 +7,8 @@ import { CreateRowBusService } from '../../core/create-flow/create-row-bus.servi
 import { AuthService } from '../../core/auth/auth.service';
 import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
 import { TasksService } from '../../core/services/tasks.service';
+import { leadsHttpErrorMessage } from '../../core/services/leads.service';
+import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
@@ -49,6 +51,7 @@ export class TasksComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly tasksService = inject(TasksService);
+  private readonly toast = inject(ToastService);
   private readonly userScope = inject(UserDataScopeService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly auth = inject(AuthService);
@@ -227,9 +230,14 @@ export class TasksComponent {
   protected onBulkDelete(): void {
     const ids = this.sel.selectedItems();
     if (ids.length === 0) return;
-    forkJoin(ids.map((sid) => this.tasksService.delete(Number(sid)).pipe(take(1)))).subscribe(() => {
-      this.sel.clear();
-      this.refreshTasks();
+    forkJoin(ids.map((sid) => this.tasksService.delete(Number(sid)).pipe(take(1)))).subscribe({
+      next: () => {
+        this.sel.clear();
+        this.refreshTasks();
+        const n = ids.length;
+        this.toast.success(n === 1 ? 'Task deleted.' : `${n} tasks deleted.`);
+      },
+      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -293,12 +301,24 @@ export class TasksComponent {
       this.tasksService
         .update(editId, payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => {
+            this.toast.success('Task updated.');
+            done();
+          },
+          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+        });
     } else {
       this.tasksService
         .create(payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => {
+            this.toast.success('Task created.');
+            done();
+          },
+          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+        });
     }
   }
 
@@ -309,9 +329,13 @@ export class TasksComponent {
     this.tasksService
       .delete(id)
       .pipe(take(1))
-      .subscribe(() => {
-        this.sel.removeId(row.id);
-        this.refreshTasks();
+      .subscribe({
+        next: () => {
+          this.sel.removeId(row.id);
+          this.refreshTasks();
+          this.toast.success('Task deleted.');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
   }
 

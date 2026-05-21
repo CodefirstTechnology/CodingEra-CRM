@@ -5,6 +5,8 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { OrganizationsService } from '../../core/services/organizations.service';
+import { leadsHttpErrorMessage } from '../../core/services/leads.service';
+import { ToastService } from '../../core/toast/toast.service';
 import { OrganizationMasterSelectService } from '../../core/services/organizations/organization-master-select.service';
 import type { MasterDataOption } from '../../core/services/leads/lead-master-data.service';
 import {
@@ -45,6 +47,7 @@ export class OrganizationsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly organizationsService = inject(OrganizationsService);
+  private readonly toast = inject(ToastService);
   protected readonly orgMaster = inject(OrganizationMasterSelectService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -201,12 +204,15 @@ export class OrganizationsComponent {
   protected onBulkDelete(): void {
     const ids = this.sel.selectedItems();
     if (ids.length === 0) return;
-    forkJoin(ids.map((sid) => this.organizationsService.delete(Number(sid)).pipe(take(1)))).subscribe(
-      () => {
+    forkJoin(ids.map((sid) => this.organizationsService.delete(Number(sid)).pipe(take(1)))).subscribe({
+      next: () => {
         this.sel.clear();
         this.refreshOrganizations();
+        const n = ids.length;
+        this.toast.success(n === 1 ? 'Organization deleted.' : `${n} organizations deleted.`);
       },
-    );
+      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+    });
   }
 
   protected onBulkDismiss(): void {
@@ -281,12 +287,24 @@ export class OrganizationsComponent {
       this.organizationsService
         .update(editId, payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => {
+            this.toast.success('Organization updated.');
+            done();
+          },
+          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+        });
     } else {
       this.organizationsService
         .create(payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => {
+            this.toast.success('Organization created.');
+            done();
+          },
+          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+        });
     }
   }
 
@@ -297,9 +315,13 @@ export class OrganizationsComponent {
     this.organizationsService
       .delete(id)
       .pipe(take(1))
-      .subscribe(() => {
-        this.sel.removeId(row.id);
-        this.refreshOrganizations();
+      .subscribe({
+        next: () => {
+          this.sel.removeId(row.id);
+          this.refreshOrganizations();
+          this.toast.success('Organization deleted.');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
   }
 

@@ -7,6 +7,8 @@ import { CreateRowBusService } from '../../core/create-flow/create-row-bus.servi
 import { ContactsService } from '../../core/services/contacts.service';
 import { DealsService } from '../../core/services/deals.service';
 import { OrganizationsService } from '../../core/services/organizations.service';
+import { leadsHttpErrorMessage } from '../../core/services/leads.service';
+import { ToastService } from '../../core/toast/toast.service';
 import { OrganizationMasterSelectService } from '../../core/services/organizations/organization-master-select.service';
 import type { MasterDataOption } from '../../core/services/leads/lead-master-data.service';
 import {
@@ -31,6 +33,7 @@ export class OrganizationDetailComponent {
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly organizationsService = inject(OrganizationsService);
+  private readonly toast = inject(ToastService);
   private readonly dealsService = inject(DealsService);
   private readonly contactsService = inject(ContactsService);
   private readonly createRowBus = inject(CreateRowBusService);
@@ -300,9 +303,13 @@ export class OrganizationDetailComponent {
                 this.patchDetailForm(updated);
                 this.refreshRelatedDeals();
                 this.refreshRelatedContacts();
+                this.toast.success('Organization saved.');
               }
             },
-            error: () => this.saving.set(false),
+            error: (e: unknown) => {
+              this.saving.set(false);
+              this.toast.error(leadsHttpErrorMessage(e));
+            },
           });
       });
   }
@@ -323,7 +330,13 @@ export class OrganizationDetailComponent {
     this.organizationsService
       .delete(idn)
       .pipe(take(1))
-      .subscribe(() => void this.router.navigateByUrl('/organizations'));
+      .subscribe({
+        next: () => {
+          this.toast.success('Organization deleted.');
+          void this.router.navigateByUrl('/organizations');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+      });
   }
 
   protected dealStatusClass(status: DealPipelineStatus): string {

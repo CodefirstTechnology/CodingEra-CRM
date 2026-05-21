@@ -52,12 +52,12 @@ export class RegisterComponent {
         next: (res) => {
           this.submitting.set(false);
           if (res.ok) {
-            this.toast.show('Account created successfully');
+            this.toast.success('Account created successfully');
             void this.router.navigateByUrl('/login', { replaceUrl: true });
           } else {
             const msg = res.error ?? 'Something went wrong.';
             this.formError.set(msg);
-            this.toast.show(msg);
+            this.toast.error(msg);
           }
         },
         error: () => {

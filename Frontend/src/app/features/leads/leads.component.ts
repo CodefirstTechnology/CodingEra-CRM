@@ -350,7 +350,7 @@ export class LeadsComponent {
         },
         error: (err: unknown) => {
           this.manualRows.set([]);
-          this.toast.show(leadsHttpErrorMessage(err));
+          this.toast.error(leadsHttpErrorMessage(err));
         },
       });
   }
@@ -560,7 +560,7 @@ export class LeadsComponent {
       .subscribe({
         next: (row) => {
           if (!row) {
-            this.toast.show('Lead not found.');
+            this.toast.error('Lead not found.');
             return;
           }
           this.editingNumericId.set(id);
@@ -601,7 +601,7 @@ export class LeadsComponent {
           });
           this.formOpen.set(true);
         },
-        error: (err: unknown) => this.toast.show(leadsHttpErrorMessage(err)),
+        error: (err: unknown) => this.toast.error(leadsHttpErrorMessage(err)),
       });
   }
 
@@ -665,8 +665,12 @@ export class LeadsComponent {
         this.assignPickerOpen.set(false);
         this.sel.clear();
         this.refreshLeads();
+        const n = ids.length;
+        this.toast.success(
+          n === 1 ? 'Lead owner assigned.' : `Lead owner assigned for ${n} leads.`,
+        );
       },
-      error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -688,8 +692,12 @@ export class LeadsComponent {
       next: () => {
         this.sel.clear();
         this.refreshLeads();
+        const n = ids.length;
+        this.toast.success(
+          n === 1 ? 'Lead owner cleared.' : `Lead owner cleared for ${n} leads.`,
+        );
       },
-      error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -739,10 +747,16 @@ export class LeadsComponent {
           } else {
             this.refreshLeads();
           }
+          const label = patch.leadOwnerName?.trim();
+          if (!label || label === '—') {
+            this.toast.success('Lead owner cleared.');
+          } else {
+            this.toast.success(`Lead owner changed to ${label}.`);
+          }
         },
         error: (e: unknown) => {
           this.refreshLeads();
-          this.toast.show(leadsHttpErrorMessage(e));
+          this.toast.error(leadsHttpErrorMessage(e));
         },
       });
   }
@@ -792,11 +806,15 @@ export class LeadsComponent {
         next: () => {
           this.sel.clear();
           this.refreshLeads();
-          if (convertedCount > 0 && environment.showLeadConvertSuccessMessage) {
-            window.alert('Lead converted to deal successfully');
+          if (convertedCount > 0) {
+            this.toast.success(
+              convertedCount === 1
+                ? 'Lead converted to deal.'
+                : `${convertedCount} leads converted to deals.`,
+            );
           }
         },
-        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
   }
 
@@ -1069,16 +1087,22 @@ export class LeadsComponent {
         .update(editId, payload)
         .pipe(take(1))
         .subscribe({
-          next: () => done(),
-          error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+          next: () => {
+            this.toast.success('Lead updated.');
+            done();
+          },
+          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
         });
     } else {
       this.leadsService
         .create(payload)
         .pipe(take(1))
         .subscribe({
-          next: () => done(),
-          error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+          next: () => {
+            this.toast.success('Lead created.');
+            done();
+          },
+          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
         });
     }
   }
@@ -1146,7 +1170,7 @@ export class LeadsComponent {
     const leadStatusId =
       pick.masterId ?? resolveLeadStatusIdFromName(label) ?? row.leadStatusId ?? null;
     if (leadStatusId == null || leadStatusId <= 0) {
-      this.toast.show('Could not resolve lead status. Check master data or API connection.');
+      this.toast.error('Could not resolve lead status. Check master data or API connection.');
       return;
     }
     const status = coerceLeadStatus(label);
@@ -1160,8 +1184,11 @@ export class LeadsComponent {
       })
       .pipe(take(1))
       .subscribe({
-        next: () => this.refreshLeads(),
-        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+        next: () => {
+          this.refreshLeads();
+          this.toast.success(`Lead status updated to ${label}.`);
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
   }
 
@@ -1190,12 +1217,12 @@ export class LeadsComponent {
       .subscribe({
         next: (r) => {
           this.refreshLeads();
-          this.toast.show(
+          this.toast.success(
             `IndiaMART sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
           );
         },
         error: (e: unknown) =>
-          this.toast.show(e instanceof Error ? e.message : 'IndiaMART sync failed.'),
+          this.toast.error(e instanceof Error ? e.message : 'IndiaMART sync failed.'),
       });
   }
 
@@ -1207,12 +1234,12 @@ export class LeadsComponent {
       .subscribe({
         next: (r) => {
           this.refreshLeads();
-          this.toast.show(
+          this.toast.success(
             `Justdial sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
           );
         },
         error: (e: unknown) =>
-          this.toast.show(e instanceof Error ? e.message : 'Justdial sync failed.'),
+          this.toast.error(e instanceof Error ? e.message : 'Justdial sync failed.'),
       });
   }
 
@@ -1224,12 +1251,12 @@ export class LeadsComponent {
       .subscribe({
         next: (r) => {
           this.refreshLeads();
-          this.toast.show(
+          this.toast.success(
             `TradeIndia sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
           );
         },
         error: (e: unknown) =>
-          this.toast.show(e instanceof Error ? e.message : 'TradeIndia sync failed.'),
+          this.toast.error(e instanceof Error ? e.message : 'TradeIndia sync failed.'),
       });
   }
 

@@ -5,6 +5,8 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { ContactsService } from '../../core/services/contacts.service';
+import { leadsHttpErrorMessage } from '../../core/services/leads.service';
+import { ToastService } from '../../core/toast/toast.service';
 import { DealsService } from '../../core/services/deals.service';
 import {
   LeadMasterDataService,
@@ -30,6 +32,7 @@ export class ContactDetailComponent {
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly contactsService = inject(ContactsService);
+  private readonly toast = inject(ToastService);
   private readonly dealsService = inject(DealsService);
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly createRowBus = inject(CreateRowBusService);
@@ -229,9 +232,13 @@ export class ContactDetailComponent {
               if (updated) {
                 this.contact.set(updated);
                 this.patchDetailForm(updated);
+                this.toast.success('Contact saved.');
               }
             },
-            error: () => this.saving.set(false),
+            error: (e: unknown) => {
+              this.saving.set(false);
+              this.toast.error(leadsHttpErrorMessage(e));
+            },
           });
       });
   }
@@ -252,7 +259,13 @@ export class ContactDetailComponent {
     this.contactsService
       .delete(idn)
       .pipe(take(1))
-      .subscribe(() => void this.router.navigateByUrl('/contacts'));
+      .subscribe({
+        next: () => {
+          this.toast.success('Contact deleted.');
+          void this.router.navigateByUrl('/contacts');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+      });
   }
 
   protected dealStatusClass(status: DealPipelineStatus): string {

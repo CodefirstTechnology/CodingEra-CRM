@@ -1,3 +1,12 @@
 @if (toast.visible() && toast.message(); as msg) {
-  <div class="toast" role="status" aria-live="polite">{{ msg }}</div>
+  <div
+    class="toast"
+    [class.toast--success]="toast.type() === 'success'"
+    [class.toast--error]="toast.type() === 'error'"
+    [class.toast--info]="toast.type() === 'info'"
+    role="status"
+    [attr.aria-live]="toast.type() === 'error' ? 'assertive' : 'polite'"
+  >
+    {{ msg }}
+  </div>
 }

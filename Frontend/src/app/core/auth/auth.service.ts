@@ -482,7 +482,7 @@ export class AuthService {
     this._token.set(null);
     this._user.set(null);
 
-    this.toast.show('You have been successfully logged out');
+    this.toast.success('You have been successfully logged out');
     await new Promise<void>((r) => setTimeout(r, 500));
     await this.router.navigateByUrl('/login', { replaceUrl: true });
   }

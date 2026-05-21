@@ -11,6 +11,7 @@ import type { ActivityGroup } from '../../core/services/activities/activity-api.
 import { CommentsService } from '../../core/services/comments.service';
 import type { EntityCommentItem } from '../../core/services/comments/comment-api.models';
 import { DealsService } from '../../core/services/deals.service';
+import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
 import { EmailsService, emailSendErrorMessage } from '../../core/services/emails.service';
@@ -410,9 +411,11 @@ export class DealDetailComponent {
           this.commentComposerOpen.set(false);
           this.commentPosting.set(false);
           this.refreshDealActivities();
+          this.toast.success('Comment posted.');
         },
         error: () => {
           this.commentPosting.set(false);
+          this.toast.error('Could not post comment. Try again.');
         },
       });
   }
@@ -515,14 +518,14 @@ export class DealDetailComponent {
           this.emailSending.set(false);
           this.refreshDealActivities();
           if (row.status === 'Failed') {
-            this.toast.show(row.failureMessage || 'Email could not be sent.');
+            this.toast.error(row.failureMessage || 'Email could not be sent.');
           } else {
-            this.toast.show('Email sent.');
+            this.toast.success('Email sent.');
           }
         },
         error: (err) => {
           this.emailSending.set(false);
-          this.toast.show(emailSendErrorMessage(err));
+          this.toast.error(emailSendErrorMessage(err));
         },
       });
   }
@@ -725,9 +728,31 @@ export class DealDetailComponent {
             const org = updated.organizationName.trim() || 'Deal';
             this.emailSubjectText.set(`${org} (${this.dealCode()})`);
             this.refreshDealActivities();
+            const ownerDirty = this.dataForm.controls.dealOwner.dirty;
+            const otherDirty =
+              this.dataForm.controls.organization.dirty ||
+              this.dataForm.controls.annualRevenue.dirty ||
+              this.dataForm.controls.status.dirty ||
+              this.dataForm.controls.email.dirty ||
+              this.dataForm.controls.mobile.dirty ||
+              this.dataForm.controls.website.dirty ||
+              this.dataForm.controls.territory.dirty ||
+              this.dataForm.controls.probabilityPercent.dirty ||
+              this.dataForm.controls.nextStep.dirty;
+            if (ownerDirty && !otherDirty) {
+              const name = updated.assignedTo?.trim() || '—';
+              this.toast.success(
+                name === '—' ? 'Deal owner cleared.' : `Deal owner changed to ${name}.`,
+              );
+            } else {
+              this.toast.success('Deal saved.');
+            }
           }
         },
-        error: () => this.dataSaving.set(false),
+        error: (e: unknown) => {
+          this.dataSaving.set(false);
+          this.toast.error(leadsHttpErrorMessage(e));
+        },
       });
   }
 
@@ -844,6 +869,12 @@ export class DealDetailComponent {
     this.dealsService
       .delete(idn)
       .pipe(take(1))
-      .subscribe(() => void this.router.navigateByUrl('/deals'));
+      .subscribe({
+        next: () => {
+          this.toast.success('Deal deleted.');
+          void this.router.navigateByUrl('/deals');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+      });
   }
 }

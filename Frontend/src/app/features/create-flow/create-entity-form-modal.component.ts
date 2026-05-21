@@ -497,9 +497,9 @@ export class CreateEntityFormModalComponent {
       const saved = await this.leadsService.createAsync(payload);
       this.bus.publish('lead', saved);
       this.flow.closeFormModal();
-      this.toast.show('Lead created.');
+      this.toast.success('Lead created.');
     } catch (e) {
-      this.toast.show(leadsHttpErrorMessage(e));
+      this.toast.error(leadsHttpErrorMessage(e));
     } finally {
       this.leadSubmitting.set(false);
     }
@@ -541,9 +541,13 @@ export class CreateEntityFormModalComponent {
     this.dealsService
       .create(payload)
       .pipe(take(1))
-      .subscribe((saved) => {
-        this.bus.publish('deal', saved);
-        this.flow.closeFormModal();
+      .subscribe({
+        next: (saved) => {
+          this.bus.publish('deal', saved);
+          this.flow.closeFormModal();
+          this.toast.success('Deal created.');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
   }
 
@@ -568,9 +572,13 @@ export class CreateEntityFormModalComponent {
     this.contactsService
       .create(payload)
       .pipe(take(1))
-      .subscribe((saved) => {
-        this.bus.publish('contact', saved);
-        this.flow.closeFormModal();
+      .subscribe({
+        next: (saved) => {
+          this.bus.publish('contact', saved);
+          this.flow.closeFormModal();
+          this.toast.success('Contact created.');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
   }
 
@@ -610,9 +618,13 @@ export class CreateEntityFormModalComponent {
     this.organizationsService
       .create(payload)
       .pipe(take(1))
-      .subscribe((saved) => {
-        this.bus.publish('organization', saved);
-        this.flow.closeFormModal();
+      .subscribe({
+        next: (saved) => {
+          this.bus.publish('organization', saved);
+          this.flow.closeFormModal();
+          this.toast.success('Organization created.');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
   }
 
@@ -666,9 +678,13 @@ export class CreateEntityFormModalComponent {
     this.tasksService
       .create(payload)
       .pipe(take(1))
-      .subscribe((saved) => {
-        this.bus.publish('task', saved);
-        this.flow.closeFormModal();
+      .subscribe({
+        next: (saved) => {
+          this.bus.publish('task', saved);
+          this.flow.closeFormModal();
+          this.toast.success('Task created.');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
   }
 
@@ -706,9 +722,13 @@ export class CreateEntityFormModalComponent {
     this.notesService
       .create(payload)
       .pipe(take(1))
-      .subscribe((saved) => {
-        this.bus.publish('note', saved);
-        this.flow.closeFormModal();
+      .subscribe({
+        next: (saved) => {
+          this.bus.publish('note', saved);
+          this.flow.closeFormModal();
+          this.toast.success('Note created.');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
   }
 

@@ -5,6 +5,8 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { ContactsService } from '../../core/services/contacts.service';
+import { leadsHttpErrorMessage } from '../../core/services/leads.service';
+import { ToastService } from '../../core/toast/toast.service';
 import {
   LeadMasterDataService,
   type MasterDataOption,
@@ -44,6 +46,7 @@ export class ContactsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly contactsService = inject(ContactsService);
+  private readonly toast = inject(ToastService);
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -218,9 +221,14 @@ export class ContactsComponent {
   protected onBulkDelete(): void {
     const ids = this.sel.selectedItems();
     if (ids.length === 0) return;
-    forkJoin(ids.map((sid) => this.contactsService.delete(Number(sid)).pipe(take(1)))).subscribe(() => {
-      this.sel.clear();
-      this.refreshContacts();
+    forkJoin(ids.map((sid) => this.contactsService.delete(Number(sid)).pipe(take(1)))).subscribe({
+      next: () => {
+        this.sel.clear();
+        this.refreshContacts();
+        const n = ids.length;
+        this.toast.success(n === 1 ? 'Contact deleted.' : `${n} contacts deleted.`);
+      },
+      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -285,12 +293,24 @@ export class ContactsComponent {
       this.contactsService
         .update(editId, payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => {
+            this.toast.success('Contact updated.');
+            done();
+          },
+          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+        });
     } else {
       this.contactsService
         .create(payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => {
+            this.toast.success('Contact created.');
+            done();
+          },
+          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+        });
     }
   }
 
@@ -301,9 +321,13 @@ export class ContactsComponent {
     this.contactsService
       .delete(id)
       .pipe(take(1))
-      .subscribe(() => {
-        this.sel.removeId(row.id);
-        this.refreshContacts();
+      .subscribe({
+        next: () => {
+          this.sel.removeId(row.id);
+          this.refreshContacts();
+          this.toast.success('Contact deleted.');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
   }
 

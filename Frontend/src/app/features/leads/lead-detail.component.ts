@@ -469,6 +469,8 @@ export class LeadDetailComponent {
     this.leadAttachments.set(next);
     this.persistAttachments(lid);
     input.value = '';
+    const n = files.length;
+    this.toast.success(n === 1 ? 'Attachment added.' : `${n} attachments added.`);
   }
 
   private refreshLeadActivities(): void {
@@ -555,11 +557,11 @@ export class LeadDetailComponent {
           this.commentComposerOpen.set(false);
           this.commentPosting.set(false);
           this.refreshLeadActivities();
-          this.toast.show('Comment posted.');
+          this.toast.success('Comment posted.');
         },
         error: () => {
           this.commentPosting.set(false);
-          this.toast.show('Could not post comment. Try again.');
+          this.toast.error('Could not post comment. Try again.');
         },
       });
   }
@@ -643,14 +645,14 @@ export class LeadDetailComponent {
           this.emailSending.set(false);
           this.refreshLeadActivities();
           if (row.status === 'Failed') {
-            this.toast.show(row.failureMessage || 'Email could not be sent.');
+            this.toast.error(row.failureMessage || 'Email could not be sent.');
           } else {
-            this.toast.show('Email sent.');
+            this.toast.success('Email sent.');
           }
         },
         error: (err) => {
           this.emailSending.set(false);
-          this.toast.show(emailSendErrorMessage(err));
+          this.toast.error(emailSendErrorMessage(err));
         },
       });
   }
@@ -859,6 +861,7 @@ export class LeadDetailComponent {
       try {
         if (navigator.clipboard?.writeText) {
           await navigator.clipboard.writeText(url);
+          this.toast.success('Link copied to clipboard.');
           return;
         }
       } catch {
@@ -874,8 +877,9 @@ export class LeadDetailComponent {
         ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
+        this.toast.success('Link copied to clipboard.');
       } catch {
-        /* ignore */
+        this.toast.error('Could not copy link.');
       }
     };
     void run();
@@ -936,10 +940,29 @@ export class LeadDetailComponent {
         this.lead.set(enriched);
         this.patchDataForm(enriched);
         this.emailSubjectText.set(`Mr ${updated.name} (${this.leadCode()})`);
-        this.toast.show('Lead saved.');
+        const ownerDirty = this.isAdminViewer() && this.dataForm.controls.owner.dirty;
+        const otherDirty =
+          this.dataForm.controls.firstName.dirty ||
+          this.dataForm.controls.lastName.dirty ||
+          this.dataForm.controls.email.dirty ||
+          this.dataForm.controls.mobile.dirty ||
+          this.dataForm.controls.organization.dirty ||
+          this.dataForm.controls.website.dirty ||
+          this.dataForm.controls.territory.dirty ||
+          this.dataForm.controls.industry.dirty ||
+          this.dataForm.controls.source.dirty ||
+          this.dataForm.controls.salutation.dirty;
+        if (ownerDirty && !otherDirty) {
+          const name = enriched.leadOwnerName?.trim() || '—';
+          this.toast.success(
+            name === '—' ? 'Lead owner cleared.' : `Lead owner changed to ${name}.`,
+          );
+        } else {
+          this.toast.success('Lead saved.');
+        }
       }
     } catch (e) {
-      this.toast.show(leadsHttpErrorMessage(e));
+      this.toast.error(leadsHttpErrorMessage(e));
     } finally {
       this.dataSaving.set(false);
     }
@@ -992,13 +1015,9 @@ export class LeadDetailComponent {
                 : cur,
             );
           }
-          if (environment.showLeadConvertSuccessMessage) {
-            window.alert('Lead converted to deal successfully');
-          } else {
-            this.toast.show('Lead converted to deal.');
-          }
+          this.toast.success('Lead converted to deal.');
         },
-        error: (e: unknown) => this.toast.show(leadsHttpErrorMessage(e)),
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
   }
 
@@ -1012,10 +1031,10 @@ export class LeadDetailComponent {
     if (!confirm('Delete this lead?')) return;
     try {
       await this.leadsService.deleteAsync(idn);
-      this.toast.show('Lead deleted.');
+      this.toast.success('Lead deleted.');
       void this.router.navigateByUrl('/leads');
     } catch (e) {
-      this.toast.show(leadsHttpErrorMessage(e));
+      this.toast.error(leadsHttpErrorMessage(e));
     }
   }
 }

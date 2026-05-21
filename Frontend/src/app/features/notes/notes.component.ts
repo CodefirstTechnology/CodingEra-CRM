@@ -5,6 +5,8 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { NotesService } from '../../core/services/notes.service';
+import { leadsHttpErrorMessage } from '../../core/services/leads.service';
+import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
@@ -44,6 +46,7 @@ export class NotesComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly notesService = inject(NotesService);
+  private readonly toast = inject(ToastService);
   private readonly userScope = inject(UserDataScopeService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -187,9 +190,14 @@ export class NotesComponent {
   protected onBulkDelete(): void {
     const ids = this.sel.selectedItems();
     if (ids.length === 0) return;
-    forkJoin(ids.map((sid) => this.notesService.delete(Number(sid)).pipe(take(1)))).subscribe(() => {
-      this.sel.clear();
-      this.refreshNotes();
+    forkJoin(ids.map((sid) => this.notesService.delete(Number(sid)).pipe(take(1)))).subscribe({
+      next: () => {
+        this.sel.clear();
+        this.refreshNotes();
+        const n = ids.length;
+        this.toast.success(n === 1 ? 'Note deleted.' : `${n} notes deleted.`);
+      },
+      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
     });
   }
 
@@ -228,12 +236,24 @@ export class NotesComponent {
       this.notesService
         .update(editId, payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => {
+            this.toast.success('Note updated.');
+            done();
+          },
+          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+        });
     } else {
       this.notesService
         .create(payload)
         .pipe(take(1))
-        .subscribe(() => done());
+        .subscribe({
+          next: () => {
+            this.toast.success('Note created.');
+            done();
+          },
+          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+        });
     }
   }
 
@@ -244,9 +264,13 @@ export class NotesComponent {
     this.notesService
       .delete(id)
       .pipe(take(1))
-      .subscribe(() => {
-        this.sel.removeId(row.id);
-        this.refreshNotes();
+      .subscribe({
+        next: () => {
+          this.sel.removeId(row.id);
+          this.refreshNotes();
+          this.toast.success('Note deleted.');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
   }
 
