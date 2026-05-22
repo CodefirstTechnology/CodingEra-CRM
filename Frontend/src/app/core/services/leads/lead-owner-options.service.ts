@@ -1,6 +1,7 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { catchError, map, Observable, of, take } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
+import { ROLE_ID_ADMIN } from '../../auth/auth-role.util';
 import { AdminUsersService, type AdminUserRow } from '../admin-users.service';
 import type { LeadOwnerOption, LeadRow } from '../../../features/leads/lead-row.model';
 
@@ -18,6 +19,11 @@ export function adminUserToLeadOwnerOption(user: AdminUserRow): LeadOwnerOption 
     label,
     initials: initialsFromDisplayName(label),
   };
+}
+
+/** Admins (`users.role_id` = 2) are excluded from lead owner assignment and round-robin. */
+export function isLeadAssignableUser(user: AdminUserRow): boolean {
+  return user.roleId !== ROLE_ID_ADMIN;
 }
 
 /** True when the row id is a numeric CRM/API lead (not local-only marketplace prefix ids). */
@@ -48,7 +54,7 @@ export class LeadOwnerOptionsService {
     }
     return this.adminUsers.listUsers(this.auth.token()).pipe(
       map((users) => {
-        const opts = users.map(adminUserToLeadOwnerOption);
+        const opts = users.filter(isLeadAssignableUser).map(adminUserToLeadOwnerOption);
         this.optionsSignal.set(opts);
         this.loadedSignal.set(true);
         return opts;

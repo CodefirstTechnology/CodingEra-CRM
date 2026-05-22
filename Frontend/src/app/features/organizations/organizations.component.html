@@ -139,9 +139,6 @@
             <th class="org__th">Website</th>
             <th class="org__th">Industry</th>
             <th class="org__th">Annual Revenue</th>
-            <th class="org__th org__th--divider" aria-hidden="true"></th>
-            <th class="org__th org__th--lastmod">Last Modified</th>
-            <th class="org__th">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -162,11 +159,6 @@
               <td class="org__td org__td--muted">{{ row.website }}</td>
               <td class="org__td">{{ row.industry }}</td>
               <td class="org__td">{{ formatOrgRevenue(row.annualRevenue) }}</td>
-              <td class="org__td org__td--divider" aria-hidden="true"></td>
-              <td class="org__td org__td--muted org__td--lastmod">{{ row.lastModified }}</td>
-              <td class="org__td">
-                <button type="button" class="org__linkish" (click)="deleteOrganization(row, $event)">Delete</button>
-              </td>
             </tr>
           }
         </tbody>

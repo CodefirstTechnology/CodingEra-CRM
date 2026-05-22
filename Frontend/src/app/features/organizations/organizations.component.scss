@@ -88,23 +88,12 @@
   width: 44px;
 }
 
-.org__th--lastmod {
+.org__th:last-child {
   border-radius: 0 var(--radius-md) 0 0;
 }
 
 .org__th--check {
   padding-inline: 0.85rem;
-}
-
-.org__th--divider,
-.org__td--divider {
-  width: 1px;
-  padding: 0;
-  min-width: 1px;
-  max-width: 1px;
-  border-left: 1px solid var(--card-border);
-  border-bottom: 1px solid var(--card-border);
-  background: color-mix(in srgb, var(--text-muted) 6%, transparent);
 }
 
 .org__checkbox {
