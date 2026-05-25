@@ -11,6 +11,14 @@ import type { ActivityGroup } from '../../core/services/activities/activity-api.
 import { CommentsService } from '../../core/services/comments.service';
 import type { EntityCommentItem } from '../../core/services/comments/comment-api.models';
 import { DealsService } from '../../core/services/deals.service';
+import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
+import { DealMasterSelectService } from '../../core/services/deals/deal-master-select.service';
+import {
+  masterOptionFormValue,
+  masterSelectControlValue,
+  resolveOrgMasterPick,
+} from '../../core/services/organizations/organization-master-select.util';
+import { resolveDealStatusLabel } from '../../core/services/deals/deal-status.constants';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
@@ -47,6 +55,8 @@ export class DealDetailComponent {
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly dealsService = inject(DealsService);
+  private readonly ownerOpts = inject(LeadOwnerOptionsService);
+  protected readonly dealMaster = inject(DealMasterSelectService);
   private readonly activitiesService = inject(ActivitiesService);
   private readonly commentsService = inject(CommentsService);
   private readonly emailsService = inject(EmailsService);
@@ -126,20 +136,10 @@ export class DealDetailComponent {
       this.emailBody().trim().length > 0,
   );
 
-  protected readonly dealStatuses: DealPipelineStatus[] = [
-    'Qualification',
-    'Proposal',
-    'Negotiation',
-    'Demo/Making',
-    'Closed Won',
-    'Closed Lost',
-  ];
+  protected readonly dealStatuses = this.dealMaster.statusSelectOptions;
+  protected readonly masterOptionFormValue = masterOptionFormValue;
 
-  protected readonly dealOwnerOptions: DealOwnerOption[] = [
-    { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
-    { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
-    { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
-  ];
+  protected readonly dealOwnerOptions = this.ownerOpts.options;
 
   private readonly noteRelatedTypeLabels: Record<NoteRelatedType, string> = {
     lead: 'Lead',
@@ -151,10 +151,10 @@ export class DealDetailComponent {
   protected readonly dataForm = this.fb.nonNullable.group({
     organization: ['', Validators.required],
     annualRevenue: [''],
-    status: this.fb.nonNullable.control<DealPipelineStatus>('Qualification', Validators.required),
+    status: this.fb.nonNullable.control<string>('Qualification', Validators.required),
     email: ['', [Validators.email]],
     mobile: [''],
-    dealOwner: ['SK', Validators.required],
+    dealOwner: [this.ownerOpts.defaultOwnerId(), Validators.required],
     website: [''],
     territory: [''],
     probabilityPercent: ['10'],
@@ -162,6 +162,7 @@ export class DealDetailComponent {
   });
 
   constructor() {
+    this.ownerOpts.load();
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const raw = params.get('id');
       const id = raw != null ? Number(raw) : NaN;
@@ -607,9 +608,7 @@ export class DealDetailComponent {
   }
 
   protected patchDataForm(row: DealRow): void {
-    const ownerOpt = this.dealOwnerOptions.find(
-      (o) => o.initials === row.assignedInitials || o.label === row.assignedTo,
-    );
+    const ownerId = this.ownerOpts.resolveDealSelectValue(row);
     const emailVal = row.email?.trim();
     const mobileVal = row.mobile?.trim();
     const prob = row.probabilityPercent ?? 10;
@@ -617,12 +616,20 @@ export class DealDetailComponent {
       {
         organization: row.organizationName ?? '',
         annualRevenue: this.revenueNumberToInputString(row.annualRevenue),
-        status: row.status,
+        status: masterSelectControlValue(
+          row.dealStatusId,
+          row.status,
+          this.dealMaster.statusSelectOptions(),
+        ),
         email: emailVal && emailVal !== '—' ? emailVal : '',
         mobile: mobileVal && mobileVal !== '—' ? mobileVal : '',
-        dealOwner: ownerOpt?.id ?? 'SK',
+        dealOwner: ownerId || this.ownerOpts.defaultOwnerId(),
         website: row.website?.trim() ?? '',
-        territory: row.territory ?? '',
+        territory: masterSelectControlValue(
+          row.territoryId,
+          row.territory,
+          this.dealMaster.territorySelectOptions(),
+        ),
         probabilityPercent:
           Number.isFinite(prob) ? (Math.round(prob * 1000) / 1000).toFixed(3) : '10.000',
         nextStep: row.nextStep ?? '',
@@ -676,7 +683,7 @@ export class DealDetailComponent {
 
   protected sidebarOwnerChipInitial(): string {
     const id = this.dataForm.controls.dealOwner.value?.trim();
-    const opt = this.dealOwnerOptions.find((o) => o.id === id);
+    const opt = this.dealOwnerOptions().find((o) => o.id === id);
     const label = opt?.label?.trim();
     if (label) return label.charAt(0).toUpperCase();
     const fb = this.deal()?.assignedTo?.trim();
@@ -779,7 +786,9 @@ export class DealDetailComponent {
       patch.annualRevenue = parseRevenueInputToNumber(v.annualRevenue);
     }
     if (this.dataForm.controls.status.dirty) {
-      patch.status = v.status;
+      const statPick = resolveOrgMasterPick(v.status, this.dealMaster.statusSelectOptions());
+      patch.status = resolveDealStatusLabel(statPick.label || v.status);
+      patch.dealStatusId = statPick.masterId;
     }
     if (this.dataForm.controls.email.dirty) {
       patch.email = v.email.trim() || '—';
@@ -788,8 +797,10 @@ export class DealDetailComponent {
       patch.mobile = v.mobile.trim() || '—';
     }
     if (this.dataForm.controls.dealOwner.dirty) {
-      const opt = this.dealOwnerOptions.find((o) => o.id === v.dealOwner.trim());
-      patch.dealOwnerId = v.dealOwner.trim();
+      const opt = this.dealOwnerOptions().find((o) => o.id === v.dealOwner.trim());
+      const ownerId = v.dealOwner.trim();
+      patch.dealOwnerId = ownerId;
+      patch.assignedToUserId = ownerId;
       patch.assignedTo = opt?.label ?? row.assignedTo;
       patch.assignedInitials = opt?.initials ?? row.assignedInitials;
     }
@@ -797,7 +808,9 @@ export class DealDetailComponent {
       patch.website = v.website.trim();
     }
     if (this.dataForm.controls.territory.dirty) {
-      patch.territory = v.territory.trim();
+      const terrPick = resolveOrgMasterPick(v.territory, this.dealMaster.territorySelectOptions());
+      patch.territory = terrPick.label.trim();
+      patch.territoryId = terrPick.masterId;
     }
     if (this.dataForm.controls.probabilityPercent.dirty) {
       let probabilityPercent = row.probabilityPercent ?? 10;
@@ -850,7 +863,10 @@ export class DealDetailComponent {
   }
 
   protected headerStatusDotClass(): string {
-    const s = this.dataForm.controls.status.value;
+    const raw = this.dataForm.controls.status.value;
+    const s = resolveDealStatusLabel(
+      resolveOrgMasterPick(raw, this.dealMaster.statusSelectOptions()).label || raw,
+    );
     switch (s) {
       case 'Closed Won':
         return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--won';

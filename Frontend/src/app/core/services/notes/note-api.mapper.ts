@@ -113,6 +113,7 @@ export interface NoteUpsertDto {
   visibility?: string | null;
   relatedLeadId?: number | null;
   relatedDealId?: number | null;
+  relatedEntityId?: number | null;
   relatedContactId?: number | null;
   relatedOrganizationId?: number | null;
   status?: string | null;
@@ -122,7 +123,8 @@ export interface NoteUpsertDto {
 export function noteRowToUpsertDto(data: Omit<NoteRow, 'id'>, id?: number): NoteUpsertDto {
   const leadId = data.relatedLeadId ? readOptionalInt(data.relatedLeadId) : null;
   const dealId = data.relatedDealId ? readOptionalInt(data.relatedDealId) : null;
-  const recordId = leadId ?? dealId ?? readOptionalInt(data.relatedId) ?? 0;
+  const relatedEntityId = dealId ?? leadId ?? readOptionalInt(data.relatedId);
+  const recordId = relatedEntityId ?? 0;
 
   const authorId = data.authorUserId ? readOptionalInt(data.authorUserId) : null;
 
@@ -137,6 +139,7 @@ export function noteRowToUpsertDto(data: Omit<NoteRow, 'id'>, id?: number): Note
     visibility: data.visibility,
     relatedLeadId: leadId,
     relatedDealId: dealId,
+    relatedEntityId,
     status: 'active',
     priority: 'medium',
   };

@@ -70,21 +70,28 @@ export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
     'Primary';
   const assignedTo = (lead.leadOwnerName ?? '').trim();
   const assignedInitials = (lead.owner ?? '').trim();
+  const ownerId = (lead.leadOwnerId ?? '').trim();
   return {
     organizationName: draft.company.trim() || 'Unknown organization',
     employees: (lead.employees ?? '').trim() || '1-10',
+    employeeCountId: lead.employeeCountId ?? undefined,
     annualRevenue: parseLeadNumericValue(lead),
     website: (lead.website ?? '').trim(),
     territory: (lead.territory ?? '').trim(),
+    territoryId: lead.territoryId ?? undefined,
     industry: (lead.industry ?? '').trim() || 'Other',
+    industryId: lead.industryId ?? undefined,
     salutation: (lead.salutation ?? '').trim(),
+    salutationId: lead.salutationId ?? undefined,
     firstName,
     lastName,
     email: draft.contactEmail.trim(),
     mobile,
     gender: (lead.gender ?? '').trim(),
     status: mapLeadStatusToDealPipelineStatus(lead.status),
-    dealOwnerId: (lead.leadOwnerId ?? assignedInitials).trim(),
+    dealStatusId: lead.leadStatusId ?? undefined,
+    dealOwnerId: ownerId,
+    assignedToUserId: ownerId || undefined,
     assignedTo: assignedTo || 'Unassigned',
     assignedInitials: assignedInitials || '-',
     lastModified: 'Just now',

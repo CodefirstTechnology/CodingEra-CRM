@@ -15,8 +15,8 @@
       <div class="deal-detail__hdr-status">
         <span [class]="headerStatusDotClass()" aria-hidden="true"></span>
         <select class="deal-detail__hdr-status-select" [formControl]="dataForm.controls.status" aria-label="Pipeline status">
-          @for (s of dealStatuses; track s) {
-          <option [value]="s">{{ s }}</option>
+          @for (opt of dealStatuses(); track opt.id + opt.name) {
+          <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
           }
         </select>
       </div>
@@ -385,15 +385,15 @@
             <label class="deal-detail__field">
               <span class="deal-detail__label">Pipeline status<span class="deal-detail__req" aria-hidden="true">*</span></span>
               <select class="deal-detail__select" formControlName="status">
-                @for (s of dealStatuses; track s) {
-                <option [value]="s">{{ s }}</option>
+                @for (opt of dealStatuses(); track opt.id + opt.name) {
+                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
               </select>
             </label>
             <label class="deal-detail__field">
               <span class="deal-detail__label">Deal owner<span class="deal-detail__req" aria-hidden="true">*</span></span>
               <select class="deal-detail__select" formControlName="dealOwner">
-                @for (o of dealOwnerOptions; track o.id) {
+                @for (o of dealOwnerOptions(); track o.id) {
                 <option [value]="o.id">{{ o.label }}</option>
                 }
               </select>
@@ -694,7 +694,11 @@
             </dd>
             <dt>Territory</dt>
             <dd class="deal-detail__kv-dd">
-              <input type="text" class="deal-detail__side-field" [formControl]="dataForm.controls.territory" [placeholder]="sidebarAddLabel('Territory')" />
+              <select class="deal-detail__side-field" [formControl]="dataForm.controls.territory">
+                @for (opt of dealMaster.territorySelectOptions(); track opt.id + opt.name) {
+                <option [value]="masterOptionFormValue(opt)">{{ opt.name === '' ? '— Select —' : opt.name }}</option>
+                }
+              </select>
             </dd>
             <dt>Annual revenue</dt>
             <dd class="deal-detail__kv-dd deal-detail__kv-dd--muted">{{ sidebarAnnualRevenueLabel() }}</dd>
@@ -716,7 +720,7 @@
             <dd class="deal-detail__kv-owner deal-detail__kv-owner--editable">
               <span class="deal-detail__owner-badge deal-detail__owner-badge--side">{{ sidebarOwnerChipInitial() }}</span>
               <select class="deal-detail__side-field deal-detail__side-field--select deal-detail__side-field--owner" [formControl]="dataForm.controls.dealOwner" aria-label="Deal owner">
-                @for (o of dealOwnerOptions; track o.id) {
+                @for (o of dealOwnerOptions(); track o.id) {
                 <option [value]="o.id">{{ o.label }}</option>
                 }
               </select>

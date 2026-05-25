@@ -19,6 +19,8 @@ import {
   FALLBACK_LEAD_STATUS_OPTIONS,
   resolveLeadStatusIdFromName,
 } from '../../core/services/leads/lead-status.constants';
+import { DealMasterSelectService } from '../../core/services/deals/deal-master-select.service';
+import { resolveDealStatusLabel } from '../../core/services/deals/deal-status.constants';
 import {
   masterOptionFormValue,
   resolveOrgMasterPick,
@@ -60,6 +62,7 @@ export class CreateEntityFormModalComponent {
   private readonly contactsService = inject(ContactsService);
   private readonly organizationsService = inject(OrganizationsService);
   protected readonly orgMaster = inject(OrganizationMasterSelectService);
+  protected readonly dealMaster = inject(DealMasterSelectService);
   private readonly tasksService = inject(TasksService);
   private readonly notesService = inject(NotesService);
   protected readonly auth = inject(AuthService);
@@ -105,20 +108,8 @@ export class CreateEntityFormModalComponent {
 
   protected readonly leadSubmitting = signal(false);
 
-  protected readonly dealOwnerOptions: DealOwnerOption[] = [
-    { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
-    { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
-    { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
-  ];
-
-  protected readonly dealStatuses: DealPipelineStatus[] = [
-    'Qualification',
-    'Proposal',
-    'Negotiation',
-    'Demo/Making',
-    'Closed Won',
-    'Closed Lost',
-  ];
+  protected readonly dealOwnerOptions = this.leadOwnerOpts.options;
+  protected readonly dealStatuses = this.dealMaster.statusSelectOptions;
 
   protected readonly taskStatusOptions: { value: TaskStatus; label: string }[] = [
     { value: 'Backlog', label: 'Backlog' },
@@ -176,8 +167,8 @@ export class CreateEntityFormModalComponent {
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     primaryEmail: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
-    status: this.fb.nonNullable.control<DealPipelineStatus>('Qualification', Validators.required),
-    dealOwner: ['SK', Validators.required],
+    status: this.fb.nonNullable.control<string>('Qualification', Validators.required),
+    dealOwner: [this.leadOwnerOpts.defaultOwnerId(), Validators.required],
     requirement: ['', Validators.maxLength(240)],
   });
 
@@ -335,19 +326,19 @@ export class CreateEntityFormModalComponent {
       case 'deal':
         this.dealForm.reset({
           organizationName: '',
-          employees: '1-10',
+          employees: masterOptionFormValue(this.dealMaster.employeeSelectOptions()[0] ?? { id: 0, name: '1-10' }),
           annualRevenue: '',
           website: '',
           territory: '',
-          industry: 'Technology',
+          industry: masterOptionFormValue(this.dealMaster.industrySelectOptions()[0] ?? { id: 0, name: 'Technology' }),
           salutation: '',
           lastName: '',
           primaryMobile: '',
           firstName: '',
           primaryEmail: '',
           gender: '',
-          status: 'Qualification',
-          dealOwner: 'SK',
+          status: masterOptionFormValue(this.dealMaster.statusSelectOptions()[0] ?? { id: 0, name: 'Qualification' }),
+          dealOwner: this.leadOwnerOpts.defaultOwnerId(),
           requirement: '',
         });
         this.dealForm.markAsUntouched();
@@ -569,25 +560,35 @@ export class CreateEntityFormModalComponent {
 
     const raw = this.dealForm.getRawValue();
     const emailTrim = raw.primaryEmail.trim();
-    const owner = this.dealOwnerOptions.find((o) => o.id === raw.dealOwner);
-
-    const salLabel = resolveSalutationLabel(raw.salutation, this.salutationSelectOptions());
+    const owner = this.dealOwnerOptions().find((o) => o.id === raw.dealOwner);
+    const salPick = resolveOrgMasterPick(raw.salutation, this.dealMaster.salutationSelectOptions());
+    const empPick = resolveOrgMasterPick(raw.employees, this.dealMaster.employeeSelectOptions());
+    const terrPick = resolveOrgMasterPick(raw.territory, this.dealMaster.territorySelectOptions());
+    const indPick = resolveOrgMasterPick(raw.industry, this.dealMaster.industrySelectOptions());
+    const statPick = resolveOrgMasterPick(raw.status, this.dealMaster.statusSelectOptions());
+    const salLabel = resolveSalutationLabel(raw.salutation, this.dealMaster.salutationSelectOptions());
 
     const payload: Omit<DealRow, 'id'> = {
       organizationName: raw.organizationName.trim(),
-      employees: raw.employees,
+      employees: empPick.label.trim() || '1-10',
+      employeeCountId: empPick.masterId,
       annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
       website: raw.website.trim(),
-      territory: raw.territory,
-      industry: raw.industry,
+      territory: terrPick.label.trim(),
+      territoryId: terrPick.masterId,
+      industry: indPick.label.trim() || 'Technology',
+      industryId: indPick.masterId,
       salutation: salLabel,
+      salutationId: salPick.masterId,
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
       email: emailTrim,
       mobile: raw.primaryMobile.trim(),
       gender: raw.gender,
-      status: raw.status,
+      status: resolveDealStatusLabel(statPick.label || raw.status),
+      dealStatusId: statPick.masterId,
       dealOwnerId: raw.dealOwner,
+      assignedToUserId: raw.dealOwner,
       assignedTo: owner?.label ?? '',
       assignedInitials: owner?.initials ?? '',
       lastModified: 'Just now',

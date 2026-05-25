@@ -139,23 +139,23 @@
         <label class="create-form__field">
           <span class="create-form__label">Industry <span class="create-form__req">*</span></span>
           <select class="create-form__control" formControlName="industry">
-            @for (ind of industryOptions; track ind) {
-              <option [value]="ind">{{ ind }}</option>
+            @for (opt of dealMaster.industrySelectOptions(); track opt.id + opt.name) {
+              <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
             }
           </select>
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Status <span class="create-form__req">*</span></span>
           <select class="create-form__control" formControlName="status">
-            @for (s of dealStatuses; track s) {
-              <option [value]="s">{{ s }}</option>
+            @for (opt of dealStatuses(); track opt.id + opt.name) {
+              <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
             }
           </select>
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Deal owner</span>
           <select class="create-form__control" formControlName="dealOwner">
-            @for (o of dealOwnerOptions; track o.id) {
+            @for (o of dealOwnerOptions(); track o.id) {
               <option [value]="o.id">{{ o.label }}</option>
             }
           </select>

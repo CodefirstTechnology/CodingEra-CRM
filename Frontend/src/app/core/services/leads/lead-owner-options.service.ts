@@ -3,6 +3,7 @@ import { catchError, map, Observable, of, take } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { ROLE_ID_ADMIN } from '../../auth/auth-role.util';
 import { AdminUsersService, type AdminUserRow } from '../admin-users.service';
+import type { DealPipelineStatus, DealRow } from '../../../features/deals/deals.component';
 import type { LeadOwnerOption, LeadRow } from '../../../features/leads/lead-row.model';
 
 export function initialsFromDisplayName(name: string): string {
@@ -127,5 +128,39 @@ export class LeadOwnerOptionsService {
   enrichRows(rows: readonly LeadRow[]): LeadRow[] {
     if (this.optionsSignal().length === 0) return [...rows];
     return rows.map((r) => this.applyOwnerToRow(r));
+  }
+
+  applyOwnerToDealRow(row: DealRow): DealRow {
+    let ownerId = row.dealOwnerId?.trim() || row.assignedToUserId?.trim() || undefined;
+    let opt = ownerId ? this.findById(ownerId) : undefined;
+    if (!opt && row.assignedTo?.trim()) {
+      opt = this.findByLabel(row.assignedTo);
+      if (opt) ownerId = opt.id;
+    }
+    if (opt) {
+      return {
+        ...row,
+        dealOwnerId: ownerId ?? opt.id,
+        assignedToUserId: ownerId ?? opt.id,
+        assignedTo: opt.label,
+        assignedInitials: opt.initials,
+      };
+    }
+    if (row.dealOwnerId && row.assignedTo.startsWith('User #')) {
+      return { ...row, assignedTo: '', assignedInitials: '' };
+    }
+    return row;
+  }
+
+  resolveDealSelectValue(row: DealRow): string {
+    const id = row.dealOwnerId?.trim() || row.assignedToUserId?.trim();
+    if (id && this.findById(id)) return id;
+    const byName = this.findByLabel(row.assignedTo);
+    return byName?.id ?? id ?? '';
+  }
+
+  enrichDealRows(rows: readonly DealRow[]): DealRow[] {
+    if (this.optionsSignal().length === 0) return [...rows];
+    return rows.map((r) => this.applyOwnerToDealRow(r));
   }
 }
