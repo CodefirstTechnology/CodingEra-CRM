@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
@@ -49,7 +49,7 @@ export interface TaskRow {
 
 @Component({
   selector: 'app-tasks',
-  imports: [ReactiveFormsModule, CrmSelectionBarComponent, RouterLink],
+  imports: [ReactiveFormsModule, FormsModule, CrmSelectionBarComponent, RouterLink],
   templateUrl: './tasks.component.html',
   styleUrl: './tasks.component.scss',
 })
@@ -66,6 +66,8 @@ export class TasksComponent {
 
   protected readonly sel = createIdSelection();
   protected readonly editingNumericId = signal<number | null>(null);
+  /** Full row loaded for edit — keeps related lead/deal links when the modal saves. */
+  private readonly editingRow = signal<TaskRow | null>(null);
   private lastRouteEdit = '';
 
   private localDatetimeInputValue(d = new Date()): string {
@@ -158,6 +160,7 @@ export class TasksComponent {
 
   protected openForm(): void {
     this.editingNumericId.set(null);
+    this.editingRow.set(null);
     this.clearEditQuery();
     this.createForm.reset({
       title: '',
@@ -174,6 +177,7 @@ export class TasksComponent {
   protected closeForm(): void {
     this.formOpen.set(false);
     this.editingNumericId.set(null);
+    this.editingRow.set(null);
     this.clearEditQuery();
     this.createForm.reset({
       title: '',
@@ -197,6 +201,7 @@ export class TasksComponent {
       .subscribe((row) => {
         if (!row) return;
         this.editingNumericId.set(id);
+        this.editingRow.set(row);
         const person =
           this.leadOwnerOpts.findById(row.assignedToUserId) ??
           this.assigneeOptions().find(
@@ -282,6 +287,7 @@ export class TasksComponent {
     const dueDisplay = dueRaw ? this.formatDueDisplay(dueRaw) : '—';
     const assigneeUserId = person?.id?.trim();
 
+    const editing = this.editingRow();
     const payload: Omit<TaskRow, 'id'> = {
       title: raw.title.trim(),
       description: raw.description.trim(),
@@ -293,6 +299,8 @@ export class TasksComponent {
       assignedInitials: person?.initials ?? '?',
       assignedToUserId:
         assigneeUserId && /^\d+$/.test(assigneeUserId) ? assigneeUserId : undefined,
+      relatedLeadId: editing?.relatedLeadId,
+      relatedDealId: editing?.relatedDealId,
       lastModified: 'Just now',
     };
 
@@ -343,6 +351,57 @@ export class TasksComponent {
         },
         error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
+  }
+
+  protected onTaskStatusSelectChange(row: TaskRow, status: TaskStatus): void {
+    if (status === row.status) return;
+    this.applyTaskStatusChange(row, status);
+  }
+
+  private applyTaskStatusChange(row: TaskRow, status: TaskStatus): void {
+    const idn = Number(row.id);
+    if (!Number.isFinite(idn) || idn <= 0) return;
+
+    this.patchTaskInList(row.id, { status, lastModified: 'Just now' });
+
+    this.tasksService
+      .update(idn, this.taskUpdatePayload(row, status))
+      .pipe(take(1))
+      .subscribe({
+        next: (updated) => {
+          if (updated) {
+            this.patchTaskInList(row.id, updated);
+          } else {
+            this.refreshTasks();
+          }
+          this.toast.success(`Task status updated to ${status}.`);
+        },
+        error: (e: unknown) => {
+          this.refreshTasks();
+          this.toast.error(leadsHttpErrorMessage(e));
+        },
+      });
+  }
+
+  private taskUpdatePayload(row: TaskRow, status?: TaskStatus): Omit<TaskRow, 'id'> {
+    return {
+      title: row.title,
+      description: row.description,
+      status: status ?? row.status,
+      priority: row.priority,
+      dueDate: row.dueDate,
+      dueDateRaw: row.dueDateRaw,
+      assignedTo: row.assignedTo,
+      assignedInitials: row.assignedInitials,
+      assignedToUserId: row.assignedToUserId,
+      relatedLeadId: row.relatedLeadId,
+      relatedDealId: row.relatedDealId,
+      lastModified: 'Just now',
+    };
+  }
+
+  private patchTaskInList(id: string, patch: Partial<TaskRow>): void {
+    this.rows.update((rows) => rows.map((r) => (r.id === id ? { ...r, ...patch } : r)));
   }
 
   protected statusClass(status: TaskStatus): string {

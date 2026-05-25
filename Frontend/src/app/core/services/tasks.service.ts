@@ -8,6 +8,7 @@ import { AdminUsersService, type AdminUserRow } from './admin-users.service';
 import { initialsFromDisplayName } from './leads/lead-owner-options.service';
 import { LeadsService } from './leads.service';
 import { DealsService } from './deals.service';
+import { mergeTaskRowPatch } from './tasks/task-api.mapper';
 import { TaskHttpService } from './tasks/task-http.service';
 import { dealActivityDisplayName } from '../../shared/utils/activity-entity-display.util';
 import {
@@ -68,7 +69,15 @@ export class TasksService {
   }
 
   update(id: number, data: Partial<Omit<TaskRow, 'id'>>): Observable<TaskRow | null> {
-    return this.enrichRow(this.taskHttp.update(id, data)).pipe(map((row) => row ?? null));
+    return this.taskHttp.getById(id).pipe(
+      switchMap((existing) => {
+        if (!existing) return of(null);
+        const merged = mergeTaskRowPatch(existing, data);
+        return this.taskHttp.update(id, merged);
+      }),
+      switchMap((row) => (row != null ? this.enrichRow(of(row)) : of(null))),
+      map((row) => row ?? null),
+    );
   }
 
   delete(id: number): Observable<void> {

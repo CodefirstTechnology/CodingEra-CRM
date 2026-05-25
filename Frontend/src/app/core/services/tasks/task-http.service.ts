@@ -64,22 +64,8 @@ export class TaskHttpService {
       .pipe(map((raw) => mapTaskApiRecord(raw)));
   }
 
-  update(id: number, data: Partial<Omit<TaskRow, 'id'>>): Observable<TaskRow | null> {
-    const merged = {
-      title: data.title ?? 'Task',
-      description: data.description ?? '',
-      status: data.status ?? 'Backlog',
-      priority: data.priority ?? 'Low',
-      dueDate: data.dueDate ?? '—',
-      dueDateRaw: data.dueDateRaw ?? '',
-      assignedTo: data.assignedTo ?? '',
-      assignedInitials: data.assignedInitials ?? '?',
-      lastModified: data.lastModified ?? '',
-      assignedToUserId: data.assignedToUserId,
-      relatedLeadId: data.relatedLeadId,
-      relatedDealId: data.relatedDealId,
-    } satisfies Omit<TaskRow, 'id'>;
-    const body = taskRowToUpsertDto(merged, id);
+  update(id: number, data: Omit<TaskRow, 'id'>): Observable<TaskRow | null> {
+    const body = taskRowToUpsertDto(data, id);
     return this.http
       .put<unknown>(`${this.baseUrl}/${id}`, body, { headers: this.jsonHeaders() })
       .pipe(map((raw) => (raw != null ? mapTaskApiRecord(raw) : null)));
