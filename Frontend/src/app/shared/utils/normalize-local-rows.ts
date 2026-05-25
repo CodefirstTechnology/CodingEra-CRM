@@ -173,6 +173,7 @@ export function normalizeNoteRow(row: Record<string, unknown>): NoteRow {
       visibility: (row['visibility'] as NoteVisibility) ?? 'team',
       body,
       author,
+      assignedBy: row['assignedBy'] != null ? String(row['assignedBy']) : author,
       when,
       bodyPreview,
     };
@@ -197,6 +198,7 @@ export function normalizeNoteRow(row: Record<string, unknown>): NoteRow {
     visibility: parsed.visibility,
     body,
     author,
+    assignedBy: row['assignedBy'] != null ? String(row['assignedBy']) : author,
     when,
     bodyPreview,
   };

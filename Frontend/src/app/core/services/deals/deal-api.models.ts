@@ -24,6 +24,11 @@ export interface DealNormalized {
   probabilityPercent: number | null;
   nextStep: string;
   lastModified: string;
+  salutationId?: number | null;
+  employeeCountId?: number | null;
+  territoryId?: number | null;
+  industryId?: number | null;
+  dealStatusId?: number | null;
 }
 
 /** Body for `POST` / `PUT /api/deals` per Swagger `DealUpsertDto`. */

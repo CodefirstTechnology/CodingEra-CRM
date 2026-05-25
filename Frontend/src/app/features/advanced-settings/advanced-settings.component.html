@@ -2,7 +2,7 @@
   <aside class="adv-settings__sidebar">
     <h1 class="adv-settings__title">Settings</h1>
     <nav class="adv-settings__menu" aria-label="Settings sections">
-      @for (group of leftNav; track group.title) {
+      @for (group of leftNav(); track group.title) {
         <section class="adv-settings__group">
           <h2 class="adv-settings__group-title">{{ group.title }}</h2>
           <ul class="adv-settings__group-list">
@@ -25,36 +25,18 @@
   </aside>
 
   <section class="adv-settings__content">
-    @if (activeItem() === 'Users') {
+    @if (isAdminViewer() && activeItem() === 'Users') {
     <article class="adv-settings__card">
       <header class="adv-users__head">
         <div>
           <h2 class="adv-users__title">Users</h2>
           <p class="adv-users__sub">
-            Manage CRM users by adding or inviting them, and assign roles to control their access and permissions
+            View CRM users. Use Invite User to add a new account with role id 1 (User).
           </p>
         </div>
-        <div class="adv-users__new-wrap">
-          <button
-            type="button"
-            class="adv-users__new-btn"
-            [attr.aria-expanded]="newMenuOpen()"
-            aria-haspopup="menu"
-            (click)="toggleNewMenu()"
-          >
-            + New
-          </button>
-          @if (newMenuOpen()) {
-          <div class="adv-users__new-menu" role="menu" aria-label="New user actions">
-            <button type="button" class="adv-users__new-item" role="menuitem" (click)="selectNewAction('add-existing')">
-              Add Existing User
-            </button>
-            <button type="button" class="adv-users__new-item" role="menuitem" (click)="selectNewAction('invite-new')">
-              Invite New User
-            </button>
-          </div>
-          }
-        </div>
+        <button type="button" class="adv-users__new-btn" (click)="openInviteUser()">
+          + Invite User
+        </button>
       </header>
 
       <div class="adv-users__toolbar">
@@ -99,6 +81,73 @@
         }
       </ul>
     </article>
+    } @else if (isAdminViewer() && activeItem() === 'Invite User') {
+    <article class="adv-settings__card">
+      <header class="adv-users__head">
+        <div>
+          <h2 class="adv-users__title">Invite User</h2>
+          <p class="adv-users__sub">
+            Admin only. New users are created with role id 1 (User) and access the user dashboard.
+          </p>
+        </div>
+      </header>
+
+      <form class="adv-settings__invite-form" [formGroup]="inviteUserForm" (ngSubmit)="submitInviteUser()">
+        <div class="adv-settings__form-grid">
+          <label class="adv-settings__field">
+            <span>First name <span class="adv-settings__req">*</span></span>
+            <input type="text" formControlName="firstName" autocomplete="given-name" />
+            @if (inviteFieldInvalid('firstName')) {
+              <small class="adv-settings__field-error">First name is required.</small>
+            }
+          </label>
+          <label class="adv-settings__field">
+            <span>Last name</span>
+            <input type="text" formControlName="lastName" autocomplete="family-name" />
+          </label>
+          <label class="adv-settings__field">
+            <span>Email <span class="adv-settings__req">*</span></span>
+            <input type="email" formControlName="email" autocomplete="email" />
+            @if (inviteFieldInvalid('email')) {
+              <small class="adv-settings__field-error">Enter a valid email.</small>
+            }
+          </label>
+          <label class="adv-settings__field">
+            <span>Phone</span>
+            <input type="tel" formControlName="phone" autocomplete="tel" />
+            @if (inviteFieldInvalid('phone')) {
+              <small class="adv-settings__field-error">Enter a valid phone number.</small>
+            }
+          </label>
+          <label class="adv-settings__field">
+            <span>Password <span class="adv-settings__req">*</span></span>
+            <input type="password" formControlName="password" autocomplete="new-password" />
+            @if (inviteFieldInvalid('password')) {
+              <small class="adv-settings__field-error">At least 6 characters.</small>
+            }
+          </label>
+          <label class="adv-settings__field">
+            <span>Confirm password <span class="adv-settings__req">*</span></span>
+            <input type="password" formControlName="confirmPassword" autocomplete="new-password" />
+            @if (inviteFieldInvalid('confirmPassword')) {
+              <small class="adv-settings__field-error">Confirm the password.</small>
+            } @else if (inviteConfirmMismatch()) {
+              <small class="adv-settings__field-error">Passwords do not match.</small>
+            }
+          </label>
+        </div>
+
+        @if (inviteFormError(); as errMsg) {
+          <p class="adv-settings__banner" role="alert">{{ errMsg }}</p>
+        }
+
+        <footer class="adv-settings__actions">
+          <button type="submit" class="adv-settings__submit-btn" [disabled]="inviteSubmitting()">
+            {{ inviteSubmitting() ? 'Creating user…' : 'Create User' }}
+          </button>
+        </footer>
+      </form>
+    </article>
     } @else {
     <article class="adv-settings__card">
       <header class="adv-settings__profile-head">
@@ -130,79 +179,3 @@
     }
   </section>
 </div>
-
-@if (addExistingOpen()) {
-<div class="adv-modal-backdrop" (click)="closeAddExistingModal()"></div>
-<section class="adv-modal" role="dialog" aria-modal="true" aria-label="Add Existing User">
-  <header class="adv-modal__head">
-    <h3 class="adv-modal__title">Add Existing User</h3>
-    <button type="button" class="adv-modal__close" aria-label="Close" (click)="closeAddExistingModal()">×</button>
-  </header>
-
-  <p class="adv-modal__hint">
-    Add existing system users to this CRM. Assign them a role to grant access with their current credentials.
-  </p>
-
-  <div class="adv-modal__body">
-    <label class="adv-modal__field">
-      <span>Users</span>
-      <input type="email" placeholder="john@doe.com" />
-    </label>
-
-    <label class="adv-modal__field">
-      <span>Role</span>
-      <select [value]="addExistingRole()" (change)="onAddExistingRoleChange($event)">
-        <option value="Admin">Admin</option>
-        <option value="Manager">Manager</option>
-        <option value="Sales User">Sales User</option>
-      </select>
-      <small>Can work with leads and deals and create private views (reports).</small>
-    </label>
-  </div>
-
-  <footer class="adv-modal__foot">
-    <button type="button" class="adv-modal__add" disabled>Add</button>
-  </footer>
-</section>
-}
-
-@if (inviteNewOpen()) {
-<div class="adv-modal-backdrop" (click)="closeInviteNewModal()"></div>
-<section class="adv-modal adv-modal--invite" role="dialog" aria-modal="true" aria-label="Invite New User">
-  <header class="adv-modal__head">
-    <div>
-      <h3 class="adv-modal__title">Send invites to</h3>
-      <p class="adv-modal__sub">Invite users to access CRM. Specify their roles to control access and permissions</p>
-    </div>
-    <div class="adv-modal__head-actions">
-      <button type="button" class="adv-modal__send" [disabled]="!canSendInvites()" (click)="sendInvites()">
-        Send Invites
-      </button>
-      <button type="button" class="adv-modal__close" aria-label="Close" (click)="closeInviteNewModal()">×</button>
-    </div>
-  </header>
-
-  <div class="adv-modal__body">
-    <label class="adv-modal__field">
-      <span>Invite by email</span>
-      <textarea
-        rows="2"
-        placeholder="user1@example.com, user2@example.com, ..."
-        [value]="inviteEmailsInput()"
-        (input)="onInviteEmailsInput($event)"
-      ></textarea>
-      <small>You can invite multiple users by comma separating their email addresses</small>
-    </label>
-
-    <label class="adv-modal__field">
-      <span>Invite as</span>
-      <select [value]="inviteRole()" (change)="onInviteRoleChange($event)">
-        <option value="Admin">Admin</option>
-        <option value="Manager">Manager</option>
-        <option value="Sales User">Sales User</option>
-      </select>
-      <small>Can work with leads and deals and create private views (reports).</small>
-    </label>
-  </div>
-</section>
-}

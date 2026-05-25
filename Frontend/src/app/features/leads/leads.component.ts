@@ -2,10 +2,9 @@ import { Component, computed, effect, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { concat, concatMap, defaultIfEmpty, forkJoin, of, last, take, tap } from 'rxjs';
+import { concat, defaultIfEmpty, forkJoin, last, take, tap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
-import { DealsService } from '../../core/services/deals.service';
 import { coerceLeadStatus } from '../../core/services/leads/lead-api.mapper';
 import {
   FALLBACK_LEAD_STATUS_OPTIONS,
@@ -25,7 +24,9 @@ import { UserDataScopeService } from '../../core/services/user-data-scope.servic
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
-import { mapLeadToDealRow } from '../../shared/utils/mappers';
+import { isLeadConverted } from '../../shared/utils/lead-conversion.util';
+import type { ConvertLeadOptions } from '../../core/services/leads/lead-conversion.types';
+import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import { CRM_PAGINATED_SELECT_PAGE_SIZE } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
 import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
@@ -91,6 +92,7 @@ interface LeadColumnOption {
     CrmSelectionBarComponent,
     CrmAssignPickerComponent,
     CrmPaginationFooterComponent,
+    ConvertLeadModalComponent,
   ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
@@ -106,7 +108,6 @@ export class LeadsComponent {
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly leadsService = inject(LeadsService);
   private readonly userScope = inject(UserDataScopeService);
-  private readonly dealsService = inject(DealsService);
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly leadRoundRobin = inject(LeadRoundRobinService);
@@ -126,6 +127,9 @@ export class LeadsComponent {
   private readonly route = inject(ActivatedRoute);
   protected readonly sel = createIdSelection();
   protected readonly assignPickerOpen = signal(false);
+  protected readonly convertModalOpen = signal(false);
+  protected readonly convertTargets = signal<LeadRow[]>([]);
+  protected readonly openRowMenuId = signal<string | null>(null);
   protected readonly editingNumericId = signal<number | null>(null);
   private lastRouteEdit = '';
 
@@ -176,6 +180,7 @@ export class LeadsComponent {
 
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
   protected readonly isPersistedApiLeadRow = isPersistedApiLeadRow;
+  protected readonly isLeadConverted = isLeadConverted;
 
   /** Status filter chips driven by `lead_statuses` master (same list as table dropdown). */
   protected readonly filterChips = computed(() => {
@@ -361,6 +366,7 @@ export class LeadsComponent {
     const src = this.sourceFilter();
     return this.rows().filter((row) => {
       if (src !== 'all' && (row.leadSource ?? 'Manual') !== src) return false;
+      if (st === 'all' && isLeadConverted(row)) return false;
       if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) return false;
       if (!q) return true;
       const srcLabel = (row.leadSource ?? 'Manual').toLowerCase();
@@ -459,9 +465,23 @@ export class LeadsComponent {
     if (ids.length === 0) return false;
     return ids.every((id) => {
       const r = this.rows().find((x) => x.id === id);
-      return !!r && r.leadSource === 'Manual' && r.status !== 'Converted';
+      return !!r && this.canConvertLead(r);
     });
   });
+
+  protected readonly convertModalPreview = computed(() => {
+    const targets = this.convertTargets();
+    if (targets.length === 1) return targets[0].name;
+    return targets
+      .slice(0, 3)
+      .map((t) => t.name)
+      .join(', ')
+      .concat(targets.length > 3 ? ` +${targets.length - 3} more` : '');
+  });
+
+  protected canConvertLead(row: LeadRow): boolean {
+    return row.leadSource === 'Manual' && isPersistedApiLeadRow(row.id) && !isLeadConverted(row);
+  }
 
   protected readonly createForm = this.fb.nonNullable.group({
     salutation: [''],
@@ -769,53 +789,81 @@ export class LeadsComponent {
 
   protected convertToDeal(): void {
     if (!this.bulkConvertEnabled()) return;
-    const ids = [...this.sel.selectedItems()];
-    if (ids.length === 0) return;
+    const leads = this.sel
+      .selectedItems()
+      .map((id) => this.rows().find((r) => r.id === id))
+      .filter((r): r is LeadRow => !!r && this.canConvertLead(r));
+    if (leads.length === 0) return;
+    this.openConvertModal(leads);
+  }
 
-    const streams = ids
-      .map((sid) => {
-        const lead = this.rows().find((r) => r.id === sid);
-        if (!lead || lead.leadSource !== 'Manual' || lead.status === 'Converted') return null;
-        const idn = Number(sid);
-        if (!Number.isFinite(idn)) return null;
-        const after = environment.leadConversionAfterDeal;
-        return this.dealsService.create(mapLeadToDealRow(lead)).pipe(
-          take(1),
-          tap((created) => this.createRowBus.publish('deal', created)),
-          concatMap(() =>
-            after === 'delete'
-              ? this.leadsService.delete(idn).pipe(take(1))
-              : this.leadsService
-                  .update(idn, { status: 'Converted', updated: 'Just now' })
-                  .pipe(take(1)),
-          ),
-        );
-      })
-      .filter((s): s is NonNullable<typeof s> => s != null);
+  protected openConvertModalForRow(row: LeadRow, ev?: Event): void {
+    ev?.stopPropagation();
+    this.openRowMenuId.set(null);
+    if (!this.canConvertLead(row)) return;
+    this.openConvertModal([row]);
+  }
 
-    if (streams.length === 0) {
-      this.sel.clear();
-      this.refreshLeads();
-      return;
-    }
+  protected openConvertModal(leads: LeadRow[]): void {
+    this.convertTargets.set(leads);
+    this.convertModalOpen.set(true);
+  }
 
-    const convertedCount = streams.length;
+  protected closeConvertModal(): void {
+    this.convertModalOpen.set(false);
+    this.convertTargets.set([]);
+  }
+
+  protected onConvertModalConfirm(options: ConvertLeadOptions): void {
+    const targets = [...this.convertTargets()];
+    this.closeConvertModal();
+    if (targets.length === 0) return;
+
+    const streams = targets.map((lead) =>
+      this.leadsService.convertToDeal(lead.id, options).pipe(
+        take(1),
+        tap((result) => {
+          this.createRowBus.publish('deal', result.deal);
+          this.applyLeadConversionToList(lead.id, result);
+        }),
+      ),
+    );
+
     concat(...streams)
       .pipe(last(), defaultIfEmpty(null))
       .subscribe({
         next: () => {
           this.sel.clear();
-          this.refreshLeads();
-          if (convertedCount > 0) {
-            this.toast.success(
-              convertedCount === 1
-                ? 'Lead converted to deal.'
-                : `${convertedCount} leads converted to deals.`,
-            );
-          }
+          this.toast.success(
+            targets.length === 1
+              ? 'Lead converted to deal successfully'
+              : `${targets.length} leads converted to deals successfully`,
+          );
         },
-        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+        error: (e: unknown) => {
+          this.refreshLeads();
+          this.toast.error(leadsHttpErrorMessage(e));
+        },
       });
+  }
+
+  private applyLeadConversionToList(leadId: string, result: { lead: LeadRow | null }): void {
+    if (result.lead == null) {
+      this.manualRows.update((rows) => rows.filter((r) => r.id !== leadId));
+      return;
+    }
+    this.manualRows.update((rows) =>
+      rows.map((r) => (r.id === leadId ? this.leadOwnerOpts.applyOwnerToRow({ ...r, ...result.lead! }) : r)),
+    );
+  }
+
+  protected toggleRowMenu(rowId: string, ev: Event): void {
+    ev.stopPropagation();
+    this.openRowMenuId.update((cur) => (cur === rowId ? null : rowId));
+  }
+
+  protected closeRowMenus(): void {
+    this.openRowMenuId.set(null);
   }
 
   protected clearEmailDuplicate(): void {

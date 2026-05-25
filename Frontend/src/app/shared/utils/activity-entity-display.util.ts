@@ -1,6 +1,7 @@
 import type { ActivityEntityType } from '../../core/services/activities/activity-api.models';
 import type { DealRow } from '../../features/deals/deals.component';
 import type { LeadRow } from '../../features/leads/lead-row.model';
+import { dealPersonName, leadPersonName } from './lead-person-name.util';
 
 /** Map key: `lead:48`, `deal:12`, etc. */
 export function buildActivityEntityNameMap(leads: LeadRow[], deals: DealRow[]): Map<string, string> {
@@ -21,21 +22,28 @@ export function buildActivityEntityNameMap(leads: LeadRow[], deals: DealRow[]): 
 }
 
 export function leadActivityDisplayName(lead: LeadRow): string {
-  const full = lead.name?.trim();
-  if (full) return full;
-  const parts = [lead.firstName, lead.lastName].map((p) => p?.trim()).filter(Boolean);
-  if (parts.length) return parts.join(' ');
+  const name = leadPersonName(lead);
+  if (name !== '—') return name;
   const org = lead.organization?.trim();
   if (org) return org;
   return `Lead #${lead.id}`;
 }
 
+/** Contact name (`firstName` + `lastName`) for tasks, notes, and activity. */
 export function dealActivityDisplayName(deal: DealRow): string {
-  const org = deal.organizationName?.trim();
-  if (org) return org;
-  const contact = [deal.firstName, deal.lastName].map((p) => p?.trim()).filter(Boolean).join(' ');
-  if (contact) return contact;
+  const name = dealPersonName(deal);
+  if (name !== '—') return name;
   return `Deal #${deal.id}`;
+}
+
+/** Tasks / notes Record column for deals, e.g. `Deal - Rohit Contract`. */
+export function formatDealRecordLabel(contactName: string): string {
+  return `Deal - ${contactName.trim() || '—'}`;
+}
+
+/** Tasks / notes Record column for leads. */
+export function formatLeadRecordLabel(contactName: string): string {
+  return `Lead · ${contactName.trim() || '—'}`;
 }
 
 export function activityEntityDisplayLabel(

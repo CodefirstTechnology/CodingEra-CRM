@@ -8,6 +8,15 @@ import { DealsService } from '../../core/services/deals.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
+import { DealMasterSelectService } from '../../core/services/deals/deal-master-select.service';
+import {
+  masterOptionFormValue,
+  masterSelectControlValue,
+  resolveOrgMasterPick,
+  resolveSalutationLabel,
+} from '../../core/services/organizations/organization-master-select.util';
+import { resolveDealStatusLabel } from '../../core/services/deals/deal-status.constants';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
@@ -33,19 +42,29 @@ export interface DealRow {
   id: string;
   organizationName: string;
   employees: string;
+  /** Master data FK (`/api/MasterData/employee-counts`). */
+  employeeCountId?: number | null;
   /** Stored as a plain number (no currency formatting). */
   annualRevenue: number;
   website: string;
   territory: string;
+  /** Master data FK (`/api/MasterData/territories`). */
+  territoryId?: number | null;
   industry: string;
+  /** Master data FK (`/api/MasterData/industries`). */
+  industryId?: number | null;
   salutation: string;
+  /** Master data FK (`/api/MasterData/salutations`). */
+  salutationId?: number | null;
   firstName: string;
   lastName: string;
   email: string;
   mobile: string;
   gender: string;
   status: DealPipelineStatus;
-  /** Form / owner picker key (e.g. SK). */
+  /** Master data FK when `/api/MasterData/deal-statuses` is available. */
+  dealStatusId?: number | null;
+  /** Form / owner picker key (numeric `users.id`). */
   dealOwnerId: string;
   /** Backend `assignedToUserId` / `users.id`. */
   assignedToUserId?: string;
@@ -60,6 +79,17 @@ export interface DealRow {
   probabilityPercent?: number;
   nextStep?: string;
   requirement?: string;
+  /** Display title for list/detail (e.g. "Acme — Jane Doe"). */
+  dealTitle?: string;
+  /** Combined contact label from conversion. */
+  contactName?: string;
+  notes?: string;
+  /** ISO created time when known (conversion sets this client-side). */
+  createdAt?: string;
+  /** CRM origin label (`Converted Lead`, `lead_conversion`, etc.). */
+  source?: string;
+  /** Source lead id when created via lead conversion (local store + future API FK). */
+  sourceLeadId?: string;
 }
 
 interface DealColumnOption {
@@ -80,6 +110,8 @@ export class DealsComponent {
   private readonly dealsService = inject(DealsService);
   private readonly toast = inject(ToastService);
   private readonly userScope = inject(UserDataScopeService);
+  private readonly ownerOpts = inject(LeadOwnerOptionsService);
+  protected readonly dealMaster = inject(DealMasterSelectService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -91,34 +123,12 @@ export class DealsComponent {
   protected readonly formOpen = signal(false);
   protected readonly columnMenuOpen = signal(false);
 
-  protected readonly dealStatuses: DealPipelineStatus[] = [
-    'Qualification',
-    'Proposal',
-    'Negotiation',
-    'Demo/Making',
-    'Closed Won',
-    'Closed Lost',
-  ];
+  protected readonly dealStatuses = this.dealMaster.statusSelectOptions;
 
-  protected readonly salutationOptions = ['', 'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
-  protected readonly employeeOptions = ['1-10', '11-50', '51-200', '201-500', '500+'] as const;
-  protected readonly territoryOptions = ['', 'India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
-  protected readonly industryOptions = [
-    'Technology',
-    'Finance',
-    'Healthcare',
-    'Manufacturing',
-    'Retail',
-    'Education',
-    'Other',
-  ] as const;
 
-  protected readonly dealOwnerOptions: DealOwnerOption[] = [
-    { id: 'SK', label: 'Sam Kumar', initials: 'SK' },
-    { id: 'AM', label: 'Alex Morgan', initials: 'AM' },
-    { id: 'JD', label: 'Jordan Doe', initials: 'JD' },
-  ];
+  protected readonly dealOwnerOptions = this.ownerOpts.options;
+  protected readonly masterOptionFormValue = masterOptionFormValue;
 
   protected readonly rows = signal<DealRow[]>([]);
   private readonly requiredColumnIds = new Set(['contactName', 'organizationName', 'assignedTo']);
@@ -170,10 +180,19 @@ export class DealsComponent {
   };
 
   constructor() {
+    this.ownerOpts.load();
     this.refreshDeals();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'deal') return;
-      this.refreshDeals();
+      const created = e.row as DealRow;
+      if (created?.id) {
+        this.rows.update((rows) => {
+          if (rows.some((r) => r.id === created.id)) return rows;
+          return [created, ...rows];
+        });
+      } else {
+        this.refreshDeals();
+      }
     });
     this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
       const edit = q['edit'];
@@ -219,15 +238,11 @@ export class DealsComponent {
   protected readonly assignDefaultOwnerId = computed(() => {
     const ids = this.sel.selectedItems();
     const first = this.rows().find((r) => r.id === ids[0]);
-    if (!first) return 'SK';
-    return (
-      this.dealOwnerOptions.find(
-        (o) =>
-          o.id === first.dealOwnerId ||
-          o.initials === first.assignedInitials ||
-          o.label === first.assignedTo,
-      )?.id ?? 'SK'
-    );
+    if (first) {
+      const resolved = this.ownerOpts.resolveDealSelectValue(first);
+      if (resolved) return resolved;
+    }
+    return this.ownerOpts.defaultOwnerId() || '';
   });
 
   protected readonly createForm = this.fb.nonNullable.group({
@@ -245,8 +260,8 @@ export class DealsComponent {
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     primaryEmail: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
-    status: this.fb.nonNullable.control<DealPipelineStatus>('Qualification', Validators.required),
-    dealOwner: ['SK', Validators.required],
+    status: this.fb.nonNullable.control<string>('Qualification', Validators.required),
+    dealOwner: [this.ownerOpts.defaultOwnerId(), Validators.required],
     requirement: ['', Validators.maxLength(240)],
   });
 
@@ -390,23 +405,28 @@ export class DealsComponent {
   }
 
   private resetCreateForm(): void {
+    const defaultIndustry = this.dealMaster.industrySelectOptions()[0];
+    const defaultEmployees = this.dealMaster.employeeSelectOptions()[0];
+    const defaultStatus = this.dealMaster.statusSelectOptions()[0];
     this.createForm.reset({
       useExistingOrg: false,
       useExistingContact: false,
       organizationName: '',
-      employees: '1-10',
+      employees: defaultEmployees ? masterOptionFormValue(defaultEmployees) : '1-10',
       annualRevenue: '',
       website: '',
       territory: '',
-      industry: 'Technology',
+      industry: defaultIndustry ? masterOptionFormValue(defaultIndustry) : 'Technology',
       salutation: '',
       lastName: '',
       primaryMobile: '',
       firstName: '',
       primaryEmail: '',
       gender: '',
-      status: 'Qualification',
-      dealOwner: 'SK',
+      status: defaultStatus
+        ? masterOptionFormValue(defaultStatus)
+        : 'Qualification',
+      dealOwner: this.ownerOpts.defaultOwnerId(),
       requirement: '',
     });
     this.applyPrimaryEmailValidators('create');
@@ -436,31 +456,46 @@ export class DealsComponent {
       .subscribe((row) => {
         if (!row) return;
         this.editingNumericId.set(id);
-        const ownerOpt = this.dealOwnerOptions.find(
-          (o) =>
-            o.id === row.dealOwnerId ||
-            o.initials === row.assignedInitials ||
-            o.label === row.assignedTo,
-        );
+        const ownerId = this.ownerOpts.resolveDealSelectValue(row);
         const revInput =
           row.annualRevenue != null && row.annualRevenue !== 0 ? String(row.annualRevenue) : '';
         const emailFromRow = row.email.trim() ? row.email : '';
         this.applyPrimaryEmailValidators(emailFromRow.trim() ? 'edit-filled' : 'edit-empty');
         this.createForm.patchValue({
           organizationName: row.organizationName,
-          employees: row.employees,
+          employees: masterSelectControlValue(
+            row.employeeCountId,
+            row.employees,
+            this.dealMaster.employeeSelectOptions(),
+          ),
           annualRevenue: revInput,
           website: row.website,
-          territory: row.territory,
-          industry: row.industry,
-          salutation: row.salutation,
+          territory: masterSelectControlValue(
+            row.territoryId,
+            row.territory,
+            this.dealMaster.territorySelectOptions(),
+          ),
+          industry: masterSelectControlValue(
+            row.industryId,
+            row.industry,
+            this.dealMaster.industrySelectOptions(),
+          ),
+          salutation: masterSelectControlValue(
+            row.salutationId,
+            row.salutation,
+            this.dealMaster.salutationSelectOptions(),
+          ),
           primaryEmail: emailFromRow,
           primaryMobile: row.mobile,
           firstName: row.firstName || 'Contact',
           lastName: row.lastName || 'Primary',
           gender: row.gender,
-          status: row.status,
-          dealOwner: ownerOpt?.id ?? (row.dealOwnerId || 'SK'),
+          status: masterSelectControlValue(
+            row.dealStatusId,
+            row.status,
+            this.dealMaster.statusSelectOptions(),
+          ),
+          dealOwner: ownerId || this.ownerOpts.defaultOwnerId(),
           requirement: row.requirement ?? '',
         });
         this.formOpen.set(true);
@@ -505,7 +540,7 @@ export class DealsComponent {
   }
 
   protected onAssignPicked(ownerKey: string): void {
-    const opt = this.dealOwnerOptions.find((o) => o.id === ownerKey);
+    const opt = this.dealOwnerOptions().find((o) => o.id === ownerKey);
     if (!opt) {
       this.assignPickerOpen.set(false);
       return;
@@ -518,6 +553,7 @@ export class DealsComponent {
           assignedTo: opt.label,
           assignedInitials: opt.initials,
           dealOwnerId: opt.id,
+          assignedToUserId: opt.id,
           lastModified: 'Just now',
         })
         .pipe(take(1)),
@@ -545,6 +581,7 @@ export class DealsComponent {
           assignedTo: '',
           assignedInitials: '',
           dealOwnerId: '',
+          assignedToUserId: '',
           lastModified: 'Just now',
         })
         .pipe(take(1)),
@@ -597,23 +634,35 @@ export class DealsComponent {
       return;
     }
 
-    const owner = this.dealOwnerOptions.find((o) => o.id === raw.dealOwner);
+    const owner = this.dealOwnerOptions().find((o) => o.id === raw.dealOwner);
+    const salPick = resolveOrgMasterPick(raw.salutation, this.dealMaster.salutationSelectOptions());
+    const empPick = resolveOrgMasterPick(raw.employees, this.dealMaster.employeeSelectOptions());
+    const terrPick = resolveOrgMasterPick(raw.territory, this.dealMaster.territorySelectOptions());
+    const indPick = resolveOrgMasterPick(raw.industry, this.dealMaster.industrySelectOptions());
+    const statPick = resolveOrgMasterPick(raw.status, this.dealMaster.statusSelectOptions());
+    const salLabel = resolveSalutationLabel(raw.salutation, this.dealMaster.salutationSelectOptions());
 
     const payload: Omit<DealRow, 'id'> = {
       organizationName: raw.organizationName.trim(),
-      employees: raw.employees,
+      employees: empPick.label.trim() || '1-10',
+      employeeCountId: empPick.masterId,
       annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
       website: raw.website.trim(),
-      territory: raw.territory,
-      industry: raw.industry,
-      salutation: raw.salutation,
+      territory: terrPick.label.trim(),
+      territoryId: terrPick.masterId,
+      industry: indPick.label.trim() || 'Technology',
+      industryId: indPick.masterId,
+      salutation: salLabel,
+      salutationId: salPick.masterId,
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
       email: emailTrim,
       mobile: raw.primaryMobile.trim(),
       gender: raw.gender,
-      status: raw.status,
+      status: resolveDealStatusLabel(statPick.label || raw.status),
+      dealStatusId: statPick.masterId,
       dealOwnerId: raw.dealOwner,
+      assignedToUserId: raw.dealOwner,
       assignedTo: owner?.label ?? '',
       assignedInitials: owner?.initials ?? '',
       lastModified: 'Just now',

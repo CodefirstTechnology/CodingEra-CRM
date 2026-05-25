@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 import type { NoteRow } from '../../features/notes/notes.component';
 import {
@@ -7,11 +7,15 @@ import {
 } from '../../features/user-dashboard/utils/user-ownership.util';
 import { AuthService } from '../auth/auth.service';
 import { AdminUsersService, type AdminUserRow } from './admin-users.service';
+import { DealsService } from './deals.service';
 import { LeadsService } from './leads.service';
 import { NoteHttpService } from './notes/note-http.service';
+import { dealActivityDisplayName } from '../../shared/utils/activity-entity-display.util';
 import {
+  attachRelatedDealName,
   attachRelatedLeadName,
   buildLeadNameByIdMap,
+  resolveNoteRelatedDealId,
   resolveNoteRelatedLeadId,
 } from '../../shared/utils/lead-person-name.util';
 
@@ -21,6 +25,7 @@ export class NotesService {
   private readonly auth = inject(AuthService);
   private readonly adminUsers = inject(AdminUsersService);
   private readonly leadsService = inject(LeadsService);
+  private readonly dealsService = inject(DealsService);
 
   getAll(): Observable<NoteRow[]> {
     return this.enrichRows(this.noteHttp.list());
@@ -73,20 +78,19 @@ export class NotesService {
 
   private enrichRows(source: Observable<NoteRow[]>): Observable<NoteRow[]> {
     return this.withUsers((users) =>
-      this.leadsService.getAll().pipe(
-        catchError(() => of([])),
-        switchMap((leads) => {
+      forkJoin({
+        leads: this.leadsService.getAll().pipe(catchError(() => of([]))),
+        deals: this.dealsService.getAll().pipe(catchError(() => of([]))),
+      }).pipe(
+        switchMap(({ leads, deals }) => {
           const leadNames = buildLeadNameByIdMap(leads);
+          const dealNames = new Map<string, string>();
+          for (const deal of deals) {
+            const id = String(deal.id).trim();
+            if (id) dealNames.set(id, dealActivityDisplayName(deal));
+          }
           return source.pipe(
-            map((rows) =>
-              rows.map((row) =>
-                attachRelatedLeadName(
-                  this.enrichNote(row, users),
-                  resolveNoteRelatedLeadId(row),
-                  leadNames,
-                ),
-              ),
-            ),
+            map((rows) => rows.map((row) => this.enrichNoteRecord(row, users, leadNames, dealNames))),
           );
         }),
       ),
@@ -95,22 +99,38 @@ export class NotesService {
 
   private enrichRow(source: Observable<NoteRow>): Observable<NoteRow> {
     return this.withUsers((users) =>
-      this.leadsService.getAll().pipe(
-        catchError(() => of([])),
-        switchMap((leads) => {
+      forkJoin({
+        leads: this.leadsService.getAll().pipe(catchError(() => of([]))),
+        deals: this.dealsService.getAll().pipe(catchError(() => of([]))),
+      }).pipe(
+        switchMap(({ leads, deals }) => {
           const leadNames = buildLeadNameByIdMap(leads);
+          const dealNames = new Map<string, string>();
+          for (const deal of deals) {
+            const id = String(deal.id).trim();
+            if (id) dealNames.set(id, dealActivityDisplayName(deal));
+          }
           return source.pipe(
-            map((row) =>
-              attachRelatedLeadName(
-                this.enrichNote(row, users),
-                resolveNoteRelatedLeadId(row),
-                leadNames,
-              ),
-            ),
+            map((row) => this.enrichNoteRecord(row, users, leadNames, dealNames)),
           );
         }),
       ),
     );
+  }
+
+  private enrichNoteRecord(
+    row: NoteRow,
+    users: AdminUserRow[],
+    leadNames: Map<string, string>,
+    dealNames: Map<string, string>,
+  ): NoteRow {
+    let enriched = attachRelatedLeadName(
+      this.enrichNote(row, users),
+      resolveNoteRelatedLeadId(row),
+      leadNames,
+    );
+    enriched = attachRelatedDealName(enriched, resolveNoteRelatedDealId(row), dealNames);
+    return enriched;
   }
 
   private withUsers<T>(project: (users: AdminUserRow[]) => Observable<T>): Observable<T> {
@@ -121,30 +141,41 @@ export class NotesService {
   }
 
   private enrichNote(row: NoteRow, users: AdminUserRow[]): NoteRow {
-    const author = this.resolveAuthorName(row, users);
-    return author === row.author ? row : { ...row, author };
+    const author = this.resolveUserDisplayName(row.author, row.authorUserId, users);
+    const assignedBy = this.resolveUserDisplayName(
+      row.assignedBy,
+      row.updatedByUserId ?? row.authorUserId,
+      users,
+    );
+    if (author === row.author && assignedBy === row.assignedBy) return row;
+    return { ...row, author, assignedBy };
   }
 
-  private resolveAuthorName(row: NoteRow, users: AdminUserRow[]): string {
-    const current = row.author?.trim();
+  private resolveUserDisplayName(
+    currentLabel: string | undefined,
+    userIdRaw: string | undefined,
+    users: AdminUserRow[],
+  ): string {
+    const current = currentLabel?.trim();
     if (current && current !== '—' && !current.startsWith('User #')) return current;
 
-    const authorId = row.authorUserId ? Number(row.authorUserId) : null;
-    if (authorId != null && Number.isFinite(authorId)) {
+    const userId = userIdRaw ? Number(userIdRaw) : null;
+    if (userId != null && Number.isFinite(userId) && userId > 0) {
       const session = this.auth.user();
       const sessionId = session?.id?.trim();
-      if (sessionId && Number(sessionId) === authorId) {
+      if (sessionId && Number(sessionId) === userId) {
         const sessionName = session?.name?.trim();
         if (sessionName) return sessionName;
       }
 
-      const match = users.find((u) => Number(u.id) === authorId);
+      const match = users.find((u) => Number(u.id) === userId);
       if (match?.name?.trim()) return match.name.trim();
+      if (match?.email?.trim()) return match.email.trim();
 
-      return `User #${authorId}`;
+      return `User #${userId}`;
     }
 
-    return current && current !== '—' ? current : 'Unknown';
+    return current && current !== '—' ? current : '—';
   }
 
   private currentUserIdString(): string | undefined {

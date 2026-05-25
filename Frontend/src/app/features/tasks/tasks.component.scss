@@ -154,6 +154,25 @@
   font-weight: 500;
 }
 
+.tasks__td--status {
+  min-width: 6.75rem;
+}
+
+.tasks__status-select {
+  width: 5.625rem;
+  max-width: 100%;
+  min-width: 5.625rem;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.3rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: var(--surface);
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
 .tasks__record-link {
   color: inherit;
   font-weight: inherit;

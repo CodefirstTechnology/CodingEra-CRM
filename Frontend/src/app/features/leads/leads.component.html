@@ -72,6 +72,14 @@
     (dismiss)="onBulkDismiss()"
   />
 
+  <app-convert-lead-modal
+    [open]="convertModalOpen()"
+    [leadCount]="convertTargets().length"
+    [leadPreview]="convertModalPreview()"
+    (confirm)="onConvertModalConfirm($event)"
+    (dismiss)="closeConvertModal()"
+  />
+
   <app-crm-assign-picker
     [open]="assignPickerOpen()"
     title="Assign leads"
@@ -350,7 +358,7 @@
     </div>
   </div>
 
-  <div class="leads__table-wrap card">
+  <div class="leads__table-wrap card" (click)="closeRowMenus()">
     <div class="leads__table-head">
       <span class="leads__count">
         <strong>{{ filtered().length }}</strong>
@@ -413,6 +421,7 @@
               @for (column of visibleColumns(); track column.id) {
                 <th [class.leads__th--mobile]="column.id === 'mobile'">{{ column.label }}</th>
               }
+              <th class="leads__th leads__th--actions" scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -438,7 +447,9 @@
                         <a [routerLink]="['/leads', row.id]" class="leads__name-link">{{ row.name }}</a>
                       }
                       @case ('status') {
-                        @if (isAdminViewer()) {
+                        @if (isLeadConverted(row)) {
+                          <span class="leads__tag leads__tag--converted">Converted</span>
+                        } @else if (isAdminViewer()) {
                           <span [class]="statusClass(row.status)">{{ row.status }}</span>
                         } @else if (canEditLeadStatusInTable(row)) {
                           <select
@@ -489,6 +500,39 @@
                     }
                   </td>
                 }
+                <td class="leads__td leads__td--actions" (click)="$event.stopPropagation()">
+                  <details
+                    class="leads__row-menu"
+                    [open]="openRowMenuId() === row.id"
+                    (toggle)="$event.stopPropagation()"
+                  >
+                    <summary
+                      class="leads__row-menu-btn"
+                      aria-label="Lead actions"
+                      (click)="toggleRowMenu(row.id, $event)"
+                    >
+                      ⋯
+                    </summary>
+                    <div class="leads__row-menu-panel" role="menu">
+                      @if (canConvertLead(row)) {
+                        <button type="button" role="menuitem" (click)="openConvertModalForRow(row, $event)">
+                          Convert to deal
+                        </button>
+                      } @else if (isLeadConverted(row)) {
+                        <span class="leads__row-menu-muted" role="menuitem">Already converted</span>
+                        @if (row.convertedDealId) {
+                          <a
+                            role="menuitem"
+                            class="leads__row-menu-link"
+                            [routerLink]="['/deals', row.convertedDealId]"
+                          >
+                            View deal
+                          </a>
+                        }
+                      }
+                    </div>
+                  </details>
+                </td>
               </tr>
             }
           </tbody>

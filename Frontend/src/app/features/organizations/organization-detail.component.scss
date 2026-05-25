@@ -209,33 +209,6 @@
   gap: 0.5rem;
 }
 
-.org-detail__btn-icon-link {
-  flex-shrink: 0;
-  display: grid;
-  place-items: center;
-  width: 38px;
-  height: 38px;
-  border-radius: var(--cd-radius-sm);
-  border: 1px solid color-mix(in srgb, var(--cd-border) 90%, var(--text-muted));
-  background: var(--surface);
-  color: var(--cd-muted);
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
-
-  &:hover {
-    color: var(--tertiary-color);
-    border-color: color-mix(in srgb, var(--tertiary-color) 28%, var(--card-border));
-    background: color-mix(in srgb, var(--tertiary-color) 8%, var(--surface));
-  }
-
-  svg {
-    display: block;
-  }
-}
-
 .org-detail__profile-body {
   flex: 1;
   min-width: 0;

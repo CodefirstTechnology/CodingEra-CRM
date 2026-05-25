@@ -11,6 +11,7 @@ import { UserDataScopeService } from '../../core/services/user-data-scope.servic
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { resolveNoteRecordActivityLink } from '../../shared/utils/entity-record-nav.util';
+import { formatDealRecordLabel, formatLeadRecordLabel } from '../../shared/utils/activity-entity-display.util';
 
 export type NoteRelatedType = 'lead' | 'deal' | 'contact' | 'organization';
 export type NoteVisibility = 'team' | 'private';
@@ -25,8 +26,12 @@ export interface NoteRow {
   visibility: NoteVisibility;
   body: string;
   author: string;
-  /** Backend author / `createdByUserId` when returned by API. */
+  /** Backend author / `author_id` when returned by API. */
   authorUserId?: string;
+  /** `notes.updated_by` — user who last updated the note. */
+  updatedByUserId?: string;
+  /** Display name from users table (`updated_by`, fallback `author_id`). */
+  assignedBy?: string;
   when: string;
   bodyPreview?: string;
   /** Full body for edit round-trip. */
@@ -37,6 +42,8 @@ export interface NoteRow {
   relatedLeadName?: string;
   /** When created from deal detail — used to scope notes on the deal. */
   relatedDealId?: string;
+  /** Resolved from deal `firstName` + `lastName`. */
+  relatedDealName?: string;
 }
 
 @Component({
@@ -282,12 +289,17 @@ export class NotesComponent {
   }
 
   protected noteRelatedLabel(row: NoteRow): string {
-    const label = this.relatedTypeLabels[row.relatedType] ?? row.relatedType;
     const suffix = row.visibility === 'private' ? ' · Private' : '';
-    const recordName =
-      row.relatedType === 'lead' && row.relatedLeadName?.trim()
-        ? row.relatedLeadName.trim()
-        : row.relatedName?.trim() || '—';
+    if (row.relatedType === 'lead') {
+      const name = row.relatedLeadName?.trim() || row.relatedName?.trim() || '—';
+      return `${formatLeadRecordLabel(name)}${suffix}`;
+    }
+    if (row.relatedType === 'deal') {
+      const name = row.relatedDealName?.trim() || row.relatedName?.trim() || '—';
+      return `${formatDealRecordLabel(name)}${suffix}`;
+    }
+    const label = this.relatedTypeLabels[row.relatedType] ?? row.relatedType;
+    const recordName = row.relatedName?.trim() || '—';
     return `${label} · ${recordName}${suffix}`;
   }
 

@@ -15,6 +15,15 @@ function coerceDealStatus(raw: string | undefined | null): DealPipelineStatus {
   return (PIPELINE.includes(s as DealPipelineStatus) ? s : 'Qualification') as DealPipelineStatus;
 }
 
+function readMasterId(v: unknown): number | null {
+  if (v == null) return null;
+  if (typeof v === 'number' && Number.isFinite(v)) return Math.trunc(v);
+  if (typeof v === 'object' && v !== null && 'id' in v) {
+    return readOptionalInt((v as { id?: unknown }).id);
+  }
+  return null;
+}
+
 function readMasterName(v: unknown): string {
   if (v == null) return '';
   if (typeof v === 'string') return v.trim();
@@ -121,6 +130,28 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
   const status =
     readMasterName(statusRaw) || (typeof statusRaw === 'string' ? statusRaw.trim() : 'Qualification');
 
+  const salutationId =
+    readOptionalInt(r['salutationId']) ??
+    readOptionalInt(r['SalutationId']) ??
+    readMasterId(r['salutation']);
+  const employeeCountId =
+    readOptionalInt(r['employeeCountId']) ??
+    readOptionalInt(r['EmployeeCountId']) ??
+    readMasterId(r['employeeCount']) ??
+    readMasterId(r['employees']);
+  const territoryId =
+    readOptionalInt(r['territoryId']) ??
+    readOptionalInt(r['TerritoryId']) ??
+    readMasterId(r['territory']);
+  const industryId =
+    readOptionalInt(r['industryId']) ??
+    readOptionalInt(r['IndustryId']) ??
+    readMasterId(r['industry']);
+  const dealStatusId =
+    readOptionalInt(r['dealStatusId']) ??
+    readOptionalInt(r['DealStatusId']) ??
+    readMasterId(statusRaw);
+
   const prob = r['probabilityPercent'];
   const probabilityPercent =
     prob != null && Number.isFinite(Number(prob)) ? Number(prob) : null;
@@ -150,6 +181,11 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
     probabilityPercent,
     nextStep: String(r['nextStep'] ?? '').trim(),
     lastModified: String(r['lastModified'] ?? r['updatedAt'] ?? '').trim(),
+    salutationId,
+    employeeCountId,
+    territoryId,
+    industryId,
+    dealStatusId,
   };
 }
 
@@ -198,6 +234,21 @@ export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
   if (assignedToUserId > 0) {
     out.assignedToUserId = String(assignedToUserId);
   }
+  if (dto.salutationId != null && dto.salutationId > 0) {
+    out.salutationId = dto.salutationId;
+  }
+  if (dto.employeeCountId != null && dto.employeeCountId > 0) {
+    out.employeeCountId = dto.employeeCountId;
+  }
+  if (dto.territoryId != null && dto.territoryId > 0) {
+    out.territoryId = dto.territoryId;
+  }
+  if (dto.industryId != null && dto.industryId > 0) {
+    out.industryId = dto.industryId;
+  }
+  if (dto.dealStatusId != null && dto.dealStatusId > 0) {
+    out.dealStatusId = dto.dealStatusId;
+  }
   return out;
 }
 
@@ -218,7 +269,28 @@ function parseOwnerIdFromRow(s: string | undefined | null, previous: number | nu
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : previous;
 }
 
+function roundProbabilityPercent(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  return Math.trunc(Math.round(value));
+}
+
+function syncDealOwnerUserIds(
+  dealOwnerId: number | null,
+  assignedToUserId: number | null,
+  clearWhenEmpty = false,
+): { dealOwnerId: number | null; assignedToUserId: number | null } {
+  const owner = dealOwnerId ?? assignedToUserId;
+  if (owner != null && owner > 0) {
+    return { dealOwnerId: owner, assignedToUserId: owner };
+  }
+  if (clearWhenEmpty) {
+    return { dealOwnerId: null, assignedToUserId: null };
+  }
+  return { dealOwnerId, assignedToUserId };
+}
+
 function normalizedToUpsertDto(n: DealNormalized, idOverride?: number): DealUpsertDto {
+  const owners = syncDealOwnerUserIds(n.dealOwnerId, n.assignedToUserId);
   return {
     id: idOverride ?? n.id,
     organizationId: n.organizationId,
@@ -236,19 +308,25 @@ function normalizedToUpsertDto(n: DealNormalized, idOverride?: number): DealUpse
     territory: n.territory || null,
     industry: n.industry || null,
     status: n.status || null,
-    dealOwnerId: n.dealOwnerId,
-    assignedToUserId: n.assignedToUserId,
+    dealOwnerId: owners.dealOwnerId,
+    assignedToUserId: owners.assignedToUserId,
     assignedInitials: n.assignedInitials || null,
     relatedContactId: n.relatedContactId,
     relatedOrganizationId: n.relatedOrganizationId,
-    probabilityPercent: n.probabilityPercent,
-    nextStep: n.nextStep || null,
+    probabilityPercent: roundProbabilityPercent(n.probabilityPercent),
+    nextStep: n.nextStep?.trim() ?? '',
   };
 }
 
 function rowToNormalized(row: DealRow, previous?: DealNormalized): DealNormalized {
   const annual =
     Number.isFinite(row.annualRevenue) && row.annualRevenue !== 0 ? row.annualRevenue : null;
+  const parsedOwner = parseOwnerIdFromRow(
+    row.dealOwnerId,
+    previous?.dealOwnerId ?? parseOwnerIdFromRow(row.assignedToUserId, null),
+  );
+  const parsedAssignee = parseOwnerIdFromRow(row.assignedToUserId, parsedOwner ?? previous?.assignedToUserId ?? null);
+  const owners = syncDealOwnerUserIds(parsedOwner, parsedAssignee);
   return {
     id: previous?.id ?? (Number.isFinite(Number(row.id)) ? Number(row.id) : 0),
     organizationId: previous?.organizationId ?? null,
@@ -266,8 +344,8 @@ function rowToNormalized(row: DealRow, previous?: DealNormalized): DealNormalize
     territory: row.territory ?? previous?.territory ?? '',
     industry: row.industry ?? previous?.industry ?? 'Technology',
     status: row.status ?? previous?.status ?? 'Qualification',
-    dealOwnerId: parseOwnerIdFromRow(row.dealOwnerId, previous?.dealOwnerId ?? null),
-    assignedToUserId: previous?.assignedToUserId ?? null,
+    dealOwnerId: owners.dealOwnerId,
+    assignedToUserId: owners.assignedToUserId,
     assignedInitials: row.assignedInitials ?? previous?.assignedInitials ?? '',
     relatedContactId:
       parseOptionalPositiveInt(row.relatedContactId) ?? previous?.relatedContactId ?? null,
@@ -275,7 +353,8 @@ function rowToNormalized(row: DealRow, previous?: DealNormalized): DealNormalize
       parseOptionalPositiveInt(row.relatedOrganizationId) ??
       previous?.relatedOrganizationId ??
       null,
-    probabilityPercent: row.probabilityPercent ?? previous?.probabilityPercent ?? 10,
+    probabilityPercent:
+      roundProbabilityPercent(row.probabilityPercent ?? previous?.probabilityPercent ?? 10) ?? 10,
     nextStep: row.nextStep ?? previous?.nextStep ?? '',
     lastModified: previous?.lastModified ?? new Date().toISOString(),
   };
@@ -288,7 +367,10 @@ export function mergeDealApiDtoWithRowPatch(
   const row = mergeDealRowPatch(mapDealNormalizedToRow(previous), patch);
   const merged = rowToNormalized(row, previous);
   const initials = (row.assignedInitials ?? '').trim();
-  if (parseOwnerIdFromRow(row.dealOwnerId, null) == null && initials === '') {
+  const ownerFromPatch = parseOwnerIdFromRow(row.dealOwnerId, null);
+  const assigneeFromPatch = parseOwnerIdFromRow(row.assignedToUserId, ownerFromPatch);
+  if (ownerFromPatch == null && assigneeFromPatch == null && initials === '') {
+    merged.dealOwnerId = null;
     merged.assignedToUserId = null;
   }
   return normalizedToUpsertDto(merged, previous.id);

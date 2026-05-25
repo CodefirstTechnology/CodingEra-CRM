@@ -22,7 +22,7 @@
   <app-crm-assign-picker
     [open]="assignPickerOpen()"
     title="Assign deals"
-    [options]="dealOwnerOptions"
+    [options]="dealOwnerOptions()"
     [selectedId]="assignDefaultOwnerId()"
     (picked)="onAssignPicked($event)"
     (closed)="onAssignClosed()"
@@ -77,8 +77,8 @@
               <label class="deals__field">
                 <span class="deals__label">No. of employees</span>
                 <select class="deals__control deals__control--soft" formControlName="employees">
-                  @for (e of employeeOptions; track e) {
-                    <option [value]="e">{{ e }}</option>
+                  @for (opt of dealMaster.employeeSelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
               </label>
@@ -101,16 +101,16 @@
               <label class="deals__field">
                 <span class="deals__label">Territory</span>
                 <select class="deals__control deals__control--soft" formControlName="territory">
-                  @for (t of territoryOptions; track t) {
-                    <option [value]="t">{{ t === '' ? '— Select —' : t }}</option>
+                  @for (opt of dealMaster.territorySelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name === '' ? '— Select —' : opt.name }}</option>
                   }
                 </select>
               </label>
               <label class="deals__field">
                 <span class="deals__label">Industry <span class="deals__req">*</span></span>
                 <select class="deals__control deals__control--soft" formControlName="industry">
-                  @for (ind of industryOptions; track ind) {
-                    <option [value]="ind">{{ ind }}</option>
+                  @for (opt of dealMaster.industrySelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
                 @if (fieldInvalid('industry')) {
@@ -128,8 +128,9 @@
               <label class="deals__field">
                 <span class="deals__label">Salutation</span>
                 <select class="deals__control deals__control--soft" formControlName="salutation">
-                  @for (s of salutationOptions; track s) {
-                    <option [value]="s">{{ s === '' ? '— Select —' : s }}</option>
+                  <option value="">— Select —</option>
+                  @for (opt of dealMaster.salutationSelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
               </label>
@@ -189,8 +190,8 @@
               <label class="deals__field">
                 <span class="deals__label">Status <span class="deals__req">*</span></span>
                 <select class="deals__control deals__control--soft" formControlName="status">
-                  @for (s of dealStatuses; track s) {
-                    <option [value]="s">{{ s }}</option>
+                  @for (opt of dealStatuses(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
                 @if (fieldInvalid('status')) {
@@ -200,7 +201,7 @@
               <label class="deals__field">
                 <span class="deals__label">Deal owner</span>
                 <select class="deals__control deals__control--soft" formControlName="dealOwner">
-                  @for (o of dealOwnerOptions; track o.id) {
+                  @for (o of dealOwnerOptions(); track o.id) {
                     <option [value]="o.id">{{ o.label }}</option>
                   }
                 </select>

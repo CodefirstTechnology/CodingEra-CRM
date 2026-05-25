@@ -169,6 +169,57 @@
   font-weight: 700;
 }
 
+.adv-settings__submit-btn {
+  border: none;
+  border-radius: 10px;
+  background: #111827;
+  color: #fff;
+  padding: 0.55rem 0.95rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.adv-settings__submit-btn:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.adv-settings__invite-form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.adv-settings__req {
+  color: #dc2626;
+}
+
+.adv-settings__field-error {
+  color: #b91c1c;
+  font-size: 0.85rem;
+}
+
+.adv-settings__field-hint {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.adv-settings__banner {
+  margin: 0.75rem 0 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 0.95rem;
+}
+
+.adv-settings__field input[readonly] {
+  background: #f8fafc;
+  color: var(--text-muted);
+}
+
 .adv-users__head {
   display: flex;
   justify-content: space-between;

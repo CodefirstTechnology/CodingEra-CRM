@@ -102,6 +102,32 @@ function dueLocalOrIsoToIso(raw: string | undefined | null): string {
   return Number.isNaN(d.getTime()) ? s : d.toISOString();
 }
 
+/** Merges a partial task patch onto an existing row so PUT does not clear omitted FKs. */
+export function mergeTaskRowPatch(
+  existing: TaskRow,
+  patch: Partial<Omit<TaskRow, 'id'>>,
+): Omit<TaskRow, 'id'> {
+  return {
+    title: patch.title ?? existing.title,
+    description: patch.description ?? existing.description,
+    status: patch.status ?? existing.status,
+    priority: patch.priority ?? existing.priority,
+    dueDate: patch.dueDate ?? existing.dueDate,
+    dueDateRaw: patch.dueDateRaw ?? existing.dueDateRaw,
+    assignedTo: patch.assignedTo ?? existing.assignedTo,
+    assignedInitials: patch.assignedInitials ?? existing.assignedInitials,
+    assignedToUserId:
+      patch.assignedToUserId !== undefined ? patch.assignedToUserId : existing.assignedToUserId,
+    relatedLeadId:
+      patch.relatedLeadId !== undefined ? patch.relatedLeadId : existing.relatedLeadId,
+    relatedDealId:
+      patch.relatedDealId !== undefined ? patch.relatedDealId : existing.relatedDealId,
+    lastModified: patch.lastModified ?? existing.lastModified,
+    relatedLeadName: existing.relatedLeadName,
+    relatedDealName: existing.relatedDealName,
+  };
+}
+
 /** Maps UI / form state to `POST|PUT /api/tasks` body (`TaskUpsertDto`). */
 export function taskRowToUpsertDto(data: Omit<TaskRow, 'id'>, taskId?: number): TaskUpsertDto {
   const assigneeUserId = data.assignedToUserId ? readOptionalInt(data.assignedToUserId) : null;
@@ -148,12 +174,12 @@ export function mapTaskApiRecord(raw: unknown): TaskRow {
       String(r['lastModified'] ?? r['updatedAt'] ?? r['modifiedAt'] ?? ''),
     ),
     relatedLeadId:
-      readOptionalInt(r['relatedLeadId'] ?? r['leadId']) != null
-        ? String(readOptionalInt(r['relatedLeadId'] ?? r['leadId']))
+      readOptionalInt(r['relatedLeadId'] ?? r['RelatedLeadId'] ?? r['leadId']) != null
+        ? String(readOptionalInt(r['relatedLeadId'] ?? r['RelatedLeadId'] ?? r['leadId']))
         : undefined,
     relatedDealId:
-      readOptionalInt(r['relatedDealId'] ?? r['dealId']) != null
-        ? String(readOptionalInt(r['relatedDealId'] ?? r['dealId']))
+      readOptionalInt(r['relatedDealId'] ?? r['RelatedDealId'] ?? r['dealId']) != null
+        ? String(readOptionalInt(r['relatedDealId'] ?? r['RelatedDealId'] ?? r['dealId']))
         : undefined,
     assignedToUserId:
       assignedToUserId != null && assignedToUserId > 0 ? String(assignedToUserId) : undefined,

@@ -1,0 +1,35 @@
+<app-crm-modal
+  [open]="open()"
+  title="Convert to deal"
+  size="sm"
+  [showFooter]="true"
+  (dismiss)="onDismiss()"
+>
+  <p class="convert-lead-modal__lead">
+    @if (leadCount() === 1) {
+      Convert this lead into a deal?
+    } @else {
+      Convert {{ leadCount() }} selected leads into deals?
+    }
+  </p>
+  @if (leadPreview()) {
+    <p class="convert-lead-modal__preview">{{ leadPreview() }}</p>
+  }
+  <label class="convert-lead-modal__check">
+    <input type="checkbox" [checked]="markAsConverted()" (change)="onMarkConvertedChange($event)" />
+    <span>Mark lead as converted</span>
+  </label>
+  <label class="convert-lead-modal__check">
+    <input type="checkbox" [checked]="removeFromActive()" (change)="onRemoveFromActiveChange($event)" />
+    <span>Remove from active leads list</span>
+  </label>
+
+  <div crmModalFooter class="convert-lead-modal__foot">
+    <button type="button" class="convert-lead-modal__btn convert-lead-modal__btn--ghost" (click)="onDismiss()">
+      Cancel
+    </button>
+    <button type="button" class="convert-lead-modal__btn convert-lead-modal__btn--solid" (click)="onConfirm()">
+      Convert
+    </button>
+  </div>
+</app-crm-modal>

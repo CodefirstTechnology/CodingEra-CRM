@@ -6,11 +6,12 @@ import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { normalizeDealApiRecord } from './deal-api.mapper';
 import type { DealNormalized, DealUpsertDto } from './deal-api.models';
+import { buildDealPutJson, stripDealUpsertForPost } from './deal-upsert-body.util';
 
+/** Matches OpenAPI `GET /api/deals` (`userId`, `status`). */
 export interface DealListQuery {
-  dealOwnerId?: number;
-  assignedToUserId?: number;
   userId?: number;
+  status?: string;
 }
 
 function extractDealRecords(raw: unknown): unknown[] {
@@ -50,15 +51,12 @@ export class DealHttpService {
 
   list(query?: DealListQuery): Observable<DealNormalized[]> {
     let params = new HttpParams();
-    const uid = query?.assignedToUserId ?? query?.dealOwnerId ?? query?.userId;
-    if (uid != null && uid > 0) {
-      const id = String(uid);
-      params = params
-        .set('assignedToUserId', id)
-        .set('assigned_to_user_id', id)
-        .set('dealOwnerId', id)
-        .set('deal_owner_id', id)
-        .set('userId', id);
+    if (query?.userId != null && query.userId > 0) {
+      params = params.set('userId', String(query.userId));
+    }
+    const status = query?.status?.trim();
+    if (status) {
+      params = params.set('status', status);
     }
     return this.http
       .get<unknown>(this.baseUrl, { headers: this.jsonHeaders(), params })
@@ -75,14 +73,17 @@ export class DealHttpService {
   }
 
   create(body: DealUpsertDto): Observable<DealNormalized> {
+    const payload = stripDealUpsertForPost(body);
     return this.http
-      .post<unknown>(this.baseUrl, body, { headers: this.jsonHeaders() })
+      .post<unknown>(this.baseUrl, payload, { headers: this.jsonHeaders() })
       .pipe(map((raw) => normalizeDealApiRecord(raw)));
   }
 
-  put(id: number, body: DealUpsertDto): Observable<DealNormalized> {
+  put(id: number, body: DealUpsertDto, previous?: DealNormalized): Observable<DealNormalized> {
+    const payload =
+      previous != null ? buildDealPutJson(body, previous) : { ...body, id, nextStep: body.nextStep ?? '' };
     return this.http
-      .put<unknown>(`${this.baseUrl}/${id}`, body, { headers: this.jsonHeaders() })
+      .put<unknown>(`${this.baseUrl}/${id}`, payload, { headers: this.jsonHeaders() })
       .pipe(map((raw) => normalizeDealApiRecord(raw)));
   }
 

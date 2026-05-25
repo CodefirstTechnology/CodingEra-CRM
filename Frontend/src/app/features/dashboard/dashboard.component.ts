@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { forkJoin, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
@@ -73,7 +73,10 @@ export class DashboardComponent implements OnInit {
     goalUsd: 3_000_000,
   };
 
+  protected readonly STREAM_INITIAL_COUNT = 10;
+
   protected streamTab: StreamTab = 'all';
+  protected readonly streamExpanded = signal(false);
   protected readonly activities = signal<StreamActivityItem[]>([]);
   protected readonly activitiesLoading = signal(true);
 
@@ -101,7 +104,7 @@ export class DashboardComponent implements OnInit {
         ),
       )
       .subscribe(({ leadIds, dealIds, entityNames }) => {
-        this.activitiesService.getRecentForRecords(leadIds, dealIds, 20).subscribe({
+        this.activitiesService.getRecentForRecords(leadIds, dealIds, 50).subscribe({
           next: (rows) => {
             this.activities.set(rows.map((row) => this.toStreamItem(row, entityNames)));
             this.activitiesLoading.set(false);
@@ -116,13 +119,40 @@ export class DashboardComponent implements OnInit {
 
   protected setStreamTab(tab: StreamTab): void {
     this.streamTab = tab;
+    this.streamExpanded.set(false);
   }
 
-  protected get filteredActivities(): StreamActivityItem[] {
+  protected readonly filteredActivities = computed(() => {
     const list = this.activities();
     if (this.streamTab === 'all') return list;
     if (this.streamTab === 'calls') return list.filter((a) => a.type === 'call');
     return list.filter((a) => a.type === 'meeting');
+  });
+
+  protected readonly visibleActivities = computed(() => {
+    const list = this.filteredActivities();
+    if (this.streamExpanded()) return list;
+    return list.slice(0, this.STREAM_INITIAL_COUNT);
+  });
+
+  protected readonly streamHiddenCount = computed(() =>
+    Math.max(0, this.filteredActivities().length - this.STREAM_INITIAL_COUNT),
+  );
+
+  protected readonly showStreamSeeMore = computed(
+    () => !this.streamExpanded() && this.streamHiddenCount() > 0,
+  );
+
+  protected readonly showStreamShowLess = computed(
+    () => this.streamExpanded() && this.filteredActivities().length > this.STREAM_INITIAL_COUNT,
+  );
+
+  protected expandStream(): void {
+    this.streamExpanded.set(true);
+  }
+
+  protected collapseStream(): void {
+    this.streamExpanded.set(false);
   }
 
   protected readonly stuckDeals = [

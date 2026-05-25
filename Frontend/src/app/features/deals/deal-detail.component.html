@@ -15,8 +15,8 @@
       <div class="deal-detail__hdr-status">
         <span [class]="headerStatusDotClass()" aria-hidden="true"></span>
         <select class="deal-detail__hdr-status-select" [formControl]="dataForm.controls.status" aria-label="Pipeline status">
-          @for (s of dealStatuses; track s) {
-          <option [value]="s">{{ s }}</option>
+          @for (opt of dealStatuses(); track opt.id + opt.name) {
+          <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
           }
         </select>
       </div>
@@ -385,15 +385,15 @@
             <label class="deal-detail__field">
               <span class="deal-detail__label">Pipeline status<span class="deal-detail__req" aria-hidden="true">*</span></span>
               <select class="deal-detail__select" formControlName="status">
-                @for (s of dealStatuses; track s) {
-                <option [value]="s">{{ s }}</option>
+                @for (opt of dealStatuses(); track opt.id + opt.name) {
+                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
               </select>
             </label>
             <label class="deal-detail__field">
               <span class="deal-detail__label">Deal owner<span class="deal-detail__req" aria-hidden="true">*</span></span>
               <select class="deal-detail__select" formControlName="dealOwner">
-                @for (o of dealOwnerOptions; track o.id) {
+                @for (o of dealOwnerOptions(); track o.id) {
                 <option [value]="o.id">{{ o.label }}</option>
                 }
               </select>
@@ -583,12 +583,6 @@
                 <path d="m3 7 9 6 9-6" />
               </svg>
             </button>
-            <button type="button" class="deal-detail__side-icon" aria-label="Copy link to this deal" title="Copy link" (click)="copyDealDetailUrl()">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M10 13a5 5 0 0 1 7.54.54 5 5 0 0 1-7.07 7.07L9 21" />
-                <path d="M14 11a5 5 0 0 1-7.54-.54 5 5 0 0 1 7.07-7.07L15 3" />
-              </svg>
-            </button>
             <button type="button" class="deal-detail__side-icon" aria-label="Attachments" title="Attachments" (click)="setTab('Attachments')">
               <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
@@ -694,7 +688,11 @@
             </dd>
             <dt>Territory</dt>
             <dd class="deal-detail__kv-dd">
-              <input type="text" class="deal-detail__side-field" [formControl]="dataForm.controls.territory" [placeholder]="sidebarAddLabel('Territory')" />
+              <select class="deal-detail__side-field" [formControl]="dataForm.controls.territory">
+                @for (opt of dealMaster.territorySelectOptions(); track opt.id + opt.name) {
+                <option [value]="masterOptionFormValue(opt)">{{ opt.name === '' ? '— Select —' : opt.name }}</option>
+                }
+              </select>
             </dd>
             <dt>Annual revenue</dt>
             <dd class="deal-detail__kv-dd deal-detail__kv-dd--muted">{{ sidebarAnnualRevenueLabel() }}</dd>
@@ -716,7 +714,7 @@
             <dd class="deal-detail__kv-owner deal-detail__kv-owner--editable">
               <span class="deal-detail__owner-badge deal-detail__owner-badge--side">{{ sidebarOwnerChipInitial() }}</span>
               <select class="deal-detail__side-field deal-detail__side-field--select deal-detail__side-field--owner" [formControl]="dataForm.controls.dealOwner" aria-label="Deal owner">
-                @for (o of dealOwnerOptions; track o.id) {
+                @for (o of dealOwnerOptions(); track o.id) {
                 <option [value]="o.id">{{ o.label }}</option>
                 }
               </select>

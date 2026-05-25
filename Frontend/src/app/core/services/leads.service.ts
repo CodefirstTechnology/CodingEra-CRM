@@ -1,7 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { firstValueFrom, Observable, of } from 'rxjs';
+import { firstValueFrom, Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, tap } from 'rxjs/operators';
+import { DealsService } from './deals.service';
+import { LeadConversionStorageService } from './leads/lead-conversion-storage.service';
+import type { ConvertLeadOptions, ConvertLeadResult } from './leads/lead-conversion.types';
+import { mapLeadToDealRow } from '../../shared/utils/mappers';
+import { isLeadConverted, validateLeadForConversion } from '../../shared/utils/lead-conversion.util';
 import {
   filterLeadsByLeadOwnerId,
   parseSessionUserId,
@@ -66,9 +71,13 @@ export class LeadsService {
   private readonly leadHttp = inject(LeadHttpService);
   private readonly orgResolve = inject(OrganizationResolveService);
   private readonly roundRobin = inject(LeadRoundRobinService);
+  private readonly dealsService = inject(DealsService);
+  private readonly conversionStorage = inject(LeadConversionStorageService);
 
   getAll(): Observable<LeadRow[]> {
-    return this.leadHttp.list().pipe(map((rows) => rows.map(mapLeadNormalizedToRow)));
+    return this.leadHttp
+      .list()
+      .pipe(map((rows) => this.conversionStorage.enrichLeadRows(rows.map(mapLeadNormalizedToRow))));
   }
 
   /**
@@ -90,11 +99,17 @@ export class LeadsService {
 
     return this.leadHttp.list(query).pipe(
       switchMap((filtered) => {
-        const rows = toOwnedRows(filtered);
+        const rows = this.conversionStorage.enrichLeadRows(toOwnedRows(filtered));
         if (rows.length > 0) return of(rows);
-        return this.leadHttp.list().pipe(map((all) => toOwnedRows(all)));
+        return this.leadHttp
+          .list()
+          .pipe(map((all) => this.conversionStorage.enrichLeadRows(toOwnedRows(all))));
       }),
-      catchError(() => this.leadHttp.list().pipe(map((all) => toOwnedRows(all)))),
+      catchError(() =>
+        this.leadHttp
+          .list()
+          .pipe(map((all) => this.conversionStorage.enrichLeadRows(toOwnedRows(all)))),
+      ),
     );
   }
 
@@ -103,7 +118,80 @@ export class LeadsService {
   }
 
   getById(id: number): Observable<LeadRow | null> {
-    return this.leadHttp.getById(id).pipe(map((dto) => (dto ? mapLeadNormalizedToRow(dto) : null)));
+    return this.leadHttp
+      .getById(id)
+      .pipe(map((dto) => (dto ? this.conversionStorage.enrichLeadRow(mapLeadNormalizedToRow(dto)) : null)));
+  }
+
+  /**
+   * Converts a lead into a deal (create deal + update or remove lead).
+   * UI should call this only; later swap internals for `POST /api/leads/:id/convert`.
+   */
+  convertToDeal(leadId: number | string, options: ConvertLeadOptions = {}): Observable<ConvertLeadResult> {
+    const idn = typeof leadId === 'number' ? leadId : Number(String(leadId).trim());
+    if (!Number.isFinite(idn) || idn <= 0) {
+      return throwError(() => new Error('Invalid lead id.'));
+    }
+
+    const markAsConverted = options.markAsConverted !== false;
+    const removeFromActive = options.removeFromActive === true;
+
+    return this.getById(idn).pipe(
+      switchMap((lead) => {
+        if (!lead) return throwError(() => new Error('Lead not found.'));
+        if (isLeadConverted(lead)) {
+          return throwError(() => new Error('This lead was already converted to a deal.'));
+        }
+        const validationError = validateLeadForConversion(lead);
+        if (validationError) return throwError(() => new Error(validationError));
+
+        const convertedAt = new Date().toISOString();
+        return this.dealsService.create(mapLeadToDealRow(lead)).pipe(
+          switchMap((deal) => {
+            this.conversionStorage.recordConversion({
+              leadId: String(idn),
+              dealId: deal.id,
+              convertedAt,
+            });
+
+            if (removeFromActive) {
+              return this.delete(idn).pipe(
+                map(() => ({ leadId: String(idn), deal, lead: null, convertedAt } satisfies ConvertLeadResult)),
+              );
+            }
+
+            if (!markAsConverted) {
+              return of({ leadId: String(idn), deal, lead, convertedAt } satisfies ConvertLeadResult);
+            }
+
+            return this.update(idn, {
+              status: 'Converted',
+              updated: 'Just now',
+              isConverted: true,
+              convertedDealId: deal.id,
+              convertedAt,
+            }).pipe(
+              map(
+                (updated) =>
+                  ({
+                    leadId: String(idn),
+                    deal,
+                    lead: updated ?? {
+                      ...lead,
+                      status: 'Converted',
+                      isConverted: true,
+                      convertedDealId: deal.id,
+                      convertedAt,
+                      updated: 'Just now',
+                    },
+                    convertedAt,
+                  }) satisfies ConvertLeadResult,
+              ),
+            );
+          }),
+        );
+      }),
+    );
   }
 
   async getByIdAsync(id: number): Promise<LeadRow | null> {
