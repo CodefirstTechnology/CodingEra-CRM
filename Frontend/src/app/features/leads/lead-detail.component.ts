@@ -3,7 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { forkJoin } from 'rxjs';
-import { concatMap, defaultIfEmpty, last, take, tap } from 'rxjs/operators';
+import { take } from 'rxjs/operators';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
@@ -13,7 +13,8 @@ import { EmailsService, emailSendErrorMessage } from '../../core/services/emails
 import type { EntityEmailItem } from '../../core/services/emails/email-api.models';
 import type { EntityCommentItem } from '../../core/services/comments/comment-api.models';
 import { CommentsService } from '../../core/services/comments.service';
-import { DealsService } from '../../core/services/deals.service';
+import type { ConvertLeadOptions } from '../../core/services/leads/lead-conversion.types';
+import { LeadConversionStorageService } from '../../core/services/leads/lead-conversion-storage.service';
 import {
   LeadMasterDataService,
   type MasterDataOption,
@@ -22,10 +23,12 @@ import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.s
 import { ToastService } from '../../core/toast/toast.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
-import { mapLeadToDealRow } from '../../shared/utils/mappers';
-import { environment } from '../../../environments/environment';
 import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
-import { resolveLeadStatusIdFromName } from '../../core/services/leads/lead-status.constants';
+import {
+  buildLeadConversionActivityGroup,
+  isLeadConverted,
+} from '../../shared/utils/lead-conversion.util';
+import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { CrmPaginatedSelectComponent } from '../../shared/components/crm-paginated-select/crm-paginated-select.component';
 import { masterDataToPaginatedOptions } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
@@ -61,7 +64,13 @@ interface LeadCommentItem extends EntityCommentItem {}
 
 @Component({
   selector: 'app-lead-detail',
-  imports: [RouterLink, ReactiveFormsModule, EntityActivityTimelineComponent, CrmPaginatedSelectComponent],
+  imports: [
+    RouterLink,
+    ReactiveFormsModule,
+    EntityActivityTimelineComponent,
+    CrmPaginatedSelectComponent,
+    ConvertLeadModalComponent,
+  ],
   templateUrl: './lead-detail.component.html',
   styleUrl: './lead-detail.component.scss',
 })
@@ -74,7 +83,7 @@ export class LeadDetailComponent {
   private readonly commentsService = inject(CommentsService);
   private readonly emailsService = inject(EmailsService);
   private readonly toast = inject(ToastService);
-  private readonly dealsService = inject(DealsService);
+  private readonly conversionStorage = inject(LeadConversionStorageService);
   private readonly tasksService = inject(TasksService);
   private readonly notesService = inject(NotesService);
   private readonly leadMasterData = inject(LeadMasterDataService);
@@ -98,6 +107,13 @@ export class LeadDetailComponent {
   protected readonly leadComments = signal<LeadCommentItem[]>([]);
   protected readonly leadActivityGroups = signal<ActivityGroup[]>([]);
   protected readonly leadActivityLoading = signal(false);
+  protected readonly convertModalOpen = signal(false);
+  protected readonly isLeadConverted = isLeadConverted;
+  protected readonly convertedDealId = computed(() => {
+    const row = this.lead();
+    if (!row) return null;
+    return row.convertedDealId ?? this.conversionStorage.getLeadLink(row.id)?.convertedDealId ?? null;
+  });
   protected readonly commentComposerOpen = signal(false);
   protected readonly commentDraft = signal('');
   protected readonly commentPosting = signal(false);
@@ -492,7 +508,10 @@ export class LeadDetailComponent {
       .pipe(take(1))
       .subscribe({
         next: (groups) => {
-          this.leadActivityGroups.set(groups);
+          const conversionGroup = this.buildConversionActivityGroup();
+          this.leadActivityGroups.set(
+            conversionGroup ? [conversionGroup, ...groups] : groups,
+          );
           this.leadActivityLoading.set(false);
         },
         error: () => {
@@ -982,57 +1001,43 @@ export class LeadDetailComponent {
     }
   }
 
-  protected convertToDeal(): void {
+  protected openConvertModal(): void {
     const row = this.lead();
-    const idn = this.numericId();
-    if (!row || idn == null) return;
-    const alreadyQualified =
-      row.status === 'Qualified' ||
-      row.status === 'Converted' ||
-      row.leadStatusId === resolveLeadStatusIdFromName('Qualified');
-    if (alreadyQualified) return;
+    if (!row || isLeadConverted(row)) return;
+    this.convertModalOpen.set(true);
+  }
 
-    const qualifiedStatusId = resolveLeadStatusIdFromName('Qualified');
-    const after = environment.leadConversionAfterDeal;
-    this.dealsService
-      .create(mapLeadToDealRow(row))
-      .pipe(
-        take(1),
-        tap((created) => this.createRowBus.publish('deal', created)),
-        concatMap(() =>
-          after === 'delete'
-            ? this.leadsService.delete(idn).pipe(take(1))
-            : this.leadsService.update(idn, {
-                status: 'Qualified' satisfies LeadStatus,
-                ...(qualifiedStatusId != null && qualifiedStatusId > 0
-                  ? { leadStatusId: qualifiedStatusId }
-                  : {}),
-                updated: 'Just now',
-              }),
-        ),
-        last(),
-        defaultIfEmpty(null),
-      )
-      .subscribe({
-        next: () => {
-          if (after === 'delete') {
-            void this.router.navigateByUrl('/leads');
-          } else {
-            this.lead.update((cur) =>
-              cur
-                ? {
-                    ...cur,
-                    status: 'Qualified',
-                    leadStatusId: qualifiedStatusId ?? cur.leadStatusId,
-                    updated: 'Just now',
-                  }
-                : cur,
-            );
-          }
-          this.toast.success('Lead converted to deal.');
-        },
-        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
-      });
+  protected closeConvertModal(): void {
+    this.convertModalOpen.set(false);
+  }
+
+  protected onConvertModalConfirm(options: ConvertLeadOptions): void {
+    const idn = this.numericId();
+    if (idn == null) return;
+    this.convertModalOpen.set(false);
+    this.leadsService.convertToDeal(idn, options).pipe(take(1)).subscribe({
+      next: (result) => {
+        this.createRowBus.publish('deal', result.deal);
+        if (result.lead == null) {
+          this.toast.success('Lead converted to deal successfully');
+          void this.router.navigate(['/deals', result.deal.id]);
+          return;
+        }
+        this.lead.set(result.lead);
+        this.refreshLeadActivities();
+        this.toast.success('Lead converted to deal successfully');
+      },
+      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+    });
+  }
+
+  private buildConversionActivityGroup(): ActivityGroup | null {
+    const idn = this.numericId();
+    const row = this.lead();
+    if (idn == null || !row) return null;
+    const link = this.conversionStorage.getLeadLink(row.id);
+    if (!link) return null;
+    return buildLeadConversionActivityGroup(idn, link.convertedDealId, link.convertedAt);
   }
 
   protected openCreatePicker(): void {

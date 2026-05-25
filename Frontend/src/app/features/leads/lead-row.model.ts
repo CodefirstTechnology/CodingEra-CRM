@@ -68,6 +68,12 @@ export interface LeadRow {
   leadSource?: LeadSource;
   /** Used to merge/sort manual + IndiaMART rows (optional on persisted data). */
   sortTimestamp?: number;
+  /** True after this lead was converted to a deal (API status and/or local conversion store). */
+  isConverted?: boolean;
+  /** Deal id created from this lead (`localStorage` until backend exposes FK). */
+  convertedDealId?: string;
+  /** ISO timestamp when conversion completed. */
+  convertedAt?: string;
 }
 
 export type LeadListStatusFilter = 'all' | LeadStatus;

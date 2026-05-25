@@ -3,6 +3,7 @@ import { Observable, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 import { filterDealsForUser } from '../../features/user-dashboard/utils/user-ownership.util';
 import type { DealRow } from '../../features/deals/deals.component';
+import { LeadConversionStorageService } from './leads/lead-conversion-storage.service';
 import { LeadOwnerOptionsService } from './leads/lead-owner-options.service';
 import {
   dealCreatePayloadToApiJson,
@@ -15,11 +16,29 @@ import { DealHttpService } from './deals/deal-http.service';
 export class DealsService {
   private readonly dealHttp = inject(DealHttpService);
   private readonly ownerOpts = inject(LeadOwnerOptionsService);
+  private readonly conversionStorage = inject(LeadConversionStorageService);
+
+  private enrichDealList(rows: DealRow[]): DealRow[] {
+    return this.conversionStorage.enrichDealRows(this.ownerOpts.enrichDealRows(rows));
+  }
+
+  private mergeCreateClientFields(row: DealRow, data: Omit<DealRow, 'id'>): DealRow {
+    return this.conversionStorage.enrichDealRow({
+      ...row,
+      dealTitle: data.dealTitle ?? row.dealTitle,
+      contactName: data.contactName ?? row.contactName,
+      notes: data.notes ?? row.notes,
+      createdAt: data.createdAt ?? row.createdAt,
+      source: data.source ?? row.source,
+      sourceLeadId: data.sourceLeadId ?? row.sourceLeadId,
+      relatedOrganizationId: data.relatedOrganizationId ?? row.relatedOrganizationId,
+    });
+  }
 
   getAll(): Observable<DealRow[]> {
     return this.ownerOpts.ensureLoaded().pipe(
       switchMap(() =>
-        this.dealHttp.list().pipe(map((rows) => this.ownerOpts.enrichDealRows(rows.map(mapDealNormalizedToRow)))),
+        this.dealHttp.list().pipe(map((rows) => this.enrichDealList(rows.map(mapDealNormalizedToRow)))),
       ),
     );
   }
@@ -39,7 +58,7 @@ export class DealsService {
         this.dealHttp.list(query).pipe(
           catchError(() => this.dealHttp.list()),
           map((rows) => {
-            const mapped = this.ownerOpts.enrichDealRows(rows.map(mapDealNormalizedToRow));
+            const mapped = this.enrichDealList(rows.map(mapDealNormalizedToRow));
             return filterDealsForUser(mapped, userId, userName, userEmail);
           }),
         ),
@@ -53,8 +72,8 @@ export class DealsService {
         this.dealHttp.getById(id).pipe(
           map((dto) => {
             if (!dto) return null;
-            const row = mapDealNormalizedToRow(dto);
-            return this.ownerOpts.applyOwnerToDealRow(row);
+            const row = this.ownerOpts.applyOwnerToDealRow(mapDealNormalizedToRow(dto));
+            return this.conversionStorage.enrichDealRow(row);
           }),
         ),
       ),
@@ -64,7 +83,12 @@ export class DealsService {
   create(data: Omit<DealRow, 'id'>): Observable<DealRow> {
     const body = dealCreatePayloadToApiJson(data);
     return this.dealHttp.create(body).pipe(
-      map((dto) => this.ownerOpts.applyOwnerToDealRow(mapDealNormalizedToRow(dto))),
+      map((dto) =>
+        this.mergeCreateClientFields(
+          this.ownerOpts.applyOwnerToDealRow(mapDealNormalizedToRow(dto)),
+          data,
+        ),
+      ),
     );
   }
 

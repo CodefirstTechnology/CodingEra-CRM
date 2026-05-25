@@ -1,0 +1,50 @@
+.convert-lead-modal__lead {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.convert-lead-modal__preview {
+  margin: 0 0 1rem;
+  color: var(--crm-text-muted, #64748b);
+  font-size: 0.875rem;
+}
+
+.convert-lead-modal__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.65rem 0;
+  font-size: 0.875rem;
+  cursor: pointer;
+
+  input {
+    margin-top: 0.15rem;
+  }
+}
+
+.convert-lead-modal__foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.convert-lead-modal__btn {
+  border-radius: 8px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.875rem;
+  cursor: pointer;
+  border: 1px solid transparent;
+
+  &--ghost {
+    background: transparent;
+    border-color: var(--crm-border, #e2e8f0);
+    color: inherit;
+  }
+
+  &--solid {
+    background: var(--crm-accent, #2563eb);
+    color: #fff;
+  }
+}

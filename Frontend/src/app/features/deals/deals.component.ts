@@ -79,6 +79,17 @@ export interface DealRow {
   probabilityPercent?: number;
   nextStep?: string;
   requirement?: string;
+  /** Display title for list/detail (e.g. "Acme — Jane Doe"). */
+  dealTitle?: string;
+  /** Combined contact label from conversion. */
+  contactName?: string;
+  notes?: string;
+  /** ISO created time when known (conversion sets this client-side). */
+  createdAt?: string;
+  /** CRM origin label (`Converted Lead`, `lead_conversion`, etc.). */
+  source?: string;
+  /** Source lead id when created via lead conversion (local store + future API FK). */
+  sourceLeadId?: string;
 }
 
 interface DealColumnOption {
@@ -173,7 +184,15 @@ export class DealsComponent {
     this.refreshDeals();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'deal') return;
-      this.refreshDeals();
+      const created = e.row as DealRow;
+      if (created?.id) {
+        this.rows.update((rows) => {
+          if (rows.some((r) => r.id === created.id)) return rows;
+          return [created, ...rows];
+        });
+      } else {
+        this.refreshDeals();
+      }
     });
     this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
       const edit = q['edit'];

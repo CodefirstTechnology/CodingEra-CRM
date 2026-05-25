@@ -22,7 +22,14 @@
       <button type="button" class="lead-detail__btn lead-detail__btn--with-caret" (click)="openCreatePicker()">
         New
       </button>
-      <button type="button" class="lead-detail__btn lead-detail__btn--solid" (click)="convertToDeal()">Convert to Deal</button>
+      @if (convertedDealId(); as dealId) {
+        <a class="lead-detail__btn lead-detail__btn--ghost" [routerLink]="['/deals', dealId]">View deal</a>
+        <span class="lead-detail__converted-badge">Converted</span>
+      } @else {
+        <button type="button" class="lead-detail__btn lead-detail__btn--solid" (click)="openConvertModal()">
+          Convert to Deal
+        </button>
+      }
     </div>
   </header>
 
@@ -866,4 +873,12 @@
   <a routerLink="/leads" class="lead-detail__back">Back to leads</a>
 </div>
 }
+
+<app-convert-lead-modal
+  [open]="convertModalOpen()"
+  [leadCount]="1"
+  [leadPreview]="lead()?.name ?? ''"
+  (confirm)="onConvertModalConfirm($event)"
+  (dismiss)="closeConvertModal()"
+/>
 
