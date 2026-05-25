@@ -1,64 +1,73 @@
-import { Component, HostListener, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
+import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { isAdmin } from '../../core/auth/auth-role.util';
 import { AuthService } from '../../core/auth/auth.service';
 import { AdminUsersService, type AdminUserRow } from '../../core/services/admin-users.service';
+import { ToastService } from '../../core/toast/toast.service';
+import { optionalPhoneValidator } from '../../shared/validators/crm-validators';
+import { passwordsMatchValidator } from '../auth/passwords-match.validator';
+
+type SettingsNavGroup = { title: string; items: readonly string[] };
+
+const ADMIN_ONLY_ITEMS = new Set(['Users', 'Invite User']);
 
 @Component({
   selector: 'app-advanced-settings',
-  imports: [],
+  imports: [ReactiveFormsModule],
   templateUrl: './advanced-settings.component.html',
   styleUrl: './advanced-settings.component.scss',
 })
 export class AdvancedSettingsComponent {
+  private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly adminUsers = inject(AdminUsersService);
+  private readonly toast = inject(ToastService);
+
+  protected readonly isAdminViewer = computed(() => isAdmin(this.auth.user()));
   protected readonly activeItem = signal('Profile');
   protected readonly selectedRoleFilter = signal('All');
-  protected readonly addExistingOpen = signal(false);
-  protected readonly inviteNewOpen = signal(false);
-  protected readonly addExistingRole = signal('Sales User');
-  protected readonly inviteRole = signal('Sales User');
-  protected readonly inviteEmailsInput = signal('');
-  protected readonly newMenuOpen = signal(false);
   protected readonly usersSearchQuery = signal('');
   protected readonly usersFromApi = signal<AdminUserRow[]>([]);
-  /** Rows added locally via invite (not persisted until API exists). */
-  protected readonly localInviteAdds = signal<AdminUserRow[]>([]);
   protected readonly usersLoading = signal(false);
   protected readonly usersError = signal<string | null>(null);
-  protected readonly roleFilters = ['All', 'Admin', 'Manager', 'Sales User'] as const;
+  protected readonly inviteSubmitting = signal(false);
+  protected readonly inviteFormError = signal<string | null>(null);
+  protected readonly roleFilters = ['All', 'Admin', 'User'] as const;
 
-  protected readonly leftNav = [
+  protected readonly inviteUserForm = this.fb.nonNullable.group(
     {
-      title: 'Profile',
-      items: ['Profile'],
+      firstName: ['', [Validators.required, Validators.maxLength(80)]],
+      lastName: ['', [Validators.maxLength(120)]],
+      email: ['', [Validators.required, Validators.email, Validators.maxLength(200)]],
+      password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(200)]],
+      confirmPassword: ['', Validators.required],
+      phone: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
     },
+    { validators: [passwordsMatchValidator()] },
+  );
+
+  private readonly allNavGroups: readonly SettingsNavGroup[] = [
+    { title: 'Profile', items: ['Profile'] },
     {
       title: 'System Configuration',
       items: ['Forecasting', 'Currency & Exchange', 'Brand Settings'],
     },
-    {
-      title: 'User Management',
-      items: ['Users', 'Invite User'],
-    },
-    {
-      title: 'Email Settings',
-      items: ['Email Accounts', 'Email Templates'],
-    },
-    {
-      title: 'Automation & Rules',
-      items: ['Assignment rules'],
-    },
-    {
-      title: 'Customization',
-      items: ['Home Actions'],
-    },
-    {
-      title: 'Integrations',
-      items: ['Telephony', 'ERPNext'],
-    },
+    { title: 'User Management', items: ['Users', 'Invite User'] },
+    { title: 'Email Settings', items: ['Email Accounts', 'Email Templates'] },
+    { title: 'Automation & Rules', items: ['Assignment rules'] },
+    { title: 'Customization', items: ['Home Actions'] },
+    { title: 'Integrations', items: ['Telephony', 'ERPNext'] },
   ];
 
+  protected readonly leftNav = computed(() =>
+    this.isAdminViewer()
+      ? this.allNavGroups
+      : this.allNavGroups.filter((group) => group.title !== 'User Management'),
+  );
+
   protected reloadUsersFromApi(): void {
+    if (!this.isAdminViewer()) return;
+
     this.usersLoading.set(true);
     this.usersError.set(null);
     this.adminUsers.listUsers(this.auth.token()).subscribe({
@@ -73,15 +82,10 @@ export class AdvancedSettingsComponent {
     });
   }
 
-  protected readonly allDisplayedUsers = computed(() => [
-    ...this.localInviteAdds(),
-    ...this.usersFromApi(),
-  ]);
-
   protected readonly filteredUsers = computed(() => {
     const role = this.selectedRoleFilter();
     const q = this.usersSearchQuery().trim().toLowerCase();
-    let all = this.allDisplayedUsers();
+    let all = this.usersFromApi();
     if (role !== 'All') {
       all = all.filter((u) => u.role === role);
     }
@@ -94,19 +98,23 @@ export class AdvancedSettingsComponent {
     return all;
   });
 
-  protected readonly canSendInvites = computed(() => {
-    const parsed = this.parseInviteEmails(this.inviteEmailsInput());
-    return parsed.length > 0;
-  });
-
   protected onUsersSearch(ev: Event): void {
     this.usersSearchQuery.set((ev.target as HTMLInputElement).value);
   }
 
   protected setActiveItem(item: string): void {
+    if (ADMIN_ONLY_ITEMS.has(item) && !this.isAdminViewer()) {
+      this.toast.error('Only admins can manage users.');
+      this.activeItem.set('Profile');
+      return;
+    }
+
     this.activeItem.set(item);
     if (item === 'Users') {
       this.reloadUsersFromApi();
+    }
+    if (item === 'Invite User') {
+      this.inviteFormError.set(null);
     }
   }
 
@@ -114,74 +122,68 @@ export class AdvancedSettingsComponent {
     this.selectedRoleFilter.set((ev.target as HTMLSelectElement).value);
   }
 
-  protected toggleNewMenu(): void {
-    this.newMenuOpen.update((open) => !open);
+  protected openInviteUser(): void {
+    this.setActiveItem('Invite User');
   }
 
-  protected closeNewMenu(): void {
-    this.newMenuOpen.set(false);
-  }
-
-  protected selectNewAction(_action: 'add-existing' | 'invite-new'): void {
-    this.closeNewMenu();
-    if (_action === 'add-existing') {
-      this.openAddExistingModal();
+  protected submitInviteUser(): void {
+    if (!this.isAdminViewer()) {
+      this.toast.error('Only admins can invite users.');
       return;
     }
-    this.openInviteNewModal();
+
+    this.inviteFormError.set(null);
+    this.inviteUserForm.markAllAsTouched();
+    if (this.inviteUserForm.invalid) return;
+
+    const v = this.inviteUserForm.getRawValue();
+    const firstName = v.firstName.trim();
+    const lastName = v.lastName.trim();
+    const fullName = [firstName, lastName].filter(Boolean).join(' ');
+
+    this.inviteSubmitting.set(true);
+    this.adminUsers
+      .createUser(this.auth.token(), {
+        fullName,
+        email: v.email.trim(),
+        password: v.password,
+        phone: v.phone.trim() || undefined,
+      })
+      .subscribe({
+        next: (res) => {
+          this.inviteSubmitting.set(false);
+          if (res.ok) {
+            this.toast.success('User created successfully.');
+            this.inviteUserForm.reset();
+            this.reloadUsersFromApi();
+            return;
+          }
+          const msg = res.error ?? 'Could not create user.';
+          this.inviteFormError.set(msg);
+          this.toast.error(msg);
+        },
+        error: () => {
+          this.inviteSubmitting.set(false);
+          const msg = 'Something went wrong. Please try again.';
+          this.inviteFormError.set(msg);
+          this.toast.error(msg);
+        },
+      });
   }
 
-  protected openAddExistingModal(): void {
-    this.addExistingOpen.set(true);
+  protected inviteFieldInvalid(
+    name: 'firstName' | 'lastName' | 'email' | 'password' | 'confirmPassword' | 'phone',
+  ): boolean {
+    const c = this.inviteUserForm.get(name);
+    return !!c && c.invalid && (c.dirty || c.touched);
   }
 
-  protected closeAddExistingModal(): void {
-    this.addExistingOpen.set(false);
-  }
-
-  protected openInviteNewModal(): void {
-    this.inviteNewOpen.set(true);
-  }
-
-  protected closeInviteNewModal(): void {
-    this.inviteNewOpen.set(false);
-  }
-
-  protected onAddExistingRoleChange(ev: Event): void {
-    this.addExistingRole.set((ev.target as HTMLSelectElement).value);
-  }
-
-  protected onInviteRoleChange(ev: Event): void {
-    this.inviteRole.set((ev.target as HTMLSelectElement).value);
-  }
-
-  protected onInviteEmailsInput(ev: Event): void {
-    this.inviteEmailsInput.set((ev.target as HTMLTextAreaElement).value);
-  }
-
-  protected sendInvites(): void {
-    const emails = this.parseInviteEmails(this.inviteEmailsInput());
-    if (emails.length === 0) return;
-
-    const role = this.inviteRole();
-    const existing = new Set(
-      this.allDisplayedUsers().map((u) => u.email.toLowerCase()),
+  protected inviteConfirmMismatch(): boolean {
+    return (
+      this.inviteUserForm.hasError('passwordMismatch') &&
+      (!!this.inviteUserForm.get('confirmPassword')?.dirty ||
+        !!this.inviteUserForm.get('confirmPassword')?.touched)
     );
-    const toAdd: AdminUserRow[] = emails
-      .filter((email) => !existing.has(email.toLowerCase()))
-      .map((email) => ({
-        id: `invite-${email}-${Date.now()}`,
-        name: this.nameFromEmail(email),
-        email,
-        role,
-      }));
-
-    if (toAdd.length > 0) {
-      this.localInviteAdds.update((rows) => [...toAdd, ...rows]);
-    }
-
-    this.inviteEmailsInput.set('');
-    this.closeInviteNewModal();
   }
 
   protected profile(): { name: string; email: string; firstName: string; lastName: string } {
@@ -204,37 +206,5 @@ export class AdvancedSettingsComponent {
 
   protected userInitial(name: string): string {
     return name.trim().charAt(0).toUpperCase();
-  }
-
-  private parseInviteEmails(raw: string): string[] {
-    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return raw
-      .split(',')
-      .map((s) => s.trim())
-      .filter((s) => !!s && emailRe.test(s));
-  }
-
-  private nameFromEmail(email: string): string {
-    const local = email.split('@')[0] ?? email;
-    return local
-      .split(/[._-]+/)
-      .filter(Boolean)
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-      .join(' ');
-  }
-
-  @HostListener('document:click', ['$event'])
-  protected onDocumentClick(ev: MouseEvent): void {
-    const target = ev.target;
-    if (!(target instanceof HTMLElement)) return;
-    if (target.closest('.adv-users__new-wrap')) return;
-    this.closeNewMenu();
-  }
-
-  @HostListener('document:keydown.escape')
-  protected onEscape(): void {
-    this.closeNewMenu();
-    this.closeAddExistingModal();
-    this.closeInviteNewModal();
   }
 }

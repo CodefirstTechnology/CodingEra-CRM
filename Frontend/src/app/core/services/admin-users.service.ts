@@ -1,8 +1,11 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable, map, of, timeout } from 'rxjs';
+import { Observable, catchError, map, of, timeout } from 'rxjs';
+import type { RegisterApiRequest } from '../auth/auth.models';
 import { readUsersTableRoleId, ROLE_ID_USER, sessionRoleLabel } from '../auth/auth-role.util';
 import { environment } from '../../../environments/environment';
+
+export type CreateUserResult = { ok: true } | { ok: false; error: string };
 
 export interface AdminUserRow {
   id: string;
@@ -24,6 +27,45 @@ function pickStr(obj: Record<string, unknown>, keys: string[]): string | undefin
 @Injectable({ providedIn: 'root' })
 export class AdminUsersService {
   private readonly http = inject(HttpClient);
+
+  /**
+   * Creates a CRM user via POST `{apiUrl}/auth/register`.
+   * Always assigns `roleId: 1` (User — user dashboard access).
+   */
+  createUser(
+    bearerToken: string | null,
+    payload: {
+      fullName: string;
+      email: string;
+      password: string;
+      phone?: string;
+    },
+  ): Observable<CreateUserResult> {
+    const base = environment.apiUrl?.replace(/\/$/, '');
+    if (!base) {
+      return of({ ok: true });
+    }
+
+    const body: RegisterApiRequest = {
+      fullName: payload.fullName.trim(),
+      email: payload.email.trim(),
+      password: payload.password,
+      roleId: ROLE_ID_USER,
+    };
+    const phone = payload.phone?.trim();
+    if (phone) body.phone = phone;
+
+    const headers =
+      bearerToken && bearerToken.length > 0
+        ? new HttpHeaders({ Authorization: `Bearer ${bearerToken}` })
+        : undefined;
+
+    return this.http.post<unknown>(`${base}/auth/register`, body, { headers }).pipe(
+      timeout(15000),
+      map(() => ({ ok: true as const })),
+      catchError((err: unknown) => of(this.mapCreateUserError(err))),
+    );
+  }
 
   /** GET `{apiUrl}/auth/users` (Bearer token when provided). */
   listUsers(bearerToken: string | null): Observable<AdminUserRow[]> {
@@ -103,5 +145,64 @@ export class AdminUsersService {
       .filter(Boolean)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
       .join(' ');
+  }
+
+  private mapCreateUserError(err: unknown): CreateUserResult {
+    if (!(err instanceof HttpErrorResponse)) {
+      return { ok: false, error: 'Something went wrong. Please try again.' };
+    }
+    if (err.status === 409) {
+      return { ok: false, error: 'Email already exists.' };
+    }
+    if (err.status === 404) {
+      return {
+        ok: false,
+        error: 'Registration API not found. Start the CRM API and run ng serve with the proxy.',
+      };
+    }
+    const detail = this.httpErrorDetail(err);
+    if (detail) {
+      const lower = detail.toLowerCase();
+      if (lower.includes('exist') || lower.includes('duplicate') || lower.includes('taken')) {
+        return { ok: false, error: 'Email already exists.' };
+      }
+      if (err.status === 400) {
+        return { ok: false, error: detail.slice(0, 220) };
+      }
+      if (err.status >= 500) {
+        return { ok: false, error: `Server error (${err.status}): ${detail.slice(0, 220)}` };
+      }
+      return { ok: false, error: detail.slice(0, 220) };
+    }
+    if (err.status === 401 || err.status === 403) {
+      return { ok: false, error: 'You do not have permission to create users.' };
+    }
+    return { ok: false, error: 'Could not create user. Please try again.' };
+  }
+
+  private httpErrorDetail(err: HttpErrorResponse): string | null {
+    const body = err.error;
+    if (typeof body === 'string' && body.trim()) return body.trim();
+    if (body && typeof body === 'object') {
+      const o = body as Record<string, unknown>;
+      for (const key of ['message', 'Message', 'title', 'Title', 'detail', 'Detail']) {
+        const v = o[key];
+        if (typeof v === 'string' && v.trim()) return v.trim();
+      }
+      if (o['errors'] && typeof o['errors'] === 'object') {
+        const parts: string[] = [];
+        for (const [field, msgs] of Object.entries(o['errors'] as Record<string, unknown>)) {
+          if (Array.isArray(msgs)) {
+            for (const m of msgs) {
+              if (typeof m === 'string' && m.trim()) parts.push(`${field}: ${m.trim()}`);
+            }
+          } else if (typeof msgs === 'string' && msgs.trim()) {
+            parts.push(`${field}: ${msgs.trim()}`);
+          }
+        }
+        if (parts.length) return parts.join(' ');
+      }
+    }
+    return err.message?.trim() || null;
   }
 }

@@ -690,35 +690,6 @@ export class DealDetailComponent {
     return fb ? fb.charAt(0).toUpperCase() : '?';
   }
 
-  protected copyDealDetailUrl(): void {
-    const url = typeof globalThis.location !== 'undefined' ? globalThis.location.href : '';
-    if (!url) return;
-    const run = async (): Promise<void> => {
-      try {
-        if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(url);
-          return;
-        }
-      } catch {
-        /* fallback */
-      }
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = url;
-        ta.setAttribute('aria-hidden', 'true');
-        ta.style.position = 'fixed';
-        ta.style.left = '-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      } catch {
-        /* ignore */
-      }
-    };
-    void run();
-  }
-
   protected saveDataTab(): void {
     const row = this.deal();
     const idn = this.numericId();

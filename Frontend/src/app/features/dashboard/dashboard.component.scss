@@ -521,10 +521,32 @@
 
 .sales-dash__stream-footer {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
+  align-items: center;
+  gap: 0.5rem 1rem;
   padding-top: 0.75rem;
   margin-top: 0.25rem;
   border-top: 1px solid var(--card-border);
+}
+
+.sales-dash__see-more {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--surface);
+  padding: 0.4rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--sd-accent);
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--sd-accent) 8%, var(--surface));
+  }
+}
+
+.sales-dash__see-more--less {
+  color: var(--text-muted);
 }
 
 .sales-dash__audit-link {

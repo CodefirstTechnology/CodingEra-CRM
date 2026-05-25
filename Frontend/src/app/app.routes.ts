@@ -10,11 +10,7 @@ export const routes: Routes = [
     canMatch: [guestGuard],
     loadComponent: () => import('./features/auth/login.component').then((m) => m.LoginComponent),
   },
-  {
-    path: 'register',
-    canMatch: [guestGuard],
-    loadComponent: () => import('./features/auth/register.component').then((m) => m.RegisterComponent),
-  },
+  { path: 'register', redirectTo: 'login', pathMatch: 'full' },
   {
     path: 'advanced-settings',
     canMatch: [authGuard],
