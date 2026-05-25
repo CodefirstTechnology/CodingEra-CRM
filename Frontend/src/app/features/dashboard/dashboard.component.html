@@ -123,10 +123,10 @@
       <ul class="sales-dash__stream-list">
         @if (activitiesLoading()) {
         <li class="sales-dash__stream-item sales-dash__stream-item--empty">Loading activity…</li>
-        } @else if (filteredActivities.length === 0) {
+        } @else if (filteredActivities().length === 0) {
         <li class="sales-dash__stream-item sales-dash__stream-item--empty">No recent activity.</li>
         } @else {
-        @for (item of filteredActivities; track item.description + item.time + item.rep) {
+        @for (item of visibleActivities(); track item.description + item.time + item.rep) {
         <li class="sales-dash__stream-item">
           <span class="sales-dash__stream-icon" aria-hidden="true">
             @switch (item.type) {
@@ -173,6 +173,16 @@
         }
       </ul>
       <div class="sales-dash__stream-footer">
+        @if (showStreamSeeMore()) {
+        <button type="button" class="sales-dash__see-more" (click)="expandStream()">
+          See more ({{ streamHiddenCount() }} more)
+        </button>
+        }
+        @if (showStreamShowLess()) {
+        <button type="button" class="sales-dash__see-more sales-dash__see-more--less" (click)="collapseStream()">
+          Show less
+        </button>
+        }
         <button type="button" class="sales-dash__audit-link">View full audit trail</button>
       </div>
     </section>
