@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { Observable, of } from 'rxjs';
+import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 import type { NoteRow } from '../../features/notes/notes.component';
 import {
@@ -7,11 +7,15 @@ import {
 } from '../../features/user-dashboard/utils/user-ownership.util';
 import { AuthService } from '../auth/auth.service';
 import { AdminUsersService, type AdminUserRow } from './admin-users.service';
+import { DealsService } from './deals.service';
 import { LeadsService } from './leads.service';
 import { NoteHttpService } from './notes/note-http.service';
+import { dealActivityDisplayName } from '../../shared/utils/activity-entity-display.util';
 import {
+  attachRelatedDealName,
   attachRelatedLeadName,
   buildLeadNameByIdMap,
+  resolveNoteRelatedDealId,
   resolveNoteRelatedLeadId,
 } from '../../shared/utils/lead-person-name.util';
 
@@ -21,6 +25,7 @@ export class NotesService {
   private readonly auth = inject(AuthService);
   private readonly adminUsers = inject(AdminUsersService);
   private readonly leadsService = inject(LeadsService);
+  private readonly dealsService = inject(DealsService);
 
   getAll(): Observable<NoteRow[]> {
     return this.enrichRows(this.noteHttp.list());
@@ -73,20 +78,19 @@ export class NotesService {
 
   private enrichRows(source: Observable<NoteRow[]>): Observable<NoteRow[]> {
     return this.withUsers((users) =>
-      this.leadsService.getAll().pipe(
-        catchError(() => of([])),
-        switchMap((leads) => {
+      forkJoin({
+        leads: this.leadsService.getAll().pipe(catchError(() => of([]))),
+        deals: this.dealsService.getAll().pipe(catchError(() => of([]))),
+      }).pipe(
+        switchMap(({ leads, deals }) => {
           const leadNames = buildLeadNameByIdMap(leads);
+          const dealNames = new Map<string, string>();
+          for (const deal of deals) {
+            const id = String(deal.id).trim();
+            if (id) dealNames.set(id, dealActivityDisplayName(deal));
+          }
           return source.pipe(
-            map((rows) =>
-              rows.map((row) =>
-                attachRelatedLeadName(
-                  this.enrichNote(row, users),
-                  resolveNoteRelatedLeadId(row),
-                  leadNames,
-                ),
-              ),
-            ),
+            map((rows) => rows.map((row) => this.enrichNoteRecord(row, users, leadNames, dealNames))),
           );
         }),
       ),
@@ -95,22 +99,38 @@ export class NotesService {
 
   private enrichRow(source: Observable<NoteRow>): Observable<NoteRow> {
     return this.withUsers((users) =>
-      this.leadsService.getAll().pipe(
-        catchError(() => of([])),
-        switchMap((leads) => {
+      forkJoin({
+        leads: this.leadsService.getAll().pipe(catchError(() => of([]))),
+        deals: this.dealsService.getAll().pipe(catchError(() => of([]))),
+      }).pipe(
+        switchMap(({ leads, deals }) => {
           const leadNames = buildLeadNameByIdMap(leads);
+          const dealNames = new Map<string, string>();
+          for (const deal of deals) {
+            const id = String(deal.id).trim();
+            if (id) dealNames.set(id, dealActivityDisplayName(deal));
+          }
           return source.pipe(
-            map((row) =>
-              attachRelatedLeadName(
-                this.enrichNote(row, users),
-                resolveNoteRelatedLeadId(row),
-                leadNames,
-              ),
-            ),
+            map((row) => this.enrichNoteRecord(row, users, leadNames, dealNames)),
           );
         }),
       ),
     );
+  }
+
+  private enrichNoteRecord(
+    row: NoteRow,
+    users: AdminUserRow[],
+    leadNames: Map<string, string>,
+    dealNames: Map<string, string>,
+  ): NoteRow {
+    let enriched = attachRelatedLeadName(
+      this.enrichNote(row, users),
+      resolveNoteRelatedLeadId(row),
+      leadNames,
+    );
+    enriched = attachRelatedDealName(enriched, resolveNoteRelatedDealId(row), dealNames);
+    return enriched;
   }
 
   private withUsers<T>(project: (users: AdminUserRow[]) => Observable<T>): Observable<T> {

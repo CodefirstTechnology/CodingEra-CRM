@@ -13,6 +13,7 @@ import { UserDataScopeService } from '../../core/services/user-data-scope.servic
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { resolveTaskRecordActivityLink } from '../../shared/utils/entity-record-nav.util';
+import { formatDealRecordLabel, formatLeadRecordLabel } from '../../shared/utils/activity-entity-display.util';
 
 export type TaskStatus = 'Backlog' | 'Todo' | 'In Progress' | 'Done' | 'Canceled';
 export type TaskPriority = 'Low' | 'Medium' | 'High';
@@ -374,15 +375,15 @@ export class TasksComponent {
     return resolveTaskRecordActivityLink(row);
   }
 
-  /** e.g. `Lead · Appa Contact` or `Deal · Acme Corp` (matches Notes table). */
+  /** e.g. `Lead · Appa Contact` or `Deal - Rohit Contract`. */
   protected taskRecordLabel(row: TaskRow): string {
     if (row.relatedLeadId?.trim()) {
       const name = row.relatedLeadName?.trim() || '—';
-      return `Lead · ${name}`;
+      return formatLeadRecordLabel(name);
     }
     if (row.relatedDealId?.trim()) {
       const name = row.relatedDealName?.trim() || `Deal #${row.relatedDealId}`;
-      return `Deal · ${name}`;
+      return formatDealRecordLabel(name);
     }
     return '—';
   }

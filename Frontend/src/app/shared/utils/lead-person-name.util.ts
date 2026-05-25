@@ -1,3 +1,4 @@
+import type { DealRow } from '../../features/deals/deals.component';
 import type { LeadRow } from '../../features/leads/lead-row.model';
 import type { NoteRow } from '../../features/notes/notes.component';
 import type { TaskRow } from '../../features/tasks/tasks.component';
@@ -10,6 +11,41 @@ export function leadPersonName(
   if (combined) return combined;
   const legacy = lead.name?.trim();
   return legacy || '—';
+}
+
+/** Contact label for deals: `firstName` + `lastName` (not organization). */
+export function dealPersonName(
+  deal: Pick<DealRow, 'firstName' | 'lastName' | 'contactName' | 'dealTitle' | 'organizationName'>,
+): string {
+  const contact =
+    deal.contactName?.trim() ||
+    [deal.firstName?.trim(), deal.lastName?.trim()].filter(Boolean).join(' ');
+  if (contact) return contact;
+
+  const title = deal.dealTitle?.trim();
+  if (title) {
+    const parts = title.split(/\s*[—–]\s*|\s+-\s+/).map((p) => p.trim()).filter(Boolean);
+    const last = parts[parts.length - 1];
+    if (last && !/^unknown organization$/i.test(last)) return last;
+    if (!/^unknown organization(\s|$)/i.test(title)) return title;
+  }
+
+  return '—';
+}
+
+export function buildDealNameByIdMap(
+  deals: readonly Pick<
+    DealRow,
+    'id' | 'firstName' | 'lastName' | 'contactName' | 'dealTitle' | 'organizationName'
+  >[],
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const deal of deals) {
+    const id = String(deal.id).trim();
+    if (!id) continue;
+    map.set(id, dealPersonName(deal));
+  }
+  return map;
 }
 
 export function buildLeadNameByIdMap(
@@ -27,6 +63,23 @@ export function buildLeadNameByIdMap(
 export function resolveTaskRelatedLeadId(task: Pick<TaskRow, 'relatedLeadId'>): string | undefined {
   const id = task.relatedLeadId?.trim();
   return id || undefined;
+}
+
+export function resolveTaskRelatedDealId(task: Pick<TaskRow, 'relatedDealId'>): string | undefined {
+  const id = task.relatedDealId?.trim();
+  return id || undefined;
+}
+
+export function resolveNoteRelatedDealId(
+  note: Pick<NoteRow, 'relatedType' | 'relatedDealId' | 'relatedId'>,
+): string | undefined {
+  const explicit = note.relatedDealId?.trim();
+  if (explicit) return explicit;
+  if (note.relatedType === 'deal') {
+    const rid = note.relatedId?.trim();
+    if (rid) return rid;
+  }
+  return undefined;
 }
 
 /** Lead FK on a note: `related_lead_id`, or `record_id` / `related_id` when type is lead. */
@@ -51,4 +104,15 @@ export function attachRelatedLeadName<T extends { relatedLeadName?: string }>(
   const name = leadNames.get(leadId);
   if (!name) return row;
   return { ...row, relatedLeadName: name };
+}
+
+export function attachRelatedDealName<T extends { relatedDealName?: string; relatedName?: string }>(
+  row: T,
+  dealId: string | undefined,
+  dealNames: Map<string, string>,
+): T {
+  if (!dealId) return row;
+  const name = dealNames.get(dealId);
+  if (!name) return row;
+  return { ...row, relatedDealName: name, relatedName: name };
 }
