@@ -868,37 +868,6 @@ export class LeadDetailComponent {
     return fb ? fb.charAt(0).toUpperCase() : '?';
   }
 
-  protected copyLeadDetailUrl(): void {
-    const url = typeof globalThis.location !== 'undefined' ? globalThis.location.href : '';
-    if (!url) return;
-    const run = async (): Promise<void> => {
-      try {
-        if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(url);
-          this.toast.success('Link copied to clipboard.');
-          return;
-        }
-      } catch {
-        /* fallback */
-      }
-      try {
-        const ta = document.createElement('textarea');
-        ta.value = url;
-        ta.setAttribute('aria-hidden', 'true');
-        ta.style.position = 'fixed';
-        ta.style.left = '-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        this.toast.success('Link copied to clipboard.');
-      } catch {
-        this.toast.error('Could not copy link.');
-      }
-    };
-    void run();
-  }
-
   protected async saveDataTab(): Promise<void> {
     const row = this.lead();
     const idn = this.numericId();

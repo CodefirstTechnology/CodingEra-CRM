@@ -217,14 +217,6 @@ export class OrganizationDetailComponent {
     return ch ? ch.toUpperCase() : '?';
   }
 
-  protected copyOrganizationLink(ev: Event): void {
-    ev.preventDefault();
-    const url =
-      typeof globalThis.window !== 'undefined' ? `${globalThis.window.location.origin}/organizations/${this.numericId()}` : '';
-    if (!url || !navigator.clipboard?.writeText) return;
-    void navigator.clipboard.writeText(url);
-  }
-
   protected toggleDetails(): void {
     this.detailsOpen.update((o) => !o);
   }
