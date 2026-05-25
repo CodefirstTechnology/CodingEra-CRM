@@ -11,12 +11,14 @@ function readAuthorUserId(r: Record<string, unknown>): number | null {
   for (const key of [
     'authorId',
     'AuthorId',
+    'author_id',
     'authorUserId',
     'AuthorUserId',
     'createdByUserId',
     'CreatedByUserId',
     'createdBy',
     'CreatedBy',
+    'created_by',
     'userId',
     'UserId',
   ]) {
@@ -26,6 +28,25 @@ function readAuthorUserId(r: Record<string, unknown>): number | null {
   const author = r['author'] ?? r['createdBy'];
   if (author != null && typeof author === 'object') {
     const n = readOptionalInt((author as Record<string, unknown>)['id']);
+    if (n != null && n > 0) return n;
+  }
+  return null;
+}
+
+function readUpdatedByUserId(r: Record<string, unknown>): number | null {
+  for (const key of [
+    'updatedBy',
+    'UpdatedBy',
+    'updated_by',
+    'updatedByUserId',
+    'UpdatedByUserId',
+  ]) {
+    const n = readOptionalInt(r[key]);
+    if (n != null && n > 0) return n;
+  }
+  const nested = r['updatedByUser'] ?? r['UpdatedByUser'];
+  if (nested != null && typeof nested === 'object') {
+    const n = readOptionalInt((nested as Record<string, unknown>)['id']);
     if (n != null && n > 0) return n;
   }
   return null;
@@ -59,10 +80,20 @@ export function mapNoteApiRecord(raw: unknown): NoteRow {
   const body = String(r['body'] ?? r['content'] ?? r['text'] ?? '').trim();
   const bodyPreview = body.length > 120 ? `${body.slice(0, 117)}…` : body;
   const authorUserId = readAuthorUserId(r);
+  const updatedByUserId = readUpdatedByUserId(r) ?? authorUserId;
   let author = String(
     r['author'] ?? r['authorName'] ?? r['AuthorName'] ?? r['createdByName'] ?? r['CreatedByName'] ?? '',
   ).trim();
   if (!author && authorUserId != null) author = `User #${authorUserId}`;
+
+  let assignedBy = String(
+    r['assignedBy'] ??
+      r['updatedByName'] ??
+      r['UpdatedByName'] ??
+      r['updatedByUserName'] ??
+      '',
+  ).trim();
+  if (!assignedBy && updatedByUserId != null) assignedBy = `User #${updatedByUserId}`;
 
   const createdAt = String(r['createdAt'] ?? r['CreatedAt'] ?? r['lastModified'] ?? r['LastModified'] ?? '').trim();
   const whenRaw = String(r['when'] ?? r['When'] ?? '').trim();
@@ -92,6 +123,7 @@ export function mapNoteApiRecord(raw: unknown): NoteRow {
     visibility: coerceVisibility(String(r['visibility'] ?? '')),
     body,
     author: author || '—',
+    assignedBy: assignedBy || author || '—',
     when,
     bodyPreview,
     bodyStorage: body,
@@ -99,6 +131,8 @@ export function mapNoteApiRecord(raw: unknown): NoteRow {
     relatedDealId,
     authorUserId:
       authorUserId != null && authorUserId > 0 ? String(authorUserId) : undefined,
+    updatedByUserId:
+      updatedByUserId != null && updatedByUserId > 0 ? String(updatedByUserId) : undefined,
   };
 }
 

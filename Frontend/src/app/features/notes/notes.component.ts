@@ -26,8 +26,12 @@ export interface NoteRow {
   visibility: NoteVisibility;
   body: string;
   author: string;
-  /** Backend author / `createdByUserId` when returned by API. */
+  /** Backend author / `author_id` when returned by API. */
   authorUserId?: string;
+  /** `notes.updated_by` — user who last updated the note. */
+  updatedByUserId?: string;
+  /** Display name from users table (`updated_by`, fallback `author_id`). */
+  assignedBy?: string;
   when: string;
   bodyPreview?: string;
   /** Full body for edit round-trip. */

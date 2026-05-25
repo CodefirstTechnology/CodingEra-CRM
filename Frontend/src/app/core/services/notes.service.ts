@@ -141,30 +141,41 @@ export class NotesService {
   }
 
   private enrichNote(row: NoteRow, users: AdminUserRow[]): NoteRow {
-    const author = this.resolveAuthorName(row, users);
-    return author === row.author ? row : { ...row, author };
+    const author = this.resolveUserDisplayName(row.author, row.authorUserId, users);
+    const assignedBy = this.resolveUserDisplayName(
+      row.assignedBy,
+      row.updatedByUserId ?? row.authorUserId,
+      users,
+    );
+    if (author === row.author && assignedBy === row.assignedBy) return row;
+    return { ...row, author, assignedBy };
   }
 
-  private resolveAuthorName(row: NoteRow, users: AdminUserRow[]): string {
-    const current = row.author?.trim();
+  private resolveUserDisplayName(
+    currentLabel: string | undefined,
+    userIdRaw: string | undefined,
+    users: AdminUserRow[],
+  ): string {
+    const current = currentLabel?.trim();
     if (current && current !== '—' && !current.startsWith('User #')) return current;
 
-    const authorId = row.authorUserId ? Number(row.authorUserId) : null;
-    if (authorId != null && Number.isFinite(authorId)) {
+    const userId = userIdRaw ? Number(userIdRaw) : null;
+    if (userId != null && Number.isFinite(userId) && userId > 0) {
       const session = this.auth.user();
       const sessionId = session?.id?.trim();
-      if (sessionId && Number(sessionId) === authorId) {
+      if (sessionId && Number(sessionId) === userId) {
         const sessionName = session?.name?.trim();
         if (sessionName) return sessionName;
       }
 
-      const match = users.find((u) => Number(u.id) === authorId);
+      const match = users.find((u) => Number(u.id) === userId);
       if (match?.name?.trim()) return match.name.trim();
+      if (match?.email?.trim()) return match.email.trim();
 
-      return `User #${authorId}`;
+      return `User #${userId}`;
     }
 
-    return current && current !== '—' ? current : 'Unknown';
+    return current && current !== '—' ? current : '—';
   }
 
   private currentUserIdString(): string | undefined {
