@@ -88,6 +88,45 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--tertiary-color, #2563eb) 16%, transparent);
 }
 
+.login__password-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.login__password-wrap .login__control {
+  padding-right: 2.75rem;
+}
+
+.login__password-toggle {
+  position: absolute;
+  right: 0.35rem;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted, #64748b);
+  cursor: pointer;
+}
+
+.login__password-toggle:hover {
+  color: var(--text-primary, #0f172a);
+  background: color-mix(in srgb, var(--body-bg, #f1f5f9) 70%, transparent);
+}
+
+.login__password-toggle:focus-visible {
+  outline: 2px solid var(--tertiary-color, #2563eb);
+  outline-offset: 1px;
+}
+
+.login__password-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
 .login__err {
   font-size: 0.75rem;
   color: #b91c1c;
