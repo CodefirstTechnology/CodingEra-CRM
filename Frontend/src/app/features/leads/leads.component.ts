@@ -19,6 +19,11 @@ import {
   LeadOwnerOptionsService,
 } from '../../core/services/leads/lead-owner-options.service';
 import { LeadRoundRobinService } from '../../core/services/leads/lead-round-robin.service';
+import {
+  composeLeadNotesForApi,
+  resolveLeadRequirementForDisplay,
+  resolveManualLeadCustomFieldForForm,
+} from '../../core/services/leads/lead-notes-requirement.util';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { ToastService } from '../../core/toast/toast.service';
@@ -616,8 +621,8 @@ export class LeadsComponent {
               row.requestType,
               this.requestTypeSelectOptions(),
             ),
-            requirement: row.requirement ?? '',
-            customField: row.notes ?? '',
+            requirement: resolveLeadRequirementForDisplay(row.requirement, row.notes),
+            customField: resolveManualLeadCustomFieldForForm(row.requirement, row.notes),
           });
           this.formOpen.set(true);
         },
@@ -975,7 +980,18 @@ export class LeadsComponent {
     const value = (row as unknown as Record<string, unknown>)[id];
     if (value == null) return '—';
     if (typeof value === 'string') {
-      const t = id === 'requirement' || id === 'notes' ? plainTextFromHtml(value) : value.trim();
+      let t: string;
+      if (id === 'requirement') {
+        const src = row.leadSource ?? 'Manual';
+        t =
+          src === 'IndiaMART' || src === 'Justdial' || src === 'TradeIndia'
+            ? plainTextFromHtml(value)
+            : resolveLeadRequirementForDisplay(row.requirement, row.notes);
+      } else if (id === 'notes') {
+        t = plainTextFromHtml(value);
+      } else {
+        t = value.trim();
+      }
       if (!t || /^null$/i.test(t) || /^undefined$/i.test(t)) return '—';
       return t;
     }
@@ -1117,7 +1133,7 @@ export class LeadsComponent {
       requestType: rtPick.label || undefined,
       requestTypeId: rtPick.masterId,
       requirement: raw.requirement.trim(),
-      notes: raw.customField.trim() || undefined,
+      notes: composeLeadNotesForApi(raw.requirement, raw.customField) || undefined,
       leadOwnerName,
       owner: initials,
       updated: 'Just now',

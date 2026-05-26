@@ -108,7 +108,7 @@ export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
     assignedInitials: assignedInitials || '-',
     lastModified: 'Just now',
     createdAt,
-    requirement: (lead.requirement ?? '').trim(),
+    requirement: (lead.requirement ?? lead.notes ?? '').trim(),
     notes: (lead.notes ?? '').trim() || undefined,
     source: 'lead_conversion',
     sourceLeadId: lead.id,

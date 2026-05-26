@@ -8,6 +8,7 @@ import { CrmModalComponent } from '../../core/modal/crm-modal.component';
 import { AuthService } from '../../core/auth/auth.service';
 import { ContactsService } from '../../core/services/contacts.service';
 import { DealsService } from '../../core/services/deals.service';
+import { composeLeadNotesForApi } from '../../core/services/leads/lead-notes-requirement.util';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { NotesService } from '../../core/services/notes.service';
@@ -534,7 +535,7 @@ export class CreateEntityFormModalComponent {
       leadStatusId: resolveLeadStatusIdFromName(raw.status) ?? undefined,
       requestType: raw.requestType || undefined,
       requirement: raw.requirement.trim(),
-      notes: raw.customField.trim() || undefined,
+      notes: composeLeadNotesForApi(raw.requirement, raw.customField) || undefined,
       leadOwnerName,
       owner: initials,
       updated: 'Just now',

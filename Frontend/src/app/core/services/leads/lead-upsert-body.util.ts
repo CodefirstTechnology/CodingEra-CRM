@@ -1,4 +1,14 @@
+import { composeLeadNotesForApi } from './lead-notes-requirement.util';
 import type { LeadNormalized, LeadUpsertDto } from './lead-api.models';
+
+function notesForApiPayload(dto: LeadUpsertDto, previous?: LeadNormalized): string {
+  return (
+    composeLeadNotesForApi(dto.requirement, dto.notes) ||
+    dto.notes?.trim() ||
+    previous?.notes?.trim() ||
+    ''
+  );
+}
 
 /** Backend marks `Gender` as required on PUT; marketplace imports often have none. */
 const DEFAULT_LEAD_GENDER = 'Other';
@@ -20,14 +30,9 @@ export function buildLeadPutJson(dto: LeadUpsertDto, previous: LeadNormalized): 
     email: dto.email?.trim() ?? previous.email ?? '',
     mobile: dto.mobile?.trim() ?? previous.mobile ?? '',
     gender,
-    notes: dto.notes?.trim() ?? previous.notes ?? '',
+    notes: notesForApiPayload(dto, previous),
     leadSource: dto.leadSource?.trim() || previous.leadSource?.trim() || 'Website',
   };
-
-  const requirement = dto.requirement?.trim() ?? previous.requirement?.trim();
-  if (requirement) {
-    body['requirement'] = requirement;
-  }
 
   if (dto.salutationId != null && dto.salutationId > 0) {
     body['salutationId'] = dto.salutationId;
@@ -94,14 +99,9 @@ export function stripLeadUpsertForPost(dto: LeadUpsertDto): Record<string, unkno
     lastName: dto.lastName?.trim() || 'Contact',
     email: dto.email?.trim() || '',
     mobile: dto.mobile?.trim() || '',
-    notes: dto.notes?.trim() || '',
+    notes: notesForApiPayload(dto),
     leadSource: dto.leadSource?.trim() || 'Website',
   };
-
-  const requirement = dto.requirement?.trim();
-  if (requirement) {
-    body['requirement'] = requirement;
-  }
 
   if (dto.leadStatusId != null && dto.leadStatusId > 0) {
     body['leadStatusId'] = dto.leadStatusId;

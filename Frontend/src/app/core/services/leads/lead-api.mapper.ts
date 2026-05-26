@@ -3,6 +3,10 @@ import type { LeadRow, LeadSource, LeadStatus } from '../../../features/leads/le
 import { plainTextFromHtml } from '../../../shared/utils/plain-text-from-html';
 import { resolveLeadStatusIdFromName } from './lead-status.constants';
 import { applyMarketplaceNotesToLeadRow, extractMarketplaceExternalRef, parseMarketplaceNotesDisplay } from './marketplace-lead-to-api.mapper';
+import {
+  composeLeadNotesForApi,
+  resolveLeadRequirementForDisplay,
+} from './lead-notes-requirement.util';
 import type { LeadNormalized, LeadUpsertDto } from './lead-api.models';
 
 const LEAD_STATUS_BY_KEY: Record<string, LeadStatus> = {
@@ -333,8 +337,11 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
     statusName,
     requestTypeId,
     requestTypeName,
-    notes: String(r['notes'] ?? '').trim(),
-    requirement: plainTextFromHtml(String(r['requirement'] ?? r['Requirement'] ?? '')),
+    notes: notesTrim,
+    requirement: resolveLeadRequirementForDisplay(
+      String(r['requirement'] ?? r['Requirement'] ?? ''),
+      notesTrim,
+    ),
     leadOwnerId: readLeadOwnerFk(r),
     leadOwnerName: readLeadOwnerDisplayName(r),
     leadSource: String(r['leadSource'] ?? r['source'] ?? r['Source'] ?? '').trim(),
@@ -553,8 +560,17 @@ function rowToNormalized(row: LeadRow, previous?: LeadNormalized): LeadNormalize
     statusName: row.status ?? previous?.statusName ?? 'New',
     requestTypeId: row.requestTypeId ?? previous?.requestTypeId ?? null,
     requestTypeName: row.requestType ?? previous?.requestTypeName ?? '',
-    notes: row.notes ?? previous?.notes ?? '',
-    requirement: row.requirement ?? previous?.requirement ?? '',
+    notes:
+      composeLeadNotesForApi(
+        row.requirement ?? previous?.requirement,
+        row.notes ?? previous?.notes,
+      ) ||
+      previous?.notes ||
+      '',
+    requirement:
+      row.requirement?.trim() ||
+      previous?.requirement?.trim() ||
+      resolveLeadRequirementForDisplay(null, row.notes ?? previous?.notes),
     leadOwnerId: ownerId,
     leadOwnerName: row.leadOwnerName ?? previous?.leadOwnerName ?? '',
     leadSource: row.source ?? row.leadSource ?? previous?.leadSource ?? 'Manual',
