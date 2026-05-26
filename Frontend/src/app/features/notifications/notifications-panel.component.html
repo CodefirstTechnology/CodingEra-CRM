@@ -27,6 +27,13 @@
   </header>
 
   <div class="np-list-wrap">
+    @if (panel.loading()) {
+      <p class="np-state">Loading notifications…</p>
+    } @else if (panel.error()) {
+      <p class="np-state np-state--error">{{ panel.error() }}</p>
+    } @else if (panel.notifications().length === 0) {
+      <p class="np-state">No notifications yet. Activity on your leads and deals will show up here.</p>
+    } @else {
     <ul class="np-list" role="list">
       @for (n of panel.notifications(); track n.id) {
         <li>
@@ -76,6 +83,7 @@
         </li>
       }
     </ul>
+    }
   </div>
 
   <footer class="np-foot">

@@ -94,6 +94,19 @@
   }
 }
 
+.np-state {
+  margin: 0;
+  padding: 2rem 1.25rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.np-state--error {
+  color: var(--danger, #dc2626);
+}
+
 .np-list-wrap {
   flex: 1;
   min-height: 0;
