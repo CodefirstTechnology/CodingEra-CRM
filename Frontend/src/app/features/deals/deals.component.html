@@ -135,24 +135,39 @@
                 </select>
               </label>
               <label class="deals__field">
+                <span class="deals__label">First name <span class="deals__req">*</span></span>
+                <input
+                  class="deals__control deals__control--soft"
+                  type="text"
+                  formControlName="firstName"
+                  autocomplete="given-name"
+                />
+                @if (fieldInvalid('firstName')) {
+                  <span class="deals__err">First name is required.</span>
+                }
+              </label>
+              <label class="deals__field">
                 <span class="deals__label">Last name <span class="deals__req">*</span></span>
-                <input class="deals__control deals__control--soft" type="text" formControlName="lastName" />
+                <input
+                  class="deals__control deals__control--soft"
+                  type="text"
+                  formControlName="lastName"
+                  autocomplete="family-name"
+                />
                 @if (fieldInvalid('lastName')) {
                   <span class="deals__err">Last name is required.</span>
                 }
               </label>
               <label class="deals__field">
                 <span class="deals__label">Primary mobile no.</span>
-                <input class="deals__control deals__control--soft" type="tel" formControlName="primaryMobile" />
+                <input
+                  class="deals__control deals__control--soft"
+                  type="tel"
+                  formControlName="primaryMobile"
+                  autocomplete="tel"
+                />
                 @if (fieldInvalid('primaryMobile') && createForm.get('primaryMobile')?.errors?.['phone']) {
                   <span class="deals__err">Enter a valid phone number.</span>
-                }
-              </label>
-              <label class="deals__field">
-                <span class="deals__label">First name <span class="deals__req">*</span></span>
-                <input class="deals__control deals__control--soft" type="text" formControlName="firstName" />
-                @if (fieldInvalid('firstName')) {
-                  <span class="deals__err">First name is required.</span>
                 }
               </label>
               <label class="deals__field">
@@ -161,6 +176,7 @@
                   class="deals__control deals__control--soft"
                   type="email"
                   formControlName="primaryEmail"
+                  autocomplete="email"
                   (input)="clearEmailDuplicate()"
                 />
                 @if (createForm.get('primaryEmail')?.errors?.['duplicate']) {
