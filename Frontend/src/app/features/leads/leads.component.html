@@ -338,29 +338,31 @@
         <button type="button" class="leads__clear" (click)="clearSearch()" aria-label="Clear search">×</button>
       }
     </label>
-    <div class="leads__filters" role="group" aria-label="Filter by status">
-      @for (chip of filterChips(); track chip.id) {
-        <button
-          type="button"
-          class="leads__chip"
-          [class.is-active]="isChipActive(chip.id)"
-          (click)="setStatusFilter(chip.id)"
+    <div class="leads__filter-selects">
+      <label class="leads__filter-field">
+        <span class="visually-hidden">Filter by source</span>
+        <select
+          class="leads__filter-select leads__filter-select--source"
+          [value]="sourceFilter()"
+          (change)="onSourceFilterSelect($event)"
         >
-          {{ chip.label }}
-        </button>
-      }
-    </div>
-    <div class="leads__filters leads__filters--sources" role="group" aria-label="Filter by lead source">
-      @for (chip of sourceFilterChips; track chip.id) {
-        <button
-          type="button"
-          class="leads__chip leads__chip--compact"
-          [class.is-active]="isSourceChipActive(chip.id)"
-          (click)="setSourceFilter(chip.id)"
+          @for (opt of sourceFilterOptions; track opt.id) {
+            <option [value]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+      <label class="leads__filter-field">
+        <span class="visually-hidden">Filter by status</span>
+        <select
+          class="leads__filter-select leads__filter-select--status"
+          [value]="statusFilter()"
+          (change)="onStatusFilterSelect($event)"
         >
-          {{ chip.label }}
-        </button>
-      }
+          @for (opt of statusFilterOptions(); track opt.id) {
+            <option [value]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
     </div>
   </div>
 

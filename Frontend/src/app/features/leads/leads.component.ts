@@ -212,6 +212,23 @@ export class LeadsComponent {
     { id: 'TradeIndia', label: 'TradeIndia' },
   ];
 
+  protected readonly statusFilterOptions = computed(() => {
+    const items: { id: LeadListStatusFilter; label: string }[] = [
+      { id: 'all', label: 'All statuses' },
+    ];
+    for (const chip of this.filterChips()) {
+      if (chip.id === 'all') continue;
+      items.push(chip);
+    }
+    items.push({ id: 'Converted', label: 'Converted' });
+    return items;
+  });
+
+  protected readonly sourceFilterOptions = this.sourceFilterChips.map((chip) => ({
+    id: chip.id,
+    label: chip.id === 'all' ? 'All sources' : chip.label,
+  }));
+
   private readonly requiredColumnIds = new Set(['name', 'source', 'requirement']);
   private readonly ignoredColumnIds = new Set([
     'id',
@@ -377,8 +394,12 @@ export class LeadsComponent {
     const src = this.sourceFilter();
     return this.rows().filter((row) => {
       if (src !== 'all' && (row.leadSource ?? 'Manual') !== src) return false;
-      if (st === 'all' && isLeadConverted(row)) return false;
-      if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) return false;
+      if (st === 'Converted') {
+        if (!isLeadConverted(row)) return false;
+      } else {
+        if (st === 'all' && isLeadConverted(row)) return false;
+        if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) return false;
+      }
       if (!q) return true;
       const srcLabel = (row.leadSource ?? 'Manual').toLowerCase();
       return (
@@ -971,6 +992,14 @@ export class LeadsComponent {
     this.resetTablePage();
   }
 
+  protected onStatusFilterSelect(ev: Event): void {
+    this.setStatusFilter((ev.target as HTMLSelectElement).value as LeadListStatusFilter);
+  }
+
+  protected onSourceFilterSelect(ev: Event): void {
+    this.setSourceFilter((ev.target as HTMLSelectElement).value as LeadListSourceFilter);
+  }
+
   protected toggleColumnMenu(): void {
     this.columnMenuOpen.update((open) => !open);
   }
@@ -1061,14 +1090,6 @@ export class LeadsComponent {
     }
     if (typeof value === 'number' || typeof value === 'boolean') return String(value);
     return '—';
-  }
-
-  protected isChipActive(id: LeadListStatusFilter): boolean {
-    return this.statusFilter() === id;
-  }
-
-  protected isSourceChipActive(id: LeadListSourceFilter): boolean {
-    return this.sourceFilter() === id;
   }
 
   /** Select `[value]` for master-backed dropdowns (`id` > 0 → numeric string, else label). */
