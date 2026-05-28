@@ -452,10 +452,11 @@ export class LeadsComponent {
     );
   });
 
-  protected readonly bulkCanEditSingleManual = computed(() => {
-    if (this.sel.selectedCount() !== 1) return false;
+  protected readonly bulkCanEditSingle = computed(() => {
+    if (this.isAdminViewer() || this.sel.selectedCount() !== 1) return false;
     const id = this.sel.selectedItems()[0];
-    return this.rows().find((r) => r.id === id)?.leadSource === 'Manual';
+    const row = this.rows().find((r) => r.id === id);
+    return !!row && this.canEditLead(row);
   });
 
   protected readonly bulkAssignEnabled = computed(() => {
@@ -484,8 +485,13 @@ export class LeadsComponent {
       .concat(targets.length > 3 ? ` +${targets.length - 3} more` : '');
   });
 
+  /** User-only: persisted CRM leads (not local marketplace-only rows). */
+  protected canEditLead(row: LeadRow): boolean {
+    return !this.isAdminViewer() && isPersistedApiLeadRow(row.id);
+  }
+
   protected canConvertLead(row: LeadRow): boolean {
-    return row.leadSource === 'Manual' && isPersistedApiLeadRow(row.id) && !isLeadConverted(row);
+    return this.canEditLead(row) && !isLeadConverted(row);
   }
 
   protected readonly createForm = this.fb.nonNullable.group({
@@ -640,7 +646,7 @@ export class LeadsComponent {
   }
 
   protected onBulkEdit(): void {
-    if (!this.bulkCanEditSingleManual()) return;
+    if (!this.bulkCanEditSingle()) return;
     const ids = this.sel.selectedItems();
     if (ids.length !== 1) return;
     void this.router.navigate([], {
@@ -800,6 +806,18 @@ export class LeadsComponent {
       .filter((r): r is LeadRow => !!r && this.canConvertLead(r));
     if (leads.length === 0) return;
     this.openConvertModal(leads);
+  }
+
+  protected onRowEdit(row: LeadRow, ev?: Event): void {
+    ev?.stopPropagation();
+    this.closeRowMenus();
+    if (!this.canEditLead(row)) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: row.id },
+      queryParamsHandling: 'merge',
+    });
+    this.beginEditFromRoute(row.id);
   }
 
   protected openConvertModalForRow(row: LeadRow, ev?: Event): void {
