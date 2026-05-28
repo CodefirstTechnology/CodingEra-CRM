@@ -1,5 +1,4 @@
 <div class="sales-dash">
-  <!-- Page toolbar (main chrome is app shell: sidebar + navbar) -->
   <header class="sales-dash__toolbar">
     <div class="sales-dash__toolbar-text">
       <p class="sales-dash__eyebrow">Executive overview</p>
@@ -8,235 +7,407 @@
       </div>
     </div>
     <div class="sales-dash__toolbar-actions">
-      <form class="sales-dash__period-form" [formGroup]="filterForm" (ngSubmit)="$event.preventDefault()">
-        <label class="sales-dash__period">
-          <span class="visually-hidden">Reporting period</span>
-          <select
-            class="sales-dash__select"
-            formControlName="period"
-            [attr.aria-label]="'Period ' + filterForm.controls.period.value"
-          >
-            @for (p of periodOptions; track p) {
-              <option [value]="p">{{ p }}</option>
-            }
-          </select>
-        </label>
-      </form>
-      <div class="sales-dash__quarterly" aria-label="Quarterly target summary">
-        <span class="sales-dash__quarterly-label">Quarterly target</span>
-        <span class="sales-dash__quarterly-values">
-          {{ formatInr(quarterlyProgress.currentUsd) }} / {{ formatInr(quarterlyProgress.goalUsd) }}
-        </span>
-      </div>
-      <button type="button" class="sales-dash__btn sales-dash__btn--export">Export Ledger</button>
+      <span class="sales-dash__period-badge">This month</span>
+      @if (snapshot(); as data) {
+        <div class="sales-dash__quarterly" aria-label="Monthly revenue summary">
+          <span class="sales-dash__quarterly-label">Closed won (month)</span>
+          <span class="sales-dash__quarterly-values">
+            {{ formatMoney(data.kpis.monthlyRevenue) }} /
+            {{ formatMoney(data.kpis.monthlyTarget) }}
+          </span>
+        </div>
+      }
+      <button
+        type="button"
+        class="sales-dash__btn sales-dash__btn--ghost"
+        [disabled]="loading()"
+        (click)="refreshDashboard()"
+      >
+        {{ loading() ? 'Refreshing…' : 'Refresh' }}
+      </button>
+      <button type="button" class="sales-dash__btn sales-dash__btn--export" (click)="openCreateUser()">
+        Add sales user
+      </button>
     </div>
   </header>
 
-  <!-- Top KPI row -->
-  <div class="sales-dash__ledger">
-    <article class="sales-dash__card sales-dash__card--target">
-      <h2 class="sales-dash__card-title sales-dash__card-title--light">Monthly target</h2>
-      <div class="sales-dash__gauge-wrap">
-        <svg class="sales-dash__gauge-svg" viewBox="0 0 120 120" aria-hidden="true">
-          <circle class="sales-dash__gauge-track" cx="60" cy="60" r="46" fill="none" stroke-width="12" />
-          <circle class="sales-dash__gauge-fill" cx="60" cy="60" r="46" fill="none" stroke-width="12"
-            stroke-linecap="round" transform="rotate(-90 60 60)" [attr.stroke-dasharray]="gaugeCircumference"
-            [attr.stroke-dashoffset]="gaugeDashOffset()" />
-        </svg>
-        <div class="sales-dash__gauge-label">
-          <span class="sales-dash__gauge-pct">{{ monthlyTarget.achievedPct }}%</span>
-          <span class="sales-dash__gauge-sub">Achieved</span>
-        </div>
-      </div>
-      <div class="sales-dash__target-metrics">
-        <div>
-          <span class="sales-dash__metric-k">Current</span>
-          <span class="sales-dash__metric-v">{{ formatInr(monthlyTarget.currentUsd) }}</span>
-        </div>
-        <div>
-          <span class="sales-dash__metric-k">Target</span>
-          <span class="sales-dash__metric-v">{{ formatInr(monthlyTarget.targetUsd) }}</span>
-        </div>
-      </div>
-    </article>
+  @if (error(); as err) {
+    <p class="sales-dash__banner" role="alert">{{ err }}</p>
+  }
 
-    <article class="sales-dash__card">
-      <h2 class="sales-dash__card-title">Conversion rate</h2>
-      <div class="sales-dash__conversion-head">
-        <span class="sales-dash__big-num">{{ conversion.rate }}</span>
-        <span class="sales-dash__pill sales-dash__pill--pos">{{ conversion.delta }}</span>
-      </div>
-      <div class="sales-dash__mini-chart" role="img" aria-label="Conversion by weekday">
-        @for (pct of conversion.weeklyBarHeights; track $index) {
-        <div class="sales-dash__mini-chart-col">
-          <div class="sales-dash__mini-bar-track">
-            <div class="sales-dash__mini-bar" [style.height.%]="pct"></div>
-          </div>
-          <span class="sales-dash__mini-day">{{ conversion.days[$index] }}</span>
-        </div>
-        }
-      </div>
-    </article>
+  @if (loading() && !snapshot()) {
+    <div class="sales-dash__loading" aria-busy="true" aria-label="Loading dashboard">
+      <div class="sales-dash__loading-spinner"></div>
+      <p>Loading live metrics…</p>
+    </div>
+  } @else if (snapshot(); as data) {
+    <section class="sales-dash__kpi-strip" aria-label="Key performance indicators">
+      <article class="sales-dash__kpi">
+        <span class="sales-dash__kpi-label">Total leads</span>
+        <span class="sales-dash__kpi-value">{{ data.kpis.totalLeads }}</span>
+      </article>
+      <article class="sales-dash__kpi">
+        <span class="sales-dash__kpi-label">Qualified</span>
+        <span class="sales-dash__kpi-value">{{ data.kpis.qualifiedLeads }}</span>
+      </article>
+      <article class="sales-dash__kpi">
+        <span class="sales-dash__kpi-label">Converted</span>
+        <span class="sales-dash__kpi-value">{{ data.kpis.convertedLeads }}</span>
+      </article>
+      <article class="sales-dash__kpi">
+        <span class="sales-dash__kpi-label">Conversion</span>
+        <span class="sales-dash__kpi-value">{{ data.kpis.conversionRatePct }}%</span>
+      </article>
+      <article class="sales-dash__kpi">
+        <span class="sales-dash__kpi-label">New this month</span>
+        <span class="sales-dash__kpi-value">{{ data.kpis.newLeadsThisMonth }}</span>
+      </article>
+      <article class="sales-dash__kpi">
+        <span class="sales-dash__kpi-label">Active pipeline</span>
+        <span class="sales-dash__kpi-value">{{ data.kpis.activePipelineCount }}</span>
+      </article>
+      <article class="sales-dash__kpi">
+        <span class="sales-dash__kpi-label">Pipeline value</span>
+        <span class="sales-dash__kpi-value">{{ formatMoney(data.kpis.pipelineRevenue) }}</span>
+      </article>
+      <article class="sales-dash__kpi">
+        <span class="sales-dash__kpi-label">Monthly revenue</span>
+        <span class="sales-dash__kpi-value">{{ formatMoney(data.kpis.monthlyRevenue) }}</span>
+      </article>
+    </section>
 
-    <article class="sales-dash__card">
-      <h2 class="sales-dash__card-title">Revenue forecast</h2>
-      <p class="sales-dash__forecast-total">{{ formatInr(revenueForecast.totalUsd) }}</p>
-      <ul class="sales-dash__forecast-list">
-        @for (seg of revenueForecast.segments; track seg.label) {
-        <li class="sales-dash__forecast-row">
-          <div class="sales-dash__forecast-meta">
-            <span class="sales-dash__forecast-label">{{ seg.label }}</span>
-            <span class="sales-dash__forecast-value">{{ formatInr(seg.usd) }}</span>
+    <div class="sales-dash__ledger">
+      <article class="sales-dash__card sales-dash__card--target">
+        <h2 class="sales-dash__card-title sales-dash__card-title--light">Monthly target</h2>
+        <div class="sales-dash__gauge-wrap">
+          <svg class="sales-dash__gauge-svg" viewBox="0 0 120 120" aria-hidden="true">
+            <circle class="sales-dash__gauge-track" cx="60" cy="60" r="46" fill="none" stroke-width="12" />
+            <circle
+              class="sales-dash__gauge-fill"
+              cx="60"
+              cy="60"
+              r="46"
+              fill="none"
+              stroke-width="12"
+              stroke-linecap="round"
+              transform="rotate(-90 60 60)"
+              [attr.stroke-dasharray]="gaugeCircumference"
+              [attr.stroke-dashoffset]="gaugeDashOffset()"
+            />
+          </svg>
+          <div class="sales-dash__gauge-label">
+            <span class="sales-dash__gauge-pct">{{ data.kpis.monthlyTargetAchievedPct }}%</span>
+            <span class="sales-dash__gauge-sub">Achieved</span>
           </div>
-          <div class="sales-dash__forecast-track">
-            <span class="sales-dash__forecast-bar" [style.width.%]="seg.pct"></span>
-          </div>
-        </li>
-        }
-      </ul>
-      <p class="sales-dash__forecast-confidence">
-        Confidence score: <strong>{{ revenueForecast.confidence }}</strong>
-      </p>
-    </article>
-  </div>
-
-  <!-- Activity + sidebar -->
-  <div class="sales-dash__main">
-    <section class="sales-dash__card sales-dash__card--stream" aria-labelledby="stream-heading">
-      <div class="sales-dash__stream-head">
-        <h2 id="stream-heading" class="sales-dash__card-title">Activity Stream</h2>
-        <div class="sales-dash__tabs" role="tablist" aria-label="Filter activities">
-          <button type="button" role="tab" class="sales-dash__tab" [attr.aria-selected]="streamTab === 'all'"
-            [class.sales-dash__tab--active]="streamTab === 'all'" (click)="setStreamTab('all')">
-            All Activities
-          </button>
-          <button type="button" role="tab" class="sales-dash__tab" [attr.aria-selected]="streamTab === 'calls'"
-            [class.sales-dash__tab--active]="streamTab === 'calls'" (click)="setStreamTab('calls')">
-            Calls
-          </button>
-          <button type="button" role="tab" class="sales-dash__tab" [attr.aria-selected]="streamTab === 'meetings'"
-            [class.sales-dash__tab--active]="streamTab === 'meetings'" (click)="setStreamTab('meetings')">
-            Meetings
-          </button>
         </div>
-      </div>
-      <ul class="sales-dash__stream-list">
-        @if (activitiesLoading()) {
-        <li class="sales-dash__stream-item sales-dash__stream-item--empty">Loading activity…</li>
-        } @else if (filteredActivities().length === 0) {
-        <li class="sales-dash__stream-item sales-dash__stream-item--empty">No recent activity.</li>
-        } @else {
-        @for (item of visibleActivities(); track item.description + item.time + item.rep) {
-        <li class="sales-dash__stream-item">
-          <span class="sales-dash__stream-icon" aria-hidden="true">
-            @switch (item.type) {
-            @case ('call') {
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path
-                d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
-            </svg>
-            }
-            @case ('meeting') {
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-              <circle cx="9" cy="7" r="4" />
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-            </svg>
-            }
-            @case ('email') {
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-              <polyline points="22,6 12,13 2,6" />
-            </svg>
-            }
-            @default {
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            }
-            }
+        <div class="sales-dash__target-metrics">
+          <div>
+            <span class="sales-dash__metric-k">Current</span>
+            <span class="sales-dash__metric-v">{{ formatMoney(data.kpis.monthlyRevenue) }}</span>
+          </div>
+          <div>
+            <span class="sales-dash__metric-k">Target</span>
+            <span class="sales-dash__metric-v">{{ formatMoney(data.kpis.monthlyTarget) }}</span>
+          </div>
+        </div>
+      </article>
+
+      <article class="sales-dash__card">
+        <h2 class="sales-dash__card-title">Conversion rate</h2>
+        <div class="sales-dash__conversion-head">
+          <span class="sales-dash__big-num">{{ data.kpis.conversionRatePct }}%</span>
+          <span class="sales-dash__pill sales-dash__pill--pos">
+            {{ data.kpis.convertedLeads }} / {{ data.kpis.totalLeads }} leads
           </span>
-          <div class="sales-dash__stream-body">
-            <p class="sales-dash__stream-title">
-              {{ item.title }}
-              <button type="button" class="sales-dash__link">{{ item.company }}</button>
-            </p>
-            <p class="sales-dash__stream-desc">{{ item.description }}</p>
-          </div>
-          <div class="sales-dash__stream-aside">
-            <time class="sales-dash__stream-time">{{ item.time }}</time>
-            <span class="sales-dash__stream-rep">{{ item.rep }}</span>
-          </div>
-        </li>
-        }
-        }
-      </ul>
-      <div class="sales-dash__stream-footer">
-        @if (showStreamSeeMore()) {
-        <button type="button" class="sales-dash__see-more" (click)="expandStream()">
-          See more ({{ streamHiddenCount() }} more)
-        </button>
-        }
-        @if (showStreamShowLess()) {
-        <button type="button" class="sales-dash__see-more sales-dash__see-more--less" (click)="collapseStream()">
-          Show less
-        </button>
-        }
-        <button type="button" class="sales-dash__audit-link">View full audit trail</button>
+        </div>
+        <div class="sales-dash__mini-chart" role="img" aria-label="Lead mix by status share">
+          @for (bar of conversionBars(); track bar.label) {
+            <div class="sales-dash__mini-chart-col">
+              <div class="sales-dash__mini-bar-track">
+                <div class="sales-dash__mini-bar" [style.height.%]="bar.pct || 4"></div>
+              </div>
+              <span class="sales-dash__mini-day">{{ bar.label }}</span>
+            </div>
+          }
+        </div>
+      </article>
+
+      <article class="sales-dash__card">
+        <h2 class="sales-dash__card-title">Active pipeline</h2>
+        <p class="sales-dash__forecast-total">{{ formatMoney(data.kpis.pipelineRevenue) }}</p>
+        <p class="sales-dash__forecast-sub">{{ data.kpis.activePipelineCount }} open deals</p>
+        <ul class="sales-dash__forecast-list">
+          @for (seg of data.pipelineSegments; track seg.label) {
+            <li class="sales-dash__forecast-row">
+              <div class="sales-dash__forecast-meta">
+                <span class="sales-dash__forecast-label">{{ seg.label }} ({{ seg.count }})</span>
+                <span class="sales-dash__forecast-value">{{ formatMoney(seg.revenue) }}</span>
+              </div>
+              <div class="sales-dash__forecast-track">
+                <span class="sales-dash__forecast-bar" [style.width.%]="seg.pct"></span>
+              </div>
+            </li>
+          } @empty {
+            <li class="sales-dash__forecast-row sales-dash__forecast-row--empty">No active deals in pipeline.</li>
+          }
+        </ul>
+      </article>
+    </div>
+
+    <section class="sales-dash__card sales-dash__card--team" aria-labelledby="team-heading">
+      <div class="sales-dash__team-head">
+        <h2 id="team-heading" class="sales-dash__card-title">Sales team</h2>
+        <span class="sales-dash__team-hint">Role: User (sales reps only)</span>
+      </div>
+      <div class="sales-dash__team-scroll">
+        <table class="sales-dash__team-table">
+          <thead>
+            <tr>
+              <th scope="col">Rep</th>
+              <th scope="col">Leads</th>
+              <th scope="col">
+                <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('qualifiedLeads')">
+                  Qualified{{ teamSortIndicator('qualifiedLeads') }}
+                </button>
+              </th>
+              <th scope="col">Contacted</th>
+              <th scope="col">New</th>
+              <th scope="col">
+                <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('convertedLeads')">
+                  Converted{{ teamSortIndicator('convertedLeads') }}
+                </button>
+              </th>
+              <th scope="col">Conv %</th>
+              <th scope="col">
+                <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('activeDeals')">
+                  Active deals{{ teamSortIndicator('activeDeals') }}
+                </button>
+              </th>
+              <th scope="col">
+                <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('monthlyRevenue')">
+                  Revenue{{ teamSortIndicator('monthlyRevenue') }}
+                </button>
+              </th>
+              <th scope="col">Overdue</th>
+            </tr>
+          </thead>
+          <tbody>
+            @if (loading()) {
+              @for (sk of [1, 2, 3]; track sk) {
+                <tr class="sales-dash__team-row sales-dash__team-row--skeleton">
+                  <td colspan="10"><span class="sales-dash__skel-bar"></span></td>
+                </tr>
+              }
+            } @else if (sortedTeam().length === 0) {
+              <tr>
+                <td colspan="10" class="sales-dash__team-empty">No sales users found. Add a rep to get started.</td>
+              </tr>
+            } @else {
+              @for (row of sortedTeam(); track row.userId) {
+                <tr>
+                  <td>
+                    <span class="sales-dash__team-name">{{ row.name }}</span>
+                    <span class="sales-dash__team-email">{{ row.email }}</span>
+                  </td>
+                  <td>{{ row.totalLeads }}</td>
+                  <td>{{ row.qualifiedLeads }}</td>
+                  <td>{{ row.contactedLeads }}</td>
+                  <td>{{ row.newLeads }}</td>
+                  <td>{{ row.convertedLeads }}</td>
+                  <td>{{ row.conversionRatePct }}%</td>
+                  <td>{{ row.activeDeals }}</td>
+                  <td>{{ formatMoney(row.monthlyRevenue) }}</td>
+                  <td>{{ row.overdueTasks }}</td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
       </div>
     </section>
 
-    <aside class="sales-dash__aside">
-      <section class="sales-dash__card sales-dash__card--stuck" aria-labelledby="stuck-heading">
-        <div class="sales-dash__stuck-head">
-          <span class="sales-dash__stuck-icon" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
-          </span>
-          <h2 id="stuck-heading" class="sales-dash__card-title">Stuck Deals</h2>
-          <span class="sales-dash__badge-auto">SRS Automation</span>
+    <div class="sales-dash__main">
+      <section class="sales-dash__card sales-dash__card--stream" aria-labelledby="stream-heading">
+        <div class="sales-dash__stream-head">
+          <h2 id="stream-heading" class="sales-dash__card-title">Activity Stream</h2>
+          <div class="sales-dash__tabs" role="tablist" aria-label="Filter activities">
+            <button
+              type="button"
+              role="tab"
+              class="sales-dash__tab"
+              [attr.aria-selected]="streamTab() === 'all'"
+              [class.sales-dash__tab--active]="streamTab() === 'all'"
+              (click)="setStreamTab('all')"
+            >
+              All Activities
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="sales-dash__tab"
+              [attr.aria-selected]="streamTab() === 'calls'"
+              [class.sales-dash__tab--active]="streamTab() === 'calls'"
+              (click)="setStreamTab('calls')"
+            >
+              Calls
+            </button>
+            <button
+              type="button"
+              role="tab"
+              class="sales-dash__tab"
+              [attr.aria-selected]="streamTab() === 'meetings'"
+              [class.sales-dash__tab--active]="streamTab() === 'meetings'"
+              (click)="setStreamTab('meetings')"
+            >
+              Meetings
+            </button>
+          </div>
         </div>
-        <ul class="sales-dash__stuck-list">
-          @for (deal of stuckDeals; track deal.company) {
-          <li class="sales-dash__stuck-item">
-            <div class="sales-dash__stuck-top">
-              <span class="sales-dash__stuck-co">{{ deal.company }}</span>
-              <span class="sales-dash__stuck-val">{{ formatInr(deal.valueUsd) }}</span>
-            </div>
-            <p class="sales-dash__stuck-stage">{{ deal.stage }}</p>
-            <div class="sales-dash__stuck-meta">
-              <span class="sales-dash__inactive">{{ deal.inactiveDays }} days inactive</span>
-              <button type="button" class="sales-dash__stuck-action">{{ deal.action }}</button>
-            </div>
-          </li>
+        <ul class="sales-dash__stream-list">
+          @if (loading()) {
+            <li class="sales-dash__stream-item sales-dash__stream-item--empty">Loading activity…</li>
+          } @else if (filteredActivities().length === 0) {
+            <li class="sales-dash__stream-item sales-dash__stream-item--empty">No recent activity.</li>
+          } @else {
+            @for (item of visibleActivities(); track item.id) {
+              <li class="sales-dash__stream-item">
+                <span class="sales-dash__stream-icon" aria-hidden="true">
+                  @switch (item.kind) {
+                    @case ('call') {
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path
+                          d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
+                        />
+                      </svg>
+                    }
+                    @case ('meeting') {
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                      </svg>
+                    }
+                    @case ('email') {
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                        <polyline points="22,6 12,13 2,6" />
+                      </svg>
+                    }
+                    @case ('lead') {
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                      </svg>
+                    }
+                    @case ('deal') {
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="2" y="7" width="20" height="14" rx="2" />
+                        <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                      </svg>
+                    }
+                    @default {
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path
+                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                        />
+                      </svg>
+                    }
+                  }
+                </span>
+                <div class="sales-dash__stream-body">
+                  <p class="sales-dash__stream-title">
+                    <span [class]="activityKindClass(item)">{{ activityKindLabel(item) }}</span>
+                    {{ item.title }}
+                    @if (item.recordRoute) {
+                      <a class="sales-dash__link" [routerLink]="item.recordRoute">{{ item.company }}</a>
+                    } @else {
+                      <span class="sales-dash__stream-co">{{ item.company }}</span>
+                    }
+                  </p>
+                  <p class="sales-dash__stream-desc">{{ item.description }}</p>
+                </div>
+                <div class="sales-dash__stream-aside">
+                  <time class="sales-dash__stream-time">{{ item.timeLabel }}</time>
+                  <span class="sales-dash__stream-rep">{{ item.rep }}</span>
+                </div>
+              </li>
+            }
           }
         </ul>
-      </section>
-
-      <button type="button" class="sales-dash__fab" aria-label="Create new">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-      </button>
-
-      <section class="sales-dash__card sales-dash__card--focus" aria-labelledby="focus-heading">
-        <h2 id="focus-heading" class="visually-hidden">Focus assistant</h2>
-        <p class="sales-dash__focus-text">
-          Three accounts showed intent this week. Prioritize outreach while momentum is high.
-        </p>
-        <div class="sales-dash__focus-actions">
-          <button type="button" class="sales-dash__focus-btn sales-dash__focus-btn--primary">
-            Start Outreach
-          </button>
-          <button type="button" class="sales-dash__focus-btn sales-dash__focus-btn--ghost">
-            Snooze Insights
-          </button>
+        <div class="sales-dash__stream-footer">
+          @if (showStreamSeeMore()) {
+            <button type="button" class="sales-dash__see-more" (click)="expandStream()">
+              See more ({{ streamHiddenCount() }} more)
+            </button>
+          }
+          @if (showStreamShowLess()) {
+            <button type="button" class="sales-dash__see-more sales-dash__see-more--less" (click)="collapseStream()">
+              Show less
+            </button>
+          }
         </div>
       </section>
-    </aside>
-  </div>
+
+      <aside class="sales-dash__aside">
+        <section class="sales-dash__card sales-dash__card--stuck" aria-labelledby="stuck-heading">
+          <div class="sales-dash__stuck-head">
+            <span class="sales-dash__stuck-icon" aria-hidden="true">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </span>
+            <h2 id="stuck-heading" class="sales-dash__card-title">Stuck Deals</h2>
+            <span class="sales-dash__badge-auto">14+ days idle</span>
+          </div>
+          <ul class="sales-dash__stuck-list">
+            @for (deal of data.stuckDeals; track deal.id) {
+              <li class="sales-dash__stuck-item">
+                <div class="sales-dash__stuck-top">
+                  <span class="sales-dash__stuck-co">{{ deal.dealName }}</span>
+                  <span class="sales-dash__stuck-val">{{ formatMoney(deal.revenue) }}</span>
+                </div>
+                <p class="sales-dash__stuck-stage">{{ deal.company }} · {{ deal.stage }} · {{ deal.owner }}</p>
+                <div class="sales-dash__stuck-meta">
+                  <span class="sales-dash__inactive">{{ deal.inactiveDays }} days inactive</span>
+                  <a class="sales-dash__stuck-action" [routerLink]="['/deals', deal.id]">Open deal</a>
+                </div>
+              </li>
+            } @empty {
+              <li class="sales-dash__stuck-item sales-dash__stuck-item--empty">No stuck deals right now.</li>
+            }
+          </ul>
+        </section>
+
+        <button
+          type="button"
+          class="sales-dash__fab"
+          aria-label="Add sales user"
+          (click)="openCreateUser()"
+        >
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </button>
+
+        <section class="sales-dash__card sales-dash__card--focus" aria-labelledby="focus-heading">
+          <h2 id="focus-heading" class="visually-hidden">Focus assistant</h2>
+          <p class="sales-dash__focus-text">{{ data.focusInsight }}</p>
+          <div class="sales-dash__focus-actions">
+            <a class="sales-dash__focus-btn sales-dash__focus-btn--primary" routerLink="/leads">View leads</a>
+            <a class="sales-dash__focus-btn sales-dash__focus-btn--ghost" routerLink="/deals">View deals</a>
+          </div>
+        </section>
+      </aside>
+    </div>
+  }
+
+  <app-admin-create-user-modal
+    [open]="createUserOpen()"
+    (created)="onUserCreated()"
+    (closed)="closeCreateUser()"
+  />
 </div>

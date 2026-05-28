@@ -1,0 +1,57 @@
+@if (open()) {
+  <div class="admin-user-modal" role="dialog" aria-modal="true" aria-labelledby="admin-user-modal-title">
+    <div class="admin-user-modal__backdrop" (click)="onBackdropClick()"></div>
+    <div class="admin-user-modal__panel" (click)="$event.stopPropagation()">
+      <header class="admin-user-modal__head">
+        <h2 id="admin-user-modal-title" class="admin-user-modal__title">Add sales user</h2>
+        <button type="button" class="admin-user-modal__close" (click)="closed.emit()" aria-label="Close">
+          ×
+        </button>
+      </header>
+      <p class="admin-user-modal__hint">Creates a user with role User (dashboard access at /user-dashboard).</p>
+      <form class="admin-user-modal__form" [formGroup]="form" (ngSubmit)="submit()">
+        <label class="admin-user-modal__field">
+          <span class="admin-user-modal__label">Full name <span class="admin-user-modal__req">*</span></span>
+          <input class="admin-user-modal__input" type="text" formControlName="fullName" autocomplete="name" />
+          @if (fieldInvalid('fullName')) {
+            <span class="admin-user-modal__err">Full name is required.</span>
+          }
+        </label>
+        <label class="admin-user-modal__field">
+          <span class="admin-user-modal__label">Email <span class="admin-user-modal__req">*</span></span>
+          <input class="admin-user-modal__input" type="email" formControlName="email" autocomplete="email" />
+          @if (fieldInvalid('email')) {
+            <span class="admin-user-modal__err">Enter a valid email.</span>
+          }
+        </label>
+        <label class="admin-user-modal__field">
+          <span class="admin-user-modal__label">Password <span class="admin-user-modal__req">*</span></span>
+          <input
+            class="admin-user-modal__input"
+            type="password"
+            formControlName="password"
+            autocomplete="new-password"
+          />
+          @if (fieldInvalid('password')) {
+            <span class="admin-user-modal__err">Password must be at least 6 characters.</span>
+          }
+        </label>
+        <label class="admin-user-modal__field">
+          <span class="admin-user-modal__label">Phone</span>
+          <input class="admin-user-modal__input" type="tel" formControlName="phone" autocomplete="tel" />
+        </label>
+        @if (formError(); as err) {
+          <p class="admin-user-modal__banner" role="alert">{{ err }}</p>
+        }
+        <footer class="admin-user-modal__foot">
+          <button type="button" class="admin-user-modal__btn admin-user-modal__btn--ghost" (click)="closed.emit()">
+            Cancel
+          </button>
+          <button type="submit" class="admin-user-modal__btn admin-user-modal__btn--primary" [disabled]="submitting()">
+            {{ submitting() ? 'Creating…' : 'Create user' }}
+          </button>
+        </footer>
+      </form>
+    </div>
+  </div>
+}

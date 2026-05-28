@@ -1,132 +1,131 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { forkJoin, of } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
-import { ActivitiesService } from '../../core/services/activities.service';
-import type { ActivityRow } from '../../core/services/activities/activity-api.models';
-import { DealsService } from '../../core/services/deals.service';
-import { LeadsService } from '../../core/services/leads.service';
-import {
-  activityEntityDisplayLabel,
-  buildActivityEntityNameMap,
-} from '../../shared/utils/activity-entity-display.util';
+import { Component, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
+import { take } from 'rxjs';
 import { formatUsdAsInr } from '../../shared/utils/format-inr.util';
+import { AdminCreateUserModalComponent } from './admin-create-user-modal.component';
+import type {
+  AdminActivityStreamItem,
+  AdminDashboardSnapshot,
+  AdminTeamSortKey,
+} from './models/admin-dashboard.models';
+import { AdminDashboardService } from './services/admin-dashboard.service';
+import { sortTeamMembers } from './utils/admin-dashboard.util';
 
-type ActivityType = 'call' | 'meeting' | 'email' | 'task';
 type StreamTab = 'all' | 'calls' | 'meetings';
-
-interface StreamActivityItem {
-  type: ActivityType;
-  title: string;
-  company: string;
-  description: string;
-  time: string;
-  rep: string;
-}
 
 @Component({
   selector: 'app-dashboard',
-  imports: [ReactiveFormsModule],
+  imports: [RouterLink, AdminCreateUserModalComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })
-export class DashboardComponent implements OnInit {
-  private readonly fb = inject(FormBuilder);
-  private readonly activitiesService = inject(ActivitiesService);
-  private readonly leadsService = inject(LeadsService);
-  private readonly dealsService = inject(DealsService);
+export class DashboardComponent {
+  private readonly dashboardService = inject(AdminDashboardService);
 
-  protected readonly periodOptions = ['Q4 2024', 'Q3 2024', 'Q2 2024', 'Q1 2024'] as const;
+  protected readonly loading = signal(true);
+  protected readonly error = signal<string | null>(null);
+  protected readonly snapshot = signal<AdminDashboardSnapshot | null>(null);
 
-  protected readonly filterForm = this.fb.nonNullable.group({
-    period: ['Q4 2024', Validators.required],
-  });
+  protected readonly createUserOpen = signal(false);
+  protected readonly teamSortKey = signal<AdminTeamSortKey>('qualifiedLeads');
+  protected readonly teamSortDesc = signal(true);
 
-  protected readonly formatInr = formatUsdAsInr;
-
-  protected readonly monthlyTarget = {
-    achievedPct: 75,
-    currentUsd: 750_000,
-    targetUsd: 1_000_000,
-  };
-
-  protected readonly conversion = {
-    rate: '24.8%',
-    delta: '+4.2%',
-    /** Mon–Sun bar heights (% of track); all different, intentionally not sorted. */
-    weeklyBarHeights: [84, 29, 71, 45, 93, 38, 56],
-    days: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-  };
-
-  protected readonly revenueForecast = {
-    totalUsd: 4_120_000,
-    confidence: 'High (92%)',
-    segments: [
-      { label: 'Enterprise', usd: 2_200_000, pct: 53 },
-      { label: 'Mid-Market', usd: 1_400_000, pct: 34 },
-      { label: 'SMB', usd: 500_000, pct: 13 },
-    ],
-  };
-
-  protected readonly quarterlyProgress = {
-    currentUsd: 2_400_000,
-    goalUsd: 3_000_000,
-  };
-
+  protected readonly streamTab = signal<StreamTab>('all');
   protected readonly STREAM_INITIAL_COUNT = 10;
-
-  protected streamTab: StreamTab = 'all';
   protected readonly streamExpanded = signal(false);
-  protected readonly activities = signal<StreamActivityItem[]>([]);
-  protected readonly activitiesLoading = signal(true);
 
-  ngOnInit(): void {
-    forkJoin({
-      leads: this.leadsService.getAll().pipe(catchError(() => of([]))),
-      deals: this.dealsService.getAll().pipe(catchError(() => of([]))),
-    })
-      .pipe(
-        map(({ leads, deals }) => ({
-          leadIds: leads
-            .map((l) => Number(l.id))
-            .filter((n) => Number.isFinite(n) && n > 0),
-          dealIds: deals
-            .map((d) => Number(d.id))
-            .filter((n) => Number.isFinite(n) && n > 0),
-          entityNames: buildActivityEntityNameMap(leads, deals),
-        })),
-        catchError(() =>
-          of({
-            leadIds: [] as number[],
-            dealIds: [] as number[],
-            entityNames: new Map<string, string>(),
-          }),
-        ),
-      )
-      .subscribe(({ leadIds, dealIds, entityNames }) => {
-        this.activitiesService.getRecentForRecords(leadIds, dealIds, 50).subscribe({
-          next: (rows) => {
-            this.activities.set(rows.map((row) => this.toStreamItem(row, entityNames)));
-            this.activitiesLoading.set(false);
-          },
-          error: () => {
-            this.activities.set([]);
-            this.activitiesLoading.set(false);
-          },
-        });
+  protected readonly gaugeCircumference = 2 * Math.PI * 46;
+  protected readonly formatMoney = formatUsdAsInr;
+
+  constructor() {
+    this.refreshDashboard();
+  }
+
+  protected refreshDashboard(): void {
+    this.loading.set(true);
+    this.error.set(null);
+    this.streamExpanded.set(false);
+    this.dashboardService
+      .loadSnapshot()
+      .pipe(take(1))
+      .subscribe({
+        next: ({ data, error }) => {
+          this.loading.set(false);
+          this.snapshot.set(data);
+          this.error.set(error);
+        },
+        error: () => {
+          this.loading.set(false);
+          this.error.set('Could not load dashboard.');
+        },
       });
   }
 
+  protected openCreateUser(): void {
+    this.createUserOpen.set(true);
+  }
+
+  protected closeCreateUser(): void {
+    this.createUserOpen.set(false);
+  }
+
+  protected onUserCreated(): void {
+    this.refreshDashboard();
+  }
+
+  protected setTeamSort(key: AdminTeamSortKey): void {
+    if (this.teamSortKey() === key) {
+      this.teamSortDesc.update((d) => !d);
+    } else {
+      this.teamSortKey.set(key);
+      this.teamSortDesc.set(true);
+    }
+  }
+
+  protected teamSortIndicator(key: AdminTeamSortKey): string {
+    if (this.teamSortKey() !== key) return '';
+    return this.teamSortDesc() ? ' ↓' : ' ↑';
+  }
+
+  protected readonly sortedTeam = computed(() => {
+    const data = this.snapshot();
+    if (!data) return [];
+    return sortTeamMembers(data.team, this.teamSortKey(), this.teamSortDesc());
+  });
+
+  protected gaugeDashOffset(): number {
+    const pct = this.snapshot()?.kpis.monthlyTargetAchievedPct ?? 0;
+    return this.gaugeCircumference * (1 - pct / 100);
+  }
+
+  protected readonly conversionBars = computed(() => {
+    const k = this.snapshot()?.kpis;
+    if (!k || k.totalLeads === 0) {
+      return [
+        { label: 'Qual', pct: 0 },
+        { label: 'Conv', pct: 0 },
+        { label: 'New', pct: 0 },
+      ];
+    }
+    const total = k.totalLeads;
+    return [
+      { label: 'Qual', pct: Math.min(100, Math.round((k.qualifiedLeads / total) * 100)) },
+      { label: 'Conv', pct: Math.min(100, Math.round((k.convertedLeads / total) * 100)) },
+      { label: 'New', pct: Math.min(100, Math.round((k.newLeadsThisMonth / total) * 100)) },
+    ];
+  });
+
   protected setStreamTab(tab: StreamTab): void {
-    this.streamTab = tab;
+    this.streamTab.set(tab);
     this.streamExpanded.set(false);
   }
 
   protected readonly filteredActivities = computed(() => {
-    const list = this.activities();
-    if (this.streamTab === 'all') return list;
-    if (this.streamTab === 'calls') return list.filter((a) => a.type === 'call');
-    return list.filter((a) => a.type === 'meeting');
+    const list = this.snapshot()?.activities ?? [];
+    const tab = this.streamTab();
+    if (tab === 'all') return list;
+    if (tab === 'calls') return list.filter((a) => a.kind === 'call');
+    return list.filter((a) => a.kind === 'meeting');
   });
 
   protected readonly visibleActivities = computed(() => {
@@ -155,57 +154,28 @@ export class DashboardComponent implements OnInit {
     this.streamExpanded.set(false);
   }
 
-  protected readonly stuckDeals = [
-    {
-      company: 'Sterling Freight Co.',
-      stage: 'Proposal Sent',
-      inactiveDays: 14,
-      valueUsd: 410_000,
-      action: 'Trigger Nudge Sequence',
-    },
-    {
-      company: 'Blue Ridge Labs',
-      stage: 'Negotiation',
-      inactiveDays: 9,
-      valueUsd: 285_000,
-      action: 'Schedule Executive Sync',
-    },
-    {
-      company: 'Harborline Retail',
-      stage: 'Discovery',
-      inactiveDays: 21,
-      valueUsd: 132_000,
-      action: 'Escalate to Manager',
-    },
-  ];
-
-  /** SVG circle length for gauge (viewBox r=46). */
-  protected readonly gaugeCircumference = 2 * Math.PI * 46;
-
-  /** Dash offset so only achievedPct of the ring is visible (stroke from top). */
-  protected gaugeDashOffset(): number {
-    return this.gaugeCircumference * (1 - this.monthlyTarget.achievedPct / 100);
+  protected activityKindLabel(item: AdminActivityStreamItem): string {
+    switch (item.kind) {
+      case 'lead':
+        return 'Lead';
+      case 'deal':
+        return 'Deal';
+      case 'task':
+        return 'Task';
+      case 'call':
+        return 'Call';
+      case 'meeting':
+        return 'Meeting';
+      case 'email':
+        return 'Email';
+      default:
+        return 'Activity';
+    }
   }
 
-  private toStreamItem(row: ActivityRow, entityNames: Map<string, string>): StreamActivityItem {
-    const action = row.actionType.toLowerCase();
-    let type: ActivityType = 'task';
-    if (action.includes('call')) type = 'call';
-    else if (action.includes('meeting')) type = 'meeting';
-    else if (action.includes('email') || action.includes('mail')) type = 'email';
-
-    const description =
-      row.fieldName && (row.oldValue != null || row.newValue != null)
-        ? `${row.fieldName}: ${row.oldValue ?? '—'} → ${row.newValue ?? '—'}`
-        : row.message;
-
-    return {
-      type,
-      title: row.message,
-      company: activityEntityDisplayLabel(row.entityType, row.entityId, entityNames),
-      description,
-      time: row.whenLabel,
-      rep: row.actorName,
-    };
+  protected activityKindClass(item: AdminActivityStreamItem): string {
+    if (item.kind === 'lead') return 'sales-dash__entity-tag sales-dash__entity-tag--lead';
+    if (item.kind === 'deal') return 'sales-dash__entity-tag sales-dash__entity-tag--deal';
+    return 'sales-dash__entity-tag';
   }
 }
