@@ -26,13 +26,28 @@ export function parseDashboardDate(
     d.setDate(d.getDate() - 1);
     return d;
   }
-  const dMatch = lower.match(/^(\d+)\s*d\s*ago$/);
+  const dMatch = lower.match(/^(\d+)\s*d(?:ays?)?\s*ago$/);
   if (dMatch) {
     const d = new Date();
     d.setDate(d.getDate() - Number(dMatch[1]));
     return d;
   }
+  const wMatch = lower.match(/^(\d+)\s*w(?:eeks?)?\s*ago$/);
+  if (wMatch) {
+    const d = new Date();
+    d.setDate(d.getDate() - Number(wMatch[1]) * 7);
+    return d;
+  }
   return null;
+}
+
+/** Last touch date for stuck-deal / inactivity (prefers API ISO, not display label). */
+export function dealLastModifiedDate(deal: DealRow): Date | null {
+  return (
+    parseDashboardDate(deal.lastModifiedAt) ??
+    parseDashboardDate(deal.lastModified) ??
+    null
+  );
 }
 
 export function startOfDay(d: Date): Date {
@@ -56,8 +71,11 @@ export function leadRecordDate(lead: LeadRow): Date | null {
   return parseDashboardDate(lead.created) ?? parseDashboardDate(lead.updated);
 }
 
+/** Close / record date for revenue and sorting (ISO fields first). */
 export function dealRecordDate(deal: DealRow): Date | null {
   return (
+    parseDashboardDate(deal.lastModifiedAt) ??
+    parseDashboardDate(deal.createdAtAt) ??
     parseDashboardDate(deal.createdAt) ??
     parseDashboardDate(deal.lastModified)
   );

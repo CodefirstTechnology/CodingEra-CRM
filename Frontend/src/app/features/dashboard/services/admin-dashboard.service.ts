@@ -29,6 +29,7 @@ import {
   countLeadsByStatus,
   dealDisplayName,
   dealOwnerLabel,
+  dealLastModifiedDate,
   dealRecordDate,
   formatRelativeTime,
   isActiveDealStatus,
@@ -338,7 +339,7 @@ export class AdminDashboardService {
     return deals
       .filter((d) => isActiveDealStatus(d.status))
       .map((d) => {
-        const modified = dealRecordDate(d) ?? today;
+        const modified = dealLastModifiedDate(d) ?? today;
         const inactiveDays = Math.max(
           0,
           Math.floor((today.getTime() - startOfDay(modified).getTime()) / msPerDay),
