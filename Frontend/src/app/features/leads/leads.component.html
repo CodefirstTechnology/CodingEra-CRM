@@ -252,7 +252,12 @@
                 <select class="leads__control leads__control--soft leads__control--status" formControlName="status">
                   <option value="">— Select status —</option>
                   @for (opt of statusSelectOptions(); track opt.id + opt.name) {
-                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
+                    <option
+                      [value]="masterOptionFormValue(opt)"
+                      [disabled]="!isLeadStatusSelectable(opt)"
+                    >
+                      {{ opt.name }}
+                    </option>
                   }
                 </select>
                 @if (fieldInvalid('status')) {
@@ -462,7 +467,12 @@
                             [attr.aria-label]="'Status for ' + row.name"
                           >
                             @for (opt of statusSelectOptions(); track opt.id + opt.name) {
-                              <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
+                              <option
+                                [value]="masterOptionFormValue(opt)"
+                                [disabled]="!isLeadStatusSelectable(opt)"
+                              >
+                                {{ opt.name }}
+                              </option>
                             }
                           </select>
                         } @else {
@@ -515,7 +525,16 @@
                       ⋯
                     </summary>
                     <div class="leads__row-menu-panel" role="menu">
-                      @if (!isAdminViewer()) {
+                      @if (isAdminViewer()) {
+                        @if (canAssignLead(row)) {
+                          <button type="button" role="menuitem" (click)="onRowAssignTo(row, $event)">
+                            Assign to…
+                          </button>
+                          <button type="button" role="menuitem" (click)="onRowClearAssignment(row, $event)">
+                            Clear assignment
+                          </button>
+                        }
+                      } @else {
                         @if (canEditLead(row)) {
                           <button type="button" role="menuitem" (click)="onRowEdit(row, $event)">Edit</button>
                         }
