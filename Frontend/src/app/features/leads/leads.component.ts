@@ -29,7 +29,7 @@ import { UserDataScopeService } from '../../core/services/user-data-scope.servic
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
-import { isLeadConverted } from '../../shared/utils/lead-conversion.util';
+import { isLeadConverted, isLeadQualifiedForConversion } from '../../shared/utils/lead-conversion.util';
 import type { ConvertLeadOptions } from '../../core/services/leads/lead-conversion.types';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import { CRM_PAGINATED_SELECT_PAGE_SIZE } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
@@ -491,7 +491,16 @@ export class LeadsComponent {
   }
 
   protected canConvertLead(row: LeadRow): boolean {
-    return this.canEditLead(row) && !isLeadConverted(row);
+    return (
+      this.canEditLead(row) &&
+      !isLeadConverted(row) &&
+      isLeadQualifiedForConversion(row, this.resolvedLeadStatusLabel(row))
+    );
+  }
+
+  /** User may see Convert in the menu but it stays disabled until status is Qualified. */
+  protected showConvertLeadDisabled(row: LeadRow): boolean {
+    return this.canEditLead(row) && !isLeadConverted(row) && !this.canConvertLead(row);
   }
 
   protected readonly createForm = this.fb.nonNullable.group({

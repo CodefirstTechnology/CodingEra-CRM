@@ -1,8 +1,20 @@
+/* Routed outside crm-shell; host is the scroll container (body uses overflow: hidden). */
+:host {
+  display: block;
+  height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
 .adv-settings {
   display: grid;
   grid-template-columns: 260px minmax(0, 1fr);
   gap: 1rem;
-  min-height: calc(100vh - 130px);
+  align-items: start;
 }
 
 .adv-settings__sidebar,
@@ -15,8 +27,10 @@
 
 .adv-settings__sidebar {
   padding: 0.9rem 0.7rem;
-  max-height: calc(100vh - 130px);
-  overflow: auto;
+  position: sticky;
+  top: 0;
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
 }
 
 .adv-settings__title {
@@ -72,7 +86,6 @@
 }
 
 .adv-settings__card {
-  min-height: calc(100vh - 130px);
   padding: 1.2rem 1.4rem;
   display: flex;
   flex-direction: column;
@@ -339,6 +352,16 @@
   display: flex;
   align-items: center;
   gap: 0.7rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.adv-users__text {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 1rem;
+  min-width: 0;
 }
 
 .adv-users__avatar {
@@ -353,16 +376,17 @@
   font-size: 0.9rem;
 }
 
-.adv-users__name {
-  margin: 0;
-  font-size: 1.3rem;
-  font-weight: 600;
-}
-
 .adv-users__email {
-  margin: 0.12rem 0 0;
   font-size: 0.95rem;
   color: var(--text-muted);
+  word-break: break-all;
+}
+
+.adv-users__name {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 1.5rem ;
 }
 
 .adv-users__row-end {
@@ -547,14 +571,18 @@
 }
 
 @media (max-width: 980px) {
+  :host {
+    padding: 1rem;
+  }
+
   .adv-settings {
     grid-template-columns: 1fr;
   }
 
-  .adv-settings__sidebar,
-  .adv-settings__card {
-    min-height: auto;
+  .adv-settings__sidebar {
+    position: static;
     max-height: none;
+    overflow: visible;
   }
 
   .adv-settings__form-grid {

@@ -523,6 +523,15 @@
                           <button type="button" role="menuitem" (click)="openConvertModalForRow(row, $event)">
                             Convert to deal
                           </button>
+                        } @else if (showConvertLeadDisabled(row)) {
+                          <button
+                            type="button"
+                            role="menuitem"
+                            disabled
+                            title="Only Qualified leads can be converted"
+                          >
+                            Convert to deal
+                          </button>
                         } @else if (isLeadConverted(row)) {
                           <span class="leads__row-menu-muted" role="menuitem">Already converted</span>
                           @if (row.convertedDealId) {
