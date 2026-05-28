@@ -2,7 +2,6 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { take } from 'rxjs';
 import { formatUsdAsInr } from '../../shared/utils/format-inr.util';
-import { AdminCreateUserModalComponent } from './admin-create-user-modal.component';
 import type {
   AdminActivityStreamItem,
   AdminDashboardSnapshot,
@@ -15,7 +14,7 @@ type StreamTab = 'all' | 'calls' | 'meetings';
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, AdminCreateUserModalComponent],
+  imports: [RouterLink],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })
@@ -26,7 +25,6 @@ export class DashboardComponent {
   protected readonly error = signal<string | null>(null);
   protected readonly snapshot = signal<AdminDashboardSnapshot | null>(null);
 
-  protected readonly createUserOpen = signal(false);
   protected readonly teamSortKey = signal<AdminTeamSortKey>('qualifiedLeads');
   protected readonly teamSortDesc = signal(true);
 
@@ -59,18 +57,6 @@ export class DashboardComponent {
           this.error.set('Could not load dashboard.');
         },
       });
-  }
-
-  protected openCreateUser(): void {
-    this.createUserOpen.set(true);
-  }
-
-  protected closeCreateUser(): void {
-    this.createUserOpen.set(false);
-  }
-
-  protected onUserCreated(): void {
-    this.refreshDashboard();
   }
 
   protected setTeamSort(key: AdminTeamSortKey): void {

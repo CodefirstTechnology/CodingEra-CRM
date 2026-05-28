@@ -25,9 +25,6 @@
       >
         {{ loading() ? 'Refreshing…' : 'Refresh' }}
       </button>
-      <button type="button" class="sales-dash__btn sales-dash__btn--export" (click)="openCreateUser()">
-        Add sales user
-      </button>
     </div>
   </header>
 
@@ -382,17 +379,6 @@
           </ul>
         </section>
 
-        <button
-          type="button"
-          class="sales-dash__fab"
-          aria-label="Add sales user"
-          (click)="openCreateUser()"
-        >
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-        </button>
-
         <section class="sales-dash__card sales-dash__card--focus" aria-labelledby="focus-heading">
           <h2 id="focus-heading" class="visually-hidden">Focus assistant</h2>
           <p class="sales-dash__focus-text">{{ data.focusInsight }}</p>
@@ -404,10 +390,4 @@
       </aside>
     </div>
   }
-
-  <app-admin-create-user-modal
-    [open]="createUserOpen()"
-    (created)="onUserCreated()"
-    (closed)="closeCreateUser()"
-  />
 </div>
