@@ -76,10 +76,29 @@
               <p class="adv-users__email">{{ user.email }}</p>
             </div>
           </div>
-          <span class="adv-users__role">{{ user.role }}</span>
+          <div class="adv-users__row-end">
+            <span class="adv-users__role">{{ user.role }}</span>
+            @if (canDeleteUser(user)) {
+              <button
+                type="button"
+                class="adv-users__delete-btn"
+                (click)="openDeleteUser(user)"
+                [attr.aria-label]="'Delete ' + user.name"
+              >
+                Delete
+              </button>
+            }
+          </div>
         </li>
         }
       </ul>
+
+      <app-delete-user-modal
+        [open]="deleteModalOpen()"
+        [target]="deleteTarget()"
+        (deleted)="onUserDeleted()"
+        (dismiss)="closeDeleteUserModal()"
+      />
     </article>
     } @else if (isAdminViewer() && activeItem() === 'Invite User') {
     <article class="adv-settings__card">

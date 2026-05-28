@@ -6,6 +6,7 @@ import { AdminUsersService, type AdminUserRow } from '../../core/services/admin-
 import { ToastService } from '../../core/toast/toast.service';
 import { optionalPhoneValidator } from '../../shared/validators/crm-validators';
 import { passwordsMatchValidator } from '../auth/passwords-match.validator';
+import { DeleteUserModalComponent } from './delete-user-modal.component';
 
 type SettingsNavGroup = { title: string; items: readonly string[] };
 
@@ -13,7 +14,7 @@ const ADMIN_ONLY_ITEMS = new Set(['Users', 'Invite User']);
 
 @Component({
   selector: 'app-advanced-settings',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, DeleteUserModalComponent],
   templateUrl: './advanced-settings.component.html',
   styleUrl: './advanced-settings.component.scss',
 })
@@ -32,6 +33,8 @@ export class AdvancedSettingsComponent {
   protected readonly usersError = signal<string | null>(null);
   protected readonly inviteSubmitting = signal(false);
   protected readonly inviteFormError = signal<string | null>(null);
+  protected readonly deleteModalOpen = signal(false);
+  protected readonly deleteTarget = signal<AdminUserRow | null>(null);
   protected readonly roleFilters = ['All', 'Admin', 'User'] as const;
 
   protected readonly inviteUserForm = this.fb.nonNullable.group(
@@ -206,5 +209,30 @@ export class AdvancedSettingsComponent {
 
   protected userInitial(name: string): string {
     return name.trim().charAt(0).toUpperCase();
+  }
+
+  protected canDeleteUser(user: AdminUserRow): boolean {
+    const sessionId = this.auth.user()?.id?.trim();
+    if (!sessionId) return true;
+    return sessionId !== user.id.trim();
+  }
+
+  protected openDeleteUser(user: AdminUserRow): void {
+    if (!this.canDeleteUser(user)) {
+      this.toast.error('You cannot delete your own account.');
+      return;
+    }
+    this.deleteTarget.set(user);
+    this.deleteModalOpen.set(true);
+  }
+
+  protected closeDeleteUserModal(): void {
+    this.deleteModalOpen.set(false);
+    this.deleteTarget.set(null);
+  }
+
+  protected onUserDeleted(): void {
+    this.closeDeleteUserModal();
+    this.reloadUsersFromApi();
   }
 }

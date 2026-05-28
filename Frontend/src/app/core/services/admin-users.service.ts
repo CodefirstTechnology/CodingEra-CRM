@@ -6,6 +6,7 @@ import { readUsersTableRoleId, ROLE_ID_USER, sessionRoleLabel } from '../auth/au
 import { environment } from '../../../environments/environment';
 
 export type CreateUserResult = { ok: true } | { ok: false; error: string };
+export type DeleteUserResult = { ok: true } | { ok: false; error: string };
 
 export interface AdminUserRow {
   id: string;
@@ -65,6 +66,42 @@ export class AdminUsersService {
       map(() => ({ ok: true as const })),
       catchError((err: unknown) => of(this.mapCreateUserError(err))),
     );
+  }
+
+  /**
+   * DELETE `{apiUrl}/auth/users/{id}` with acting admin password in body.
+   * `userId` query param is appended by the HTTP interceptor when the session has a numeric id.
+   */
+  deleteUser(
+    bearerToken: string | null,
+    targetUserId: string,
+    password: string,
+  ): Observable<DeleteUserResult> {
+    const base = environment.apiUrl?.replace(/\/$/, '');
+    if (!base) {
+      return of({ ok: true });
+    }
+
+    const id = Number(String(targetUserId).trim());
+    if (!Number.isFinite(id) || id <= 0) {
+      return of({ ok: false, error: 'Invalid user id.' });
+    }
+
+    const headers =
+      bearerToken && bearerToken.length > 0
+        ? new HttpHeaders({ Authorization: `Bearer ${bearerToken}` })
+        : undefined;
+
+    return this.http
+      .delete<unknown>(`${base}/auth/users/${id}`, {
+        headers,
+        body: { password },
+      })
+      .pipe(
+        timeout(15000),
+        map(() => ({ ok: true as const })),
+        catchError((err: unknown) => of(this.mapDeleteUserError(err))),
+      );
   }
 
   /** GET `{apiUrl}/auth/users` (Bearer token when provided). */
@@ -145,6 +182,29 @@ export class AdminUsersService {
       .filter(Boolean)
       .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
       .join(' ');
+  }
+
+  private mapDeleteUserError(err: unknown): DeleteUserResult {
+    if (!(err instanceof HttpErrorResponse)) {
+      return { ok: false, error: 'Something went wrong. Please try again.' };
+    }
+    if (err.status === 401) {
+      return { ok: false, error: 'Incorrect password.' };
+    }
+    if (err.status === 403) {
+      return { ok: false, error: 'You do not have permission to delete users.' };
+    }
+    if (err.status === 404) {
+      return { ok: false, error: 'User not found.' };
+    }
+    const detail = this.httpErrorDetail(err);
+    if (detail) {
+      if (err.status === 400) {
+        return { ok: false, error: detail.slice(0, 220) };
+      }
+      return { ok: false, error: detail.slice(0, 220) };
+    }
+    return { ok: false, error: 'Could not delete user. Please try again.' };
   }
 
   private mapCreateUserError(err: unknown): CreateUserResult {
