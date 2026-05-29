@@ -1,0 +1,23 @@
+<header class="mf__head">
+  <div>
+    <h2 class="mf__title">Master Forms</h2>
+    <p class="mf__sub">
+      Manage CRM lookup tables (salutations, statuses, industries, and more) without database queries.
+    </p>
+  </div>
+</header>
+
+<nav class="mf__tabs" aria-label="Master form tables">
+  @for (entity of entities; track entity.slug) {
+    <button
+      type="button"
+      class="mf__tab"
+      [class.mf__tab--active]="isActive(entity.slug)"
+      (click)="selectEntity(entity.slug)"
+    >
+      {{ entity.label }}
+    </button>
+  }
+</nav>
+
+<app-master-form-panel [config]="activeConfig()" />

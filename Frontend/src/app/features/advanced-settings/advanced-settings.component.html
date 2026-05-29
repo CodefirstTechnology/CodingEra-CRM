@@ -167,6 +167,10 @@
         </footer>
       </form>
     </article>
+    } @else if (isAdminViewer() && activeItem() === 'Master Forms') {
+    <article class="adv-settings__card">
+      <app-master-forms />
+    </article>
     } @else {
     <article class="adv-settings__card">
       <header class="adv-settings__profile-head">
