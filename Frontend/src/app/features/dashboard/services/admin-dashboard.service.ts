@@ -8,7 +8,7 @@ import { AdminUsersService } from '../../../core/services/admin-users.service';
 import { ActivitiesService } from '../../../core/services/activities.service';
 import type { ActivityRow } from '../../../core/services/activities/activity-api.models';
 import { DealsService } from '../../../core/services/deals.service';
-import { isDealClosedWon } from '../../../core/services/deals/deal-pipeline.constants';
+import { isDealClosedLost, isDealClosedWon } from '../../../core/services/deals/deal-pipeline.constants';
 import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../../core/services/deals/deal-pipeline.constants';
 import { LeadsService, leadsHttpErrorMessage } from '../../../core/services/leads.service';
 import { TasksService } from '../../../core/services/tasks.service';
@@ -40,7 +40,6 @@ import {
   leadRecordDate,
   ownerKeyFromDeal,
   ownerKeyFromLead,
-  parseDashboardDate,
   STUCK_DEAL_INACTIVE_DAYS,
   STUCK_DEAL_LIMIT,
   startOfDay,
@@ -166,11 +165,10 @@ export class AdminDashboardService {
   ): AdminDashboardSnapshot {
     const now = new Date();
     const monthStart = startOfMonth(now);
-    const today = startOfDay(now);
 
     const kpis = this.buildKpis(allLeads, allDeals, now, monthStart);
     const pipelineSegments = this.buildPipelineSegments(allDeals);
-    const team = this.buildTeamStats(salesUsers, grouped, now, monthStart, today);
+    const team = this.buildTeamStats(salesUsers, grouped, now, monthStart);
     const stuckDeals = this.buildStuckDeals(allDeals, now);
     const activityItems = activities.map((row) =>
       this.toActivityStreamItem(row, entityNames),
@@ -273,7 +271,6 @@ export class AdminDashboardService {
     grouped: GroupedRecords,
     now: Date,
     monthStart: Date,
-    today: Date,
   ): AdminTeamMemberStats[] {
     const rows: AdminTeamMemberStats[] = [];
 
@@ -281,7 +278,6 @@ export class AdminDashboardService {
       const uid = user.id.trim();
       const userLeads = grouped.leadsByOwner.get(uid) ?? [];
       const userDeals = grouped.dealsByOwner.get(uid) ?? [];
-      const userTasks = grouped.tasksByAssignee.get(uid) ?? [];
       const statusCounts = countLeadsByStatus(userLeads);
       const totalLeads = userLeads.length;
       const convertedLeads = userLeads.filter((l) => isLeadConvertedRow(l)).length;
@@ -297,17 +293,19 @@ export class AdminDashboardService {
             return t != null && t >= monthStart && isInCurrentMonth(t, now);
           })(),
       );
+      const closedLostMonth = userDeals.filter(
+        (d) =>
+          isDealClosedLost(d.status) &&
+          (() => {
+            const t = dealRecordDate(d);
+            return t != null && t >= monthStart && isInCurrentMonth(t, now);
+          })(),
+      );
 
       const monthlyRevenue = closedWonMonth.reduce(
         (sum, d) => sum + (Number.isFinite(d.annualRevenue) ? d.annualRevenue : 0),
         0,
       );
-
-      const overdueTasks = userTasks.filter((t) => {
-        if (t.status === 'Done' || t.status === 'Canceled') return false;
-        const due = parseDashboardDate(t.dueDateRaw || t.dueDate);
-        return due != null && due < today;
-      }).length;
 
       rows.push({
         userId: uid,
@@ -316,7 +314,6 @@ export class AdminDashboardService {
         totalLeads,
         qualifiedLeads: statusCounts['Qualified'] ?? 0,
         contactedLeads: statusCounts['Contacted'] ?? 0,
-        newLeads: statusCounts['New'] ?? 0,
         nurtureLeads: statusCounts['Nurture'] ?? 0,
         unqualifiedLeads: statusCounts['Unqualified'] ?? 0,
         junkLeads: junk,
@@ -325,9 +322,9 @@ export class AdminDashboardService {
         conversionRatePct:
           totalLeads === 0 ? 0 : Math.round((convertedLeads / denom) * 1000) / 10,
         activeDeals: activeDeals.length,
-        closedWonMonth: closedWonMonth.length,
+        dealsClosedWon: closedWonMonth.length,
+        dealsClosedLost: closedLostMonth.length,
         monthlyRevenue,
-        overdueTasks,
       });
     }
 
