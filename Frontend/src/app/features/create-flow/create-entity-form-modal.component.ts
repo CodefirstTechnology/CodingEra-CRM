@@ -17,10 +17,14 @@ import { OrganizationMasterSelectService } from '../../core/services/organizatio
 import type { MasterDataOption } from '../../core/services/leads/lead-master-data.service';
 import { LeadMasterDataService } from '../../core/services/leads/lead-master-data.service';
 import {
+  ensureConvertedInLeadStatusOptions,
   FALLBACK_LEAD_STATUS_OPTIONS,
+  isConvertedLeadStatusName,
+  isSelectableLeadStatusOption,
   resolveLeadStatusIdFromName,
 } from '../../core/services/leads/lead-status.constants';
 import { DealMasterSelectService } from '../../core/services/deals/deal-master-select.service';
+import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
 import { resolveDealStatusLabel } from '../../core/services/deals/deal-status.constants';
 import {
   masterOptionFormValue,
@@ -78,8 +82,13 @@ export class CreateEntityFormModalComponent {
   );
   protected readonly leadStatusSelectOptions = computed(() => {
     const api = this.leadStatusesFromApi();
-    return api.length > 0 ? api : [...FALLBACK_LEAD_STATUS_OPTIONS];
+    const base = api.length > 0 ? api : [...FALLBACK_LEAD_STATUS_OPTIONS];
+    return ensureConvertedInLeadStatusOptions(base);
   });
+
+  protected isLeadStatusSelectable(opt: MasterDataOption): boolean {
+    return isSelectableLeadStatusOption(opt);
+  }
   protected readonly masterOptionFormValue = masterOptionFormValue;
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
@@ -168,7 +177,7 @@ export class CreateEntityFormModalComponent {
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     primaryEmail: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
-    status: this.fb.nonNullable.control<string>('Qualification', Validators.required),
+    status: this.fb.nonNullable.control<string>(DEFAULT_DEAL_PIPELINE_STATUS, Validators.required),
     dealOwner: [this.leadOwnerOpts.defaultOwnerId(), Validators.required],
     requirement: ['', Validators.maxLength(240)],
   });
@@ -338,7 +347,7 @@ export class CreateEntityFormModalComponent {
           firstName: '',
           primaryEmail: '',
           gender: '',
-          status: masterOptionFormValue(this.dealMaster.statusSelectOptions()[0] ?? { id: 0, name: 'Qualification' }),
+          status: masterOptionFormValue(this.dealMaster.statusSelectOptions()[0] ?? { id: 0, name: DEFAULT_DEAL_PIPELINE_STATUS }),
           dealOwner: this.leadOwnerOpts.defaultOwnerId(),
           requirement: '',
         });
@@ -508,6 +517,13 @@ export class CreateEntityFormModalComponent {
 
     const raw = this.leadForm.getRawValue();
     const emailTrim = raw.email.trim();
+
+    if (isConvertedLeadStatusName(raw.status)) {
+      this.toast.error(
+        'Converted status is set automatically when you convert a lead to a deal.',
+      );
+      return;
+    }
 
     const ownerOpt = this.leadOwnerOpts.findById(raw.leadOwner);
     const initials = ownerOpt?.initials ?? raw.leadOwner;

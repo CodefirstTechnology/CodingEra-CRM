@@ -9,6 +9,8 @@ import { Component, ElementRef, input, output, viewChild } from '@angular/core';
 export class CrmSelectionBarComponent {
   selectionCount = input(0);
   canEdit = input(false);
+  /** When false, hides bulk Edit from the actions menu. */
+  showEdit = input(true);
   showAssignActions = input(false);
   showConvertLead = input(false);
   /** When false, Assign / Clear assignment stay visible but disabled (e.g. IndiaMART-only selection). */

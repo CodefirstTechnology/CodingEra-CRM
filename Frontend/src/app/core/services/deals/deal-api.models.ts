@@ -23,7 +23,11 @@ export interface DealNormalized {
   relatedOrganizationId: number | null;
   probabilityPercent: number | null;
   nextStep: string;
+  nextFollowUpDate?: string | null;
+  /** ISO timestamp from API (`last_modified` / `updated_at`). */
   lastModified: string;
+  /** ISO timestamp from API (`created_at`). */
+  createdAt?: string;
   salutationId?: number | null;
   employeeCountId?: number | null;
   territoryId?: number | null;
@@ -49,6 +53,7 @@ export interface DealUpsertDto {
   territory?: string | null;
   industry?: string | null;
   status?: string | null;
+  dealStatusId?: number | null;
   dealOwnerId?: number | null;
   assignedToUserId?: number | null;
   assignedInitials?: string | null;
@@ -56,6 +61,7 @@ export interface DealUpsertDto {
   relatedOrganizationId?: number | null;
   probabilityPercent?: number | null;
   nextStep?: string | null;
+  nextFollowUpDate?: string | null;
 }
 
 /** @deprecated Use {@link DealNormalized} / {@link DealUpsertDto}. */

@@ -1,3 +1,4 @@
+import { resolveLeadStatusIdFromName } from '../../core/services/leads/lead-status.constants';
 import type { ActivityGroup, ActivityRow } from '../../core/services/activities/activity-api.models';
 import type { LeadRow } from '../../features/leads/lead-row.model';
 
@@ -6,7 +7,21 @@ export function leadContactName(lead: LeadRow): string {
   return full || lead.name.trim();
 }
 
+/** True when pipeline status is Qualified (by label or `lead_status_id`). */
+export function isLeadQualifiedForConversion(
+  lead: LeadRow,
+  displayStatusLabel?: string,
+): boolean {
+  const label = (displayStatusLabel ?? lead.status ?? '').trim();
+  if (label.toLowerCase() === 'qualified') return true;
+  const qualifiedId = resolveLeadStatusIdFromName('Qualified');
+  return qualifiedId != null && lead.leadStatusId === qualifiedId;
+}
+
 export function validateLeadForConversion(lead: LeadRow): string | null {
+  if (!isLeadQualifiedForConversion(lead)) {
+    return 'Only Qualified leads can be converted to a deal. Update the lead status first.';
+  }
   const org = lead.organization?.trim();
   const contact = leadContactName(lead);
   if (!org && !contact) {

@@ -11,10 +11,13 @@ import {
   mergeDealApiDtoWithRowPatch,
 } from './deals/deal-api.mapper';
 import { DealHttpService } from './deals/deal-http.service';
+import { DealMasterSelectService } from './deals/deal-master-select.service';
+import { resolveDealStatusForApi } from './deals/deal-pipeline.constants';
 
 @Injectable({ providedIn: 'root' })
 export class DealsService {
   private readonly dealHttp = inject(DealHttpService);
+  private readonly dealMaster = inject(DealMasterSelectService);
   private readonly ownerOpts = inject(LeadOwnerOptionsService);
   private readonly conversionStorage = inject(LeadConversionStorageService);
 
@@ -81,14 +84,28 @@ export class DealsService {
   }
 
   create(data: Omit<DealRow, 'id'>): Observable<DealRow> {
-    const body = dealCreatePayloadToApiJson(data);
-    return this.dealHttp.create(body).pipe(
-      map((dto) =>
-        this.mergeCreateClientFields(
-          this.ownerOpts.applyOwnerToDealRow(mapDealNormalizedToRow(dto)),
-          data,
-        ),
-      ),
+    return this.dealMaster.ensureStatusesLoaded().pipe(
+      switchMap((statusOptions) => {
+        let body = dealCreatePayloadToApiJson(data);
+        const resolved = resolveDealStatusForApi(
+          body.status ?? data.status,
+          data.dealStatusId ?? body.dealStatusId,
+          statusOptions,
+        );
+        body = {
+          ...body,
+          status: resolved.status,
+          dealStatusId: resolved.dealStatusId ?? body.dealStatusId,
+        };
+        return this.dealHttp.create(body).pipe(
+          map((dto) =>
+            this.mergeCreateClientFields(
+              this.ownerOpts.applyOwnerToDealRow(mapDealNormalizedToRow(dto)),
+              data,
+            ),
+          ),
+        );
+      }),
     );
   }
 
@@ -106,5 +123,17 @@ export class DealsService {
 
   delete(id: number): Observable<void> {
     return this.dealHttp.delete(id);
+  }
+
+  updateStatus(
+    id: number,
+    patch: { status: string; dealStatusId?: number | null; comment?: string },
+  ): Observable<DealRow | null> {
+    return this.dealHttp.patchStatus(id, patch).pipe(
+      map((dto) => {
+        if (!dto) return null;
+        return this.ownerOpts.applyOwnerToDealRow(mapDealNormalizedToRow(dto));
+      }),
+    );
   }
 }

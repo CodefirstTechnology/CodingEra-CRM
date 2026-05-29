@@ -1,18 +1,13 @@
 import type { DealPipelineStatus, DealRow } from '../../../features/deals/deals.component';
+import {
+  DEFAULT_DEAL_PIPELINE_STATUS,
+  DEAL_PIPELINE_STATUSES,
+  resolveDealStatusLabel,
+} from './deal-pipeline.constants';
 import type { DealNormalized, DealUpsertDto } from './deal-api.models';
 
-const PIPELINE: DealPipelineStatus[] = [
-  'Qualification',
-  'Proposal',
-  'Negotiation',
-  'Closed Won',
-  'Closed Lost',
-  'Demo/Making',
-];
-
 function coerceDealStatus(raw: string | undefined | null): DealPipelineStatus {
-  const s = (raw ?? 'Qualification').trim();
-  return (PIPELINE.includes(s as DealPipelineStatus) ? s : 'Qualification') as DealPipelineStatus;
+  return resolveDealStatusLabel(raw ?? DEFAULT_DEAL_PIPELINE_STATUS);
 }
 
 function readMasterId(v: unknown): number | null {
@@ -128,7 +123,7 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
 
   const statusRaw = r['dealStatus'] ?? r['status'];
   const status =
-    readMasterName(statusRaw) || (typeof statusRaw === 'string' ? statusRaw.trim() : 'Qualification');
+    readMasterName(statusRaw) || (typeof statusRaw === 'string' ? statusRaw.trim() : DEFAULT_DEAL_PIPELINE_STATUS);
 
   const salutationId =
     readOptionalInt(r['salutationId']) ??
@@ -180,7 +175,21 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
     relatedOrganizationId: readOptionalInt(r['relatedOrganizationId']),
     probabilityPercent,
     nextStep: String(r['nextStep'] ?? '').trim(),
-    lastModified: String(r['lastModified'] ?? r['updatedAt'] ?? '').trim(),
+    nextFollowUpDate: String(
+      r['nextFollowUpDate'] ?? r['NextFollowUpDate'] ?? r['next_follow_up_date'] ?? '',
+    ).trim() || undefined,
+    lastModified: String(
+      r['lastModified'] ??
+        r['LastModified'] ??
+        r['last_modified'] ??
+        r['updatedAt'] ??
+        r['UpdatedAt'] ??
+        r['updated_at'] ??
+        '',
+    ).trim(),
+    createdAt: String(
+      r['createdAt'] ?? r['CreatedAt'] ?? r['created_at'] ?? '',
+    ).trim(),
     salutationId,
     employeeCountId,
     territoryId,
@@ -221,9 +230,15 @@ export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
     assignedTo,
     assignedInitials,
     lastModified: formatDealLastModifiedLabel(dto.lastModified),
+    lastModifiedAt: dto.lastModified || undefined,
+    createdAtAt: dto.createdAt || undefined,
     probabilityPercent,
     nextStep: dto.nextStep ?? '',
   };
+
+  if (dto.nextFollowUpDate?.trim()) {
+    out.nextFollowUpDate = dto.nextFollowUpDate.trim();
+  }
 
   if (dto.relatedContactId != null && dto.relatedContactId > 0) {
     out.relatedContactId = String(dto.relatedContactId);
@@ -308,6 +323,7 @@ function normalizedToUpsertDto(n: DealNormalized, idOverride?: number): DealUpse
     territory: n.territory || null,
     industry: n.industry || null,
     status: n.status || null,
+    dealStatusId: n.dealStatusId != null && n.dealStatusId > 0 ? n.dealStatusId : undefined,
     dealOwnerId: owners.dealOwnerId,
     assignedToUserId: owners.assignedToUserId,
     assignedInitials: n.assignedInitials || null,
@@ -343,7 +359,11 @@ function rowToNormalized(row: DealRow, previous?: DealNormalized): DealNormalize
     website: row.website ?? previous?.website ?? '',
     territory: row.territory ?? previous?.territory ?? '',
     industry: row.industry ?? previous?.industry ?? 'Technology',
-    status: row.status ?? previous?.status ?? 'Qualification',
+    status: row.status ?? previous?.status ?? DEFAULT_DEAL_PIPELINE_STATUS,
+    dealStatusId:
+      row.dealStatusId != null && row.dealStatusId > 0
+        ? row.dealStatusId
+        : previous?.dealStatusId ?? null,
     dealOwnerId: owners.dealOwnerId,
     assignedToUserId: owners.assignedToUserId,
     assignedInitials: row.assignedInitials ?? previous?.assignedInitials ?? '',

@@ -1,0 +1,60 @@
+<div class="deal-pipeline" aria-label="Deal pipeline board">
+  <div class="deal-pipeline__board">
+    @for (group of groups; track group.id) {
+      <section class="deal-pipeline__column card" [attr.aria-label]="group.label">
+        <header class="deal-pipeline__column-head">
+          <h2 class="deal-pipeline__column-title">{{ group.label }}</h2>
+          <span class="deal-pipeline__column-count">{{ (dealsByGroup().get(group.id) ?? []).length }}</span>
+        </header>
+
+        <div class="deal-pipeline__cards">
+          @for (deal of dealsByGroup().get(group.id) ?? []; track deal.id) {
+            <article class="deal-pipeline__card" [class.is-updating]="isUpdating(deal)">
+              <a class="deal-pipeline__card-title" [routerLink]="['/deals', deal.id]">
+                {{ dealTitle(deal) }}
+              </a>
+              <p class="deal-pipeline__card-org">{{ deal.organizationName }}</p>
+
+              <dl class="deal-pipeline__meta">
+                <div class="deal-pipeline__meta-row">
+                  <dt>Value</dt>
+                  <dd>{{ formatRevenue(deal.annualRevenue) }}</dd>
+                </div>
+                <div class="deal-pipeline__meta-row">
+                  <dt>Follow-up</dt>
+                  <dd>{{ formatFollowUp(deal.nextFollowUpDate) }}</dd>
+                </div>
+                <div class="deal-pipeline__meta-row">
+                  <dt>Assigned</dt>
+                  <dd>
+                    <span class="deal-pipeline__assign">
+                      <span class="deal-pipeline__assign-avatar">{{ deal.assignedInitials || '—' }}</span>
+                      <span>{{ deal.assignedTo || 'Unassigned' }}</span>
+                    </span>
+                  </dd>
+                </div>
+              </dl>
+
+              <label class="deal-pipeline__stage-label">
+                <span class="deal-pipeline__stage-caption">Stage</span>
+                <select
+                  class="deal-pipeline__stage-select"
+                  [value]="statusSelectValue(deal)"
+                  [disabled]="isUpdating(deal)"
+                  (change)="onStageSelect(deal, $event)"
+                  [attr.aria-label]="'Change stage for ' + dealTitle(deal)"
+                >
+                  @for (opt of statusOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
+                  }
+                </select>
+              </label>
+            </article>
+          } @empty {
+            <p class="deal-pipeline__empty">No deals in this stage group.</p>
+          }
+        </div>
+      </section>
+    }
+  </div>
+</div>

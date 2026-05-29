@@ -1,0 +1,111 @@
+<header class="mf-panel__head">
+  <div>
+    <h3 class="mf-panel__title">{{ config().label }}</h3>
+    <p class="mf-panel__sub">{{ config().description }}</p>
+  </div>
+  <button type="button" class="mf-panel__add-btn" (click)="openCreate()">+ Add {{ config().singularLabel }}</button>
+</header>
+
+<div class="mf-panel__toolbar">
+  <label class="mf-panel__search">
+    <span class="visually-hidden">Search</span>
+    <input type="search" placeholder="Search by name or description" (input)="onSearch($event)" />
+  </label>
+</div>
+
+@if (loading()) {
+  <p class="mf-panel__hint" aria-live="polite">Loading…</p>
+}
+@if (loadError(); as errMsg) {
+  <p class="mf-panel__err" role="alert">{{ errMsg }}</p>
+}
+
+@if (!loading() && !loadError() && filteredRows().length === 0) {
+  <div class="mf-panel__empty">
+    <p>No {{ config().label | lowercase }} found.</p>
+    <button type="button" class="mf-panel__add-btn mf-panel__add-btn--inline" (click)="openCreate()">
+      Add your first {{ config().singularLabel | lowercase }}
+    </button>
+  </div>
+}
+
+@if (!loading() && filteredRows().length > 0) {
+  <div class="mf-panel__table-wrap">
+    <table class="mf-panel__table">
+      <thead>
+        <tr>
+          <th scope="col">Name</th>
+          <th scope="col">Description</th>
+          <th scope="col">Active</th>
+          <th scope="col">Created</th>
+          <th scope="col"><span class="visually-hidden">Actions</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of filteredRows(); track row.id) {
+          <tr [class.mf-panel__row--inactive]="!row.isActive">
+            <td>{{ row.name }}</td>
+            <td>{{ row.description || '—' }}</td>
+            <td>
+              <span class="mf-panel__badge" [class.mf-panel__badge--inactive]="!row.isActive">
+                {{ row.isActive ? 'Active' : 'Inactive' }}
+              </span>
+            </td>
+            <td>{{ formatDate(row.createdAt) }}</td>
+            <td class="mf-panel__actions">
+              <button type="button" class="mf-panel__action" (click)="openEdit(row)">Edit</button>
+              <button
+                type="button"
+                class="mf-panel__action"
+                [class.mf-panel__action--warn]="row.isActive"
+                [disabled]="togglingId() === row.id"
+                (click)="toggleActive(row)"
+              >
+                {{ togglingId() === row.id ? '…' : row.isActive ? 'Disable' : 'Enable' }}
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}
+
+<app-crm-modal
+  [open]="modalOpen()"
+  [title]="modalTitle()"
+  [showFooter]="true"
+  (dismiss)="closeModal()"
+>
+  <form [formGroup]="form" (ngSubmit)="submit()" id="master-form-panel-form">
+    <label class="mf-panel__field">
+      <span>Name <span class="mf-panel__req">*</span></span>
+      <input type="text" formControlName="name" autocomplete="off" />
+      @if (fieldInvalid('name')) {
+        <small class="mf-panel__field-error">Name is required.</small>
+      } @else if (duplicateNameError(); as dupErr) {
+        <small class="mf-panel__field-error">{{ dupErr }}</small>
+      }
+    </label>
+    <label class="mf-panel__field">
+      <span>Description</span>
+      <textarea formControlName="description" rows="3"></textarea>
+    </label>
+    <label class="mf-panel__checkbox">
+      <input type="checkbox" formControlName="isActive" />
+      <span>Active</span>
+    </label>
+  </form>
+
+  <div crmModalFooter>
+    <button type="button" class="mf-panel__btn mf-panel__btn--ghost" (click)="closeModal()">Cancel</button>
+    <button
+      type="submit"
+      form="master-form-panel-form"
+      class="mf-panel__btn mf-panel__btn--primary"
+      [disabled]="saving()"
+    >
+      {{ submitLabel() }}
+    </button>
+  </div>
+</app-crm-modal>

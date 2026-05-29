@@ -1,0 +1,234 @@
+.mf-panel__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.mf-panel__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.mf-panel__sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.92rem;
+  color: var(--text-muted);
+  max-width: 640px;
+}
+
+.mf-panel__add-btn {
+  border: none;
+  border-radius: 10px;
+  background: #111827;
+  color: #fff;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mf-panel__add-btn--inline {
+  margin-top: 0.5rem;
+}
+
+.mf-panel__toolbar {
+  margin-bottom: 0.75rem;
+}
+
+.mf-panel__search input {
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text-primary);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.95rem;
+  min-width: 260px;
+}
+
+.mf-panel__hint {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-secondary, #64748b);
+}
+
+.mf-panel__err {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #b91c1c;
+}
+
+.mf-panel__empty {
+  border: 1px dashed var(--card-border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.mf-panel__table-wrap {
+  overflow-x: auto;
+}
+
+.mf-panel__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.mf-panel__table th,
+.mf-panel__table td {
+  text-align: left;
+  padding: 0.65rem 0.5rem;
+  border-bottom: 1px solid var(--card-border);
+  vertical-align: middle;
+}
+
+.mf-panel__table th {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.mf-panel__row--inactive td {
+  color: var(--text-muted);
+}
+
+.mf-panel__badge {
+  display: inline-block;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.mf-panel__badge--inactive {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.mf-panel__actions {
+  display: flex;
+  gap: 0.4rem;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.mf-panel__action {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-primary);
+  padding: 0.3rem 0.55rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mf-panel__action--warn {
+  color: #dc2626;
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.mf-panel__action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.mf-panel__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 0.85rem;
+}
+
+.mf-panel__field span {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.mf-panel__field input,
+.mf-panel__field textarea {
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: var(--body-bg);
+  color: var(--text-primary);
+  padding: 0.55rem 0.75rem;
+  font-size: 1rem;
+  font-family: inherit;
+}
+
+.mf-panel__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.mf-panel__req {
+  color: #dc2626;
+}
+
+.mf-panel__field-error {
+  color: #b91c1c;
+  font-size: 0.85rem;
+}
+
+.mf-panel__btn {
+  border-radius: 10px;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mf-panel__btn--ghost {
+  border: 1px solid var(--card-border);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.mf-panel__btn--primary {
+  border: none;
+  background: #111827;
+  color: #fff;
+}
+
+.mf-panel__btn--primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 720px) {
+  .mf-panel__head {
+    flex-direction: column;
+  }
+
+  .mf-panel__search input {
+    min-width: 0;
+    width: 100%;
+  }
+}

@@ -3,6 +3,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { take } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
@@ -18,7 +19,8 @@ import {
   masterSelectControlValue,
   resolveOrgMasterPick,
 } from '../../core/services/organizations/organization-master-select.util';
-import { resolveDealStatusLabel } from '../../core/services/deals/deal-status.constants';
+import { resolveDealStatusLabel, dealStatusCssKind } from '../../core/services/deals/deal-status.constants';
+import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
@@ -151,7 +153,8 @@ export class DealDetailComponent {
   protected readonly dataForm = this.fb.nonNullable.group({
     organization: ['', Validators.required],
     annualRevenue: [''],
-    status: this.fb.nonNullable.control<string>('Qualification', Validators.required),
+    status: this.fb.nonNullable.control<string>(DEFAULT_DEAL_PIPELINE_STATUS, Validators.required),
+    stageComment: [''],
     email: ['', [Validators.email]],
     mobile: [''],
     dealOwner: [this.ownerOpts.defaultOwnerId(), Validators.required],
@@ -633,6 +636,7 @@ export class DealDetailComponent {
         probabilityPercent:
           Number.isFinite(prob) ? (Math.round(prob * 1000) / 1000).toFixed(3) : '10.000',
         nextStep: row.nextStep ?? '',
+        stageComment: '',
       },
       { emitEvent: false },
     );
@@ -701,12 +705,33 @@ export class DealDetailComponent {
     }
 
     const payload = this.buildDirtyDealSavePatch(row);
-    if (Object.keys(payload).length <= 1) return;
+    const statusDirty = this.dataForm.controls.status.dirty;
+    const hasOtherChanges = Object.keys(payload).some((k) => k !== 'lastModified' && k !== 'status' && k !== 'dealStatusId');
+    if (!statusDirty && !hasOtherChanges) return;
+
+    const v = this.dataForm.getRawValue();
+    let save$;
+    if (statusDirty) {
+      const statPick = resolveOrgMasterPick(v.status, this.dealMaster.statusSelectOptions());
+      const status = resolveDealStatusLabel(statPick.label || v.status);
+      const comment = v.stageComment.trim() || undefined;
+      delete payload.status;
+      delete payload.dealStatusId;
+      save$ = this.dealsService.updateStatus(idn, {
+        status,
+        dealStatusId: statPick.masterId,
+        comment,
+      });
+      if (hasOtherChanges) {
+        save$ = save$.pipe(switchMap(() => this.dealsService.update(idn, payload)));
+      }
+    } else {
+      save$ = this.dealsService.update(idn, payload);
+    }
 
     this.dataSaving.set(true);
 
-    this.dealsService
-      .update(idn, payload)
+    save$
       .pipe(take(1))
       .subscribe({
         next: (updated) => {
@@ -838,15 +863,15 @@ export class DealDetailComponent {
     const s = resolveDealStatusLabel(
       resolveOrgMasterPick(raw, this.dealMaster.statusSelectOptions()).label || raw,
     );
-    switch (s) {
-      case 'Closed Won':
+    const kind = dealStatusCssKind(s);
+    switch (kind) {
+      case 'won':
         return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--won';
-      case 'Closed Lost':
+      case 'lost':
         return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--lost';
-      case 'Negotiation':
-      case 'Proposal':
+      case 'accent':
         return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--accent';
-      case 'Demo/Making':
+      case 'demo':
         return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--demo';
       default:
         return 'deal-detail__hdr-status-dot deal-detail__hdr-status-dot--muted';

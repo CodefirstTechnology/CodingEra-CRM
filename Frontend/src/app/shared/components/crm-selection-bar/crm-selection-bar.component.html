@@ -4,7 +4,9 @@
     <details class="crm-sel-bar__menu" #menuRef (keydown.escape)="$event.preventDefault(); closeMenu()">
       <summary class="crm-sel-bar__summary" aria-label="Open actions menu">⋯</summary>
       <div class="crm-sel-bar__dropdown" role="menu">
-        <button type="button" role="menuitem" [disabled]="!canEdit()" (click)="onEdit()">Edit</button>
+        @if (showEdit()) {
+          <button type="button" role="menuitem" [disabled]="!canEdit()" (click)="onEdit()">Edit</button>
+        }
         @if (showDelete()) {
           <button type="button" role="menuitem" (click)="onDelete()">Delete</button>
         }

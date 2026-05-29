@@ -390,6 +390,17 @@
                 }
               </select>
             </label>
+            @if (dataForm.controls.status.dirty) {
+            <label class="deal-detail__field deal-detail__field--span2">
+              <span class="deal-detail__label">Stage change comment (optional)</span>
+              <input
+                type="text"
+                class="deal-detail__input"
+                formControlName="stageComment"
+                placeholder="Add a note about this stage change"
+              />
+            </label>
+            }
             <label class="deal-detail__field">
               <span class="deal-detail__label">Deal owner<span class="deal-detail__req" aria-hidden="true">*</span></span>
               <select class="deal-detail__select" formControlName="dealOwner">

@@ -71,15 +71,34 @@
         <li class="adv-users__row">
           <div class="adv-users__identity">
             <span class="adv-users__avatar">{{ userInitial(user.name) }}</span>
-            <div>
-              <p class="adv-users__name">{{ user.name }}</p>
-              <p class="adv-users__email">{{ user.email }}</p>
+            <div class="adv-users__text">
+              <span class="adv-users__name">{{ user.name }}</span>
+              <span class="adv-users__email">{{ user.email }}</span>
             </div>
           </div>
-          <span class="adv-users__role">{{ user.role }}</span>
+          <div class="adv-users__row-end">
+            <span class="adv-users__role">{{ user.role }}</span>
+            @if (canDeleteUser(user)) {
+              <button
+                type="button"
+                class="adv-users__delete-btn"
+                (click)="openDeleteUser(user)"
+                [attr.aria-label]="'Delete ' + user.name"
+              >
+                Delete
+              </button>
+            }
+          </div>
         </li>
         }
       </ul>
+
+      <app-delete-user-modal
+        [open]="deleteModalOpen()"
+        [target]="deleteTarget()"
+        (deleted)="onUserDeleted()"
+        (dismiss)="closeDeleteUserModal()"
+      />
     </article>
     } @else if (isAdminViewer() && activeItem() === 'Invite User') {
     <article class="adv-settings__card">
@@ -147,6 +166,10 @@
           </button>
         </footer>
       </form>
+    </article>
+    } @else if (isAdminViewer() && activeItem() === 'Master Forms') {
+    <article class="adv-settings__card">
+      <app-master-forms />
     </article>
     } @else {
     <article class="adv-settings__card">

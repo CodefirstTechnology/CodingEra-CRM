@@ -2,18 +2,38 @@
   <header class="deals__head">
     <div>
       <h1 class="deals__title">Deals</h1>
-      <p class="deals__sub">Track opportunities from qualification to close.</p>
+      <p class="deals__sub">Track opportunities from quotation to close.</p>
     </div>
-    <button type="button" class="deals__btn deals__btn--solid" (click)="openForm()">+ New deal</button>
+    <div class="deals__head-actions">
+      <div class="deals__view-toggle" role="group" aria-label="Deal list view">
+        <button
+          type="button"
+          class="deals__view-btn"
+          [class.is-active]="listView() === 'table'"
+          (click)="setListView('table')"
+        >
+          Table view
+        </button>
+        <button
+          type="button"
+          class="deals__view-btn"
+          [class.is-active]="listView() === 'pipeline'"
+          (click)="setListView('pipeline')"
+        >
+          Pipeline view
+        </button>
+      </div>
+      <button type="button" class="deals__btn deals__btn--solid" (click)="openForm()">+ New deal</button>
+    </div>
   </header>
 
   <app-crm-selection-bar
     [selectionCount]="sel.selectedCount()"
     [canEdit]="sel.selectedCount() === 1"
-    [showAssignActions]="true"
+    [showAssignActions]="isAdminViewer()"
     [showConvertLead]="false"
+    [showDelete]="false"
     (edit)="onBulkEdit()"
-    (delete)="onBulkDelete()"
     (assignTo)="onAssignToMenu()"
     (clearAssignment)="onClearAssignmentBulk()"
     (dismiss)="onBulkDismiss()"
@@ -245,6 +265,14 @@
     </div>
   }
 
+  @if (listView() === 'pipeline') {
+    <app-deal-pipeline-board
+      [deals]="rows()"
+      [statusOptions]="dealStatuses()"
+      [updatingDealId]="stageUpdatingId()"
+      (stageChange)="onPipelineStageChange($event)"
+    />
+  } @else {
   <div class="deals__table-card card">
     <div class="deals__table-head">
       <span class="deals__count">
@@ -296,7 +324,6 @@
             @for (column of visibleColumns(); track column.id) {
               <th class="deals__th">{{ column.label }}</th>
             }
-            <th class="deals__th">Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -369,13 +396,11 @@
                   }
                 </td>
               }
-              <td class="deals__td">
-                <button type="button" class="deals__linkish" (click)="deleteDeal(row, $event)">Delete</button>
-              </td>
             </tr>
           }
         </tbody>
       </table>
     </div>
   </div>
+  }
 </div>
