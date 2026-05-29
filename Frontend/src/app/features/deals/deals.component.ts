@@ -141,6 +141,7 @@ export class DealsComponent {
 
   protected readonly dealOwnerOptions = this.ownerOpts.options;
   protected readonly masterOptionFormValue = masterOptionFormValue;
+  protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
 
   protected readonly rows = signal<DealRow[]>([]);
   private readonly requiredColumnIds = new Set(['contactName', 'organizationName', 'assignedTo']);
@@ -525,25 +526,12 @@ export class DealsComponent {
     this.beginEditFromRoute(ids[0]);
   }
 
-  protected onBulkDelete(): void {
-    const ids = this.sel.selectedItems();
-    if (ids.length === 0) return;
-    forkJoin(ids.map((sid) => this.dealsService.delete(Number(sid)).pipe(take(1)))).subscribe({
-      next: () => {
-        this.sel.clear();
-        this.refreshDeals();
-        const n = ids.length;
-        this.toast.success(n === 1 ? 'Deal deleted.' : `${n} deals deleted.`);
-      },
-      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
-    });
-  }
-
   protected onBulkDismiss(): void {
     this.sel.clear();
   }
 
   protected onAssignToMenu(): void {
+    if (!this.isAdminViewer()) return;
     this.assignPickerOpen.set(true);
   }
 
@@ -552,6 +540,7 @@ export class DealsComponent {
   }
 
   protected onAssignPicked(ownerKey: string): void {
+    if (!this.isAdminViewer()) return;
     const opt = this.dealOwnerOptions().find((o) => o.id === ownerKey);
     if (!opt) {
       this.assignPickerOpen.set(false);
@@ -585,6 +574,7 @@ export class DealsComponent {
   }
 
   protected onClearAssignmentBulk(): void {
+    if (!this.isAdminViewer()) return;
     const ids = this.sel.selectedItems();
     if (ids.length === 0) return;
     const streams = ids.map((sid) =>
@@ -712,23 +702,6 @@ export class DealsComponent {
           error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
         });
     }
-  }
-
-  protected deleteDeal(row: DealRow, ev: Event): void {
-    ev.stopPropagation();
-    const id = Number(row.id);
-    if (!Number.isFinite(id)) return;
-    this.dealsService
-      .delete(id)
-      .pipe(take(1))
-      .subscribe({
-        next: () => {
-          this.sel.removeId(row.id);
-          this.refreshDeals();
-          this.toast.success('Deal deleted.');
-        },
-        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
-      });
   }
 
   /** Table display only (not persisted). */
