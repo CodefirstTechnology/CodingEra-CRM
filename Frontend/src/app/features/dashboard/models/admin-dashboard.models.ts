@@ -35,7 +35,6 @@ export interface AdminTeamMemberStats {
   totalLeads: number;
   qualifiedLeads: number;
   contactedLeads: number;
-  newLeads: number;
   nurtureLeads: number;
   unqualifiedLeads: number;
   junkLeads: number;
@@ -43,9 +42,9 @@ export interface AdminTeamMemberStats {
   convertedLeads: number;
   conversionRatePct: number;
   activeDeals: number;
-  closedWonMonth: number;
+  dealsClosedWon: number;
+  dealsClosedLost: number;
   monthlyRevenue: number;
-  overdueTasks: number;
 }
 
 export interface AdminStuckDealRow {

@@ -20,6 +20,7 @@ import {
 } from '../../core/services/organizations/organization-master-select.util';
 import type { ContactRow } from './contacts.component';
 import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
+import { dealStatusCssKind } from '../../core/services/deals/deal-status.constants';
 
 @Component({
   selector: 'app-contact-detail',
@@ -268,16 +269,21 @@ export class ContactDetailComponent {
       });
   }
 
+  protected dealStatusDotClass(status: DealPipelineStatus): string {
+    const kind = dealStatusCssKind(status);
+    return kind === 'demo' ? 'contact-detail__status-dot contact-detail__status-dot--demo' : 'contact-detail__status-dot';
+  }
+
   protected dealStatusClass(status: DealPipelineStatus): string {
-    switch (status) {
-      case 'Closed Won':
+    const kind = dealStatusCssKind(status);
+    switch (kind) {
+      case 'won':
         return 'contact-detail__pill contact-detail__pill--ok';
-      case 'Closed Lost':
+      case 'lost':
         return 'contact-detail__pill contact-detail__pill--bad';
-      case 'Demo/Making':
+      case 'demo':
         return 'contact-detail__pill contact-detail__pill--demo';
-      case 'Negotiation':
-      case 'Proposal':
+      case 'accent':
         return 'contact-detail__pill contact-detail__pill--accent';
       default:
         return 'contact-detail__pill contact-detail__pill--muted';

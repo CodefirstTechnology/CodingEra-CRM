@@ -5,6 +5,7 @@ import { ActivitiesService } from '../../../core/services/activities.service';
 import type { ActivityRow } from '../../../core/services/activities/activity-api.models';
 import { AuthService } from '../../../core/auth/auth.service';
 import { DealsService } from '../../../core/services/deals.service';
+import { isDealClosed, isDealClosedWon } from '../../../core/services/deals/deal-pipeline.constants';
 import { LeadOwnerOptionsService } from '../../../core/services/leads/lead-owner-options.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../../core/services/leads.service';
 import { TasksService } from '../../../core/services/tasks.service';
@@ -111,9 +112,9 @@ export class UserDashboardService {
     });
 
     const activeDeals = myDeals.filter(
-      (d) => d.status !== 'Closed Won' && d.status !== 'Closed Lost',
+      (d) => !isDealClosed(d.status),
     );
-    const closedDeals = myDeals.filter((d) => d.status === 'Closed Won');
+    const closedDeals = myDeals.filter((d) => isDealClosedWon(d.status));
     const monthlyClosed = closedDeals.filter((d) => {
       const t = this.parseDate(d.lastModified);
       return t && t >= monthStart;

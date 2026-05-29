@@ -162,13 +162,12 @@
             <tr>
               <th scope="col">Rep</th>
               <th scope="col">Leads</th>
+              <th scope="col">Contacted</th>
               <th scope="col">
                 <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('qualifiedLeads')">
                   Qualified{{ teamSortIndicator('qualifiedLeads') }}
                 </button>
               </th>
-              <th scope="col">Contacted</th>
-              <th scope="col">New</th>
               <th scope="col">
                 <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('convertedLeads')">
                   Converted{{ teamSortIndicator('convertedLeads') }}
@@ -180,12 +179,13 @@
                   Active deals{{ teamSortIndicator('activeDeals') }}
                 </button>
               </th>
+              <th scope="col">Deal won</th>
+              <th scope="col">Deal lost</th>
               <th scope="col">
                 <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('monthlyRevenue')">
                   Revenue{{ teamSortIndicator('monthlyRevenue') }}
                 </button>
               </th>
-              <th scope="col">Overdue</th>
             </tr>
           </thead>
           <tbody>
@@ -207,14 +207,14 @@
                     <span class="sales-dash__team-email">{{ row.email }}</span>
                   </td>
                   <td>{{ row.totalLeads }}</td>
-                  <td>{{ row.qualifiedLeads }}</td>
                   <td>{{ row.contactedLeads }}</td>
-                  <td>{{ row.newLeads }}</td>
+                  <td>{{ row.qualifiedLeads }}</td>
                   <td>{{ row.convertedLeads }}</td>
                   <td>{{ row.conversionRatePct }}%</td>
                   <td>{{ row.activeDeals }}</td>
+                  <td>{{ row.dealsClosedWon }}</td>
+                  <td>{{ row.dealsClosedLost }}</td>
                   <td>{{ formatMoney(row.monthlyRevenue) }}</td>
-                  <td>{{ row.overdueTasks }}</td>
                 </tr>
               }
             }

@@ -1,6 +1,6 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { forkJoin, of } from 'rxjs';
-import { catchError, map, take } from 'rxjs/operators';
+import { forkJoin, Observable, of } from 'rxjs';
+import { catchError, map, shareReplay, take, tap } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import {
   labelsToMasterOptions,
@@ -23,8 +23,7 @@ const territoryWithBlank = (middle: MasterDataOption[]): MasterDataOption[] => [
 
 /**
  * Loads MasterData for deal forms:
- * salutations, employee-counts, territories, industries.
- * Deal statuses use local pipeline fallback (no MasterData endpoint yet).
+ * salutations, employee-counts, territories, industries, deal-statuses.
  */
 @Injectable({ providedIn: 'root' })
 export class DealMasterSelectService {
@@ -37,6 +36,7 @@ export class DealMasterSelectService {
   );
   private readonly industries = signal<MasterDataOption[]>(INDUSTRY_FALLBACK);
   private readonly statuses = signal<MasterDataOption[]>([...FALLBACK_DEAL_STATUS_OPTIONS]);
+  private statusesReady$?: Observable<readonly MasterDataOption[]>;
 
   readonly salutationSelectOptions = computed(() => salutationSelectOptions(this.salutations()));
   readonly employeeSelectOptions = computed(() => this.employees());
@@ -44,28 +44,26 @@ export class DealMasterSelectService {
   readonly industrySelectOptions = computed(() => this.industries());
   readonly statusSelectOptions = computed(() => this.statuses());
 
-  constructor() {
-    const base = environment.apiUrl?.trim();
-    if (!base) return;
+  /** Resolves when deal-status master data is loaded (needed before POST /api/deals). */
+  ensureStatusesLoaded(): Observable<readonly MasterDataOption[]> {
+    if (this.statusesReady$) {
+      return this.statusesReady$;
+    }
 
-    forkJoin({
+    const base = environment.apiUrl?.trim();
+    if (!base) {
+      this.statusesReady$ = of([...FALLBACK_DEAL_STATUS_OPTIONS]);
+      return this.statusesReady$;
+    }
+
+    this.statusesReady$ = forkJoin({
       salutations: this.master.loadSalutations(),
       employees: this.master.loadEmployeeCounts(),
       territories: this.master.loadTerritories(),
       industries: this.master.loadIndustries(),
-    })
-      .pipe(
-        take(1),
-        catchError(() =>
-          of({
-            salutations: [] as MasterDataOption[],
-            employees: [],
-            territories: [],
-            industries: [],
-          }),
-        ),
-      )
-      .subscribe(({ salutations, employees, territories, industries }) => {
+      statuses: this.master.loadDealStatuses(),
+    }).pipe(
+      tap(({ salutations, employees, territories, industries, statuses }) => {
         this.salutations.set(salutations);
         this.employees.set(mergeApiOrFallback(employees, EMPLOYEE_FALLBACK));
         const tMid = territories.length
@@ -73,6 +71,21 @@ export class DealMasterSelectService {
           : labelsToMasterOptions([...ORG_TERRITORY_FALLBACK_LABELS]);
         this.territories.set(territoryWithBlank(tMid));
         this.industries.set(mergeApiOrFallback(industries, INDUSTRY_FALLBACK));
-      });
+        this.statuses.set(
+          statuses.length ? mergeApiOrFallback(statuses, [...FALLBACK_DEAL_STATUS_OPTIONS]) : [...FALLBACK_DEAL_STATUS_OPTIONS],
+        );
+      }),
+      map(() => this.statuses()),
+      catchError(() => {
+        this.statuses.set([...FALLBACK_DEAL_STATUS_OPTIONS]);
+        return of([...FALLBACK_DEAL_STATUS_OPTIONS] as readonly MasterDataOption[]);
+      }),
+      shareReplay(1),
+    );
+    return this.statusesReady$;
+  }
+
+  constructor() {
+    this.ensureStatusesLoaded().pipe(take(1)).subscribe();
   }
 }

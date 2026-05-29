@@ -1,0 +1,50 @@
+:host {
+  display: block;
+}
+
+.mf__head {
+  margin-bottom: 1rem;
+}
+
+.mf__title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.mf__sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  max-width: 720px;
+}
+
+.mf__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.mf__tab {
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-primary);
+  padding: 0.35rem 0.75rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mf__tab--active {
+  border-color: color-mix(in srgb, var(--tertiary-color) 40%, var(--card-border));
+  background: color-mix(in srgb, var(--tertiary-color) 12%, transparent);
+  color: var(--tertiary-color);
+}
+
+@media (max-width: 720px) {
+  .mf__title {
+    font-size: 1.4rem;
+  }
+}

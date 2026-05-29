@@ -16,21 +16,18 @@ import {
   resolveOrgMasterPick,
   resolveSalutationLabel,
 } from '../../core/services/organizations/organization-master-select.util';
-import { resolveDealStatusLabel } from '../../core/services/deals/deal-status.constants';
+import { resolveDealStatusLabel, dealStatusCssKind } from '../../core/services/deals/deal-status.constants';
+import type { DealPipelineStatus } from '../../core/services/deals/deal-pipeline.constants';
+import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { DealPipelineBoardComponent } from './deal-pipeline-board.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { leadPersonName } from '../../shared/utils/lead-person-name.util';
 
-export type DealPipelineStatus =
-  | 'Qualification'
-  | 'Proposal'
-  | 'Negotiation'
-  | 'Closed Won'
-  | 'Closed Lost'
-  | 'Demo/Making';
+export type { DealPipelineStatus };
 
 export interface DealOwnerOption {
   id: string;
@@ -83,6 +80,8 @@ export interface DealRow {
   /** Win probability (e.g. 10 = 10%). */
   probabilityPercent?: number;
   nextStep?: string;
+  /** ISO next follow-up date from API. */
+  nextFollowUpDate?: string;
   requirement?: string;
   /** Display title for list/detail (e.g. "Acme — Jane Doe"). */
   dealTitle?: string;
@@ -105,7 +104,13 @@ interface DealColumnOption {
 
 @Component({
   selector: 'app-deals',
-  imports: [ReactiveFormsModule, RouterLink, CrmSelectionBarComponent, CrmAssignPickerComponent],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    CrmSelectionBarComponent,
+    CrmAssignPickerComponent,
+    DealPipelineBoardComponent,
+  ],
   templateUrl: './deals.component.html',
   styleUrl: './deals.component.scss',
 })
@@ -127,6 +132,8 @@ export class DealsComponent {
 
   protected readonly formOpen = signal(false);
   protected readonly columnMenuOpen = signal(false);
+  protected readonly listView = signal<'table' | 'pipeline'>('table');
+  protected readonly stageUpdatingId = signal<string | null>(null);
 
   protected readonly dealStatuses = this.dealMaster.statusSelectOptions;
 
@@ -134,6 +141,7 @@ export class DealsComponent {
 
   protected readonly dealOwnerOptions = this.ownerOpts.options;
   protected readonly masterOptionFormValue = masterOptionFormValue;
+  protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
 
   protected readonly rows = signal<DealRow[]>([]);
   private readonly requiredColumnIds = new Set(['contactName', 'organizationName', 'assignedTo']);
@@ -265,7 +273,7 @@ export class DealsComponent {
     primaryMobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
     primaryEmail: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
-    status: this.fb.nonNullable.control<string>('Qualification', Validators.required),
+    status: this.fb.nonNullable.control<string>(DEFAULT_DEAL_PIPELINE_STATUS, Validators.required),
     dealOwner: [this.ownerOpts.defaultOwnerId(), Validators.required],
     requirement: ['', Validators.maxLength(240)],
   });
@@ -430,7 +438,7 @@ export class DealsComponent {
       gender: '',
       status: defaultStatus
         ? masterOptionFormValue(defaultStatus)
-        : 'Qualification',
+        : DEFAULT_DEAL_PIPELINE_STATUS,
       dealOwner: this.ownerOpts.defaultOwnerId(),
       requirement: '',
     });
@@ -518,25 +526,12 @@ export class DealsComponent {
     this.beginEditFromRoute(ids[0]);
   }
 
-  protected onBulkDelete(): void {
-    const ids = this.sel.selectedItems();
-    if (ids.length === 0) return;
-    forkJoin(ids.map((sid) => this.dealsService.delete(Number(sid)).pipe(take(1)))).subscribe({
-      next: () => {
-        this.sel.clear();
-        this.refreshDeals();
-        const n = ids.length;
-        this.toast.success(n === 1 ? 'Deal deleted.' : `${n} deals deleted.`);
-      },
-      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
-    });
-  }
-
   protected onBulkDismiss(): void {
     this.sel.clear();
   }
 
   protected onAssignToMenu(): void {
+    if (!this.isAdminViewer()) return;
     this.assignPickerOpen.set(true);
   }
 
@@ -545,6 +540,7 @@ export class DealsComponent {
   }
 
   protected onAssignPicked(ownerKey: string): void {
+    if (!this.isAdminViewer()) return;
     const opt = this.dealOwnerOptions().find((o) => o.id === ownerKey);
     if (!opt) {
       this.assignPickerOpen.set(false);
@@ -578,6 +574,7 @@ export class DealsComponent {
   }
 
   protected onClearAssignmentBulk(): void {
+    if (!this.isAdminViewer()) return;
     const ids = this.sel.selectedItems();
     if (ids.length === 0) return;
     const streams = ids.map((sid) =>
@@ -707,23 +704,6 @@ export class DealsComponent {
     }
   }
 
-  protected deleteDeal(row: DealRow, ev: Event): void {
-    ev.stopPropagation();
-    const id = Number(row.id);
-    if (!Number.isFinite(id)) return;
-    this.dealsService
-      .delete(id)
-      .pipe(take(1))
-      .subscribe({
-        next: () => {
-          this.sel.removeId(row.id);
-          this.refreshDeals();
-          this.toast.success('Deal deleted.');
-        },
-        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
-      });
-  }
-
   /** Table display only (not persisted). */
   protected formatDealRevenue(value: number): string {
     if (value == null || !Number.isFinite(value) || value === 0) return '₹ 0';
@@ -731,19 +711,57 @@ export class DealsComponent {
   }
 
   protected statusClass(status: DealPipelineStatus): string {
-    switch (status) {
-      case 'Closed Won':
+    const kind = dealStatusCssKind(status);
+    switch (kind) {
+      case 'won':
         return 'deals__tag deals__tag--ok';
-      case 'Closed Lost':
+      case 'lost':
         return 'deals__tag deals__tag--bad';
-      case 'Demo/Making':
+      case 'demo':
         return 'deals__tag deals__tag--demo';
-      case 'Negotiation':
-      case 'Proposal':
+      case 'accent':
         return 'deals__tag deals__tag--accent';
       default:
         return 'deals__tag deals__tag--muted';
     }
+  }
+
+  protected setListView(view: 'table' | 'pipeline'): void {
+    this.listView.set(view);
+    if (view === 'table') {
+      this.sel.clear();
+    }
+  }
+
+  protected dealDisplayTitle(row: DealRow): string {
+    return row.dealTitle?.trim() || `${row.organizationName} — ${this.dealContactName(row)}`;
+  }
+
+  protected onPipelineStageChange(ev: {
+    dealId: string;
+    status: string;
+    dealStatusId?: number | null;
+  }): void {
+    const idn = Number(ev.dealId);
+    if (!Number.isFinite(idn) || idn <= 0) return;
+
+    const status = resolveDealStatusLabel(ev.status);
+    this.stageUpdatingId.set(ev.dealId);
+    this.dealsService
+      .updateStatus(idn, { status, dealStatusId: ev.dealStatusId ?? undefined })
+      .pipe(take(1))
+      .subscribe({
+        next: (updated) => {
+          this.stageUpdatingId.set(null);
+          if (!updated) return;
+          this.rows.update((rows) => rows.map((r) => (r.id === ev.dealId ? updated : r)));
+          this.toast.success(`Stage updated to ${status}.`);
+        },
+        error: (e: unknown) => {
+          this.stageUpdatingId.set(null);
+          this.toast.error(leadsHttpErrorMessage(e));
+        },
+      });
   }
 
   private titleizeColumnId(id: string): string {

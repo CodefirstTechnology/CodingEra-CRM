@@ -16,6 +16,7 @@ import {
   masterSelectControlValue,
   resolveOrgMasterPick,
 } from '../../core/services/organizations/organization-master-select.util';
+import { dealStatusCssKind } from '../../core/services/deals/deal-status.constants';
 import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { OrganizationRow } from './organizations.component';
@@ -331,16 +332,21 @@ export class OrganizationDetailComponent {
       });
   }
 
+  protected dealStatusDotClass(status: DealPipelineStatus): string {
+    const kind = dealStatusCssKind(status);
+    return kind === 'demo' ? 'org-detail__status-dot org-detail__status-dot--demo' : 'org-detail__status-dot';
+  }
+
   protected dealStatusClass(status: DealPipelineStatus): string {
-    switch (status) {
-      case 'Closed Won':
+    const kind = dealStatusCssKind(status);
+    switch (kind) {
+      case 'won':
         return 'org-detail__pill org-detail__pill--ok';
-      case 'Closed Lost':
+      case 'lost':
         return 'org-detail__pill org-detail__pill--bad';
-      case 'Demo/Making':
+      case 'demo':
         return 'org-detail__pill org-detail__pill--demo';
-      case 'Negotiation':
-      case 'Proposal':
+      case 'accent':
         return 'org-detail__pill org-detail__pill--accent';
       default:
         return 'org-detail__pill org-detail__pill--muted';

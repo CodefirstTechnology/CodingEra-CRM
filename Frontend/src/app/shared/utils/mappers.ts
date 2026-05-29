@@ -1,4 +1,6 @@
-import type { DealPipelineStatus, DealRow } from '../../features/deals/deals.component';
+import type { DealPipelineStatus } from '../../core/services/deals/deal-pipeline.constants';
+import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
+import type { DealRow } from '../../features/deals/deals.component';
 import type { LeadRow, LeadStatus } from '../../features/leads/lead-row.model';
 import { leadContactName } from './lead-conversion.util';
 
@@ -48,15 +50,15 @@ export function mapLeadToDealDraft(lead: LeadRow): LeadToDealDraft {
 export function mapLeadStatusToDealPipelineStatus(status: LeadStatus): DealPipelineStatus {
   switch (status) {
     case 'Qualified':
-      return 'Proposal';
+      return 'Quotation Shared';
     case 'Lost':
-      return 'Closed Lost';
+      return 'Lead Closed - Lost';
     case 'Contacted':
-      return 'Qualification';
+      return 'Quotation Shared';
     case 'Converted':
-      return 'Qualification';
+      return DEFAULT_DEAL_PIPELINE_STATUS;
     default:
-      return 'Qualification';
+      return DEFAULT_DEAL_PIPELINE_STATUS;
   }
 }
 
