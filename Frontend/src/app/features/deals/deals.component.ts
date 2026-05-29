@@ -70,7 +70,12 @@ export interface DealRow {
   assignedToUserId?: string;
   assignedTo: string;
   assignedInitials: string;
+  /** Human-readable label for tables (e.g. "2w ago"). */
   lastModified: string;
+  /** ISO `last_modified` / `updated_at` from API — use for date math, not display. */
+  lastModifiedAt?: string;
+  /** ISO `created_at` from API — use for date math, not display. */
+  createdAtAt?: string;
   /** When set, deal appears on the matching contact's detail "Deals" tab. */
   relatedContactId?: string;
   /** When set, deal appears on the matching organization's detail "Deals" tab. */

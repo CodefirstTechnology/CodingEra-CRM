@@ -23,7 +23,10 @@ export interface DealNormalized {
   relatedOrganizationId: number | null;
   probabilityPercent: number | null;
   nextStep: string;
+  /** ISO timestamp from API (`last_modified` / `updated_at`). */
   lastModified: string;
+  /** ISO timestamp from API (`created_at`). */
+  createdAt?: string;
   salutationId?: number | null;
   employeeCountId?: number | null;
   territoryId?: number | null;

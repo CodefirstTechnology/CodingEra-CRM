@@ -17,7 +17,10 @@ import { OrganizationMasterSelectService } from '../../core/services/organizatio
 import type { MasterDataOption } from '../../core/services/leads/lead-master-data.service';
 import { LeadMasterDataService } from '../../core/services/leads/lead-master-data.service';
 import {
+  ensureConvertedInLeadStatusOptions,
   FALLBACK_LEAD_STATUS_OPTIONS,
+  isConvertedLeadStatusName,
+  isSelectableLeadStatusOption,
   resolveLeadStatusIdFromName,
 } from '../../core/services/leads/lead-status.constants';
 import { DealMasterSelectService } from '../../core/services/deals/deal-master-select.service';
@@ -78,8 +81,13 @@ export class CreateEntityFormModalComponent {
   );
   protected readonly leadStatusSelectOptions = computed(() => {
     const api = this.leadStatusesFromApi();
-    return api.length > 0 ? api : [...FALLBACK_LEAD_STATUS_OPTIONS];
+    const base = api.length > 0 ? api : [...FALLBACK_LEAD_STATUS_OPTIONS];
+    return ensureConvertedInLeadStatusOptions(base);
   });
+
+  protected isLeadStatusSelectable(opt: MasterDataOption): boolean {
+    return isSelectableLeadStatusOption(opt);
+  }
   protected readonly masterOptionFormValue = masterOptionFormValue;
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
@@ -508,6 +516,13 @@ export class CreateEntityFormModalComponent {
 
     const raw = this.leadForm.getRawValue();
     const emailTrim = raw.email.trim();
+
+    if (isConvertedLeadStatusName(raw.status)) {
+      this.toast.error(
+        'Converted status is set automatically when you convert a lead to a deal.',
+      );
+      return;
+    }
 
     const ownerOpt = this.leadOwnerOpts.findById(raw.leadOwner);
     const initials = ownerOpt?.initials ?? raw.leadOwner;

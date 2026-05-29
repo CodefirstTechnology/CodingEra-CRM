@@ -27,6 +27,7 @@ import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-op
 import {
   buildLeadConversionActivityGroup,
   isLeadConverted,
+  isLeadQualifiedForConversion,
 } from '../../shared/utils/lead-conversion.util';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
@@ -113,6 +114,12 @@ export class LeadDetailComponent {
     const row = this.lead();
     if (!row) return null;
     return row.convertedDealId ?? this.conversionStorage.getLeadLink(row.id)?.convertedDealId ?? null;
+  });
+
+  protected readonly canConvertCurrentLead = computed(() => {
+    const row = this.lead();
+    if (!row || isLeadConverted(row)) return false;
+    return isLeadQualifiedForConversion(row);
   });
   protected readonly commentComposerOpen = signal(false);
   protected readonly commentDraft = signal('');
@@ -972,7 +979,7 @@ export class LeadDetailComponent {
 
   protected openConvertModal(): void {
     const row = this.lead();
-    if (!row || isLeadConverted(row)) return;
+    if (!row || !this.canConvertCurrentLead()) return;
     this.convertModalOpen.set(true);
   }
 

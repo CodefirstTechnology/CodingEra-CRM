@@ -7,7 +7,10 @@ import { AuthService } from '../../core/auth/auth.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { coerceLeadStatus } from '../../core/services/leads/lead-api.mapper';
 import {
+  ensureConvertedInLeadStatusOptions,
   FALLBACK_LEAD_STATUS_OPTIONS,
+  isConvertedLeadStatusName,
+  isSelectableLeadStatusOption,
   resolveLeadStatusIdFromName,
 } from '../../core/services/leads/lead-status.constants';
 import {
@@ -29,7 +32,7 @@ import { UserDataScopeService } from '../../core/services/user-data-scope.servic
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
-import { isLeadConverted } from '../../shared/utils/lead-conversion.util';
+import { isLeadConverted, isLeadQualifiedForConversion } from '../../shared/utils/lead-conversion.util';
 import type { ConvertLeadOptions } from '../../core/services/leads/lead-conversion.types';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import { CRM_PAGINATED_SELECT_PAGE_SIZE } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
@@ -132,6 +135,8 @@ export class LeadsComponent {
   private readonly route = inject(ActivatedRoute);
   protected readonly sel = createIdSelection();
   protected readonly assignPickerOpen = signal(false);
+  /** When set, assign/clear apply to these ids instead of the checkbox selection. */
+  private readonly assignTargetIds = signal<string[]>([]);
   protected readonly convertModalOpen = signal(false);
   protected readonly convertTargets = signal<LeadRow[]>([]);
   protected readonly openRowMenuId = signal<string | null>(null);
@@ -180,7 +185,8 @@ export class LeadsComponent {
   });
   protected readonly statusSelectOptions = computed<MasterDataOption[]>(() => {
     const api = this.leadStatusesFromApi();
-    return api.length > 0 ? api : [...FALLBACK_LEAD_STATUS_OPTIONS];
+    const base = api.length > 0 ? api : [...FALLBACK_LEAD_STATUS_OPTIONS];
+    return ensureConvertedInLeadStatusOptions(base);
   });
 
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
@@ -192,7 +198,7 @@ export class LeadsComponent {
     const chips: { id: LeadListStatusFilter; label: string }[] = [{ id: 'all', label: 'All' }];
     for (const opt of this.statusSelectOptions()) {
       const label = opt.name.trim();
-      if (!label) continue;
+      if (!label || isConvertedLeadStatusName(label)) continue;
       chips.push({ id: coerceLeadStatus(label), label });
     }
     return chips;
@@ -205,6 +211,23 @@ export class LeadsComponent {
     { id: 'Justdial', label: 'Justdial' },
     { id: 'TradeIndia', label: 'TradeIndia' },
   ];
+
+  protected readonly statusFilterOptions = computed(() => {
+    const items: { id: LeadListStatusFilter; label: string }[] = [
+      { id: 'all', label: 'All statuses' },
+    ];
+    for (const chip of this.filterChips()) {
+      if (chip.id === 'all') continue;
+      items.push(chip);
+    }
+    items.push({ id: 'Converted', label: 'Converted' });
+    return items;
+  });
+
+  protected readonly sourceFilterOptions = this.sourceFilterChips.map((chip) => ({
+    id: chip.id,
+    label: chip.id === 'all' ? 'All sources' : chip.label,
+  }));
 
   private readonly requiredColumnIds = new Set(['name', 'source', 'requirement']);
   private readonly ignoredColumnIds = new Set([
@@ -371,8 +394,12 @@ export class LeadsComponent {
     const src = this.sourceFilter();
     return this.rows().filter((row) => {
       if (src !== 'all' && (row.leadSource ?? 'Manual') !== src) return false;
-      if (st === 'all' && isLeadConverted(row)) return false;
-      if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) return false;
+      if (st === 'Converted') {
+        if (!isLeadConverted(row)) return false;
+      } else {
+        if (st === 'all' && isLeadConverted(row)) return false;
+        if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) return false;
+      }
       if (!q) return true;
       const srcLabel = (row.leadSource ?? 'Manual').toLowerCase();
       return (
@@ -440,7 +467,7 @@ export class LeadsComponent {
   );
 
   protected readonly assignDefaultOwnerId = computed(() => {
-    const ids = this.sel.selectedItems();
+    const ids = this.assignIdsForAction();
     const first = this.rows().find((r) => r.id === ids[0]);
     if (!first) return this.leadOwnerOpts.defaultOwnerId();
     return (
@@ -452,18 +479,30 @@ export class LeadsComponent {
     );
   });
 
-  protected readonly bulkCanEditSingleManual = computed(() => {
-    if (this.sel.selectedCount() !== 1) return false;
+  protected readonly bulkCanEditSingle = computed(() => {
+    if (this.isAdminViewer() || this.sel.selectedCount() !== 1) return false;
     const id = this.sel.selectedItems()[0];
-    return this.rows().find((r) => r.id === id)?.leadSource === 'Manual';
+    const row = this.rows().find((r) => r.id === id);
+    return !!row && this.canEditLead(row);
   });
 
   protected readonly bulkAssignEnabled = computed(() => {
     if (!this.isAdminViewer()) return false;
-    const ids = this.sel.selectedItems();
-    if (ids.length === 0) return false;
-    return ids.every((id) => isPersistedApiLeadRow(id));
+    return this.canAssignIds(this.sel.selectedItems());
   });
+
+  protected canAssignLead(row: LeadRow): boolean {
+    return this.isAdminViewer() && isPersistedApiLeadRow(row.id);
+  }
+
+  private assignIdsForAction(): string[] {
+    const rowIds = this.assignTargetIds();
+    return rowIds.length > 0 ? rowIds : this.sel.selectedItems();
+  }
+
+  private canAssignIds(ids: string[]): boolean {
+    return this.isAdminViewer() && ids.length > 0 && ids.every((id) => isPersistedApiLeadRow(id));
+  }
 
   protected readonly bulkConvertEnabled = computed(() => {
     const ids = this.sel.selectedItems();
@@ -484,8 +523,22 @@ export class LeadsComponent {
       .concat(targets.length > 3 ? ` +${targets.length - 3} more` : '');
   });
 
+  /** User-only: persisted CRM leads (not local marketplace-only rows). */
+  protected canEditLead(row: LeadRow): boolean {
+    return !this.isAdminViewer() && isPersistedApiLeadRow(row.id);
+  }
+
   protected canConvertLead(row: LeadRow): boolean {
-    return row.leadSource === 'Manual' && isPersistedApiLeadRow(row.id) && !isLeadConverted(row);
+    return (
+      this.canEditLead(row) &&
+      !isLeadConverted(row) &&
+      isLeadQualifiedForConversion(row, this.resolvedLeadStatusLabel(row))
+    );
+  }
+
+  /** User may see Convert in the menu but it stays disabled until status is Qualified. */
+  protected showConvertLeadDisabled(row: LeadRow): boolean {
+    return this.canEditLead(row) && !isLeadConverted(row) && !this.canConvertLead(row);
   }
 
   protected readonly createForm = this.fb.nonNullable.group({
@@ -640,7 +693,7 @@ export class LeadsComponent {
   }
 
   protected onBulkEdit(): void {
-    if (!this.bulkCanEditSingleManual()) return;
+    if (!this.bulkCanEditSingle()) return;
     const ids = this.sel.selectedItems();
     if (ids.length !== 1) return;
     void this.router.navigate([], {
@@ -656,25 +709,41 @@ export class LeadsComponent {
   }
 
   protected onAssignToMenu(): void {
+    this.assignTargetIds.set([]);
     this.assignPickerOpen.set(true);
   }
 
   protected onAssignClosed(): void {
     this.assignPickerOpen.set(false);
+    this.assignTargetIds.set([]);
+  }
+
+  protected onRowAssignTo(row: LeadRow, ev?: Event): void {
+    ev?.stopPropagation();
+    this.closeRowMenus();
+    if (!this.canAssignLead(row)) return;
+    this.assignTargetIds.set([row.id]);
+    this.assignPickerOpen.set(true);
+  }
+
+  protected onRowClearAssignment(row: LeadRow, ev?: Event): void {
+    ev?.stopPropagation();
+    this.closeRowMenus();
+    if (!this.canAssignLead(row)) return;
+    this.applyClearAssignment([row.id]);
   }
 
   protected onAssignPicked(ownerKey: string): void {
     const opt = this.leadOwnerOpts.findById(ownerKey);
     if (!opt) {
-      this.assignPickerOpen.set(false);
+      this.onAssignClosed();
       return;
     }
-    if (!this.bulkAssignEnabled()) {
-      this.assignPickerOpen.set(false);
+    const ids = this.assignIdsForAction();
+    if (!this.canAssignIds(ids)) {
+      this.onAssignClosed();
       return;
     }
-    const ids = this.sel.selectedItems();
-    if (ids.length === 0) return;
     const streams = ids.map((sid) =>
       this.leadsService
         .update(Number(sid), {
@@ -687,10 +756,10 @@ export class LeadsComponent {
     );
     forkJoin(streams).subscribe({
       next: () => {
-        this.assignPickerOpen.set(false);
+        const n = ids.length;
+        this.onAssignClosed();
         this.sel.clear();
         this.refreshLeads();
-        const n = ids.length;
         this.toast.success(
           n === 1 ? 'Lead owner assigned.' : `Lead owner assigned for ${n} leads.`,
         );
@@ -701,8 +770,11 @@ export class LeadsComponent {
 
   protected onClearAssignmentBulk(): void {
     if (!this.bulkAssignEnabled()) return;
-    const ids = this.sel.selectedItems();
-    if (ids.length === 0) return;
+    this.applyClearAssignment(this.sel.selectedItems());
+  }
+
+  private applyClearAssignment(ids: string[]): void {
+    if (!this.canAssignIds(ids)) return;
     const streams = ids.map((sid) =>
       this.leadsService
         .update(Number(sid), {
@@ -716,6 +788,7 @@ export class LeadsComponent {
     forkJoin(streams).subscribe({
       next: () => {
         this.sel.clear();
+        this.assignTargetIds.set([]);
         this.refreshLeads();
         const n = ids.length;
         this.toast.success(
@@ -800,6 +873,18 @@ export class LeadsComponent {
       .filter((r): r is LeadRow => !!r && this.canConvertLead(r));
     if (leads.length === 0) return;
     this.openConvertModal(leads);
+  }
+
+  protected onRowEdit(row: LeadRow, ev?: Event): void {
+    ev?.stopPropagation();
+    this.closeRowMenus();
+    if (!this.canEditLead(row)) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: row.id },
+      queryParamsHandling: 'merge',
+    });
+    this.beginEditFromRoute(row.id);
   }
 
   protected openConvertModalForRow(row: LeadRow, ev?: Event): void {
@@ -907,6 +992,14 @@ export class LeadsComponent {
     this.resetTablePage();
   }
 
+  protected onStatusFilterSelect(ev: Event): void {
+    this.setStatusFilter((ev.target as HTMLSelectElement).value as LeadListStatusFilter);
+  }
+
+  protected onSourceFilterSelect(ev: Event): void {
+    this.setSourceFilter((ev.target as HTMLSelectElement).value as LeadListSourceFilter);
+  }
+
   protected toggleColumnMenu(): void {
     this.columnMenuOpen.update((open) => !open);
   }
@@ -999,17 +1092,13 @@ export class LeadsComponent {
     return '—';
   }
 
-  protected isChipActive(id: LeadListStatusFilter): boolean {
-    return this.statusFilter() === id;
-  }
-
-  protected isSourceChipActive(id: LeadListSourceFilter): boolean {
-    return this.sourceFilter() === id;
-  }
-
   /** Select `[value]` for master-backed dropdowns (`id` > 0 → numeric string, else label). */
   protected masterOptionFormValue(opt: MasterDataOption): string {
     return opt.id > 0 ? String(opt.id) : opt.name;
+  }
+
+  protected isLeadStatusSelectable(opt: MasterDataOption): boolean {
+    return isSelectableLeadStatusOption(opt);
   }
 
   private masterSelectControlValue(
@@ -1106,6 +1195,12 @@ export class LeadsComponent {
     const rtPick = this.resolveMasterPick(raw.requestType, this.requestTypeSelectOptions());
     const indPick = this.resolveMasterPick(raw.industry, this.industrySelectOptions());
     const statPick = this.resolveMasterPick(raw.status, this.statusSelectOptions());
+    if (isConvertedLeadStatusName(statPick.label)) {
+      this.toast.error(
+        'Converted status is set automatically when you convert a lead to a deal.',
+      );
+      return;
+    }
     const salLabel = salPick.label;
 
     const payload: Omit<LeadRow, 'id'> = {
@@ -1231,6 +1326,13 @@ export class LeadsComponent {
     const pick = this.resolveMasterPick(raw, this.statusSelectOptions());
     const label = pick.label.trim();
     if (!label) return;
+    if (isConvertedLeadStatusName(label)) {
+      this.toast.error(
+        'Converted status is set automatically when you convert a lead to a deal.',
+      );
+      this.refreshLeads();
+      return;
+    }
     const leadStatusId =
       pick.masterId ?? resolveLeadStatusIdFromName(label) ?? row.leadStatusId ?? null;
     if (leadStatusId == null || leadStatusId <= 0) {

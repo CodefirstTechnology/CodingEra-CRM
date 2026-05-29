@@ -1,0 +1,48 @@
+<app-crm-modal
+  [open]="open()"
+  title="Delete user"
+  size="sm"
+  [showFooter]="true"
+  (dismiss)="onDismiss()"
+>
+  @if (target(); as user) {
+    <p class="delete-user-modal__lead">
+      Delete <strong>{{ user.name }}</strong> ({{ user.email }})? This cannot be undone.
+    </p>
+    <p class="delete-user-modal__hint">Enter your account password to confirm.</p>
+    <form class="delete-user-modal__form" [formGroup]="form" (ngSubmit)="onConfirm()">
+      <label class="delete-user-modal__field">
+        <span>Your password <span class="delete-user-modal__req">*</span></span>
+        <input
+          type="password"
+          formControlName="password"
+          autocomplete="current-password"
+          [disabled]="submitting()"
+        />
+        @if (passwordInvalid()) {
+          <small class="delete-user-modal__field-error">Password is required (at least 6 characters).</small>
+        }
+      </label>
+      @if (formError(); as errMsg) {
+        <p class="delete-user-modal__banner" role="alert">{{ errMsg }}</p>
+      }
+      <div crmModalFooter class="delete-user-modal__foot">
+        <button
+          type="button"
+          class="delete-user-modal__btn delete-user-modal__btn--ghost"
+          [disabled]="submitting()"
+          (click)="onDismiss()"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          class="delete-user-modal__btn delete-user-modal__btn--danger"
+          [disabled]="submitting()"
+        >
+          {{ submitting() ? 'Deleting…' : 'Delete user' }}
+        </button>
+      </div>
+    </form>
+  }
+</app-crm-modal>

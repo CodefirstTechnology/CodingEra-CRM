@@ -26,7 +26,15 @@
         <a class="lead-detail__btn lead-detail__btn--ghost" [routerLink]="['/deals', dealId]">View deal</a>
         <span class="lead-detail__converted-badge">Converted</span>
       } @else {
-        <button type="button" class="lead-detail__btn lead-detail__btn--solid" (click)="openConvertModal()">
+        <button
+          type="button"
+          class="lead-detail__btn lead-detail__btn--solid"
+          [disabled]="!canConvertCurrentLead()"
+          [attr.title]="
+            canConvertCurrentLead() ? null : 'Only Qualified leads can be converted to a deal'
+          "
+          (click)="openConvertModal()"
+        >
           Convert to Deal
         </button>
       }

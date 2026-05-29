@@ -1,5 +1,28 @@
 import type { MasterDataOption } from './lead-master-data.service';
 
+/** Set only by lead → deal conversion (not manual status pick). */
+export const CONVERTED_LEAD_STATUS_NAME = 'Converted';
+
+export function isConvertedLeadStatusName(name: string): boolean {
+  return name.trim().toLowerCase() === 'converted';
+}
+
+/** False for Converted — that option is shown disabled in dropdowns. */
+export function isSelectableLeadStatusOption(opt: MasterDataOption): boolean {
+  return !isConvertedLeadStatusName(opt.name);
+}
+
+/** Ensures Converted appears in status dropdowns (disabled in UI). */
+export function ensureConvertedInLeadStatusOptions(
+  options: readonly MasterDataOption[],
+): MasterDataOption[] {
+  const list = [...options];
+  if (!list.some((o) => isConvertedLeadStatusName(o.name))) {
+    list.push({ id: 0, name: CONVERTED_LEAD_STATUS_NAME });
+  }
+  return list;
+}
+
 /** Canonical `lead_statuses.id` values from CRM master data. */
 export const CANONICAL_LEAD_STATUS_IDS: Readonly<Record<string, number>> = {
   new: 1,

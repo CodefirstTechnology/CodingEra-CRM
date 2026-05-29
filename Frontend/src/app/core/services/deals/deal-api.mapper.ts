@@ -180,7 +180,18 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
     relatedOrganizationId: readOptionalInt(r['relatedOrganizationId']),
     probabilityPercent,
     nextStep: String(r['nextStep'] ?? '').trim(),
-    lastModified: String(r['lastModified'] ?? r['updatedAt'] ?? '').trim(),
+    lastModified: String(
+      r['lastModified'] ??
+        r['LastModified'] ??
+        r['last_modified'] ??
+        r['updatedAt'] ??
+        r['UpdatedAt'] ??
+        r['updated_at'] ??
+        '',
+    ).trim(),
+    createdAt: String(
+      r['createdAt'] ?? r['CreatedAt'] ?? r['created_at'] ?? '',
+    ).trim(),
     salutationId,
     employeeCountId,
     territoryId,
@@ -221,6 +232,8 @@ export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
     assignedTo,
     assignedInitials,
     lastModified: formatDealLastModifiedLabel(dto.lastModified),
+    lastModifiedAt: dto.lastModified || undefined,
+    createdAtAt: dto.createdAt || undefined,
     probabilityPercent,
     nextStep: dto.nextStep ?? '',
   };
