@@ -1,4 +1,5 @@
 import type { DealNormalized, DealUpsertDto } from './deal-api.models';
+import { DEFAULT_DEAL_PIPELINE_STATUS } from './deal-pipeline.constants';
 
 const DEFAULT_DEAL_GENDER = 'Other';
 
@@ -24,10 +25,14 @@ export function stripDealUpsertForPost(dto: DealUpsertDto): Record<string, unkno
     website: dto.website?.trim() || '',
     territory: dto.territory?.trim() || '',
     industry: dto.industry?.trim() || 'Technology',
-    status: dto.status?.trim() || 'Qualification',
+    status: dto.status?.trim() || DEFAULT_DEAL_PIPELINE_STATUS,
     assignedInitials: dto.assignedInitials?.trim() || '',
     nextStep: normalizeNextStep(dto.nextStep),
   };
+
+  if (dto.dealStatusId != null && dto.dealStatusId > 0) {
+    body['dealStatusId'] = dto.dealStatusId;
+  }
 
   if (dto.annualRevenue != null && Number.isFinite(dto.annualRevenue)) {
     body['annualRevenue'] = dto.annualRevenue;
@@ -82,7 +87,7 @@ export function buildDealPutJson(dto: DealUpsertDto, previous: DealNormalized): 
     website: dto.website?.trim() ?? previous.website ?? '',
     territory: dto.territory?.trim() ?? previous.territory ?? '',
     industry: dto.industry?.trim() || previous.industry?.trim() || 'Technology',
-    status: dto.status?.trim() || previous.status?.trim() || 'Qualification',
+    status: dto.status?.trim() || previous.status?.trim() || DEFAULT_DEAL_PIPELINE_STATUS,
     assignedInitials: dto.assignedInitials?.trim() ?? previous.assignedInitials ?? '',
     nextStep: normalizeNextStep(dto.nextStep ?? previous.nextStep),
   };

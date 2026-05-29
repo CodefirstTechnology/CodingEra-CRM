@@ -90,4 +90,29 @@ export class DealHttpService {
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`, { headers: this.jsonHeaders() });
   }
+
+  patchStatus(
+    id: number,
+    patch: { status: string; dealStatusId?: number | null; comment?: string },
+  ): Observable<DealNormalized> {
+    const session = this.auth.user();
+    const userId = session?.id;
+    let params = new HttpParams();
+    if (userId != null && Number(userId) > 0) {
+      params = params.set('userId', String(userId));
+    }
+    const body: Record<string, unknown> = { status: patch.status };
+    if (patch.dealStatusId != null && patch.dealStatusId > 0) {
+      body['dealStatusId'] = patch.dealStatusId;
+    }
+    if (patch.comment?.trim()) {
+      body['comment'] = patch.comment.trim();
+    }
+    return this.http
+      .patch<unknown>(`${this.baseUrl}/${id}/status`, body, {
+        headers: this.jsonHeaders(),
+        params,
+      })
+      .pipe(map((raw) => normalizeDealApiRecord(raw)));
+  }
 }

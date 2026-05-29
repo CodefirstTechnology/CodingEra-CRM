@@ -1,5 +1,6 @@
 import type { ContactRow } from '../../features/contacts/contacts.component';
-import type { DealPipelineStatus, DealRow } from '../../features/deals/deals.component';
+import type { DealRow } from '../../features/deals/deals.component';
+import { DEFAULT_DEAL_PIPELINE_STATUS, resolveDealStatusLabel } from '../../core/services/deals/deal-pipeline.constants';
 import type { NoteRelatedType, NoteRow, NoteVisibility } from '../../features/notes/notes.component';
 import type { OrganizationRow } from '../../features/organizations/organizations.component';
 import type { TaskRow } from '../../features/tasks/tasks.component';
@@ -51,7 +52,7 @@ export function normalizeDealRow(row: Record<string, unknown>): DealRow {
   const id = String(row['id'] ?? '');
   const orgName = String(row['organizationName'] ?? row['organization'] ?? '');
   const annualRevenue = parseRevenueInputToNumber(row['annualRevenue'] as string | number);
-  const status = (row['status'] as DealPipelineStatus) ?? 'Qualification';
+  const status = resolveDealStatusLabel(String(row['status'] ?? DEFAULT_DEAL_PIPELINE_STATUS));
   const probRaw = row['probabilityPercent'];
   const probabilityPercent =
     probRaw != null && Number.isFinite(Number(probRaw)) ? Number(probRaw) : 10;

@@ -1,5 +1,6 @@
 import type { LeadRow } from '../../leads/lead-row.model';
 import type { DealRow } from '../../deals/deals.component';
+import { isDealClosed } from '../../../core/services/deals/deal-pipeline.constants';
 import type { AdminTeamMemberStats, AdminTeamSortKey } from '../models/admin-dashboard.models';
 
 export const ADMIN_MONTHLY_TARGET_INR = 1_000_000;
@@ -86,8 +87,7 @@ export function isLeadConvertedRow(lead: LeadRow): boolean {
 }
 
 export function isActiveDealStatus(status: string): boolean {
-  const s = status.trim();
-  return s !== 'Closed Won' && s !== 'Closed Lost';
+  return !isDealClosed(status);
 }
 
 export function dealDisplayName(deal: DealRow): string {

@@ -127,6 +127,11 @@ export class LeadMasterDataService {
     return this.loadMasterOptions('lead-statuses');
   }
 
+  /** Active deal pipeline statuses for dropdowns (`/api/MasterData/deal-statuses`). */
+  loadDealStatuses(): Observable<MasterDataOption[]> {
+    return this.loadMasterOptions('deal-statuses');
+  }
+
   private loadMasterOptions(segment: string): Observable<MasterDataOption[]> {
     let cached = this.optionsCache.get(segment);
     if (!cached) {

@@ -204,7 +204,7 @@
               <td>{{ d.annualRevenue }}</td>
               <td>
                 <span class="org-detail__status-cell">
-                  <span class="org-detail__status-dot" [class.org-detail__status-dot--demo]="d.status === 'Demo/Making'" aria-hidden="true"></span>
+                  <span class="org-detail__status-dot" [class]="dealStatusDotClass(d.status)" aria-hidden="true"></span>
                   <span [class]="dealStatusClass(d.status)">{{ d.status }}</span>
                 </span>
               </td>

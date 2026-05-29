@@ -8,6 +8,8 @@ import { AdminUsersService } from '../../../core/services/admin-users.service';
 import { ActivitiesService } from '../../../core/services/activities.service';
 import type { ActivityRow } from '../../../core/services/activities/activity-api.models';
 import { DealsService } from '../../../core/services/deals.service';
+import { isDealClosedWon } from '../../../core/services/deals/deal-pipeline.constants';
+import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../../core/services/deals/deal-pipeline.constants';
 import { LeadsService, leadsHttpErrorMessage } from '../../../core/services/leads.service';
 import { TasksService } from '../../../core/services/tasks.service';
 import {
@@ -213,7 +215,7 @@ export class AdminDashboardService {
     );
 
     const monthlyRevenue = deals
-      .filter((d) => d.status === 'Closed Won')
+      .filter((d) => isDealClosedWon(d.status))
       .filter((d) => {
         const t = dealRecordDate(d);
         return t != null && t >= monthStart && isInCurrentMonth(t, now);
@@ -245,7 +247,7 @@ export class AdminDashboardService {
     const byStatus = new Map<string, { count: number; revenue: number }>();
 
     for (const d of active) {
-      const key = d.status?.trim() || 'Qualification';
+      const key = d.status?.trim() || DEFAULT_DEAL_PIPELINE_STATUS;
       const cur = byStatus.get(key) ?? { count: 0, revenue: 0 };
       cur.count += 1;
       cur.revenue += Number.isFinite(d.annualRevenue) ? d.annualRevenue : 0;
@@ -289,7 +291,7 @@ export class AdminDashboardService {
       const activeDeals = userDeals.filter((d) => isActiveDealStatus(d.status));
       const closedWonMonth = userDeals.filter(
         (d) =>
-          d.status === 'Closed Won' &&
+          isDealClosedWon(d.status) &&
           (() => {
             const t = dealRecordDate(d);
             return t != null && t >= monthStart && isInCurrentMonth(t, now);

@@ -24,6 +24,7 @@ import {
   resolveLeadStatusIdFromName,
 } from '../../core/services/leads/lead-status.constants';
 import { DealMasterSelectService } from '../../core/services/deals/deal-master-select.service';
+import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
 import { resolveDealStatusLabel } from '../../core/services/deals/deal-status.constants';
 import {
   masterOptionFormValue,
@@ -176,7 +177,7 @@ export class CreateEntityFormModalComponent {
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     primaryEmail: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
-    status: this.fb.nonNullable.control<string>('Qualification', Validators.required),
+    status: this.fb.nonNullable.control<string>(DEFAULT_DEAL_PIPELINE_STATUS, Validators.required),
     dealOwner: [this.leadOwnerOpts.defaultOwnerId(), Validators.required],
     requirement: ['', Validators.maxLength(240)],
   });
@@ -346,7 +347,7 @@ export class CreateEntityFormModalComponent {
           firstName: '',
           primaryEmail: '',
           gender: '',
-          status: masterOptionFormValue(this.dealMaster.statusSelectOptions()[0] ?? { id: 0, name: 'Qualification' }),
+          status: masterOptionFormValue(this.dealMaster.statusSelectOptions()[0] ?? { id: 0, name: DEFAULT_DEAL_PIPELINE_STATUS }),
           dealOwner: this.leadOwnerOpts.defaultOwnerId(),
           requirement: '',
         });
