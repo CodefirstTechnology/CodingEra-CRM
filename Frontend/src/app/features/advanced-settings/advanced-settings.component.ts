@@ -5,16 +5,17 @@ import { AuthService } from '../../core/auth/auth.service';
 import { AdminUsersService, type AdminUserRow } from '../../core/services/admin-users.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { optionalPhoneValidator } from '../../shared/validators/crm-validators';
+import { MasterFormsComponent } from '../settings/master-forms/master-forms.component';
 import { passwordsMatchValidator } from '../auth/passwords-match.validator';
 import { DeleteUserModalComponent } from './delete-user-modal.component';
 
 type SettingsNavGroup = { title: string; items: readonly string[] };
 
-const ADMIN_ONLY_ITEMS = new Set(['Users', 'Invite User']);
+const ADMIN_ONLY_ITEMS = new Set(['Users', 'Invite User', 'Master Forms']);
 
 @Component({
   selector: 'app-advanced-settings',
-  imports: [ReactiveFormsModule, DeleteUserModalComponent],
+  imports: [ReactiveFormsModule, DeleteUserModalComponent, MasterFormsComponent],
   templateUrl: './advanced-settings.component.html',
   styleUrl: './advanced-settings.component.scss',
 })
@@ -53,7 +54,7 @@ export class AdvancedSettingsComponent {
     { title: 'Profile', items: ['Profile'] },
     {
       title: 'System Configuration',
-      items: ['Forecasting', 'Currency & Exchange', 'Brand Settings'],
+      items: ['Forecasting', 'Currency & Exchange', 'Brand Settings', 'Master Forms'],
     },
     { title: 'User Management', items: ['Users', 'Invite User'] },
     { title: 'Email Settings', items: ['Email Accounts', 'Email Templates'] },
@@ -62,11 +63,18 @@ export class AdvancedSettingsComponent {
     { title: 'Integrations', items: ['Telephony', 'ERPNext'] },
   ];
 
-  protected readonly leftNav = computed(() =>
-    this.isAdminViewer()
+  protected readonly leftNav = computed(() => {
+    const groups = this.isAdminViewer()
       ? this.allNavGroups
-      : this.allNavGroups.filter((group) => group.title !== 'User Management'),
-  );
+      : this.allNavGroups
+          .map((group) =>
+            group.title === 'System Configuration'
+              ? { ...group, items: group.items.filter((item) => item !== 'Master Forms') }
+              : group,
+          )
+          .filter((group) => group.title !== 'User Management');
+    return groups;
+  });
 
   protected reloadUsersFromApi(): void {
     if (!this.isAdminViewer()) return;
@@ -107,7 +115,9 @@ export class AdvancedSettingsComponent {
 
   protected setActiveItem(item: string): void {
     if (ADMIN_ONLY_ITEMS.has(item) && !this.isAdminViewer()) {
-      this.toast.error('Only admins can manage users.');
+      this.toast.error(
+        item === 'Master Forms' ? 'Only admins can manage master forms.' : 'Only admins can manage users.',
+      );
       this.activeItem.set('Profile');
       return;
     }
