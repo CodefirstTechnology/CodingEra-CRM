@@ -108,11 +108,15 @@
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Lead owner</span>
-          <select class="create-form__control" formControlName="leadOwner">
-            @for (o of leadOwnerOptions(); track o.id) {
-              <option [value]="o.id">{{ o.label }}</option>
-            }
-          </select>
+          @if (isAdminViewer()) {
+            <select class="create-form__control" formControlName="leadOwner">
+              @for (o of leadOwnerOptions(); track o.id) {
+                <option [value]="o.id">{{ o.label }}</option>
+              }
+            </select>
+          } @else {
+            <span class="create-form__owner-readonly">{{ leadOwnerDisplayLabel() }}</span>
+          }
         </label>
       </div>
       <footer class="create-form__foot">

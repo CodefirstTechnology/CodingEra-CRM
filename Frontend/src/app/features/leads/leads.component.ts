@@ -606,6 +606,27 @@ export class LeadsComponent {
     }
   }
 
+  /** Admins pick/rotate owners; sales users are assigned as owner on manual create. */
+  private defaultLeadOwnerForForm(): string {
+    if (this.isAdminViewer()) {
+      return this.leadRoundRobin.nextOwnerIdForForm();
+    }
+    return this.leadOwnerOpts.defaultOwnerId();
+  }
+
+  private resolveLeadOwnerIdForSubmit(rawOwnerId: string, editId: number | null): string {
+    if (this.isAdminViewer()) {
+      return rawOwnerId;
+    }
+    if (editId != null) {
+      const existing = this.rows().find((r) => Number(r.id) === editId);
+      if (existing?.leadOwnerId) {
+        return existing.leadOwnerId;
+      }
+    }
+    return this.leadOwnerOpts.defaultOwnerId() || rawOwnerId;
+  }
+
   protected openForm(): void {
     this.editingNumericId.set(null);
     this.modalLeadSource.set('Manual');
@@ -624,7 +645,7 @@ export class LeadsComponent {
       territory: '',
       industry: '',
       status: '',
-      leadOwner: this.leadRoundRobin.nextOwnerIdForForm(),
+      leadOwner: this.defaultLeadOwnerForForm(),
       requestType: '',
       requirement: '',
       customField: '',
@@ -652,7 +673,7 @@ export class LeadsComponent {
       territory: '',
       industry: '',
       status: '',
-      leadOwner: this.leadRoundRobin.nextOwnerIdForForm(),
+      leadOwner: this.defaultLeadOwnerForForm(),
       requestType: '',
       requirement: '',
       customField: '',
@@ -1224,13 +1245,7 @@ export class LeadsComponent {
       return;
     }
 
-    let leadOwnerId = raw.leadOwner;
-    if (!this.isAdminViewer() && editId != null) {
-      const existing = this.rows().find((r) => Number(r.id) === editId);
-      if (existing?.leadOwnerId) {
-        leadOwnerId = existing.leadOwnerId;
-      }
-    }
+    const leadOwnerId = this.resolveLeadOwnerIdForSubmit(raw.leadOwner, editId);
     const ownerOpt = this.leadOwnerOpts.findById(leadOwnerId);
     const initials = ownerOpt?.initials ?? leadOwnerId;
     const leadOwnerName = ownerOpt?.label ?? leadOwnerId;
