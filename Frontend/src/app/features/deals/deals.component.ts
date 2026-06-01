@@ -29,6 +29,11 @@ import { leadPersonName } from '../../shared/utils/lead-person-name.util';
 
 export type { DealPipelineStatus };
 
+export type DealListStatusFilter = 'all' | DealPipelineStatus;
+
+/** Admin deals list: `'all'` or a {@link DealOwnerOption.id}. */
+export type DealListOwnerFilter = 'all' | string;
+
 export interface DealOwnerOption {
   id: string;
   label: string;
@@ -134,6 +139,9 @@ export class DealsComponent {
   protected readonly columnMenuOpen = signal(false);
   protected readonly listView = signal<'table' | 'pipeline'>('table');
   protected readonly stageUpdatingId = signal<string | null>(null);
+  protected readonly searchQuery = signal('');
+  protected readonly statusFilter = signal<DealListStatusFilter>('all');
+  protected readonly ownerFilter = signal<DealListOwnerFilter>('all');
 
   protected readonly dealStatuses = this.dealMaster.statusSelectOptions;
 
@@ -143,7 +151,62 @@ export class DealsComponent {
   protected readonly masterOptionFormValue = masterOptionFormValue;
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
 
+  protected readonly statusFilterOptions = computed(() => {
+    const items: { id: DealListStatusFilter; label: string }[] = [
+      { id: 'all', label: 'All statuses' },
+    ];
+    const seen = new Set<string>();
+    for (const opt of this.dealStatuses()) {
+      const name = opt.name.trim();
+      if (!name) continue;
+      const id = resolveDealStatusLabel(name);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      items.push({ id, label: name });
+    }
+    return items;
+  });
+
+  protected readonly ownerFilterOptions = computed(() => {
+    const items: { id: DealListOwnerFilter; label: string }[] = [
+      { id: 'all', label: 'All owners' },
+    ];
+    for (const opt of this.dealOwnerOptions()) {
+      items.push({ id: opt.id, label: opt.label });
+    }
+    return items;
+  });
+
   protected readonly rows = signal<DealRow[]>([]);
+
+  protected readonly filtered = computed(() => {
+    const q = this.searchQuery().trim().toLowerCase();
+    const st = this.statusFilter();
+    const owner = this.ownerFilter();
+    const filterByOwner = this.isAdminViewer() && owner !== 'all';
+    return this.rows().filter((row) => {
+      if (filterByOwner && !this.rowMatchesOwnerFilter(row, owner)) return false;
+      if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) return false;
+      if (!q) return true;
+      const contact = this.dealContactName(row).toLowerCase();
+      return (
+        contact.includes(q) ||
+        row.firstName.toLowerCase().includes(q) ||
+        row.lastName.toLowerCase().includes(q) ||
+        row.organizationName.toLowerCase().includes(q) ||
+        row.email.toLowerCase().includes(q) ||
+        row.mobile.toLowerCase().includes(q) ||
+        row.assignedTo.toLowerCase().includes(q) ||
+        row.status.toLowerCase().includes(q) ||
+        (row.requirement?.toLowerCase().includes(q) ?? false) ||
+        (row.territory?.toLowerCase().includes(q) ?? false) ||
+        row.industry.toLowerCase().includes(q) ||
+        (row.dealTitle?.toLowerCase().includes(q) ?? false) ||
+        (row.nextStep?.toLowerCase().includes(q) ?? false) ||
+        (row.notes?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  });
   private readonly requiredColumnIds = new Set(['contactName', 'organizationName', 'assignedTo']);
   private readonly selectedColumnIds = signal<string[]>([
     'contactName',
@@ -223,7 +286,7 @@ export class DealsComponent {
   }
 
   protected readonly allSelected = computed(() =>
-    this.sel.allSelectedIn(this.rows().map((r) => r.id)),
+    this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
   );
 
   protected readonly columnOptions = computed<DealColumnOption[]>(() => {
@@ -297,7 +360,45 @@ export class DealsComponent {
   }
 
   protected toggleSelectAll(): void {
-    this.sel.toggleSelectAll(this.rows().map((r) => r.id));
+    this.sel.toggleSelectAll(this.filtered().map((r) => r.id));
+  }
+
+  protected resetFilters(): void {
+    this.searchQuery.set('');
+    this.statusFilter.set('all');
+    this.ownerFilter.set('all');
+  }
+
+  protected onSearchInput(ev: Event): void {
+    this.searchQuery.set((ev.target as HTMLInputElement).value);
+  }
+
+  protected clearSearch(): void {
+    this.searchQuery.set('');
+  }
+
+  protected setStatusFilter(id: DealListStatusFilter): void {
+    this.statusFilter.set(id);
+  }
+
+  protected onStatusFilterSelect(ev: Event): void {
+    this.setStatusFilter((ev.target as HTMLSelectElement).value as DealListStatusFilter);
+  }
+
+  protected setOwnerFilter(id: DealListOwnerFilter): void {
+    this.ownerFilter.set(id);
+  }
+
+  protected onOwnerFilterSelect(ev: Event): void {
+    this.setOwnerFilter((ev.target as HTMLSelectElement).value as DealListOwnerFilter);
+  }
+
+  protected hasActiveFilters(): boolean {
+    return (
+      this.statusFilter() !== 'all' ||
+      (this.isAdminViewer() && this.ownerFilter() !== 'all') ||
+      this.searchQuery().trim().length > 0
+    );
   }
 
   protected toggleColumnMenu(): void {
@@ -731,6 +832,34 @@ export class DealsComponent {
     if (view === 'table') {
       this.sel.clear();
     }
+  }
+
+  private rowMatchesStatusFilter(row: DealRow, filter: DealListStatusFilter): boolean {
+    if (filter === 'all') return true;
+    const filterLabel = resolveDealStatusLabel(filter);
+    const opt = this.dealStatuses().find(
+      (o) => resolveDealStatusLabel(o.name) === filterLabel || o.name === filter,
+    );
+    if (row.dealStatusId != null && row.dealStatusId > 0 && opt && opt.id > 0) {
+      return row.dealStatusId === opt.id;
+    }
+    return resolveDealStatusLabel(row.status) === filterLabel;
+  }
+
+  private rowMatchesOwnerFilter(row: DealRow, ownerId: string): boolean {
+    const rowOwnerId = row.dealOwnerId?.trim() || row.assignedToUserId?.trim();
+    if (rowOwnerId && this.ownerIdsMatch(rowOwnerId, ownerId)) return true;
+    const opt = this.ownerOpts.findById(ownerId);
+    if (!opt) return false;
+    const rowName = row.assignedTo.trim().toLowerCase();
+    return rowName.length > 0 && rowName === opt.label.trim().toLowerCase();
+  }
+
+  private ownerIdsMatch(a: string, b: string): boolean {
+    if (a === b) return true;
+    const an = Number(a);
+    const bn = Number(b);
+    return Number.isFinite(an) && Number.isFinite(bn) && an === bn;
   }
 
   protected dealDisplayTitle(row: DealRow): string {
