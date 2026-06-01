@@ -13,7 +13,7 @@ export type LeadStatus =
 export type MarketplaceLeadSource = 'IndiaMART' | 'Justdial' | 'TradeIndia';
 
 /** Origin of the row in the unified Leads view (frontend mapping; optional on API payloads). */
-export type LeadSource = 'Manual' | MarketplaceLeadSource;
+export type LeadSource = 'Manual' | 'Excel' | MarketplaceLeadSource;
 
 export interface LeadOwnerOption {
   id: string;
@@ -79,3 +79,6 @@ export interface LeadRow {
 export type LeadListStatusFilter = 'all' | LeadStatus;
 
 export type LeadListSourceFilter = 'all' | LeadSource;
+
+/** Admin leads list: `'all'` or a {@link LeadOwnerOption.id}. */
+export type LeadListOwnerFilter = 'all' | string;
