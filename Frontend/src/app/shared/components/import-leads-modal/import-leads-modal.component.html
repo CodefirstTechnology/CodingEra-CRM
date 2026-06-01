@@ -1,12 +1,12 @@
 <app-crm-modal
   [open]="open()"
   title="Import leads"
-  size="md"
+  [size]="modalSize()"
   [showFooter]="true"
   (dismiss)="onDismiss()"
 >
   <p class="import-leads-modal__intro">
-    Upload an Excel workbook (.xlsx) with one row per lead. Use the template so column names match the CRM.
+    Upload an Excel (.xlsx) or CSV (.csv) file with one row per lead. Use the template so column names match the CRM.
   </p>
 
   <div class="import-leads-modal__template-row">
@@ -27,6 +27,7 @@
   <div
     class="import-leads-modal__dropzone"
     [class.is-dragover]="dragOver()"
+    [class.is-compact]="parseResult()"
     [class.has-file]="selectedFile()"
     (dragover)="onDragOver($event)"
     (dragleave)="onDragLeave($event)"
@@ -40,42 +41,104 @@
       (change)="onFileInputChange($event)"
     />
 
-    <div class="import-leads-modal__dropzone-icon" aria-hidden="true">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-        <polyline points="14 2 14 8 20 8" />
-        <line x1="12" y1="18" x2="12" y2="12" />
-        <polyline points="9 15 12 12 15 15" />
-      </svg>
-    </div>
+    @if (!parseResult()) {
+      <div class="import-leads-modal__dropzone-icon" aria-hidden="true">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="12" y1="18" x2="12" y2="12" />
+          <polyline points="9 15 12 12 15 15" />
+        </svg>
+      </div>
+      <p class="import-leads-modal__dropzone-title">Drag and drop your .xlsx or .csv file here</p>
+      <p class="import-leads-modal__dropzone-sub">or</p>
+    }
 
-    <p class="import-leads-modal__dropzone-title">Drag and drop your .xlsx file here</p>
-    <p class="import-leads-modal__dropzone-sub">or</p>
+    @if (selectedFile(); as file) {
+      <p class="import-leads-modal__dropzone-file">{{ file.name }}</p>
+    }
+
     <button type="button" class="import-leads-modal__btn import-leads-modal__btn--browse" (click)="onBrowseClick()">
-      Choose file
+      {{ parseResult() ? 'Choose another file' : 'Choose file' }}
     </button>
-    <p class="import-leads-modal__dropzone-hint">Supported format: .xlsx only</p>
+    <p class="import-leads-modal__dropzone-hint">Supported formats: .xlsx, .csv</p>
   </div>
+
+  @if (parsing()) {
+    <p class="import-leads-modal__parsing" role="status">Parsing file…</p>
+  }
 
   @if (fileError()) {
     <p class="import-leads-modal__error" role="alert">{{ fileError() }}</p>
   }
 
-  @if (selectedFile(); as file) {
-    <div class="import-leads-modal__selected">
-      <span class="import-leads-modal__selected-label">Selected file</span>
-      <div class="import-leads-modal__selected-row">
-        <span class="import-leads-modal__filename" [title]="file.name">{{ file.name }}</span>
-        <button
-          type="button"
-          class="import-leads-modal__clear"
-          (click)="clearSelectedFile()"
-          aria-label="Remove selected file"
-        >
-          ×
-        </button>
+  @if (summary(); as stats) {
+    <section class="import-leads-modal__summary" aria-label="Import summary">
+      <h3 class="import-leads-modal__section-title">Summary</h3>
+      <dl class="import-leads-modal__summary-grid">
+        <div class="import-leads-modal__stat">
+          <dt>Total rows</dt>
+          <dd>{{ stats.totalRows }}</dd>
+        </div>
+        <div class="import-leads-modal__stat import-leads-modal__stat--ok">
+          <dt>Valid rows</dt>
+          <dd>{{ stats.validRows }}</dd>
+        </div>
+        <div class="import-leads-modal__stat import-leads-modal__stat--warn">
+          <dt>Duplicate rows</dt>
+          <dd>{{ stats.duplicateRows }}</dd>
+        </div>
+        <div class="import-leads-modal__stat import-leads-modal__stat--bad">
+          <dt>Invalid rows</dt>
+          <dd>{{ stats.invalidRows }}</dd>
+        </div>
+      </dl>
+      <p class="import-leads-modal__summary-note">
+        Valid, duplicate, and invalid counts are temporary client-side estimates until import rules are finalized.
+      </p>
+    </section>
+
+    <section class="import-leads-modal__preview" aria-label="Import preview">
+      <div class="import-leads-modal__preview-head">
+        <h3 class="import-leads-modal__section-title">Preview</h3>
+        <p class="import-leads-modal__preview-meta">
+          <span><strong>Parsed rows:</strong> {{ stats.parsedRows }}</span>
+          <span><strong>Total rows:</strong> {{ stats.totalRows }}</span>
+          <span><strong>Showing:</strong> first {{ previewRows().length }} of {{ stats.parsedRows }}</span>
+        </p>
       </div>
-    </div>
+
+      @if (parseResult(); as result) {
+        <div class="import-leads-modal__table-wrap">
+          <table class="import-leads-modal__table">
+            <thead>
+              <tr>
+                <th class="import-leads-modal__th import-leads-modal__th--row">#</th>
+                @for (col of result.columns; track col) {
+                  <th class="import-leads-modal__th">{{ col }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of previewRows(); track row.rowNumber) {
+                <tr>
+                  <td class="import-leads-modal__td import-leads-modal__td--row">{{ row.rowNumber }}</td>
+                  @for (col of result.columns; track col) {
+                    <td class="import-leads-modal__td" [title]="cellValue(row, col)">{{ cellValue(row, col) }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      @if (previewHiddenCount() > 0) {
+        <p class="import-leads-modal__preview-more">
+          {{ previewHiddenCount() }} more row{{ previewHiddenCount() === 1 ? '' : 's' }} not shown in preview.
+        </p>
+      }
+    </section>
   }
 
   <div crmModalFooter class="import-leads-modal__foot">
@@ -85,8 +148,8 @@
     <button
       type="button"
       class="import-leads-modal__btn import-leads-modal__btn--solid"
-      disabled
-      title="Import will be available in a future update"
+      [disabled]="!parseResult()"
+      title="Database import will be available in a future update"
     >
       Import
     </button>

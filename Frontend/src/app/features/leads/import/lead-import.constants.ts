@@ -23,7 +23,7 @@ export type LeadImportTemplateColumn = (typeof LEAD_IMPORT_TEMPLATE_COLUMNS)[num
 export const LEAD_IMPORT_TEMPLATE_FILENAME = 'lead-import-template.xlsx';
 
 export const LEAD_IMPORT_ACCEPT =
-  '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  '.xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv';
 
 export function isLeadImportXlsxFile(file: File): boolean {
   const name = file.name.trim().toLowerCase();
@@ -34,3 +34,17 @@ export function isLeadImportXlsxFile(file: File): boolean {
     type === 'application/vnd.ms-excel'
   );
 }
+
+export function isLeadImportCsvFile(file: File): boolean {
+  const name = file.name.trim().toLowerCase();
+  if (name.endsWith('.csv')) return true;
+  const type = file.type.trim().toLowerCase();
+  return type === 'text/csv' || type === 'application/csv';
+}
+
+export function isLeadImportFile(file: File): boolean {
+  return isLeadImportXlsxFile(file) || isLeadImportCsvFile(file);
+}
+
+export const LEAD_IMPORT_UNSUPPORTED_FILE_MESSAGE =
+  'Only .xlsx and .csv files are supported.';
