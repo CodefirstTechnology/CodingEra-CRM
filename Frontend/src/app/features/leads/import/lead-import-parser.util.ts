@@ -1,6 +1,10 @@
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { isLeadImportCsvFile, isLeadImportXlsxFile, LEAD_IMPORT_CHUNK_SIZE } from './lead-import.constants';
+import {
+  estimateImportRowValid,
+  isTemplateHintRow,
+} from './lead-import-validation.util';
 import type {
   LeadImportParseResult,
   LeadImportParsedRow,
@@ -53,20 +57,16 @@ function pickValue(values: Record<string, string>, columns: string[], aliases: s
   return '';
 }
 
-function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-/** Client-side estimate until server validation on import. */
 function isValidImportRow(values: Record<string, string>, columns: string[]): boolean {
-  const firstName = pickValue(values, columns, ['first name', 'firstname', 'first_name']);
-  const lastName = pickValue(values, columns, ['last name', 'lastname', 'last_name']);
-  const email = pickValue(values, columns, ['email', 'e-mail']);
-  return firstName.length > 0 && lastName.length > 0 && isValidEmail(email);
+  return estimateImportRowValid(values, columns, pickValue);
 }
 
 function emailForRow(values: Record<string, string>, columns: string[]): string {
   return pickValue(values, columns, ['email', 'e-mail']).toLowerCase();
+}
+
+function mobileForRow(values: Record<string, string>, columns: string[]): string {
+  return pickValue(values, columns, ['mobile', 'phone', 'mobile number']);
 }
 
 async function buildSummaryAsync(
@@ -77,6 +77,7 @@ async function buildSummaryAsync(
 ): Promise<LeadImportSummary> {
   const parsedRows = rows.length;
   const seenEmails = new Set<string>();
+  const seenMobiles = new Set<string>();
   let validRows = 0;
   let duplicateRows = 0;
   let invalidRows = 0;
@@ -84,8 +85,12 @@ async function buildSummaryAsync(
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const email = emailForRow(row.values, columns);
-    const isDuplicate = email.length > 0 && seenEmails.has(email);
+    const mobile = mobileForRow(row.values, columns);
+    const isDuplicate =
+      (email.length > 0 && seenEmails.has(email)) ||
+      (mobile.length > 0 && seenMobiles.has(mobile));
     if (email.length > 0) seenEmails.add(email);
+    if (mobile.length > 0) seenMobiles.add(mobile);
 
     if (isDuplicate) duplicateRows++;
     if (isValidImportRow(row.values, columns)) {
@@ -119,7 +124,10 @@ async function parseLeadImportMatrixAsync(
   const onProgress = options?.onProgress;
   const columns = resolveColumns(matrix[0] ?? []);
   const dataMatrix = matrix.slice(1);
-  const totalRows = dataMatrix.length;
+  const totalRows = dataMatrix.filter((rawRow) => {
+    const cells = columns.map((_, colIndex) => cellText((rawRow ?? [])[colIndex]));
+    return rowHasContent(cells) && !isTemplateHintRow(cells);
+  }).length;
 
   onProgress?.({
     phase: 'parsing',
@@ -131,7 +139,7 @@ async function parseLeadImportMatrixAsync(
   for (let i = 0; i < dataMatrix.length; i++) {
     const rawRow = dataMatrix[i] ?? [];
     const cells = columns.map((_, colIndex) => cellText(rawRow[colIndex]));
-    if (!rowHasContent(cells)) continue;
+    if (!rowHasContent(cells) || isTemplateHintRow(cells)) continue;
 
     const values: Record<string, string> = {};
     for (let c = 0; c < columns.length; c++) {

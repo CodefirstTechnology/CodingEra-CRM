@@ -18,6 +18,28 @@
 
   </p>
 
+  <div class="import-leads-modal__required-note" role="note">
+
+    <p class="import-leads-modal__required-title">Required fields</p>
+
+    <ul class="import-leads-modal__required-list">
+
+      @for (field of requiredFieldLabels; track field) {
+
+        <li>{{ field }}</li>
+
+      }
+
+    </ul>
+
+    <p class="import-leads-modal__required-foot">
+
+      Rows missing any required field will not be imported.
+
+    </p>
+
+  </div>
+
 
 
   <div class="import-leads-modal__template-row">

@@ -5,6 +5,35 @@
   color: var(--text-muted, #64748b);
 }
 
+.import-leads-modal__required-note {
+  margin: 0 0 1rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid color-mix(in srgb, var(--tertiary-color, #2563eb) 20%, var(--card-border, #e2e8f0));
+  background: color-mix(in srgb, var(--tertiary-color, #2563eb) 4%, var(--surface, #fff));
+}
+
+.import-leads-modal__required-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-primary, #0f172a);
+}
+
+.import-leads-modal__required-list {
+  margin: 0.4rem 0 0;
+  padding-left: 1.15rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-muted, #64748b);
+}
+
+.import-leads-modal__required-foot {
+  margin: 0.45rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+}
+
 .import-leads-modal__template-row {
   margin-bottom: 1rem;
   display: flex;

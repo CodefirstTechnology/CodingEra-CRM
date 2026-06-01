@@ -9,6 +9,7 @@ import {
   LEAD_IMPORT_ACCEPT,
   LEAD_IMPORT_UNSUPPORTED_FILE_MESSAGE,
 } from '../../../features/leads/import/lead-import.constants';
+import { LEAD_IMPORT_REQUIRED_FIELD_LABELS } from '../../../features/leads/import/lead-import-validation.util';
 import { mapParsedRowsToImportDtosAsync } from '../../../features/leads/import/lead-import-api.mapper';
 import type { LeadImportCommitResult } from '../../../features/leads/import/lead-import-api.models';
 import {
@@ -39,6 +40,7 @@ export class ImportLeadsModalComponent {
 
   protected readonly accept = LEAD_IMPORT_ACCEPT;
   protected readonly previewMaxRows = LEAD_IMPORT_PREVIEW_MAX_ROWS;
+  protected readonly requiredFieldLabels = LEAD_IMPORT_REQUIRED_FIELD_LABELS;
 
   protected readonly selectedFile = signal<File | null>(null);
   protected readonly parseResult = signal<LeadImportParseResult | null>(null);
