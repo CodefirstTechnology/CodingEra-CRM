@@ -23,6 +23,7 @@ export interface OrganizationRow {
   id: string;
   name: string;
   website: string;
+  gst?: string;
   industry: string;
   annualRevenue: number;
 

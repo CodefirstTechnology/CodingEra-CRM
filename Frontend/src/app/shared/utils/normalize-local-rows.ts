@@ -62,6 +62,9 @@ export function normalizeDealRow(row: Record<string, unknown>): DealRow {
     employees: String(row['employees'] ?? '1-10'),
     annualRevenue,
     website: String(row['website'] ?? ''),
+    ...(row['gst'] != null && String(row['gst']).trim() !== ''
+      ? { gst: String(row['gst']).trim() }
+      : {}),
     territory: String(row['territory'] ?? ''),
     industry: String(row['industry'] ?? 'Technology'),
     salutation: row['salutation'] != null ? String(row['salutation']) : '',
@@ -104,6 +107,9 @@ export function normalizeOrganizationRow(row: Record<string, unknown>): Organiza
     id,
     name: String(row['name'] ?? ''),
     website: String(row['website'] ?? ''),
+    ...(row['gst'] != null && String(row['gst']).trim() !== ''
+      ? { gst: String(row['gst']).trim() }
+      : {}),
     industry: String(row['industry'] ?? ''),
     annualRevenue: parseRevenueInputToNumber(row['annualRevenue'] as string | number),
     employees: String(row['employees'] ?? '1-10'),

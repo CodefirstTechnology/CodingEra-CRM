@@ -12,4 +12,5 @@ export {
   pipelineGroupForStage,
   resolveDealStatusForApi,
   resolveDealStatusLabel,
+  resolveDealStatusSelectValue,
 } from './deal-pipeline.constants';

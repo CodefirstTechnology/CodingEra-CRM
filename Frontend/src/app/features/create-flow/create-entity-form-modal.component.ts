@@ -28,6 +28,7 @@ import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pip
 import { resolveDealStatusLabel } from '../../core/services/deals/deal-status.constants';
 import {
   masterOptionFormValue,
+  masterSelectControlValue,
   resolveOrgMasterPick,
   resolveSalutationLabel,
   salutationSelectOptions,
@@ -347,7 +348,11 @@ export class CreateEntityFormModalComponent {
           firstName: '',
           primaryEmail: '',
           gender: '',
-          status: masterOptionFormValue(this.dealMaster.statusSelectOptions()[0] ?? { id: 0, name: DEFAULT_DEAL_PIPELINE_STATUS }),
+          status: masterSelectControlValue(
+            undefined,
+            DEFAULT_DEAL_PIPELINE_STATUS,
+            this.dealMaster.statusSelectOptions(),
+          ),
           dealOwner: this.leadOwnerOpts.defaultOwnerId(),
           requirement: '',
         });

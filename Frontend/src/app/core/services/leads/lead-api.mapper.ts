@@ -233,6 +233,7 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
   let employees = String(r['employees'] ?? r['Employees'] ?? '').trim();
   let annualRevenue = readOptionalInt(r['annualRevenue']) ?? readOptionalInt(r['AnnualRevenue']);
   let website = String(r['website'] ?? r['Website'] ?? '').trim();
+  let gst = String(r['gst'] ?? r['Gst'] ?? '').trim();
   let territoryId =
     readOptionalInt(r['territoryId']) ??
     readOptionalInt(r['TerritoryId']);
@@ -258,6 +259,7 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
     const rev = o['annualRevenue'] ?? o['AnnualRevenue'];
     if (rev != null && Number.isFinite(Number(rev))) annualRevenue = Number(rev);
     website = String(o['website'] ?? website).trim();
+    gst = String(o['gst'] ?? o['Gst'] ?? gst).trim();
   }
 
   const leadStatusId =
@@ -333,6 +335,7 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
     employees,
     annualRevenue,
     website,
+    gst,
     leadStatusId,
     statusName,
     requestTypeId,
@@ -394,6 +397,7 @@ export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
     employees: dto.employees || undefined,
     annualRevenue: formatAnnualRevenueDisplay(dto.annualRevenue),
     website: dto.website || undefined,
+    gst: dto.gst || undefined,
     territory: dto.territory || undefined,
     industry: dto.industry || 'Other',
     status,
@@ -450,6 +454,7 @@ export function enrichLeadNormalizedFromPatch(
       patch.industry !== undefined ? patch.industry.trim() || baseline.industry : baseline.industry,
     industryId: patch.industryId !== undefined ? patch.industryId ?? baseline.industryId : baseline.industryId,
     website: patch.website !== undefined ? patch.website.trim() || baseline.website : baseline.website,
+    gst: patch.gst !== undefined ? patch.gst.trim() || baseline.gst : baseline.gst,
     employees:
       patch.employees !== undefined ? patch.employees.trim() || baseline.employees : baseline.employees,
     employeeCountId:
@@ -556,6 +561,7 @@ function rowToNormalized(row: LeadRow, previous?: LeadNormalized): LeadNormalize
     annualRevenue:
       parseAnnualRevenueForApi(row.annualRevenue) ?? previous?.annualRevenue ?? null,
     website: row.website ?? previous?.website ?? '',
+    gst: row.gst ?? previous?.gst ?? '',
     leadStatusId: row.leadStatusId ?? previous?.leadStatusId ?? null,
     statusName: row.status ?? previous?.statusName ?? 'New',
     requestTypeId: row.requestTypeId ?? previous?.requestTypeId ?? null,

@@ -306,6 +306,7 @@ export class LeadsService {
         industry: patch?.industry?.trim() || prev.industry?.trim() || undefined,
         industryId: patch?.industryId ?? prev.industryId ?? undefined,
         website: patch?.website?.trim() || prev.website?.trim() || undefined,
+        gst: patch?.gst?.trim() || prev.gst?.trim() || undefined,
         employees: patch?.employees?.trim() || prev.employees?.trim() || undefined,
         employeeCountId: patch?.employeeCountId ?? prev.employeeCountId ?? undefined,
       })
@@ -329,6 +330,7 @@ export class LeadsService {
       industry: patch.industry?.trim() || undefined,
       industryId: patch.industryId,
       website: patch.website?.trim() || undefined,
+      gst: patch.gst?.trim() || undefined,
       employees: patch.employees?.trim() || undefined,
       employeeCountId: patch.employeeCountId,
     });
@@ -345,6 +347,7 @@ export class LeadsService {
         industry: data.industry?.trim() || undefined,
         industryId: data.industryId,
         website: data.website?.trim() || undefined,
+        gst: data.gst?.trim() || undefined,
         employees: data.employees?.trim() || undefined,
         employeeCountId: data.employeeCountId,
       })
@@ -372,6 +375,7 @@ export class LeadsService {
     const patch: Partial<Omit<LeadRow, 'id'>> = {
       organization: data.organization?.trim() || '',
       website: data.website?.trim() || undefined,
+      gst: data.gst?.trim() || undefined,
       territory: data.territory?.trim() || undefined,
       territoryId: data.territoryId,
       industry: data.industry?.trim() || undefined,

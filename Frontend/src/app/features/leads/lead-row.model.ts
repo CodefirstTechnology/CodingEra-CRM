@@ -40,6 +40,7 @@ export interface LeadRow {
   employeeCountId?: number | null;
   annualRevenue?: string;
   website?: string;
+  gst?: string;
   territory?: string;
   /** Master data FK (`/api/MasterData/territories`) when resolving organization. */
   territoryId?: number | null;

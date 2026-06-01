@@ -48,18 +48,10 @@ export function mapLeadToDealDraft(lead: LeadRow): LeadToDealDraft {
 }
 
 export function mapLeadStatusToDealPipelineStatus(status: LeadStatus): DealPipelineStatus {
-  switch (status) {
-    case 'Qualified':
-      return 'Quotation Shared';
-    case 'Lost':
-      return 'Lead Closed - Lost';
-    case 'Contacted':
-      return 'Quotation Shared';
-    case 'Converted':
-      return DEFAULT_DEAL_PIPELINE_STATUS;
-    default:
-      return DEFAULT_DEAL_PIPELINE_STATUS;
+  if (status === 'Lost') {
+    return 'Lead Closed - Lost';
   }
+  return DEFAULT_DEAL_PIPELINE_STATUS;
 }
 
 /**
@@ -83,7 +75,8 @@ export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
   const ownerId = (lead.leadOwnerId ?? '').trim();
   const contactName = leadContactName(lead);
   const createdAt = new Date().toISOString();
-  const orgId = lead.organizationId?.trim();
+  const orgFk = lead.organizationId?.trim();
+  const orgId = orgFk && Number(orgFk) > 0 ? orgFk : undefined;
   return {
     dealTitle: draft.title,
     contactName,
@@ -92,6 +85,7 @@ export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
     employeeCountId: lead.employeeCountId ?? undefined,
     annualRevenue: parseLeadNumericValue(lead),
     website: (lead.website ?? '').trim(),
+    gst: (lead.gst ?? '').trim(),
     territory: (lead.territory ?? '').trim(),
     territoryId: lead.territoryId ?? undefined,
     industry: (lead.industry ?? '').trim() || 'Other',
@@ -114,6 +108,7 @@ export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
     notes: (lead.notes ?? '').trim() || undefined,
     source: 'lead_conversion',
     sourceLeadId: lead.id,
-    relatedOrganizationId: orgId && Number(orgId) > 0 ? orgId : undefined,
+    organizationId: orgId,
+    relatedOrganizationId: orgId,
   };
 }

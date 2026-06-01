@@ -66,6 +66,11 @@ export const routes: Routes = [
         loadChildren: () => import('./features/notes/notes.module').then((m) => m.NotesModule),
       },
       {
+        path: 'quotations',
+        loadChildren: () =>
+          import('./features/quotations/quotations.module').then((m) => m.QuotationsModule),
+      },
+      {
         path: 'help',
         loadChildren: () => import('./features/help/help.module').then((m) => m.HelpModule),
       },

@@ -1,0 +1,240 @@
+@import './quotations-shared';
+
+.quotations {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-bottom: 2rem;
+}
+
+.quotations__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.quotations__title {
+  margin: 0 0 0.35rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.quotations__sub {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-muted);
+  max-width: 520px;
+}
+
+.quotations__btn {
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: var(--tertiary-color);
+  color: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  transition: var(--transition-theme);
+
+  &:hover {
+    filter: brightness(1.06);
+  }
+}
+
+.quotations__btn--ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--card-border);
+  box-shadow: none;
+
+  &:hover {
+    color: var(--text-primary);
+    filter: none;
+  }
+}
+
+.quotations__toolbar {
+  padding: 0.85rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.quotations__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+}
+
+.quotations__filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0;
+}
+
+.quotations__filter-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.quotations__filter-select {
+  height: 2.25rem;
+  min-width: 9rem;
+  padding: 0 2rem 0 0.65rem;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-family: inherit;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.55rem center;
+
+  &:focus {
+    outline: 2px solid color-mix(in srgb, var(--tertiary-color) 40%, transparent);
+    outline-offset: 1px;
+  }
+}
+
+.quotations__search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 220px;
+  min-width: 0;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--card-border);
+  color: var(--text-muted);
+}
+
+.quotations__search-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  font-size: 0.875rem;
+  font-family: inherit;
+  color: var(--text-primary);
+
+  &:focus {
+    outline: none;
+  }
+}
+
+.quotations__scroll {
+  overflow-x: auto;
+}
+
+.quotations__table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
+}
+
+.quotations__thead-row {
+  background: color-mix(in srgb, var(--text-muted) 8%, var(--body-bg));
+}
+
+.quotations__th {
+  text-align: left;
+  padding: 0.75rem 1rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--card-border);
+  white-space: nowrap;
+}
+
+.quotations__th--num,
+.quotations__th--actions {
+  text-align: right;
+}
+
+.quotations__th--status {
+  min-width: 100px;
+}
+
+.quotations__row:hover .quotations__td {
+  background: color-mix(in srgb, var(--tertiary-color) 5%, transparent);
+}
+
+.quotations__td {
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--card-border);
+  vertical-align: middle;
+  color: var(--text-primary);
+}
+
+.quotations__td--number {
+  font-weight: 600;
+}
+
+.quotations__td--muted {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.quotations__td--num,
+.quotations__td--actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.quotations__td--actions {
+  white-space: normal;
+}
+
+.quotations__td--empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2rem 1rem;
+}
+
+.quotations__row:last-child .quotations__td {
+  border-bottom: none;
+}
+
+.quotations__link {
+  color: var(--tertiary-color);
+  text-decoration: none;
+  font-weight: 600;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.quotations__linkish {
+  border: none;
+  background: none;
+  padding: 0;
+  margin-left: 0.5rem;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--tertiary-color);
+  cursor: pointer;
+
+  &:first-child {
+    margin-left: 0;
+  }
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.quotations__linkish--danger {
+  color: #b91c1c;
+}

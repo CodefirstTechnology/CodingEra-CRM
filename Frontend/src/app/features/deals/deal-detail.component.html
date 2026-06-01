@@ -3,7 +3,7 @@
   <header class="deal-detail__top">
     <p class="deal-detail__crumb"><a routerLink="/deals">Deals</a> / {{ row.organizationName }}</p>
     <div class="deal-detail__top-actions">
-      <button type="button" class="deal-detail__btn deal-detail__btn--quotation" (click)="onCreateQuotationDemo()">
+      <button type="button" class="deal-detail__btn deal-detail__btn--quotation" (click)="onCreateQuotation()">
         Create Quotation
       </button>
       @if (auth.user(); as session) {
@@ -14,7 +14,12 @@
       }
       <div class="deal-detail__hdr-status">
         <span [class]="headerStatusDotClass()" aria-hidden="true"></span>
-        <select class="deal-detail__hdr-status-select" [formControl]="dataForm.controls.status" aria-label="Pipeline status">
+        <select
+          class="deal-detail__hdr-status-select"
+          [formControl]="dataForm.controls.status"
+          aria-label="Pipeline status"
+          (change)="onHeaderPipelineStatusChange()"
+        >
           @for (opt of dealStatuses(); track opt.id + opt.name) {
           <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
           }
@@ -696,6 +701,10 @@
             <dt>Website</dt>
             <dd class="deal-detail__kv-dd">
               <input type="text" class="deal-detail__side-field" [formControl]="dataForm.controls.website" [placeholder]="sidebarAddLabel('Website')" autocomplete="url" />
+            </dd>
+            <dt>GST</dt>
+            <dd class="deal-detail__kv-dd">
+              <input type="text" class="deal-detail__side-field" [formControl]="dataForm.controls.gst" placeholder="GSTIN" maxlength="32" autocomplete="off" />
             </dd>
             <dt>Territory</dt>
             <dd class="deal-detail__kv-dd">
