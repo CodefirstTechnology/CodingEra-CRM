@@ -596,6 +596,10 @@ export class LeadsComponent {
     this.importModalOpen.set(false);
   }
 
+  protected onLeadsImportCompleted(): void {
+    this.refreshLeads();
+  }
+
   protected openForm(): void {
     this.editingNumericId.set(null);
     this.modalLeadSource.set('Manual');

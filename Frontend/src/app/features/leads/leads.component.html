@@ -75,7 +75,11 @@
     (dismiss)="onBulkDismiss()"
   />
 
-  <app-import-leads-modal [open]="importModalOpen()" (dismiss)="closeImportModal()" />
+  <app-import-leads-modal
+    [open]="importModalOpen()"
+    (dismiss)="closeImportModal()"
+    (importCompleted)="onLeadsImportCompleted()"
+  />
 
   <app-convert-lead-modal
     [open]="convertModalOpen()"

@@ -28,6 +28,7 @@ export function coerceLeadStatus(raw: string | undefined | null): LeadStatus {
 function coerceLeadSource(raw: string | undefined | null): LeadSource {
   const s = (raw ?? 'Manual').trim();
   if (s === 'IndiaMART' || s === 'Justdial' || s === 'TradeIndia') return s;
+  if (s === 'Excel') return 'Excel';
   return 'Manual';
 }
 

@@ -81,7 +81,7 @@
           <dd>{{ stats.totalRows }}</dd>
         </div>
         <div class="import-leads-modal__stat import-leads-modal__stat--ok">
-          <dt>Valid rows</dt>
+          <dt>{{ stats.isCommitted ? 'Imported' : 'Valid rows' }}</dt>
           <dd>{{ stats.validRows }}</dd>
         </div>
         <div class="import-leads-modal__stat import-leads-modal__stat--warn">
@@ -94,7 +94,11 @@
         </div>
       </dl>
       <p class="import-leads-modal__summary-note">
-        Valid, duplicate, and invalid counts are temporary client-side estimates until import rules are finalized.
+        @if (summary()?.isCommitted) {
+          Counts reflect the server import result. Only valid rows were saved; duplicates and invalid rows were skipped.
+        } @else {
+          Valid, duplicate, and invalid counts are client-side estimates. Final counts are confirmed when you import.
+        }
       </p>
     </section>
 
@@ -148,10 +152,10 @@
     <button
       type="button"
       class="import-leads-modal__btn import-leads-modal__btn--solid"
-      [disabled]="!parseResult()"
-      title="Database import will be available in a future update"
+      [disabled]="!parseResult() || parsing() || importing() || !!commitResult()"
+      (click)="onImport()"
     >
-      Import
+      {{ importing() ? 'Importing…' : 'Import' }}
     </button>
   </div>
 </app-crm-modal>

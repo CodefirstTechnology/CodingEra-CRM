@@ -7,6 +7,7 @@ import { AuthService } from '../../auth/auth.service';
 import { normalizeLeadApiRecord } from './lead-api.mapper';
 import type { LeadNormalized, LeadUpsertDto } from './lead-api.models';
 import { stripLeadUpsertForPost } from './lead-upsert-body.util';
+import type { LeadImportCommitResult, LeadImportRowDto } from '../../../features/leads/import/lead-import-api.models';
 
 export interface LeadListQuery {
   leadSource?: string;
@@ -31,6 +32,46 @@ function extractLeadRecords(raw: unknown): unknown[] {
     }
   }
   return [];
+}
+
+function readInt(raw: Record<string, unknown>, keys: string[]): number {
+  for (const key of keys) {
+    const val = raw[key];
+    if (typeof val === 'number' && Number.isFinite(val)) return Math.trunc(val);
+    if (typeof val === 'string' && val.trim()) {
+      const n = Number(val);
+      if (Number.isFinite(n)) return Math.trunc(n);
+    }
+  }
+  return 0;
+}
+
+function normalizeLeadImportCommitResult(raw: unknown): LeadImportCommitResult {
+  const o =
+    raw != null && typeof raw === 'object' && !Array.isArray(raw)
+      ? (raw as Record<string, unknown>)
+      : {};
+  const errorsRaw = o['validationErrors'] ?? o['ValidationErrors'];
+  const validationErrors = Array.isArray(errorsRaw)
+    ? errorsRaw.map((item) => {
+        const e = item != null && typeof item === 'object' ? (item as Record<string, unknown>) : {};
+        const errList = e['errors'] ?? e['Errors'];
+        return {
+          rowNumber: readInt(e, ['rowNumber', 'RowNumber']),
+          isDuplicate: Boolean(e['isDuplicate'] ?? e['IsDuplicate']),
+          errors: Array.isArray(errList)
+            ? errList.filter((v): v is string => typeof v === 'string')
+            : [],
+        };
+      })
+    : undefined;
+
+  return {
+    importedCount: readInt(o, ['importedCount', 'ImportedCount']),
+    duplicateCount: readInt(o, ['duplicateCount', 'DuplicateCount']),
+    invalidCount: readInt(o, ['invalidCount', 'InvalidCount']),
+    validationErrors,
+  };
 }
 
 @Injectable({ providedIn: 'root' })
@@ -102,5 +143,11 @@ export class LeadHttpService {
 
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`, { headers: this.jsonHeaders() });
+  }
+
+  commitImport(rows: LeadImportRowDto[]): Observable<LeadImportCommitResult> {
+    return this.http
+      .post<unknown>(`${this.baseUrl}/import/commit`, { rows }, { headers: this.jsonHeaders() })
+      .pipe(map((raw) => normalizeLeadImportCommitResult(raw)));
   }
 }
