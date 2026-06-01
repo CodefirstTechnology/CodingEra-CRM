@@ -1,0 +1,94 @@
+<app-crm-modal
+  [open]="open()"
+  title="Import leads"
+  size="md"
+  [showFooter]="true"
+  (dismiss)="onDismiss()"
+>
+  <p class="import-leads-modal__intro">
+    Upload an Excel workbook (.xlsx) with one row per lead. Use the template so column names match the CRM.
+  </p>
+
+  <div class="import-leads-modal__template-row">
+    <button
+      type="button"
+      class="import-leads-modal__btn import-leads-modal__btn--template"
+      (click)="onDownloadTemplate()"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="7 10 12 15 17 10" />
+        <line x1="12" y1="15" x2="12" y2="3" />
+      </svg>
+      Download template
+    </button>
+  </div>
+
+  <div
+    class="import-leads-modal__dropzone"
+    [class.is-dragover]="dragOver()"
+    [class.has-file]="selectedFile()"
+    (dragover)="onDragOver($event)"
+    (dragleave)="onDragLeave($event)"
+    (drop)="onDrop($event)"
+  >
+    <input
+      #fileInput
+      type="file"
+      class="import-leads-modal__file-input visually-hidden"
+      [accept]="accept"
+      (change)="onFileInputChange($event)"
+    />
+
+    <div class="import-leads-modal__dropzone-icon" aria-hidden="true">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+        <line x1="12" y1="18" x2="12" y2="12" />
+        <polyline points="9 15 12 12 15 15" />
+      </svg>
+    </div>
+
+    <p class="import-leads-modal__dropzone-title">Drag and drop your .xlsx file here</p>
+    <p class="import-leads-modal__dropzone-sub">or</p>
+    <button type="button" class="import-leads-modal__btn import-leads-modal__btn--browse" (click)="onBrowseClick()">
+      Choose file
+    </button>
+    <p class="import-leads-modal__dropzone-hint">Supported format: .xlsx only</p>
+  </div>
+
+  @if (fileError()) {
+    <p class="import-leads-modal__error" role="alert">{{ fileError() }}</p>
+  }
+
+  @if (selectedFile(); as file) {
+    <div class="import-leads-modal__selected">
+      <span class="import-leads-modal__selected-label">Selected file</span>
+      <div class="import-leads-modal__selected-row">
+        <span class="import-leads-modal__filename" [title]="file.name">{{ file.name }}</span>
+        <button
+          type="button"
+          class="import-leads-modal__clear"
+          (click)="clearSelectedFile()"
+          aria-label="Remove selected file"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  }
+
+  <div crmModalFooter class="import-leads-modal__foot">
+    <button type="button" class="import-leads-modal__btn import-leads-modal__btn--ghost" (click)="onDismiss()">
+      Cancel
+    </button>
+    <button
+      type="button"
+      class="import-leads-modal__btn import-leads-modal__btn--solid"
+      disabled
+      title="Import will be available in a future update"
+    >
+      Import
+    </button>
+  </div>
+</app-crm-modal>

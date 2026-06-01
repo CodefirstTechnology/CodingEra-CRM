@@ -35,6 +35,7 @@ import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-
 import { isLeadConverted, isLeadQualifiedForConversion } from '../../shared/utils/lead-conversion.util';
 import type { ConvertLeadOptions } from '../../core/services/leads/lead-conversion.types';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
+import { ImportLeadsModalComponent } from '../../shared/components/import-leads-modal/import-leads-modal.component';
 import { CRM_PAGINATED_SELECT_PAGE_SIZE } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
 import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
@@ -102,6 +103,7 @@ interface LeadColumnOption {
     CrmAssignPickerComponent,
     CrmPaginationFooterComponent,
     ConvertLeadModalComponent,
+    ImportLeadsModalComponent,
   ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
@@ -138,6 +140,7 @@ export class LeadsComponent {
   protected readonly assignPickerOpen = signal(false);
   /** When set, assign/clear apply to these ids instead of the checkbox selection. */
   private readonly assignTargetIds = signal<string[]>([]);
+  protected readonly importModalOpen = signal(false);
   protected readonly convertModalOpen = signal(false);
   protected readonly convertTargets = signal<LeadRow[]>([]);
   protected readonly openRowMenuId = signal<string | null>(null);
@@ -583,6 +586,14 @@ export class LeadsComponent {
       queryParams: { edit: null },
       queryParamsHandling: 'merge',
     });
+  }
+
+  protected openImportModal(): void {
+    this.importModalOpen.set(true);
+  }
+
+  protected closeImportModal(): void {
+    this.importModalOpen.set(false);
   }
 
   protected openForm(): void {
