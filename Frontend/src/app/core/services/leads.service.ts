@@ -199,7 +199,10 @@ export class LeadsService {
   }
 
   create(data: Omit<LeadRow, 'id'>): Observable<LeadRow> {
-    const withOwner = this.roundRobin.applyOwnerIfMissing(data);
+    const ownerProvided = !!data.leadOwnerId?.trim();
+    const withOwner = ownerProvided ? data : this.roundRobin.applyOwnerIfMissing(data);
+    const usedRoundRobin = !ownerProvided && !!withOwner.leadOwnerId?.trim();
+
     return this.withResolvedOrganization(withOwner).pipe(
       switchMap((body) => {
         const dto = this.roundRobin.applyToUpsertDto(body);
@@ -209,7 +212,11 @@ export class LeadsService {
           map((row) => applyLeadRowOrgFieldsFromPatch(row, orgPatch)),
         );
       }),
-      tap(() => this.roundRobin.advanceAfterLeadCreated()),
+      tap(() => {
+        if (usedRoundRobin) {
+          this.roundRobin.advanceAfterLeadCreated();
+        }
+      }),
     );
   }
 

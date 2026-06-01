@@ -73,6 +73,19 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--tertiary-color, #2563eb) 18%, transparent);
 }
 
+.create-form__owner-readonly {
+  display: flex;
+  align-items: center;
+  min-height: 2.25rem;
+  padding: 0.5rem 0.65rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary, #0f172a);
+  border: 1px solid var(--card-border, #e2e8f0);
+  border-radius: var(--radius-sm, 8px);
+  background: color-mix(in srgb, var(--body-bg, #f1f5f9) 35%, var(--surface, #fff));
+}
+
 .create-form__textarea {
   resize: vertical;
   min-height: 4.5rem;
