@@ -1,7 +1,17 @@
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
-import { isLeadImportCsvFile, isLeadImportXlsxFile } from './lead-import.constants';
-import type { LeadImportParseResult, LeadImportParsedRow, LeadImportSummary } from './lead-import.models';
+import { isLeadImportCsvFile, isLeadImportXlsxFile, LEAD_IMPORT_CHUNK_SIZE } from './lead-import.constants';
+import type {
+  LeadImportParseResult,
+  LeadImportParsedRow,
+  LeadImportProgress,
+  LeadImportSummary,
+} from './lead-import.models';
+import { yieldToMain } from './lead-import-progress.util';
+
+export interface LeadImportParseOptions {
+  onProgress?: (progress: LeadImportProgress) => void;
+}
 
 function normalizeHeader(raw: unknown): string {
   return String(raw ?? '')
@@ -47,7 +57,7 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-/** Temporary client-side validation until backend import rules exist. */
+/** Client-side estimate until server validation on import. */
 function isValidImportRow(values: Record<string, string>, columns: string[]): boolean {
   const firstName = pickValue(values, columns, ['first name', 'firstname', 'first_name']);
   const lastName = pickValue(values, columns, ['last name', 'lastname', 'last_name']);
@@ -59,14 +69,20 @@ function emailForRow(values: Record<string, string>, columns: string[]): string 
   return pickValue(values, columns, ['email', 'e-mail']).toLowerCase();
 }
 
-function buildSummary(rows: LeadImportParsedRow[], columns: string[], totalRows: number): LeadImportSummary {
+async function buildSummaryAsync(
+  rows: LeadImportParsedRow[],
+  columns: string[],
+  totalRows: number,
+  onProgress?: (progress: LeadImportProgress) => void,
+): Promise<LeadImportSummary> {
   const parsedRows = rows.length;
   const seenEmails = new Set<string>();
   let validRows = 0;
   let duplicateRows = 0;
   let invalidRows = 0;
 
-  for (const row of rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
     const email = emailForRow(row.values, columns);
     const isDuplicate = email.length > 0 && seenEmails.has(email);
     if (email.length > 0) seenEmails.add(email);
@@ -77,20 +93,39 @@ function buildSummary(rows: LeadImportParsedRow[], columns: string[], totalRows:
     } else {
       invalidRows++;
     }
+
+    if (i > 0 && i % LEAD_IMPORT_CHUNK_SIZE === 0) {
+      onProgress?.({
+        phase: 'parsing',
+        percent: 90 + Math.round((i / Math.max(rows.length, 1)) * 9),
+        detail: `Summarizing row ${i.toLocaleString()} of ${rows.length.toLocaleString()}…`,
+      });
+      await yieldToMain();
+    }
   }
 
   return { totalRows, parsedRows, validRows, duplicateRows, invalidRows };
 }
 
-/** Shared row/column parsing for Excel and CSV matrix input. */
-function parseLeadImportMatrix(matrix: unknown[][]): LeadImportParseResult {
+/** Shared row/column parsing for Excel and CSV matrix input (chunked for large files). */
+async function parseLeadImportMatrixAsync(
+  matrix: unknown[][],
+  options?: LeadImportParseOptions,
+): Promise<LeadImportParseResult> {
   if (matrix.length === 0) {
     throw new Error('The file is empty.');
   }
 
+  const onProgress = options?.onProgress;
   const columns = resolveColumns(matrix[0] ?? []);
   const dataMatrix = matrix.slice(1);
   const totalRows = dataMatrix.length;
+
+  onProgress?.({
+    phase: 'parsing',
+    percent: 5,
+    detail: `Parsing ${totalRows.toLocaleString()} row${totalRows === 1 ? '' : 's'}…`,
+  });
 
   const rows: LeadImportParsedRow[] = [];
   for (let i = 0; i < dataMatrix.length; i++) {
@@ -107,22 +142,36 @@ function parseLeadImportMatrix(matrix: unknown[][]): LeadImportParseResult {
       rowNumber: i + 2,
       values,
     });
+
+    if (i > 0 && i % LEAD_IMPORT_CHUNK_SIZE === 0) {
+      onProgress?.({
+        phase: 'parsing',
+        percent: 5 + Math.round((i / Math.max(dataMatrix.length, 1)) * 84),
+        detail: `Parsing row ${i.toLocaleString()} of ${totalRows.toLocaleString()}…`,
+      });
+      await yieldToMain();
+    }
   }
 
-  return {
-    columns,
-    rows,
-    summary: buildSummary(rows, columns, totalRows),
-  };
+  const summary = await buildSummaryAsync(rows, columns, totalRows, onProgress);
+  onProgress?.({ phase: 'parsing', percent: 100, detail: 'Parse complete' });
+
+  return { columns, rows, summary };
 }
 
 function stripUtf8Bom(text: string): string {
   return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
 }
 
-/** Reads the first worksheet of an `.xlsx` file and returns rows + temporary summary stats. */
-export async function parseLeadImportXlsx(file: File): Promise<LeadImportParseResult> {
+/** Reads the first worksheet of an `.xlsx` file and returns rows + summary stats. */
+export async function parseLeadImportXlsx(
+  file: File,
+  options?: LeadImportParseOptions,
+): Promise<LeadImportParseResult> {
+  options?.onProgress?.({ phase: 'reading', percent: 0, detail: 'Reading Excel file…' });
   const buffer = await file.arrayBuffer();
+  options?.onProgress?.({ phase: 'reading', percent: 100, detail: 'Reading Excel file…' });
+
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) {
@@ -136,10 +185,10 @@ export async function parseLeadImportXlsx(file: File): Promise<LeadImportParseRe
     raw: false,
   });
 
-  return parseLeadImportMatrix(matrix);
+  return parseLeadImportMatrixAsync(matrix, options);
 }
 
-function parseCsvText(text: string): LeadImportParseResult {
+function parseCsvMatrixFromText(text: string, options?: LeadImportParseOptions): Promise<LeadImportParseResult> {
   const normalized = stripUtf8Bom(text);
   const parsed = Papa.parse<unknown[]>(normalized, {
     header: false,
@@ -154,22 +203,30 @@ function parseCsvText(text: string): LeadImportParseResult {
     throw new Error(fatal.message || 'Could not parse the CSV file.');
   }
 
-  return parseLeadImportMatrix(parsed.data);
+  return parseLeadImportMatrixAsync(parsed.data, options);
 }
 
-/** Reads a UTF-8 `.csv` file and returns rows + temporary summary stats. */
-export async function parseLeadImportCsv(file: File): Promise<LeadImportParseResult> {
+/** Reads a UTF-8 `.csv` file and returns rows + summary stats. */
+export async function parseLeadImportCsv(
+  file: File,
+  options?: LeadImportParseOptions,
+): Promise<LeadImportParseResult> {
+  options?.onProgress?.({ phase: 'reading', percent: 0, detail: 'Reading CSV file…' });
   const text = await file.text();
-  return parseCsvText(text);
+  options?.onProgress?.({ phase: 'reading', percent: 100, detail: 'Reading CSV file…' });
+  return parseCsvMatrixFromText(text, options);
 }
 
 /** Parses `.xlsx` or `.csv` uploads through the shared preview pipeline. */
-export async function parseLeadImportFile(file: File): Promise<LeadImportParseResult> {
+export async function parseLeadImportFile(
+  file: File,
+  options?: LeadImportParseOptions,
+): Promise<LeadImportParseResult> {
   if (isLeadImportXlsxFile(file)) {
-    return parseLeadImportXlsx(file);
+    return parseLeadImportXlsx(file, options);
   }
   if (isLeadImportCsvFile(file)) {
-    return parseLeadImportCsv(file);
+    return parseLeadImportCsv(file, options);
   }
   throw new Error('Unsupported file type.');
 }

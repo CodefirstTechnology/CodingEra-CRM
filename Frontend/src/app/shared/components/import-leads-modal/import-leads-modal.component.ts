@@ -1,3 +1,4 @@
+import { DecimalPipe } from '@angular/common';
 import { Component, computed, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { CrmModalComponent } from '../../../core/modal/crm-modal.component';
@@ -8,16 +9,20 @@ import {
   LEAD_IMPORT_ACCEPT,
   LEAD_IMPORT_UNSUPPORTED_FILE_MESSAGE,
 } from '../../../features/leads/import/lead-import.constants';
-import { mapParsedRowsToImportDtos } from '../../../features/leads/import/lead-import-api.mapper';
+import { mapParsedRowsToImportDtosAsync } from '../../../features/leads/import/lead-import-api.mapper';
 import type { LeadImportCommitResult } from '../../../features/leads/import/lead-import-api.models';
-import { LEAD_IMPORT_PREVIEW_MAX_ROWS } from '../../../features/leads/import/lead-import.models';
+import {
+  downloadImportErrorsXlsx,
+  hasImportErrors,
+} from '../../../features/leads/import/lead-import-errors.util';
+import { LEAD_IMPORT_PREVIEW_MAX_ROWS, type LeadImportProgress } from '../../../features/leads/import/lead-import.models';
 import { parseLeadImportFile } from '../../../features/leads/import/lead-import-parser.util';
 import { downloadLeadImportTemplate } from '../../../features/leads/import/lead-import-template.util';
 import type { LeadImportParseResult } from '../../../features/leads/import/lead-import.models';
 
 @Component({
   selector: 'app-import-leads-modal',
-  imports: [CrmModalComponent],
+  imports: [CrmModalComponent, DecimalPipe],
   templateUrl: './import-leads-modal.component.html',
   styleUrl: './import-leads-modal.component.scss',
 })
@@ -42,6 +47,9 @@ export class ImportLeadsModalComponent {
   protected readonly importing = signal(false);
   protected readonly dragOver = signal(false);
   protected readonly fileError = signal<string | null>(null);
+  protected readonly progress = signal<LeadImportProgress | null>(null);
+
+  protected readonly isBusy = computed(() => this.parsing() || this.importing());
 
   protected readonly modalSize = computed(() =>
     this.parseResult() ? ('lg' as const) : ('md' as const),
@@ -59,31 +67,36 @@ export class ImportLeadsModalComponent {
     return Math.max(0, result.rows.length - LEAD_IMPORT_PREVIEW_MAX_ROWS);
   });
 
-  protected readonly summary = computed(() => {
-    const committed = this.commitResult();
-    if (committed) {
-      return {
-        totalRows: this.parseResult()?.summary.totalRows ?? 0,
-        parsedRows: this.parseResult()?.summary.parsedRows ?? 0,
-        validRows: committed.importedCount,
-        duplicateRows: committed.duplicateCount,
-        invalidRows: committed.invalidCount,
-        isCommitted: true as const,
-      };
-    }
+  protected readonly preImportSummary = computed(() => this.parseResult()?.summary ?? null);
 
-    const parsed = this.parseResult()?.summary;
-    if (!parsed) return null;
-    return { ...parsed, isCommitted: false as const };
-  });
+  protected readonly importResult = computed(() => this.commitResult());
+
+  protected readonly canDownloadErrors = computed(() =>
+    hasImportErrors(this.commitResult()?.validationErrors),
+  );
+
+  protected readonly progressDetail = computed(() => this.progress()?.detail ?? '');
+
+  protected readonly progressPercent = computed(() => this.progress()?.percent ?? 0);
+
+  protected readonly progressIndeterminate = computed(
+    () => this.importing() && this.progress()?.phase === 'uploading',
+  );
 
   protected onDismiss(): void {
+    if (this.isBusy()) return;
     this.resetState();
     this.dismiss.emit();
   }
 
   protected onDownloadTemplate(): void {
     downloadLeadImportTemplate();
+  }
+
+  protected onDownloadErrors(): void {
+    const errors = this.commitResult()?.validationErrors;
+    if (!hasImportErrors(errors)) return;
+    downloadImportErrorsXlsx(errors!);
   }
 
   protected onBrowseClick(): void {
@@ -118,10 +131,12 @@ export class ImportLeadsModalComponent {
   }
 
   protected clearSelectedFile(): void {
+    if (this.isBusy()) return;
     this.selectedFile.set(null);
     this.parseResult.set(null);
     this.commitResult.set(null);
     this.fileError.set(null);
+    this.progress.set(null);
   }
 
   protected async onImport(): Promise<void> {
@@ -130,30 +145,45 @@ export class ImportLeadsModalComponent {
 
     this.importing.set(true);
     this.fileError.set(null);
+    this.commitResult.set(null);
 
     try {
-      const rows = mapParsedRowsToImportDtos(result.rows, result.columns);
+      const rows = await mapParsedRowsToImportDtosAsync(result.rows, result.columns, (p) =>
+        this.progress.set(p),
+      );
+
+      this.progress.set({
+        phase: 'uploading',
+        percent: 96,
+        detail: `Uploading ${rows.length.toLocaleString()} row${rows.length === 1 ? '' : 's'}…`,
+      });
+
       const commitResult = await firstValueFrom(this.leadsService.commitImport(rows));
       this.commitResult.set(commitResult);
-      this.importCompleted.emit(commitResult);
+      this.progress.set({ phase: 'uploading', percent: 100, detail: 'Import complete' });
 
       const { importedCount, duplicateCount, invalidCount } = commitResult;
+
       if (importedCount > 0) {
         this.toast.success(
-          `Imported ${importedCount} lead${importedCount === 1 ? '' : 's'}` +
+          `Imported ${importedCount.toLocaleString()} lead${importedCount === 1 ? '' : 's'}.` +
             (duplicateCount || invalidCount
-              ? ` (${duplicateCount} duplicate, ${invalidCount} invalid skipped)`
+              ? ` ${duplicateCount.toLocaleString()} duplicate${duplicateCount === 1 ? '' : 's'} skipped, ${invalidCount.toLocaleString()} invalid.`
               : ''),
         );
+        this.importCompleted.emit(commitResult);
       } else {
-        this.toast.info(
-          `No leads imported (${duplicateCount} duplicate, ${invalidCount} invalid).`,
+        this.toast.error(
+          `Import finished with no leads saved. ${duplicateCount.toLocaleString()} duplicate${duplicateCount === 1 ? '' : 's'} skipped, ${invalidCount.toLocaleString()} invalid row${invalidCount === 1 ? '' : 's'}.`,
         );
       }
     } catch (err: unknown) {
-      this.fileError.set(leadsHttpErrorMessage(err));
+      const message = leadsHttpErrorMessage(err);
+      this.fileError.set(message);
+      this.toast.error(message);
     } finally {
       this.importing.set(false);
+      this.progress.set(null);
     }
   }
 
@@ -176,10 +206,13 @@ export class ImportLeadsModalComponent {
     this.parseResult.set(null);
     this.commitResult.set(null);
     this.parsing.set(true);
+    this.progress.set({ phase: 'reading', percent: 0, detail: 'Starting…' });
     this.fileSelected.emit(file);
 
     try {
-      const result = await parseLeadImportFile(file);
+      const result = await parseLeadImportFile(file, {
+        onProgress: (p) => this.progress.set(p),
+      });
       if (result.summary.parsedRows === 0) {
         this.fileError.set('No data rows found. Add lead rows below the header row.');
         this.parseResult.set(null);
@@ -188,9 +221,12 @@ export class ImportLeadsModalComponent {
       this.parseResult.set(result);
     } catch (err: unknown) {
       this.parseResult.set(null);
-      this.fileError.set(err instanceof Error ? err.message : 'Could not read the file.');
+      const message = err instanceof Error ? err.message : 'Could not read the file.';
+      this.fileError.set(message);
+      this.toast.error(message);
     } finally {
       this.parsing.set(false);
+      this.progress.set(null);
     }
   }
 
@@ -202,5 +238,6 @@ export class ImportLeadsModalComponent {
     this.importing.set(false);
     this.dragOver.set(false);
     this.fileError.set(null);
+    this.progress.set(null);
   }
 }

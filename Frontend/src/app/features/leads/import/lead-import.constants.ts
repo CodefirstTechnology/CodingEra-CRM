@@ -48,3 +48,8 @@ export function isLeadImportFile(file: File): boolean {
 
 export const LEAD_IMPORT_UNSUPPORTED_FILE_MESSAGE =
   'Only .xlsx and .csv files are supported.';
+
+export const LEAD_IMPORT_ERRORS_FILENAME = 'ImportErrors.xlsx';
+
+/** Rows processed per UI yield when parsing/mapping large uploads. */
+export const LEAD_IMPORT_CHUNK_SIZE = 500;

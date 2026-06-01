@@ -78,7 +78,7 @@
   <app-import-leads-modal
     [open]="importModalOpen()"
     (dismiss)="closeImportModal()"
-    (importCompleted)="onLeadsImportCompleted()"
+    (importCompleted)="onLeadsImportCompleted($event)"
   />
 
   <app-convert-lead-modal

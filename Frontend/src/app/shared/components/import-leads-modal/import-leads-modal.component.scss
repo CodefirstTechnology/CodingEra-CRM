@@ -99,6 +99,84 @@
   color: var(--text-muted, #64748b);
 }
 
+.import-leads-modal__progress {
+  margin-top: 0.85rem;
+}
+
+.import-leads-modal__progress-bar {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card-border, #e2e8f0) 70%, transparent);
+  overflow: hidden;
+  position: relative;
+
+  &::after {
+    content: '';
+    display: block;
+    height: 100%;
+    width: var(--progress, 0%);
+    border-radius: inherit;
+    background: var(--tertiary-color, #2563eb);
+    transition: width 0.2s ease;
+  }
+
+  &.is-indeterminate::after {
+    width: 35%;
+    animation: import-leads-indeterminate 1.2s ease-in-out infinite;
+  }
+}
+
+@keyframes import-leads-indeterminate {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.import-leads-modal__progress-label {
+  margin: 0.45rem 0 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+}
+
+.import-leads-modal__progress-detail {
+  display: block;
+  margin-top: 0.15rem;
+  font-weight: 500;
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.import-leads-modal__result {
+  margin-top: 1.25rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: var(--radius-sm, 8px);
+  border: 1px solid color-mix(in srgb, var(--tertiary-color, #2563eb) 25%, var(--card-border, #e2e8f0));
+  background: color-mix(in srgb, var(--tertiary-color, #2563eb) 4%, var(--surface, #fff));
+}
+
+.import-leads-modal__summary-grid--result {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 0.65rem;
+}
+
+.import-leads-modal__errors-row {
+  margin-top: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.import-leads-modal__errors-hint {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+}
+
 .import-leads-modal__section-title {
   margin: 0;
   font-size: 0.8125rem;
@@ -249,7 +327,8 @@
 }
 
 @media (max-width: 720px) {
-  .import-leads-modal__summary-grid {
+  .import-leads-modal__summary-grid,
+  .import-leads-modal__summary-grid--result {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

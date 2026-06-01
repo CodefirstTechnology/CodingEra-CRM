@@ -20,4 +20,13 @@ export interface LeadImportParseResult {
   summary: LeadImportSummary;
 }
 
+export type LeadImportProgressPhase = 'reading' | 'parsing' | 'mapping' | 'uploading';
+
+export interface LeadImportProgress {
+  phase: LeadImportProgressPhase;
+  /** 0–100 */
+  percent: number;
+  detail?: string;
+}
+
 export const LEAD_IMPORT_PREVIEW_MAX_ROWS = 20;

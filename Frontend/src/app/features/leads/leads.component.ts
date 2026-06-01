@@ -36,6 +36,7 @@ import { isLeadConverted, isLeadQualifiedForConversion } from '../../shared/util
 import type { ConvertLeadOptions } from '../../core/services/leads/lead-conversion.types';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import { ImportLeadsModalComponent } from '../../shared/components/import-leads-modal/import-leads-modal.component';
+import type { LeadImportCommitResult } from './import/lead-import-api.models';
 import { CRM_PAGINATED_SELECT_PAGE_SIZE } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
 import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
@@ -596,8 +597,10 @@ export class LeadsComponent {
     this.importModalOpen.set(false);
   }
 
-  protected onLeadsImportCompleted(): void {
-    this.refreshLeads();
+  protected onLeadsImportCompleted(result: LeadImportCommitResult): void {
+    if (result.importedCount > 0) {
+      this.refreshLeads();
+    }
   }
 
   protected openForm(): void {
