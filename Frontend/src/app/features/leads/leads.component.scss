@@ -433,6 +433,11 @@ select.leads__control {
   max-width: 11rem;
 }
 
+.leads__filter-select--owner {
+  min-width: 8.5rem;
+  max-width: 12rem;
+}
+
 .leads__input {
   flex: 1;
   border: none;

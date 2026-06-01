@@ -57,6 +57,7 @@ import {
 } from '../tradeindialead/tradeindia-lead.mapper';
 import { TradeIndiaLeadsService } from '../tradeindialead/tradeindia-leads.service';
 import type {
+  LeadListOwnerFilter,
   LeadListSourceFilter,
   LeadListStatusFilter,
   LeadOwnerOption,
@@ -149,6 +150,7 @@ export class LeadsComponent {
   protected readonly searchQuery = signal('');
   protected readonly statusFilter = signal<LeadListStatusFilter>('all');
   protected readonly sourceFilter = signal<LeadListSourceFilter>('all');
+  protected readonly ownerFilter = signal<LeadListOwnerFilter>('all');
   protected readonly columnMenuOpen = signal(false);
   protected readonly tablePage = signal(0);
   protected readonly tablePageSize = CRM_PAGINATED_SELECT_PAGE_SIZE;
@@ -228,6 +230,16 @@ export class LeadsComponent {
     id: chip.id,
     label: chip.id === 'all' ? 'All sources' : chip.label,
   }));
+
+  protected readonly ownerFilterOptions = computed(() => {
+    const items: { id: LeadListOwnerFilter; label: string }[] = [
+      { id: 'all', label: 'All owners' },
+    ];
+    for (const opt of this.leadOwnerOptions()) {
+      items.push({ id: opt.id, label: opt.label });
+    }
+    return items;
+  });
 
   private readonly requiredColumnIds = new Set(['name', 'source', 'requirement']);
   private readonly ignoredColumnIds = new Set([
@@ -392,7 +404,10 @@ export class LeadsComponent {
     const q = this.searchQuery().trim().toLowerCase();
     const st = this.statusFilter();
     const src = this.sourceFilter();
+    const owner = this.ownerFilter();
+    const filterByOwner = this.isAdminViewer() && owner !== 'all';
     return this.rows().filter((row) => {
+      if (filterByOwner && !this.rowMatchesOwnerFilter(row, owner)) return false;
       if (src !== 'all' && (row.leadSource ?? 'Manual') !== src) return false;
       if (st === 'Converted') {
         if (!isLeadConverted(row)) return false;
@@ -969,6 +984,7 @@ export class LeadsComponent {
     this.searchQuery.set('');
     this.statusFilter.set('all');
     this.sourceFilter.set('all');
+    this.ownerFilter.set('all');
     this.resetTablePage();
   }
 
@@ -998,6 +1014,15 @@ export class LeadsComponent {
 
   protected onSourceFilterSelect(ev: Event): void {
     this.setSourceFilter((ev.target as HTMLSelectElement).value as LeadListSourceFilter);
+  }
+
+  protected setOwnerFilter(id: LeadListOwnerFilter): void {
+    this.ownerFilter.set(id);
+    this.resetTablePage();
+  }
+
+  protected onOwnerFilterSelect(ev: Event): void {
+    this.setOwnerFilter((ev.target as HTMLSelectElement).value as LeadListOwnerFilter);
   }
 
   protected toggleColumnMenu(): void {
@@ -1467,8 +1492,25 @@ export class LeadsComponent {
     return (
       this.statusFilter() !== 'all' ||
       this.sourceFilter() !== 'all' ||
+      (this.isAdminViewer() && this.ownerFilter() !== 'all') ||
       this.searchQuery().trim().length > 0
     );
+  }
+
+  private rowMatchesOwnerFilter(row: LeadRow, ownerId: string): boolean {
+    const rowOwnerId = row.leadOwnerId?.trim();
+    if (rowOwnerId && this.ownerIdsMatch(rowOwnerId, ownerId)) return true;
+    const opt = this.leadOwnerOpts.findById(ownerId);
+    if (!opt) return false;
+    const rowName = row.leadOwnerName.trim().toLowerCase();
+    return rowName.length > 0 && rowName === opt.label.trim().toLowerCase();
+  }
+
+  private ownerIdsMatch(a: string, b: string): boolean {
+    if (a === b) return true;
+    const an = Number(a);
+    const bn = Number(b);
+    return Number.isFinite(an) && Number.isFinite(bn) && an === bn;
   }
 
   private titleizeColumnId(id: string): string {

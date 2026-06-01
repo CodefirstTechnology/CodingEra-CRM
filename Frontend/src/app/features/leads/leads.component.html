@@ -363,6 +363,20 @@
           }
         </select>
       </label>
+      @if (isAdminViewer()) {
+        <label class="leads__filter-field">
+          <span class="visually-hidden">Filter by lead owner</span>
+          <select
+            class="leads__filter-select leads__filter-select--owner"
+            [value]="ownerFilter()"
+            (change)="onOwnerFilterSelect($event)"
+          >
+            @for (opt of ownerFilterOptions(); track opt.id) {
+              <option [value]="opt.id">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+      }
     </div>
   </div>
 
