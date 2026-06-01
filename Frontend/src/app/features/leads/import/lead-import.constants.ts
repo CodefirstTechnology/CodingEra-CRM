@@ -21,6 +21,7 @@ export const LEAD_IMPORT_TEMPLATE_COLUMNS = [
 export type LeadImportTemplateColumn = (typeof LEAD_IMPORT_TEMPLATE_COLUMNS)[number];
 
 export const LEAD_IMPORT_TEMPLATE_FILENAME = 'lead-import-template.xlsx';
+export const LEAD_IMPORT_TEMPLATE_CSV_FILENAME = 'lead-import-template.csv';
 
 export const LEAD_IMPORT_ACCEPT =
   '.xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv';

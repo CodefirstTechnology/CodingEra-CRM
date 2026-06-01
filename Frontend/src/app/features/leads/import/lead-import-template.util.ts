@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import {
   LEAD_IMPORT_TEMPLATE_COLUMNS,
+  LEAD_IMPORT_TEMPLATE_CSV_FILENAME,
   LEAD_IMPORT_TEMPLATE_FILENAME,
 } from './lead-import.constants';
 
@@ -16,4 +17,16 @@ export function downloadLeadImportTemplate(): void {
   sheet['!cols'] = colWidths;
 
   XLSX.writeFile(workbook, LEAD_IMPORT_TEMPLATE_FILENAME);
+}
+
+/** Builds and triggers download of the lead import `.csv` template (headers only, UTF-8). */
+export function downloadLeadImportCsvTemplate(): void {
+  const header = LEAD_IMPORT_TEMPLATE_COLUMNS.join(',');
+  const blob = new Blob(['\uFEFF' + header + '\n'], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = LEAD_IMPORT_TEMPLATE_CSV_FILENAME;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }

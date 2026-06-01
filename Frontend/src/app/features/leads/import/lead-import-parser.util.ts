@@ -192,7 +192,7 @@ function parseCsvMatrixFromText(text: string, options?: LeadImportParseOptions):
   const normalized = stripUtf8Bom(text);
   const parsed = Papa.parse<unknown[]>(normalized, {
     header: false,
-    skipEmptyLines: false,
+    skipEmptyLines: 'greedy',
     transform: (value: string) => cellText(value),
   });
 

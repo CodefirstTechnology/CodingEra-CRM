@@ -17,7 +17,7 @@ import {
 } from '../../../features/leads/import/lead-import-errors.util';
 import { LEAD_IMPORT_PREVIEW_MAX_ROWS, type LeadImportProgress } from '../../../features/leads/import/lead-import.models';
 import { parseLeadImportFile } from '../../../features/leads/import/lead-import-parser.util';
-import { downloadLeadImportTemplate } from '../../../features/leads/import/lead-import-template.util';
+import { downloadLeadImportCsvTemplate, downloadLeadImportTemplate } from '../../../features/leads/import/lead-import-template.util';
 import type { LeadImportParseResult } from '../../../features/leads/import/lead-import.models';
 
 @Component({
@@ -91,6 +91,10 @@ export class ImportLeadsModalComponent {
 
   protected onDownloadTemplate(): void {
     downloadLeadImportTemplate();
+  }
+
+  protected onDownloadCsvTemplate(): void {
+    downloadLeadImportCsvTemplate();
   }
 
   protected onDownloadErrors(): void {
