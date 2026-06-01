@@ -213,6 +213,7 @@ export class LeadsComponent {
   protected readonly sourceFilterChips: { id: LeadListSourceFilter; label: string }[] = [
     { id: 'all', label: 'All' },
     { id: 'Manual', label: 'Manual' },
+    { id: 'Excel', label: 'Excel' },
     { id: 'IndiaMART', label: 'IndiaMART' },
     { id: 'Justdial', label: 'Justdial' },
     { id: 'TradeIndia', label: 'TradeIndia' },
@@ -347,7 +348,9 @@ export class LeadsComponent {
         r.leadSource === 'Justdial' ||
         r.leadSource === 'TradeIndia'
           ? r.leadSource
-          : 'Manual';
+          : r.leadSource === 'Excel'
+            ? 'Excel'
+            : 'Manual';
       const idNum = Number(r.id);
       return {
         ...r,
@@ -1503,6 +1506,7 @@ export class LeadsComponent {
     if (src === 'IndiaMART') return 'leads__tag leads__tag--src-im';
     if (src === 'Justdial') return 'leads__tag leads__tag--src-jd';
     if (src === 'TradeIndia') return 'leads__tag leads__tag--ok';
+    if (src === 'Excel') return 'leads__tag leads__tag--src-excel';
     return 'leads__tag leads__tag--src-manual';
   }
 

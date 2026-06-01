@@ -724,6 +724,11 @@ select.leads__control {
   color: var(--text-muted);
 }
 
+.leads__tag--src-excel {
+  background: color-mix(in srgb, #15803d 18%, transparent);
+  color: #15803d;
+}
+
 .leads__status-select,
 .leads__owner-select {
   font: inherit;
