@@ -1,0 +1,488 @@
+<app-crm-modal
+
+  [open]="open()"
+
+  title="Import leads"
+
+  [size]="modalSize()"
+
+  [showFooter]="true"
+
+  (dismiss)="onDismiss()"
+
+>
+
+  <p class="import-leads-modal__intro">
+
+    Upload an Excel (.xlsx) or CSV (.csv) file with one row per lead. Use the template so column names match the CRM.
+
+  </p>
+
+  <div class="import-leads-modal__required-note" role="note">
+
+    <p class="import-leads-modal__required-title">Required fields</p>
+
+    <ul class="import-leads-modal__required-list">
+
+      @for (field of requiredFieldLabels; track field) {
+
+        <li>{{ field }}</li>
+
+      }
+
+    </ul>
+
+    <p class="import-leads-modal__required-foot">
+
+      Rows missing any required field will not be imported.
+
+    </p>
+
+  </div>
+
+
+
+  <div class="import-leads-modal__template-row">
+
+    <button
+
+      type="button"
+
+      class="import-leads-modal__btn import-leads-modal__btn--template"
+
+      (click)="onDownloadTemplate()"
+
+    >
+
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+
+        <polyline points="7 10 12 15 17 10" />
+
+        <line x1="12" y1="15" x2="12" y2="3" />
+
+      </svg>
+
+      Download Excel template
+
+    </button>
+
+    <button
+
+      type="button"
+
+      class="import-leads-modal__btn import-leads-modal__btn--template"
+
+      (click)="onDownloadCsvTemplate()"
+
+    >
+
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+
+        <polyline points="7 10 12 15 17 10" />
+
+        <line x1="12" y1="15" x2="12" y2="3" />
+
+      </svg>
+
+      Download CSV template
+
+    </button>
+
+  </div>
+
+
+
+  <div
+
+    class="import-leads-modal__dropzone"
+
+    [class.is-dragover]="dragOver()"
+
+    [class.is-compact]="parseResult()"
+
+    [class.has-file]="selectedFile()"
+
+    (dragover)="onDragOver($event)"
+
+    (dragleave)="onDragLeave($event)"
+
+    (drop)="onDrop($event)"
+
+  >
+
+    <input
+
+      #fileInput
+
+      type="file"
+
+      class="import-leads-modal__file-input visually-hidden"
+
+      [accept]="accept"
+
+      (change)="onFileInputChange($event)"
+
+    />
+
+
+
+    @if (!parseResult()) {
+
+      <div class="import-leads-modal__dropzone-icon" aria-hidden="true">
+
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+
+          <polyline points="14 2 14 8 20 8" />
+
+          <line x1="12" y1="18" x2="12" y2="12" />
+
+          <polyline points="9 15 12 12 15 15" />
+
+        </svg>
+
+      </div>
+
+      <p class="import-leads-modal__dropzone-title">Drag and drop your .xlsx or .csv file here</p>
+
+      <p class="import-leads-modal__dropzone-sub">or</p>
+
+    }
+
+
+
+    @if (selectedFile(); as file) {
+
+      <p class="import-leads-modal__dropzone-file">{{ file.name }}</p>
+
+    }
+
+
+
+    <button
+
+      type="button"
+
+      class="import-leads-modal__btn import-leads-modal__btn--browse"
+
+      [disabled]="isBusy()"
+
+      (click)="onBrowseClick()"
+
+    >
+
+      {{ parseResult() ? 'Choose another file' : 'Choose file' }}
+
+    </button>
+
+    <p class="import-leads-modal__dropzone-hint">Supported formats: .xlsx, .csv</p>
+
+  </div>
+
+
+
+  @if (isBusy()) {
+
+    <div class="import-leads-modal__progress" role="status" aria-live="polite">
+
+      <div
+
+        class="import-leads-modal__progress-bar"
+
+        [class.is-indeterminate]="progressIndeterminate()"
+
+        [style.--progress]="progressPercent() + '%'"
+
+      ></div>
+
+      <p class="import-leads-modal__progress-label">
+
+        {{ importing() ? 'Importing…' : 'Parsing file…' }}
+
+        @if (progressDetail()) {
+
+          <span class="import-leads-modal__progress-detail">{{ progressDetail() }}</span>
+
+        }
+
+      </p>
+
+    </div>
+
+  }
+
+
+
+  @if (fileError()) {
+
+    <p class="import-leads-modal__error" role="alert">{{ fileError() }}</p>
+
+  }
+
+
+
+  @if (importResult(); as result) {
+
+    <section class="import-leads-modal__result" aria-label="Import result">
+
+      <h3 class="import-leads-modal__section-title">Import complete</h3>
+
+      <dl class="import-leads-modal__summary-grid import-leads-modal__summary-grid--result">
+
+        <div class="import-leads-modal__stat import-leads-modal__stat--ok">
+
+          <dt>Imported</dt>
+
+          <dd>{{ result.importedCount | number }}</dd>
+
+        </div>
+
+        <div class="import-leads-modal__stat import-leads-modal__stat--warn">
+
+          <dt>Duplicates skipped</dt>
+
+          <dd>{{ result.duplicateCount | number }}</dd>
+
+        </div>
+
+        <div class="import-leads-modal__stat import-leads-modal__stat--bad">
+
+          <dt>Invalid rows</dt>
+
+          <dd>{{ result.invalidCount | number }}</dd>
+
+        </div>
+
+      </dl>
+
+
+
+      @if (canDownloadErrors()) {
+
+        <div class="import-leads-modal__errors-row">
+
+          <button
+
+            type="button"
+
+            class="import-leads-modal__btn import-leads-modal__btn--template"
+
+            (click)="onDownloadErrors()"
+
+          >
+
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+
+              <polyline points="7 10 12 15 17 10" />
+
+              <line x1="12" y1="15" x2="12" y2="3" />
+
+            </svg>
+
+            Download ImportErrors.xlsx
+
+          </button>
+
+          <p class="import-leads-modal__errors-hint">
+
+            Includes row number and error message for each skipped row.
+
+          </p>
+
+        </div>
+
+      }
+
+    </section>
+
+  }
+
+
+
+  @if (preImportSummary(); as stats) {
+
+    <section class="import-leads-modal__summary" aria-label="File summary">
+
+      <h3 class="import-leads-modal__section-title">File summary</h3>
+
+      <dl class="import-leads-modal__summary-grid">
+
+        <div class="import-leads-modal__stat">
+
+          <dt>Total rows</dt>
+
+          <dd>{{ stats.totalRows | number }}</dd>
+
+        </div>
+
+        <div class="import-leads-modal__stat import-leads-modal__stat--ok">
+
+          <dt>Valid rows (estimate)</dt>
+
+          <dd>{{ stats.validRows | number }}</dd>
+
+        </div>
+
+        <div class="import-leads-modal__stat import-leads-modal__stat--warn">
+
+          <dt>Duplicate rows (estimate)</dt>
+
+          <dd>{{ stats.duplicateRows | number }}</dd>
+
+        </div>
+
+        <div class="import-leads-modal__stat import-leads-modal__stat--bad">
+
+          <dt>Invalid rows (estimate)</dt>
+
+          <dd>{{ stats.invalidRows | number }}</dd>
+
+        </div>
+
+      </dl>
+
+      @if (!importResult()) {
+
+        <p class="import-leads-modal__summary-note">
+
+          Estimates are client-side only. Final counts are shown after import.
+
+        </p>
+
+      }
+
+    </section>
+
+
+
+    <section class="import-leads-modal__preview" aria-label="Import preview">
+
+      <div class="import-leads-modal__preview-head">
+
+        <h3 class="import-leads-modal__section-title">Preview</h3>
+
+        <p class="import-leads-modal__preview-meta">
+
+          <span><strong>Parsed rows:</strong> {{ stats.parsedRows | number }}</span>
+
+          <span><strong>Total rows:</strong> {{ stats.totalRows | number }}</span>
+
+          <span><strong>Showing:</strong> first {{ previewRows().length | number }} of {{ stats.parsedRows | number }}</span>
+
+        </p>
+
+      </div>
+
+
+
+      @if (parseResult(); as parsed) {
+
+        <div class="import-leads-modal__table-wrap">
+
+          <table class="import-leads-modal__table">
+
+            <thead>
+
+              <tr>
+
+                <th class="import-leads-modal__th import-leads-modal__th--row">#</th>
+
+                @for (col of parsed.columns; track col) {
+
+                  <th class="import-leads-modal__th">{{ col }}</th>
+
+                }
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              @for (row of previewRows(); track row.rowNumber) {
+
+                <tr>
+
+                  <td class="import-leads-modal__td import-leads-modal__td--row">{{ row.rowNumber }}</td>
+
+                  @for (col of parsed.columns; track col) {
+
+                    <td class="import-leads-modal__td" [title]="cellValue(row, col)">{{ cellValue(row, col) }}</td>
+
+                  }
+
+                </tr>
+
+              }
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      }
+
+
+
+      @if (previewHiddenCount() > 0) {
+
+        <p class="import-leads-modal__preview-more">
+
+          {{ previewHiddenCount() | number }} more row{{ previewHiddenCount() === 1 ? '' : 's' }} not shown in preview.
+
+        </p>
+
+      }
+
+    </section>
+
+  }
+
+
+
+  <div crmModalFooter class="import-leads-modal__foot">
+
+    <button
+
+      type="button"
+
+      class="import-leads-modal__btn import-leads-modal__btn--ghost"
+
+      [disabled]="isBusy()"
+
+      (click)="onDismiss()"
+
+    >
+
+      {{ importResult() ? 'Close' : 'Cancel' }}
+
+    </button>
+
+    <button
+
+      type="button"
+
+      class="import-leads-modal__btn import-leads-modal__btn--solid"
+
+      [disabled]="!parseResult() || isBusy() || !!importResult()"
+
+      (click)="onImport()"
+
+    >
+
+      {{ importing() ? 'Importing…' : 'Import' }}
+
+    </button>
+
+  </div>
+
+</app-crm-modal>
+

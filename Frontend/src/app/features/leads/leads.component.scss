@@ -433,6 +433,11 @@ select.leads__control {
   max-width: 11rem;
 }
 
+.leads__filter-select--owner {
+  min-width: 8.5rem;
+  max-width: 12rem;
+}
+
 .leads__input {
   flex: 1;
   border: none;
@@ -717,6 +722,11 @@ select.leads__control {
 .leads__tag--src-manual {
   background: color-mix(in srgb, #64748b 14%, transparent);
   color: var(--text-muted);
+}
+
+.leads__tag--src-excel {
+  background: color-mix(in srgb, #15803d 18%, transparent);
+  color: #15803d;
 }
 
 .leads__status-select,

@@ -5,7 +5,6 @@
       <p class="leads__sub">Capture and qualify prospects before they become deals.</p>
     </div>
     <div class="leads__actions">
-      <button type="button" class="leads__btn leads__btn--ghost">Import</button>
       @if (enableIndiamartLead) {
         <button
           type="button"
@@ -49,6 +48,9 @@
           }
         </button>
       }
+      <button type="button" class="leads__btn leads__btn--ghost" (click)="openImportModal()">
+        Import leads
+      </button>
       <button type="button" class="leads__btn leads__btn--solid" (click)="openForm()">+ New lead</button>
     </div>
   </header>
@@ -71,6 +73,12 @@
     (clearAssignment)="onClearAssignmentBulk()"
     (convertToDeal)="convertToDeal()"
     (dismiss)="onBulkDismiss()"
+  />
+
+  <app-import-leads-modal
+    [open]="importModalOpen()"
+    (dismiss)="closeImportModal()"
+    (importCompleted)="onLeadsImportCompleted($event)"
   />
 
   <app-convert-lead-modal
@@ -363,6 +371,20 @@
           }
         </select>
       </label>
+      @if (isAdminViewer()) {
+        <label class="leads__filter-field">
+          <span class="visually-hidden">Filter by lead owner</span>
+          <select
+            class="leads__filter-select leads__filter-select--owner"
+            [value]="ownerFilter()"
+            (change)="onOwnerFilterSelect($event)"
+          >
+            @for (opt of ownerFilterOptions(); track opt.id) {
+              <option [value]="opt.id">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+      }
     </div>
   </div>
 

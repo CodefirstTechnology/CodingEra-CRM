@@ -25,6 +25,7 @@ import {
 import type { LeadNormalized, LeadUpsertDto } from './leads/lead-api.models';
 import { buildLeadPutJson } from './leads/lead-upsert-body.util';
 import { LeadHttpService } from './leads/lead-http.service';
+import type { LeadImportCommitResult, LeadImportRowDto } from '../../features/leads/import/lead-import-api.models';
 
 /** Maps failed lead HTTP calls to a short user-facing message. */
 export function leadsHttpErrorMessage(err: unknown): string {
@@ -400,5 +401,9 @@ export class LeadsService {
 
   async deleteAsync(id: number): Promise<void> {
     return firstValueFrom(this.delete(id));
+  }
+
+  commitImport(rows: LeadImportRowDto[]): Observable<LeadImportCommitResult> {
+    return this.leadHttp.commitImport(rows);
   }
 }
