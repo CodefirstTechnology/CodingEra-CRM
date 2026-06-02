@@ -75,11 +75,15 @@
     (dismiss)="onBulkDismiss()"
   />
 
-  <app-import-leads-modal
-    [open]="importModalOpen()"
-    (dismiss)="closeImportModal()"
-    (importCompleted)="onLeadsImportCompleted($event)"
-  />
+  @if (importModalOpen() && importModalLazyComponent(); as importCmp) {
+    <ng-container
+      *ngComponentOutlet="
+        importCmp;
+        inputs: importModalOutletInputs();
+        outputs: importModalOutletOutputs()
+      "
+    />
+  }
 
   <app-convert-lead-modal
     [open]="convertModalOpen()"

@@ -3,18 +3,17 @@ import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { TradeIndiaLead } from './tradeindia-lead.model';
 
-export const TRADEINDIA_LEAD_ROW_ID_PREFIX = 'ti-';
+import {
+  TRADEINDIA_LEAD_ROW_ID_PREFIX,
+  isTradeIndiaLeadRowId,
+  parseTradeIndiaNumericIdFromRowId,
+} from '../leads/lead-marketplace-id.util';
 
-export function isTradeIndiaLeadRowId(id: string): boolean {
-  return id.startsWith(TRADEINDIA_LEAD_ROW_ID_PREFIX);
-}
-
-/** Parses numeric TradeIndia id from a unified row id, or `null` if not a TradeIndia row. */
-export function parseTradeIndiaNumericIdFromRowId(id: string): number | null {
-  if (!isTradeIndiaLeadRowId(id)) return null;
-  const n = Number(id.slice(TRADEINDIA_LEAD_ROW_ID_PREFIX.length));
-  return Number.isFinite(n) ? n : null;
-}
+export {
+  TRADEINDIA_LEAD_ROW_ID_PREFIX,
+  isTradeIndiaLeadRowId,
+  parseTradeIndiaNumericIdFromRowId,
+};
 
 function mapTradeIndiaStatusToLeadStatus(status: TradeIndiaLead['status']): LeadStatus {
   const coerced = coerceLeadStatus(status);

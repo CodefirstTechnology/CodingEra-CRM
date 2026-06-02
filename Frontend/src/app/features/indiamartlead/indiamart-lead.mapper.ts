@@ -3,18 +3,17 @@ import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { IndiaMartLead } from './indiamart-lead.model';
 
-export const INDIAMART_LEAD_ROW_ID_PREFIX = 'im-';
+import {
+  INDIAMART_LEAD_ROW_ID_PREFIX,
+  isIndiamartLeadRowId,
+  parseIndiamartNumericIdFromRowId,
+} from '../leads/lead-marketplace-id.util';
 
-export function isIndiamartLeadRowId(id: string): boolean {
-  return id.startsWith(INDIAMART_LEAD_ROW_ID_PREFIX);
-}
-
-/** Parses numeric IndiaMART id from a unified row id, or `null` if not an IndiaMART row. */
-export function parseIndiamartNumericIdFromRowId(id: string): number | null {
-  if (!isIndiamartLeadRowId(id)) return null;
-  const n = Number(id.slice(INDIAMART_LEAD_ROW_ID_PREFIX.length));
-  return Number.isFinite(n) ? n : null;
-}
+export {
+  INDIAMART_LEAD_ROW_ID_PREFIX,
+  isIndiamartLeadRowId,
+  parseIndiamartNumericIdFromRowId,
+};
 
 function mapIndiaMartStatusToLeadStatus(status: IndiaMartLead['status']): LeadStatus {
   const coerced = coerceLeadStatus(status);

@@ -1,13 +1,14 @@
-import * as XLSX from 'xlsx';
 import {
   LEAD_IMPORT_TEMPLATE_COLUMNS,
   LEAD_IMPORT_TEMPLATE_CSV_FILENAME,
   LEAD_IMPORT_TEMPLATE_FILENAME,
   LEAD_IMPORT_TEMPLATE_HINT_ROW,
 } from './lead-import.constants';
+import { loadLeadImportXlsx } from './lead-import-xlsx.lib';
 
 /** Builds and triggers download of the lead import `.xlsx` template (headers + hint row). */
-export function downloadLeadImportTemplate(): void {
+export async function downloadLeadImportTemplate(): Promise<void> {
+  const XLSX = await loadLeadImportXlsx();
   const sheet = XLSX.utils.aoa_to_sheet([
     LEAD_IMPORT_TEMPLATE_COLUMNS.slice(),
     LEAD_IMPORT_TEMPLATE_HINT_ROW.slice(),

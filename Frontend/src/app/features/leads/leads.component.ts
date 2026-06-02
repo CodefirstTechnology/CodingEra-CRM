@@ -1,4 +1,15 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { NgComponentOutlet } from '@angular/common';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  effect,
+  inject,
+  Injector,
+  signal,
+  Type,
+  untracked,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -35,7 +46,6 @@ import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-
 import { isLeadConverted, isLeadQualifiedForConversion } from '../../shared/utils/lead-conversion.util';
 import type { ConvertLeadOptions } from '../../core/services/leads/lead-conversion.types';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
-import { ImportLeadsModalComponent } from '../../shared/components/import-leads-modal/import-leads-modal.component';
 import type { LeadImportCommitResult } from './import/lead-import-api.models';
 import { CRM_PAGINATED_SELECT_PAGE_SIZE } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
@@ -45,19 +55,15 @@ import { optionalMobile10Validator, optionalUrlValidator } from '../../shared/va
 import { environment } from '../../../environments/environment';
 import {
   isIndiamartLeadRowId,
-  mapIndiaMartLeadToLeadRow,
-} from '../indiamartlead/indiamart-lead.mapper';
-import { IndiamartLeadsService } from '../indiamartlead/indiamart-leads.service';
-import {
   isJustdialLeadRowId,
-  mapJustdialLeadToLeadRow,
-} from '../justdiallead/justdial-lead.mapper';
-import { JustdialLeadsService } from '../justdiallead/justdial-leads.service';
-import {
   isTradeIndiaLeadRowId,
-  mapTradeIndiaLeadToLeadRow,
-} from '../tradeindialead/tradeindia-lead.mapper';
-import { TradeIndiaLeadsService } from '../tradeindialead/tradeindia-leads.service';
+} from './lead-marketplace-id.util';
+import {
+  hasAnyMarketplaceFeatureEnabled,
+  loadLeadsMarketplaceRuntime,
+  needsLocalMarketplaceMerge,
+  type LeadsMarketplaceRuntime,
+} from './leads-marketplace.runtime';
 import type {
   LeadListOwnerFilter,
   LeadListSourceFilter,
@@ -104,7 +110,7 @@ interface LeadColumnOption {
     CrmAssignPickerComponent,
     CrmPaginationFooterComponent,
     ConvertLeadModalComponent,
-    ImportLeadsModalComponent,
+    NgComponentOutlet,
   ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
@@ -123,17 +129,23 @@ export class LeadsComponent {
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly leadRoundRobin = inject(LeadRoundRobinService);
-  private readonly indiamartLeadsService = inject(IndiamartLeadsService);
-  /** Mirrors {@link IndiamartLeadsService.pullInProgress} for the sync button. */
-  protected readonly indiamartPullLoading = this.indiamartLeadsService.pullInProgress;
-  /** Set when live IndiaMART pull is misconfigured (e.g. missing CRM key in `.env`). */
-  protected readonly indiamartConfigError = computed(() =>
-    this.indiamartLeadsService.getLivePullConfigurationError(),
+  private readonly injector = inject(Injector);
+
+  private readonly marketplaceRuntime = signal<LeadsMarketplaceRuntime | null>(null);
+  private readonly marketplaceLocalRows = signal<LeadRow[]>([]);
+
+  protected readonly indiamartPullLoading = computed(
+    () => this.marketplaceRuntime()?.indiamart?.pullInProgress() ?? false,
   );
-  private readonly justdialLeadsService = inject(JustdialLeadsService);
-  protected readonly justdialLoading = this.justdialLeadsService.loading;
-  private readonly tradeindiaLeadsService = inject(TradeIndiaLeadsService);
-  protected readonly tradeindiaLoading = this.tradeindiaLeadsService.loading;
+  protected readonly indiamartConfigError = computed(
+    () => this.marketplaceRuntime()?.indiamart?.getConfigError() ?? null,
+  );
+  protected readonly justdialLoading = computed(
+    () => this.marketplaceRuntime()?.justdial?.loading() ?? false,
+  );
+  protected readonly tradeindiaLoading = computed(
+    () => this.marketplaceRuntime()?.tradeindia?.loading() ?? false,
+  );
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -142,6 +154,7 @@ export class LeadsComponent {
   /** When set, assign/clear apply to these ids instead of the checkbox selection. */
   private readonly assignTargetIds = signal<string[]>([]);
   protected readonly importModalOpen = signal(false);
+  protected readonly importModalLazyComponent = signal<Type<unknown> | null>(null);
   protected readonly convertModalOpen = signal(false);
   protected readonly convertTargets = signal<LeadRow[]>([]);
   protected readonly openRowMenuId = signal<string | null>(null);
@@ -326,6 +339,55 @@ export class LeadsComponent {
         this.beginEditFromRoute(String(edit));
       }
     });
+
+    effect(() => {
+      const rt = this.marketplaceRuntime();
+      if (!rt) return;
+      rt.indiamart?.pullInProgress();
+      rt.justdial?.loading();
+      rt.tradeindia?.loading();
+      untracked(() => this.refreshMarketplaceLocalRows());
+    });
+
+    effect(() => {
+      const src = this.sourceFilter();
+      if (src === 'IndiaMART' || src === 'Justdial' || src === 'TradeIndia') {
+        untracked(() => void this.ensureMarketplaceRuntime());
+      }
+    });
+
+    afterNextRender(() => {
+      if (!needsLocalMarketplaceMerge()) return;
+      const schedule =
+        typeof requestIdleCallback === 'function'
+          ? (cb: () => void) => requestIdleCallback(cb, { timeout: 4000 })
+          : (cb: () => void) => setTimeout(cb, 1500);
+      schedule(() => void this.ensureMarketplaceRuntime());
+    });
+  }
+
+  private refreshMarketplaceLocalRows(): void {
+    const rt = this.marketplaceRuntime();
+    if (!rt) {
+      this.marketplaceLocalRows.set([]);
+      return;
+    }
+    const rows: LeadRow[] = [];
+    if (rt.indiamart) rows.push(...rt.indiamart.getLocalLeadRows());
+    if (rt.justdial) rows.push(...rt.justdial.getLocalLeadRows());
+    if (rt.tradeindia) rows.push(...rt.tradeindia.getLocalLeadRows());
+    this.marketplaceLocalRows.set(rows);
+  }
+
+  private ensureMarketplaceRuntime(): Promise<LeadsMarketplaceRuntime | null> {
+    if (!hasAnyMarketplaceFeatureEnabled()) {
+      return Promise.resolve(null);
+    }
+    return loadLeadsMarketplaceRuntime(this.injector).then((rt) => {
+      this.marketplaceRuntime.set(rt);
+      this.refreshMarketplaceLocalRows();
+      return rt;
+    });
   }
 
   /** Unified list: manual CRM leads + marketplace sources, sorted by recency (scoped for User role). */
@@ -363,16 +425,8 @@ export class LeadsComponent {
       return [...manual].sort((a, b) => (b.sortTimestamp ?? 0) - (a.sortTimestamp ?? 0));
     }
 
-    const im = environment.enableIndiamartLead
-      ? this.indiamartLeadsService.leads().map(mapIndiaMartLeadToLeadRow)
-      : [];
-    const jd = environment.justdial.enabled
-      ? this.justdialLeadsService.leads().map(mapJustdialLeadToLeadRow)
-      : [];
-    const ti = environment.tradeindia.enabled
-      ? this.tradeindiaLeadsService.leads().map(mapTradeIndiaLeadToLeadRow)
-      : [];
-    return [...manual, ...im, ...jd, ...ti].sort(
+    const marketplace = this.marketplaceLocalRows();
+    return [...manual, ...marketplace].sort(
       (a, b) => (b.sortTimestamp ?? 0) - (a.sortTimestamp ?? 0),
     );
   }
@@ -594,6 +648,22 @@ export class LeadsComponent {
 
   protected openImportModal(): void {
     this.importModalOpen.set(true);
+    if (!this.importModalLazyComponent()) {
+      void import('./leads-import-modal-lazy.component').then((m) => {
+        this.importModalLazyComponent.set(m.LeadsImportModalLazyComponent);
+      });
+    }
+  }
+
+  protected importModalOutletInputs(): Record<string, unknown> {
+    return { open: this.importModalOpen() };
+  }
+
+  protected importModalOutletOutputs(): Record<string, (value: unknown) => void> {
+    return {
+      dismiss: () => this.closeImportModal(),
+      importCompleted: (value) => this.onLeadsImportCompleted(value as LeadImportCommitResult),
+    };
   }
 
   protected closeImportModal(): void {
@@ -1438,53 +1508,65 @@ export class LeadsComponent {
 
   /** Pulls IndiaMART leads from `environment.indiamart.pullApiUrl`. */
   protected syncIndiaMartFromApi(): void {
-    this.indiamartLeadsService
-      .fetchFromIndiaMartAPI()
-      .pipe(take(1))
-      .subscribe({
-        next: (r) => {
-          this.refreshLeads();
-          this.toast.success(
-            `IndiaMART sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
-          );
-        },
-        error: (e: unknown) =>
-          this.toast.error(e instanceof Error ? e.message : 'IndiaMART sync failed.'),
-      });
+    void this.ensureMarketplaceRuntime().then((rt) => {
+      const im = rt?.indiamart;
+      if (!im) return;
+      im.fetchFromApi()
+        .pipe(take(1))
+        .subscribe({
+          next: (r) => {
+            this.refreshMarketplaceLocalRows();
+            this.refreshLeads();
+            this.toast.success(
+              `IndiaMART sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
+            );
+          },
+          error: (e: unknown) =>
+            this.toast.error(e instanceof Error ? e.message : 'IndiaMART sync failed.'),
+        });
+    });
   }
 
   /** Pulls Justdial leads from `environment.justdial.pullApiUrl`. */
   protected syncJustdialFromApi(): void {
-    this.justdialLeadsService
-      .fetchFromAPI()
-      .pipe(take(1))
-      .subscribe({
-        next: (r) => {
-          this.refreshLeads();
-          this.toast.success(
-            `Justdial sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
-          );
-        },
-        error: (e: unknown) =>
-          this.toast.error(e instanceof Error ? e.message : 'Justdial sync failed.'),
-      });
+    void this.ensureMarketplaceRuntime().then((rt) => {
+      const jd = rt?.justdial;
+      if (!jd) return;
+      jd.fetchFromApi()
+        .pipe(take(1))
+        .subscribe({
+          next: (r) => {
+            this.refreshMarketplaceLocalRows();
+            this.refreshLeads();
+            this.toast.success(
+              `Justdial sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
+            );
+          },
+          error: (e: unknown) =>
+            this.toast.error(e instanceof Error ? e.message : 'Justdial sync failed.'),
+        });
+    });
   }
 
   /** Pulls TradeIndia leads from `environment.tradeindia.pullApiUrl`. */
   protected syncTradeIndiaFromApi(): void {
-    this.tradeindiaLeadsService
-      .fetchFromAPI()
-      .pipe(take(1))
-      .subscribe({
-        next: (r) => {
-          this.refreshLeads();
-          this.toast.success(
-            `TradeIndia sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
-          );
-        },
-        error: (e: unknown) =>
-          this.toast.error(e instanceof Error ? e.message : 'TradeIndia sync failed.'),
-      });
+    void this.ensureMarketplaceRuntime().then((rt) => {
+      const ti = rt?.tradeindia;
+      if (!ti) return;
+      ti.fetchFromApi()
+        .pipe(take(1))
+        .subscribe({
+          next: (r) => {
+            this.refreshMarketplaceLocalRows();
+            this.refreshLeads();
+            this.toast.success(
+              `TradeIndia sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
+            );
+          },
+          error: (e: unknown) =>
+            this.toast.error(e instanceof Error ? e.message : 'TradeIndia sync failed.'),
+        });
+    });
   }
 
   protected fieldInvalid(name: string): boolean {
