@@ -18,6 +18,19 @@
         </div>
         <div class="qt-view__actions">
           <button type="button" class="qt-view__btn qt-view__btn--primary" (click)="edit()">Edit</button>
+          <button
+            type="button"
+            class="qt-view__btn qt-view__btn--ghost"
+            [disabled]="pdfGenerating()"
+            (click)="downloadPdf()"
+          >
+            @if (pdfGenerating()) {
+              <span class="qt-view__btn-spinner" aria-hidden="true"></span>
+              Generating…
+            } @else {
+              Download PDF
+            }
+          </button>
           <button type="button" class="qt-view__btn qt-view__btn--ghost" (click)="duplicate()">Duplicate</button>
           <button type="button" class="qt-view__btn qt-view__btn--danger" (click)="deleteDoc()">Delete</button>
         </div>
