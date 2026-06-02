@@ -6,6 +6,7 @@ import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { CrmModalComponent } from '../../core/modal/crm-modal.component';
 import { AuthService } from '../../core/auth/auth.service';
+import { isAdmin } from '../../core/auth/auth-role.util';
 import { ContactsService } from '../../core/services/contacts.service';
 import { DealsService } from '../../core/services/deals.service';
 import { composeLeadNotesForApi } from '../../core/services/leads/lead-notes-requirement.util';
@@ -116,6 +117,7 @@ export class CreateEntityFormModalComponent {
   ] as const;
 
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
+  protected readonly isAdminViewer = computed(() => isAdmin(this.auth.user()));
 
   protected readonly leadSubmitting = signal(false);
 
@@ -222,19 +224,31 @@ export class CreateEntityFormModalComponent {
   });
 
   constructor() {
-    this.leadOwnerOpts.load();
-    this.leadMasterData
-      .loadSalutations()
-      .pipe(take(1))
-      .subscribe((rows) => this.salutationsFromApi.set(rows));
-    this.leadMasterData
-      .loadLeadStatuses()
-      .pipe(take(1))
-      .subscribe((rows) => this.leadStatusesFromApi.set(rows));
     effect(() => {
       const k = this.flow.formKind();
-      if (!k) return;
-      untracked(() => this.resetFor(k));
+      if (!k) {
+        return;
+      }
+      untracked(() => {
+        this.resetFor(k);
+        this.leadOwnerOpts.load();
+        this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
+        if (k === 'lead' || k === 'deal' || k === 'contact') {
+          this.leadMasterData
+            .loadSalutations()
+            .pipe(take(1))
+            .subscribe((rows) => this.salutationsFromApi.set(rows));
+        }
+        if (k === 'lead') {
+          this.leadMasterData
+            .loadLeadStatuses()
+            .pipe(take(1))
+            .subscribe((rows) => this.leadStatusesFromApi.set(rows));
+        }
+        if (k === 'organization') {
+          this.orgMaster.ensureLoaded().pipe(take(1)).subscribe();
+        }
+      });
     });
   }
 
@@ -310,6 +324,18 @@ export class CreateEntityFormModalComponent {
     return this.leadOwnerOpts.options()[0]?.id ?? '';
   }
 
+  private defaultLeadOwnerForForm(): string {
+    if (this.isAdminViewer()) {
+      return this.leadRoundRobin.nextOwnerIdForForm();
+    }
+    return this.leadOwnerOpts.defaultOwnerId();
+  }
+
+  protected leadOwnerDisplayLabel(): string {
+    const id = this.leadForm.controls.leadOwner.value?.trim() ?? '';
+    return this.leadOwnerOpts.findById(id)?.label ?? this.auth.user()?.name?.trim() ?? 'You';
+  }
+
   private resetFor(kind: CreateEntityKind): void {
     switch (kind) {
       case 'lead':
@@ -327,7 +353,7 @@ export class CreateEntityFormModalComponent {
           territory: '',
           industry: 'Technology',
           status: 'New',
-          leadOwner: this.leadRoundRobin.nextOwnerIdForForm(),
+          leadOwner: this.defaultLeadOwnerForForm(),
           requestType: '',
           requirement: '',
           customField: '',
@@ -530,9 +556,12 @@ export class CreateEntityFormModalComponent {
       return;
     }
 
-    const ownerOpt = this.leadOwnerOpts.findById(raw.leadOwner);
-    const initials = ownerOpt?.initials ?? raw.leadOwner;
-    const leadOwnerName = ownerOpt?.label ?? raw.leadOwner;
+    const ownerId = this.isAdminViewer()
+      ? raw.leadOwner
+      : this.leadOwnerOpts.defaultOwnerId() || raw.leadOwner;
+    const ownerOpt = this.leadOwnerOpts.findById(ownerId);
+    const initials = ownerOpt?.initials ?? ownerId;
+    const leadOwnerName = ownerOpt?.label ?? ownerId;
 
     const salPick = resolveOrgMasterPick(raw.salutation, this.salutationSelectOptions());
 
@@ -543,7 +572,7 @@ export class CreateEntityFormModalComponent {
       lastName: raw.lastName.trim(),
       name: this.buildDisplayName(salPick.label, raw.firstName, raw.lastName),
       mobile: raw.mobile.trim(),
-      leadOwnerId: raw.leadOwner,
+      leadOwnerId: ownerId,
       gender: raw.gender || undefined,
       email: emailTrim,
       organization: raw.organization.trim(),

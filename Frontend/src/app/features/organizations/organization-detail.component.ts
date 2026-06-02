@@ -73,6 +73,7 @@ export class OrganizationDetailComponent {
   protected readonly contactCount = computed(() => this.relatedContacts().length);
 
   constructor() {
+    this.orgMaster.ensureLoaded().pipe(take(1)).subscribe();
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const raw = params.get('id');
       const id = raw != null ? Number(raw) : NaN;

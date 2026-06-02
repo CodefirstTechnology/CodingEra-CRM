@@ -66,6 +66,7 @@ export class OrganizationsComponent {
   }
 
   constructor() {
+    this.orgMaster.ensureLoaded().pipe(take(1)).subscribe();
     this.refreshOrganizations();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'organization') return;

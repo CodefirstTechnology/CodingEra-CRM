@@ -5,7 +5,6 @@
       <p class="leads__sub">Capture and qualify prospects before they become deals.</p>
     </div>
     <div class="leads__actions">
-      <button type="button" class="leads__btn leads__btn--ghost">Import</button>
       @if (enableIndiamartLead) {
         <button
           type="button"
@@ -49,6 +48,9 @@
           }
         </button>
       }
+      <button type="button" class="leads__btn leads__btn--ghost" (click)="openImportModal()">
+        Import leads
+      </button>
       <button type="button" class="leads__btn leads__btn--solid" (click)="openForm()">+ New lead</button>
     </div>
   </header>
@@ -72,6 +74,16 @@
     (convertToDeal)="convertToDeal()"
     (dismiss)="onBulkDismiss()"
   />
+
+  @if (importModalOpen() && importModalLazyComponent(); as importCmp) {
+    <ng-container
+      *ngComponentOutlet="
+        importCmp;
+        inputs: importModalOutletInputs();
+        outputs: importModalOutletOutputs()
+      "
+    />
+  }
 
   <app-convert-lead-modal
     [open]="convertModalOpen()"

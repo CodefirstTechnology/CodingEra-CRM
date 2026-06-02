@@ -263,6 +263,7 @@ export class DealsComponent {
 
   constructor() {
     this.ownerOpts.load();
+    this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
     this.refreshDeals();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'deal') return;

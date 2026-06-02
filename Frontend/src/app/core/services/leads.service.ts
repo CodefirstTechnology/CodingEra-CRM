@@ -25,6 +25,7 @@ import {
 import type { LeadNormalized, LeadUpsertDto } from './leads/lead-api.models';
 import { buildLeadPutJson } from './leads/lead-upsert-body.util';
 import { LeadHttpService } from './leads/lead-http.service';
+import type { LeadImportCommitResult, LeadImportRowDto } from '../../features/leads/import/lead-import-api.models';
 
 /** Maps failed lead HTTP calls to a short user-facing message. */
 export function leadsHttpErrorMessage(err: unknown): string {
@@ -199,7 +200,10 @@ export class LeadsService {
   }
 
   create(data: Omit<LeadRow, 'id'>): Observable<LeadRow> {
-    const withOwner = this.roundRobin.applyOwnerIfMissing(data);
+    const ownerProvided = !!data.leadOwnerId?.trim();
+    const withOwner = ownerProvided ? data : this.roundRobin.applyOwnerIfMissing(data);
+    const usedRoundRobin = !ownerProvided && !!withOwner.leadOwnerId?.trim();
+
     return this.withResolvedOrganization(withOwner).pipe(
       switchMap((body) => {
         const dto = this.roundRobin.applyToUpsertDto(body);
@@ -209,7 +213,11 @@ export class LeadsService {
           map((row) => applyLeadRowOrgFieldsFromPatch(row, orgPatch)),
         );
       }),
-      tap(() => this.roundRobin.advanceAfterLeadCreated()),
+      tap(() => {
+        if (usedRoundRobin) {
+          this.roundRobin.advanceAfterLeadCreated();
+        }
+      }),
     );
   }
 
@@ -397,5 +405,9 @@ export class LeadsService {
 
   async deleteAsync(id: number): Promise<void> {
     return firstValueFrom(this.delete(id));
+  }
+
+  commitImport(rows: LeadImportRowDto[]): Observable<LeadImportCommitResult> {
+    return this.leadHttp.commitImport(rows);
   }
 }

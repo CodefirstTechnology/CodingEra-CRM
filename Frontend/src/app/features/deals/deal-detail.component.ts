@@ -177,6 +177,7 @@ export class DealDetailComponent {
 
   constructor() {
     this.ownerOpts.load();
+    this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const raw = params.get('id');
       const id = raw != null ? Number(raw) : NaN;

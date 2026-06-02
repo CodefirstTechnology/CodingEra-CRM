@@ -5,6 +5,7 @@ import type { ActivityRow } from '../services/activities/activity-api.models';
 import { formatActivityWhen } from '../services/activities/activity-api.mapper';
 import { ActivitiesService } from '../services/activities.service';
 import { AuthService } from '../auth/auth.service';
+import { CrmEntityCacheService } from '../services/crm-entity-cache.service';
 import { UserDataScopeService } from '../services/user-data-scope.service';
 import type { TaskRow } from '../../features/tasks/tasks.component';
 import {
@@ -30,6 +31,7 @@ const NOTIFICATION_LIMIT = 25;
 @Injectable({ providedIn: 'root' })
 export class NotificationsPanelService {
   private readonly auth = inject(AuthService);
+  private readonly entityCache = inject(CrmEntityCacheService);
   private readonly scope = inject(UserDataScopeService);
   private readonly activitiesService = inject(ActivitiesService);
 
@@ -64,7 +66,7 @@ export class NotificationsPanelService {
   toggle(): void {
     const willOpen = !this.open();
     this.open.set(willOpen);
-    if (willOpen) this.refresh();
+    if (willOpen) this.refresh(true);
   }
 
   close(): void {
@@ -92,11 +94,15 @@ export class NotificationsPanelService {
     this.items.update((list) => list.map((n) => ({ ...n, read: true })));
   }
 
-  refresh(): void {
+  refresh(forceReload = false): void {
     const user = this.auth.user();
     if (!user?.id?.trim()) {
       this.items.set([]);
       return;
+    }
+
+    if (forceReload) {
+      this.entityCache.invalidate();
     }
 
     const token = ++this.refreshToken;
@@ -104,21 +110,23 @@ export class NotificationsPanelService {
     this.error.set(null);
 
     forkJoin({
-      leads: this.scope.listLeads().pipe(catchError(() => of([]))),
-      deals: this.scope.listDeals().pipe(catchError(() => of([]))),
+      leads: this.entityCache.listLeads().pipe(catchError(() => of([]))),
+      deals: this.entityCache.listDeals().pipe(catchError(() => of([]))),
       tasks: this.scope.listTasks().pipe(catchError(() => of([] as TaskRow[]))),
     })
       .pipe(
         switchMap(({ leads, deals, tasks }) => {
-          const leadIds = leads
-            .map((l) => Number(l.id))
-            .filter((n) => Number.isFinite(n) && n > 0);
-          const dealIds = deals
-            .map((d) => Number(d.id))
-            .filter((n) => Number.isFinite(n) && n > 0);
+          const leadIds = new Set(
+            leads.map((l) => Number(l.id)).filter((n) => Number.isFinite(n) && n > 0),
+          );
+          const dealIds = new Set(
+            deals.map((d) => Number(d.id)).filter((n) => Number.isFinite(n) && n > 0),
+          );
           const entityNames = buildActivityEntityNameMap(leads, deals);
 
-          return this.activitiesService.getRecentForRecords(leadIds, dealIds, NOTIFICATION_LIMIT).pipe(
+          return this.activitiesService
+            .getRecentFeed(NOTIFICATION_LIMIT, { leadIds, dealIds })
+            .pipe(
             catchError(() => of([] as ActivityRow[])),
             map((activities) => ({
               activities,
