@@ -7,6 +7,7 @@ import type {
   AdminDashboardSnapshot,
   AdminTeamSortKey,
 } from './models/admin-dashboard.models';
+import { CrmEntityCacheService } from '../../core/services/crm-entity-cache.service';
 import { AdminDashboardService } from './services/admin-dashboard.service';
 import { sortTeamMembers } from './utils/admin-dashboard.util';
 
@@ -20,6 +21,7 @@ type StreamTab = 'all' | 'calls' | 'meetings';
 })
 export class DashboardComponent {
   private readonly dashboardService = inject(AdminDashboardService);
+  private readonly entityCache = inject(CrmEntityCacheService);
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -40,6 +42,7 @@ export class DashboardComponent {
   }
 
   protected refreshDashboard(): void {
+    this.entityCache.invalidate();
     this.loading.set(true);
     this.error.set(null);
     this.streamExpanded.set(false);

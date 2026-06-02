@@ -75,11 +75,15 @@
     (dismiss)="onBulkDismiss()"
   />
 
-  <app-import-leads-modal
-    [open]="importModalOpen()"
-    (dismiss)="closeImportModal()"
-    (importCompleted)="onLeadsImportCompleted($event)"
-  />
+  @if (importModalOpen() && importModalLazyComponent(); as importCmp) {
+    <ng-container
+      *ngComponentOutlet="
+        importCmp;
+        inputs: importModalOutletInputs();
+        outputs: importModalOutletOutputs()
+      "
+    />
+  }
 
   <app-convert-lead-modal
     [open]="convertModalOpen()"
@@ -225,6 +229,17 @@
                 @if (fieldInvalid('website') && createForm.get('website')?.errors?.['url']) {
                   <span class="leads__err">Enter a valid website URL.</span>
                 }
+              </label>
+              <label class="leads__field">
+                <span class="leads__label">GST</span>
+                <input
+                  class="leads__control leads__control--soft"
+                  type="text"
+                  formControlName="gst"
+                  placeholder="GSTIN"
+                  autocomplete="off"
+                  maxlength="32"
+                />
               </label>
               <label class="leads__field">
                 <span class="leads__label">Territory</span>

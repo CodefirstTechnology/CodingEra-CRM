@@ -20,18 +20,26 @@ import {
   resolveOrgMasterPick,
 } from '../../core/services/organizations/organization-master-select.util';
 import { resolveDealStatusLabel, dealStatusCssKind } from '../../core/services/deals/deal-status.constants';
-import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
+import {
+  DEFAULT_DEAL_PIPELINE_STATUS,
+  resolveDealStatusSelectValue,
+} from '../../core/services/deals/deal-pipeline.constants';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
 import { EmailsService, emailSendErrorMessage } from '../../core/services/emails.service';
 import type { EntityEmailItem } from '../../core/services/emails/email-api.models';
 import { ToastService } from '../../core/toast/toast.service';
+import { QuotationsService } from '../../core/services/quotations.service';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
 import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
 import { dealRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from './deals.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
+import {
+  buildDealQuotationPrefill,
+  storeDealQuotationPrefill,
+} from '../../shared/utils/deal-quotation-prefill.util';
 import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
 
@@ -68,9 +76,11 @@ export class DealDetailComponent {
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly createFlow = inject(CreateFlowService);
   protected readonly auth = inject(AuthService);
+  private readonly quotationsService = inject(QuotationsService);
 
   protected readonly numericId = signal<number | null>(null);
   protected readonly deal = signal<DealRow | null>(null);
+  protected readonly dealQuotationId = signal<number | null>(null);
   protected readonly activeTab = signal<DetailTab>('Activity');
   protected readonly dataSaving = signal(false);
   protected readonly dealTasks = signal<TaskRow[]>([]);
@@ -159,6 +169,7 @@ export class DealDetailComponent {
     mobile: [''],
     dealOwner: [this.ownerOpts.defaultOwnerId(), Validators.required],
     website: [''],
+    gst: ['', Validators.maxLength(32)],
     territory: [''],
     probabilityPercent: ['10'],
     nextStep: [''],
@@ -166,6 +177,7 @@ export class DealDetailComponent {
 
   constructor() {
     this.ownerOpts.load();
+    this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const raw = params.get('id');
       const id = raw != null ? Number(raw) : NaN;
@@ -184,9 +196,12 @@ export class DealDetailComponent {
         return;
       }
       this.numericId.set(id);
-      this.dealsService
-        .getById(id)
-        .pipe(take(1))
+      this.dealMaster
+        .ensureStatusesLoaded()
+        .pipe(
+          switchMap(() => this.dealsService.getById(id)),
+          take(1),
+        )
         .subscribe((row) => {
           this.deal.set(row);
           if (row) {
@@ -215,6 +230,7 @@ export class DealDetailComponent {
             this.commentDraft.set('');
             this.emailComposerOpen.set(false);
             this.emailComposeEmojiOpen.set(false);
+            this.refreshDealQuotation();
           } else {
             this.dealTasks.set([]);
             this.dealNotes.set([]);
@@ -222,6 +238,7 @@ export class DealDetailComponent {
             this.dealAttachments.set([]);
             this.dealComments.set([]);
             this.dealEmails.set([]);
+            this.dealQuotationId.set(null);
             this.commentComposerOpen.set(false);
             this.commentDraft.set('');
             this.emailComposerOpen.set(false);
@@ -619,7 +636,7 @@ export class DealDetailComponent {
       {
         organization: row.organizationName ?? '',
         annualRevenue: this.revenueNumberToInputString(row.annualRevenue),
-        status: masterSelectControlValue(
+        status: resolveDealStatusSelectValue(
           row.dealStatusId,
           row.status,
           this.dealMaster.statusSelectOptions(),
@@ -628,6 +645,7 @@ export class DealDetailComponent {
         mobile: mobileVal && mobileVal !== '—' ? mobileVal : '',
         dealOwner: ownerId || this.ownerOpts.defaultOwnerId(),
         website: row.website?.trim() ?? '',
+        gst: row.gst?.trim() ?? '',
         territory: masterSelectControlValue(
           row.territoryId,
           row.territory,
@@ -673,6 +691,41 @@ export class DealDetailComponent {
   protected discardDataEdits(): void {
     const row = this.deal();
     if (row) this.patchDataForm(row);
+  }
+
+  /** Header pipeline dropdown — saves immediately (same as deals list). */
+  protected onHeaderPipelineStatusChange(): void {
+    const row = this.deal();
+    const idn = this.numericId();
+    if (!row || idn == null || !this.dataForm.controls.status.dirty) return;
+
+    const v = this.dataForm.getRawValue();
+    const statPick = resolveOrgMasterPick(v.status, this.dealMaster.statusSelectOptions());
+    const status = resolveDealStatusLabel(statPick.label || v.status);
+
+    this.dataSaving.set(true);
+    this.dealsService
+      .updateStatus(idn, {
+        status,
+        dealStatusId: statPick.masterId,
+      })
+      .pipe(take(1))
+      .subscribe({
+        next: (updated) => {
+          this.dataSaving.set(false);
+          if (updated) {
+            this.deal.set(updated);
+            this.patchDataForm(updated);
+            this.refreshDealActivities();
+            this.toast.success(`Stage updated to ${status}.`);
+          }
+        },
+        error: (e: unknown) => {
+          this.dataSaving.set(false);
+          this.toast.error(leadsHttpErrorMessage(e));
+          this.patchDataForm(row);
+        },
+      });
   }
 
   protected sidebarDealHeadline(row: DealRow): string {
@@ -750,6 +803,7 @@ export class DealDetailComponent {
               this.dataForm.controls.email.dirty ||
               this.dataForm.controls.mobile.dirty ||
               this.dataForm.controls.website.dirty ||
+              this.dataForm.controls.gst.dirty ||
               this.dataForm.controls.territory.dirty ||
               this.dataForm.controls.probabilityPercent.dirty ||
               this.dataForm.controls.nextStep.dirty;
@@ -803,6 +857,9 @@ export class DealDetailComponent {
     if (this.dataForm.controls.website.dirty) {
       patch.website = v.website.trim();
     }
+    if (this.dataForm.controls.gst.dirty) {
+      patch.gst = v.gst.trim();
+    }
     if (this.dataForm.controls.territory.dirty) {
       const terrPick = resolveOrgMasterPick(v.territory, this.dealMaster.territorySelectOptions());
       patch.territory = terrPick.label.trim();
@@ -832,8 +889,73 @@ export class DealDetailComponent {
     this.createFlow.openPicker();
   }
 
-  protected onCreateQuotationDemo(): void {
-    /* Demo: quotation builder not wired in this CRM shell. */
+  protected onViewQuotation(): void {
+    const qid = this.dealQuotationId();
+    if (qid != null) {
+      void this.router.navigate(['/quotations', qid]);
+    }
+  }
+
+  protected onCreateQuotation(): void {
+    const idn = this.numericId();
+    const row = this.deal();
+    if (idn == null || !row) {
+      this.toast.error('Deal not loaded.');
+      return;
+    }
+    const v = this.dataForm.getRawValue();
+    const prefill = buildDealQuotationPrefill(
+      idn,
+      row,
+      {
+        organization: v.organization,
+        email: v.email,
+        mobile: v.mobile,
+        website: v.website,
+        gst: v.gst,
+        annualRevenue: v.annualRevenue,
+        territory: v.territory,
+        employees: masterSelectControlValue(
+          row.employeeCountId,
+          row.employees,
+          this.dealMaster.employeeSelectOptions(),
+        ),
+        industry: masterSelectControlValue(
+          row.industryId,
+          row.industry,
+          this.dealMaster.industrySelectOptions(),
+        ),
+        salutation: masterSelectControlValue(
+          row.salutationId,
+          row.salutation,
+          this.dealMaster.salutationSelectOptions(),
+        ),
+      },
+      this.dealCode(),
+    );
+    storeDealQuotationPrefill(prefill);
+    void this.router.navigate(['/quotations/new'], {
+      queryParams: { dealId: idn },
+      state: { dealPrefill: prefill },
+    });
+  }
+
+  private refreshDealQuotation(): void {
+    const dealId = this.numericId();
+    if (dealId == null || dealId <= 0) {
+      this.dealQuotationId.set(null);
+      return;
+    }
+    this.quotationsService
+      .list({ dealId })
+      .pipe(take(1))
+      .subscribe({
+        next: (items) => {
+          const latest = items.length > 0 ? items[0] : null;
+          this.dealQuotationId.set(latest?.id ?? null);
+        },
+        error: () => this.dealQuotationId.set(null),
+      });
   }
 
   protected sidebarAnnualRevenueLabel(): string {
@@ -860,9 +982,9 @@ export class DealDetailComponent {
 
   protected headerStatusDotClass(): string {
     const raw = this.dataForm.controls.status.value;
-    const s = resolveDealStatusLabel(
-      resolveOrgMasterPick(raw, this.dealMaster.statusSelectOptions()).label || raw,
-    );
+    const statPick = resolveOrgMasterPick(raw, this.dealMaster.statusSelectOptions());
+    const label = statPick.label || this.deal()?.status || raw;
+    const s = resolveDealStatusLabel(label);
     const kind = dealStatusCssKind(s);
     switch (kind) {
       case 'won':

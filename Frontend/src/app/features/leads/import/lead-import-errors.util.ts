@@ -1,5 +1,5 @@
-import * as XLSX from 'xlsx';
 import { LEAD_IMPORT_ERRORS_FILENAME } from './lead-import.constants';
+import { loadLeadImportXlsx } from './lead-import-xlsx.lib';
 import type { LeadImportRowError } from './lead-import-api.models';
 
 export interface ImportErrorSheetRow {
@@ -26,10 +26,11 @@ export function flattenImportErrors(errors: readonly LeadImportRowError[]): Impo
 }
 
 /** Builds and downloads `ImportErrors.xlsx` with Row Number and Error Message columns. */
-export function downloadImportErrorsXlsx(
+export async function downloadImportErrorsXlsx(
   errors: readonly LeadImportRowError[],
   filename = LEAD_IMPORT_ERRORS_FILENAME,
-): void {
+): Promise<void> {
+  const XLSX = await loadLeadImportXlsx();
   const flat = flattenImportErrors(errors);
   const header: (string | number)[] = ['Row Number', 'Error Message'];
   const data = flat.map((row) => [row.rowNumber, row.errorMessage]);

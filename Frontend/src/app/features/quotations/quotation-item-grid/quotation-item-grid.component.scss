@@ -1,0 +1,188 @@
+@use '../quotations-shared';
+@use '../quotation-form-blocks';
+
+/* Toolbar sits in section head — match quotation form spacing */
+.qt-grid__toolbar-actions {
+  display: flex;
+  // flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.no-parent-style {
+  margin-top: 0.5rem;
+}
+
+.qt-grid__search {
+  min-width: 160px;
+  max-width: 220px;
+}
+
+.qt-grid__table {
+  min-width: 960px;
+}
+
+.qt-grid__th--drag {
+  width: 2rem;
+  text-align: center;
+}
+
+.qt-grid__td--drag {
+  cursor: grab;
+  user-select: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  letter-spacing: -0.15em;
+  text-align: center;
+  vertical-align: middle;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.qt-grid__row--dragging {
+  opacity: 0.55;
+  background: color-mix(in srgb, var(--tertiary-color) 8%, var(--body-bg));
+}
+
+.qt-form__lines-td--num .qt-form__control--compact {
+  text-align: right;
+}
+
+.qt-grid__amount {
+  display: block;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8125rem;
+  color: var(--text-primary);
+  padding: 0.4rem 0.55rem;
+}
+
+.qt-grid__grand {
+  color: var(--tertiary-color);
+  font-size: 0.9375rem;
+}
+
+.qt-grid__empty {
+  text-align: center;
+  padding: 1.25rem;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+
+/* Column config drawer */
+.qt-grid__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(15 23 42 / 0.4);
+  z-index: 1000;
+}
+
+.qt-grid__panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: min(380px, 94vw);
+  height: 100vh;
+  background: var(--surface);
+  border-left: 1px solid var(--card-border);
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.15rem;
+  box-shadow: var(--shadow-card);
+  font-family: inherit;
+}
+
+.qt-grid__panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.qt-grid__panel-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.qt-grid__panel-close {
+  border: none;
+  background: transparent;
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-muted);
+  padding: 0.15rem 0.35rem;
+  border-radius: var(--radius-sm);
+
+  &:hover {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+  }
+}
+
+.qt-grid__panel-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.qt-grid__col-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  overflow: auto;
+}
+
+.qt-grid__col-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--card-border);
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
+.qt-grid__col-drag {
+  cursor: grab;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  letter-spacing: -0.15em;
+  flex-shrink: 0;
+}
+
+.qt-grid__col-check {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-weight: 500;
+  cursor: pointer;
+
+  input {
+    accent-color: var(--tertiary-color);
+  }
+}
+
+.qt-grid__col-width {
+  width: 4.5rem;
+  flex-shrink: 0;
+  padding: 0.35rem 0.5rem;
+  text-align: right;
+}
+
+.qt-grid__panel-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--card-border);
+  margin-top: 0.5rem;
+}

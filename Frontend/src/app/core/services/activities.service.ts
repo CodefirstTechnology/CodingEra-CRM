@@ -22,7 +22,38 @@ export class ActivitiesService {
     return this.list(query).pipe(map((rows) => groupActivities(rows)));
   }
 
-  /** Loads and merges recent activity rows for the given lead/deal ids (newest first). */
+  /**
+   * Single-request recent feed for dashboards and notifications.
+   * When `scope` is set, results are limited to those lead/deal ids (user-scoped views).
+   */
+  getRecentFeed(
+    limit = 12,
+    scope?: { leadIds: ReadonlySet<number>; dealIds: ReadonlySet<number> },
+  ): Observable<ActivityRow[]> {
+    const fetchLimit = scope ? Math.min(100, Math.max(limit, limit * 3)) : limit;
+    return this.activityHttp.listRecent(fetchLimit).pipe(
+      catchError(() => of([] as ActivityRow[])),
+      map((rows) => {
+        const sorted = [...rows].sort(
+          (a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt),
+        );
+        if (!scope) {
+          return sorted.slice(0, limit);
+        }
+        const filtered = sorted.filter((row) => {
+          const type = String(row.entityType).toLowerCase();
+          const id = Number(row.entityId);
+          if (!Number.isFinite(id) || id <= 0) return false;
+          if (type === 'lead') return scope.leadIds.has(id);
+          if (type === 'deal') return scope.dealIds.has(id);
+          return false;
+        });
+        return filtered.slice(0, limit);
+      }),
+    );
+  }
+
+  /** Per-record fetch (entity detail timelines). Prefer {@link getRecentFeed} for aggregate views. */
   getRecentForRecords(
     leadIds: readonly number[],
     dealIds: readonly number[],

@@ -92,7 +92,7 @@ export class ImportLeadsModalComponent {
   }
 
   protected onDownloadTemplate(): void {
-    downloadLeadImportTemplate();
+    void downloadLeadImportTemplate();
   }
 
   protected onDownloadCsvTemplate(): void {
@@ -102,7 +102,7 @@ export class ImportLeadsModalComponent {
   protected onDownloadErrors(): void {
     const errors = this.commitResult()?.validationErrors;
     if (!hasImportErrors(errors)) return;
-    downloadImportErrorsXlsx(errors!);
+    void downloadImportErrorsXlsx(errors!);
   }
 
   protected onBrowseClick(): void {

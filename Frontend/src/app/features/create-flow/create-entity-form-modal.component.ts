@@ -29,6 +29,7 @@ import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pip
 import { resolveDealStatusLabel } from '../../core/services/deals/deal-status.constants';
 import {
   masterOptionFormValue,
+  masterSelectControlValue,
   resolveOrgMasterPick,
   resolveSalutationLabel,
   salutationSelectOptions,
@@ -223,19 +224,31 @@ export class CreateEntityFormModalComponent {
   });
 
   constructor() {
-    this.leadOwnerOpts.load();
-    this.leadMasterData
-      .loadSalutations()
-      .pipe(take(1))
-      .subscribe((rows) => this.salutationsFromApi.set(rows));
-    this.leadMasterData
-      .loadLeadStatuses()
-      .pipe(take(1))
-      .subscribe((rows) => this.leadStatusesFromApi.set(rows));
     effect(() => {
       const k = this.flow.formKind();
-      if (!k) return;
-      untracked(() => this.resetFor(k));
+      if (!k) {
+        return;
+      }
+      untracked(() => {
+        this.resetFor(k);
+        this.leadOwnerOpts.load();
+        this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
+        if (k === 'lead' || k === 'deal' || k === 'contact') {
+          this.leadMasterData
+            .loadSalutations()
+            .pipe(take(1))
+            .subscribe((rows) => this.salutationsFromApi.set(rows));
+        }
+        if (k === 'lead') {
+          this.leadMasterData
+            .loadLeadStatuses()
+            .pipe(take(1))
+            .subscribe((rows) => this.leadStatusesFromApi.set(rows));
+        }
+        if (k === 'organization') {
+          this.orgMaster.ensureLoaded().pipe(take(1)).subscribe();
+        }
+      });
     });
   }
 
@@ -361,7 +374,11 @@ export class CreateEntityFormModalComponent {
           firstName: '',
           primaryEmail: '',
           gender: '',
-          status: masterOptionFormValue(this.dealMaster.statusSelectOptions()[0] ?? { id: 0, name: DEFAULT_DEAL_PIPELINE_STATUS }),
+          status: masterSelectControlValue(
+            undefined,
+            DEFAULT_DEAL_PIPELINE_STATUS,
+            this.dealMaster.statusSelectOptions(),
+          ),
           dealOwner: this.leadOwnerOpts.defaultOwnerId(),
           requirement: '',
         });

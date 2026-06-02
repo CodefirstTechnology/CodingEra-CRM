@@ -16,7 +16,11 @@ import {
   resolveOrgMasterPick,
   resolveSalutationLabel,
 } from '../../core/services/organizations/organization-master-select.util';
-import { resolveDealStatusLabel, dealStatusCssKind } from '../../core/services/deals/deal-status.constants';
+import {
+  resolveDealStatusLabel,
+  resolveDealStatusSelectValue,
+  dealStatusCssKind,
+} from '../../core/services/deals/deal-status.constants';
 import type { DealPipelineStatus } from '../../core/services/deals/deal-pipeline.constants';
 import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
@@ -49,6 +53,7 @@ export interface DealRow {
   /** Stored as a plain number (no currency formatting). */
   annualRevenue: number;
   website: string;
+  gst?: string;
   territory: string;
   /** Master data FK (`/api/MasterData/territories`). */
   territoryId?: number | null;
@@ -80,6 +85,7 @@ export interface DealRow {
   createdAtAt?: string;
   /** When set, deal appears on the matching contact's detail "Deals" tab. */
   relatedContactId?: string;
+  organizationId?: string;
   /** When set, deal appears on the matching organization's detail "Deals" tab. */
   relatedOrganizationId?: string;
   /** Win probability (e.g. 10 = 10%). */
@@ -257,6 +263,7 @@ export class DealsComponent {
 
   constructor() {
     this.ownerOpts.load();
+    this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
     this.refreshDeals();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'deal') return;
@@ -328,6 +335,7 @@ export class DealsComponent {
     employees: ['1-10'],
     annualRevenue: ['', Validators.maxLength(40)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
+    gst: ['', Validators.maxLength(32)],
     territory: [''],
     industry: ['Technology', Validators.required],
     salutation: [''],
@@ -521,7 +529,6 @@ export class DealsComponent {
   private resetCreateForm(): void {
     const defaultIndustry = this.dealMaster.industrySelectOptions()[0];
     const defaultEmployees = this.dealMaster.employeeSelectOptions()[0];
-    const defaultStatus = this.dealMaster.statusSelectOptions()[0];
     this.createForm.reset({
       useExistingOrg: false,
       useExistingContact: false,
@@ -529,6 +536,7 @@ export class DealsComponent {
       employees: defaultEmployees ? masterOptionFormValue(defaultEmployees) : '1-10',
       annualRevenue: '',
       website: '',
+      gst: '',
       territory: '',
       industry: defaultIndustry ? masterOptionFormValue(defaultIndustry) : 'Technology',
       salutation: '',
@@ -537,9 +545,11 @@ export class DealsComponent {
       firstName: '',
       primaryEmail: '',
       gender: '',
-      status: defaultStatus
-        ? masterOptionFormValue(defaultStatus)
-        : DEFAULT_DEAL_PIPELINE_STATUS,
+      status: masterSelectControlValue(
+        undefined,
+        DEFAULT_DEAL_PIPELINE_STATUS,
+        this.dealMaster.statusSelectOptions(),
+      ),
       dealOwner: this.ownerOpts.defaultOwnerId(),
       requirement: '',
     });
@@ -584,6 +594,7 @@ export class DealsComponent {
           ),
           annualRevenue: revInput,
           website: row.website,
+          gst: row.gst ?? '',
           territory: masterSelectControlValue(
             row.territoryId,
             row.territory,
@@ -604,7 +615,7 @@ export class DealsComponent {
           firstName: row.firstName || 'Contact',
           lastName: row.lastName || 'Primary',
           gender: row.gender,
-          status: masterSelectControlValue(
+          status: resolveDealStatusSelectValue(
             row.dealStatusId,
             row.status,
             this.dealMaster.statusSelectOptions(),
@@ -751,6 +762,7 @@ export class DealsComponent {
       employeeCountId: empPick.masterId,
       annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
       website: raw.website.trim(),
+      gst: raw.gst.trim(),
       territory: terrPick.label.trim(),
       territoryId: terrPick.masterId,
       industry: indPick.label.trim() || 'Technology',

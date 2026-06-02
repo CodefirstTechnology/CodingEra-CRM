@@ -4,11 +4,11 @@ import { catchError, map, switchMap } from 'rxjs/operators';
 import { ActivitiesService } from '../../../core/services/activities.service';
 import type { ActivityRow } from '../../../core/services/activities/activity-api.models';
 import { AuthService } from '../../../core/auth/auth.service';
-import { DealsService } from '../../../core/services/deals.service';
+import { CrmEntityCacheService } from '../../../core/services/crm-entity-cache.service';
+import { UserDataScopeService } from '../../../core/services/user-data-scope.service';
 import { isDealClosed, isDealClosedWon } from '../../../core/services/deals/deal-pipeline.constants';
 import { LeadOwnerOptionsService } from '../../../core/services/leads/lead-owner-options.service';
-import { LeadsService, leadsHttpErrorMessage } from '../../../core/services/leads.service';
-import { TasksService } from '../../../core/services/tasks.service';
+import { leadsHttpErrorMessage } from '../../../core/services/leads.service';
 import type { DealRow } from '../../deals/deals.component';
 import type { LeadRow } from '../../leads/lead-row.model';
 import type { TaskRow } from '../../tasks/tasks.component';
@@ -30,9 +30,8 @@ import type {
 @Injectable({ providedIn: 'root' })
 export class UserDashboardService {
   private readonly auth = inject(AuthService);
-  private readonly leadsService = inject(LeadsService);
-  private readonly dealsService = inject(DealsService);
-  private readonly tasksService = inject(TasksService);
+  private readonly entityCache = inject(CrmEntityCacheService);
+  private readonly scope = inject(UserDataScopeService);
   private readonly activitiesService = inject(ActivitiesService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
 
@@ -54,26 +53,22 @@ export class UserDashboardService {
 
     return forkJoin({
       owners: this.leadOwnerOpts.ensureLoaded(),
-      leads: this.leadsService.getAssignedToUser(userId).pipe(catchError(() => of([] as LeadRow[]))),
-      deals: this.dealsService
-        .getAssignedToUser(userId, userName, userEmail)
-        .pipe(catchError(() => of([] as DealRow[]))),
-      tasks: this.tasksService
-        .getAssignedToUser(userId, userName, userEmail)
-        .pipe(catchError(() => of([] as TaskRow[]))),
+      leads: this.entityCache.listLeads().pipe(catchError(() => of([] as LeadRow[]))),
+      deals: this.entityCache.listDeals().pipe(catchError(() => of([] as DealRow[]))),
+      tasks: this.scope.listTasks().pipe(catchError(() => of([] as TaskRow[]))),
     }).pipe(
       switchMap(({ leads, deals, tasks }) => {
         const enriched = this.leadOwnerOpts.enrichRows(leads);
 
-        const leadNumericIds = enriched
-          .map((l) => Number(l.id))
-          .filter((n) => Number.isFinite(n) && n > 0);
-        const dealNumericIds = deals
-          .map((d) => Number(d.id))
-          .filter((n) => Number.isFinite(n) && n > 0);
+        const leadIds = new Set(
+          enriched.map((l) => Number(l.id)).filter((n) => Number.isFinite(n) && n > 0),
+        );
+        const dealIds = new Set(
+          deals.map((d) => Number(d.id)).filter((n) => Number.isFinite(n) && n > 0),
+        );
 
         return this.activitiesService
-          .getRecentForRecords(leadNumericIds, dealNumericIds, 12)
+          .getRecentFeed(12, { leadIds, dealIds })
           .pipe(
             catchError(() => of([] as ActivityRow[])),
             map((activities) => {

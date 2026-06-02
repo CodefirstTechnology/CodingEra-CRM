@@ -1,6 +1,6 @@
-import Papa from 'papaparse';
-import * as XLSX from 'xlsx';
 import { isLeadImportCsvFile, isLeadImportXlsxFile, LEAD_IMPORT_CHUNK_SIZE } from './lead-import.constants';
+import { loadLeadImportPapa } from './lead-import-papaparse.lib';
+import { loadLeadImportXlsx } from './lead-import-xlsx.lib';
 import {
   estimateImportRowValid,
   isTemplateHintRow,
@@ -180,6 +180,7 @@ export async function parseLeadImportXlsx(
   const buffer = await file.arrayBuffer();
   options?.onProgress?.({ phase: 'reading', percent: 100, detail: 'Reading Excel file…' });
 
+  const XLSX = await loadLeadImportXlsx();
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) {
@@ -196,8 +197,12 @@ export async function parseLeadImportXlsx(
   return parseLeadImportMatrixAsync(matrix, options);
 }
 
-function parseCsvMatrixFromText(text: string, options?: LeadImportParseOptions): Promise<LeadImportParseResult> {
+async function parseCsvMatrixFromText(
+  text: string,
+  options?: LeadImportParseOptions,
+): Promise<LeadImportParseResult> {
   const normalized = stripUtf8Bom(text);
+  const Papa = await loadLeadImportPapa();
   const parsed = Papa.parse<unknown[]>(normalized, {
     header: false,
     skipEmptyLines: 'greedy',

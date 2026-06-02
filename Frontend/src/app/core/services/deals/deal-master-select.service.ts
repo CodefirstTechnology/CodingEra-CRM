@@ -1,6 +1,6 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { forkJoin, Observable, of } from 'rxjs';
-import { catchError, map, shareReplay, take, tap } from 'rxjs/operators';
+import { catchError, map, shareReplay, tap } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import {
   labelsToMasterOptions,
@@ -85,7 +85,4 @@ export class DealMasterSelectService {
     return this.statusesReady$;
   }
 
-  constructor() {
-    this.ensureStatusesLoaded().pipe(take(1)).subscribe();
-  }
 }

@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable, catchError, map, of, timeout } from 'rxjs';
+import { Observable, catchError, map, of, shareReplay, tap, timeout } from 'rxjs';
 import type { RegisterApiRequest } from '../auth/auth.models';
 import { readUsersTableRoleId, ROLE_ID_USER, sessionRoleLabel } from '../auth/auth-role.util';
 import { environment } from '../../../environments/environment';
@@ -28,6 +28,9 @@ function pickStr(obj: Record<string, unknown>, keys: string[]): string | undefin
 @Injectable({ providedIn: 'root' })
 export class AdminUsersService {
   private readonly http = inject(HttpClient);
+
+  private listUsersCache$?: Observable<AdminUserRow[]>;
+  private listUsersCacheToken: string | null = null;
 
   /**
    * Creates a CRM user via POST `{apiUrl}/auth/register`.
@@ -64,6 +67,9 @@ export class AdminUsersService {
     return this.http.post<unknown>(`${base}/auth/register`, body, { headers }).pipe(
       timeout(15000),
       map(() => ({ ok: true as const })),
+      tap((result) => {
+        if (result.ok) this.invalidateListCache();
+      }),
       catchError((err: unknown) => of(this.mapCreateUserError(err))),
     );
   }
@@ -100,8 +106,16 @@ export class AdminUsersService {
       .pipe(
         timeout(15000),
         map(() => ({ ok: true as const })),
+        tap((result) => {
+          if (result.ok) this.invalidateListCache();
+        }),
         catchError((err: unknown) => of(this.mapDeleteUserError(err))),
       );
+  }
+
+  invalidateListCache(): void {
+    this.listUsersCache$ = undefined;
+    this.listUsersCacheToken = null;
   }
 
   /** GET `{apiUrl}/auth/users` (Bearer token when provided). */
@@ -109,15 +123,23 @@ export class AdminUsersService {
     const base = environment.apiUrl?.replace(/\/$/, '');
     if (!base) return of([]);
 
+    const tokenKey = bearerToken ?? '';
+    if (this.listUsersCache$ && this.listUsersCacheToken === tokenKey) {
+      return this.listUsersCache$;
+    }
+
     const headers =
       bearerToken && bearerToken.length > 0
         ? new HttpHeaders({ Authorization: `Bearer ${bearerToken}` })
         : undefined;
 
-    return this.http.get<unknown>(`${base}/auth/users`, { headers }).pipe(
+    this.listUsersCacheToken = tokenKey;
+    this.listUsersCache$ = this.http.get<unknown>(`${base}/auth/users`, { headers }).pipe(
       timeout(30000),
       map((body) => this.normalizeUsersResponse(body)),
+      shareReplay(1),
     );
+    return this.listUsersCache$;
   }
 
   private normalizeUsersResponse(body: unknown): AdminUserRow[] {

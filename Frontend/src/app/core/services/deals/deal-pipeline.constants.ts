@@ -104,7 +104,7 @@ const LEGACY_STATUS_MAP: Record<string, DealPipelineStatus> = {
 export const FALLBACK_DEAL_STATUS_OPTIONS: readonly MasterDataOption[] =
   DEAL_PIPELINE_STATUSES.map((name) => ({ id: 0, name }));
 
-export const DEFAULT_DEAL_PIPELINE_STATUS: DealPipelineStatus = 'Quotation Shared';
+export const DEFAULT_DEAL_PIPELINE_STATUS: DealPipelineStatus = 'Follow-Up Ongoing';
 
 export function resolveDealStatusLabel(name: string): DealPipelineStatus {
   const s = name.trim();
@@ -156,7 +156,43 @@ export function dealStatusCssKind(status: string): 'won' | 'lost' | 'accent' | '
   return 'muted';
 }
 
-/** Resolves API `status` + `dealStatusId` from master-data options (avoids stale fallback ids). */
+/**
+ * Maps a deal's stored status to the &lt;select&gt; value (master id or legacy label).
+ * Prefers the denormalized status label over a stale dealStatusId FK.
+ */
+export function resolveDealStatusSelectValue(
+  dealStatusId: number | null | undefined,
+  statusLabel: string | null | undefined,
+  options: readonly MasterDataOption[],
+): string {
+  const canonical = resolveDealStatusLabel(statusLabel ?? '');
+
+  if (options.length > 0) {
+    const byName = options.find(
+      (o) => o.id > 0 && resolveDealStatusLabel(o.name) === canonical,
+    );
+    if (byName) return String(byName.id);
+  }
+
+  if (dealStatusId != null && dealStatusId > 0 && options.length > 0) {
+    const byId = options.find((o) => o.id === dealStatusId);
+    if (byId && resolveDealStatusLabel(byId.name) === canonical) {
+      return String(byId.id);
+    }
+  }
+
+  if (dealStatusId != null && dealStatusId > 0) {
+    return String(dealStatusId);
+  }
+
+  const legacy = options.find(
+    (o) => o.id === 0 && resolveDealStatusLabel(o.name) === canonical,
+  );
+  if (legacy) return legacy.name;
+
+  return canonical;
+}
+
 export function resolveDealStatusForApi(
   statusLabel: string,
   dealStatusId: number | null | undefined,

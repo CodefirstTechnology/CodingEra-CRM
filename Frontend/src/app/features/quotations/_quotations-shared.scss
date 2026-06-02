@@ -1,0 +1,48 @@
+/* Shared quotation UI tokens — aligned with notes/deals modules */
+
+@mixin quotations-card {
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.quotations-card {
+  @include quotations-card;
+}
+
+.quotations-pill {
+  display: inline-block;
+  padding: 0.2rem 0.5rem;
+  border-radius: 6px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.035em;
+  line-height: 1.2;
+}
+
+.quotations-pill--draft {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.quotations-pill--sent {
+  background: #dbeafe;
+  color: #2563eb;
+}
+
+.quotations-pill--approved {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.quotations-pill--rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.quotations-pill--expired {
+  background: #fff7ed;
+  color: #c2410c;
+}
