@@ -1,5 +1,5 @@
-@import '../quotations-shared';
-@import '../quotation-form-blocks';
+@use '../quotations-shared';
+@use '../quotation-form-blocks';
 
 /* Toolbar sits in section head — match quotation form spacing */
 .qt-grid__toolbar-actions {

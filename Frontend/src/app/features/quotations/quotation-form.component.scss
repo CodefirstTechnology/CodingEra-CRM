@@ -1,5 +1,5 @@
-@import './quotations-shared';
-@import './quotation-form-blocks';
+@use './quotations-shared';
+@use './quotation-form-blocks';
 
 .qt-form {
   max-width: 1280px;
