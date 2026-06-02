@@ -24,6 +24,17 @@ export class ActivityHttpService {
     return h;
   }
 
+  /** Global recent lead/deal activities (`GET /api/activities/recent`). */
+  listRecent(limit: number): Observable<ActivityRow[]> {
+    const take = Math.min(100, Math.max(1, Math.trunc(limit)));
+    return this.http
+      .get<unknown>(`${this.baseUrl}/recent`, {
+        headers: this.jsonHeaders(),
+        params: new HttpParams().set('limit', String(take)),
+      })
+      .pipe(map((raw) => mapActivityList(raw)));
+  }
+
   list(query?: ActivityListQuery): Observable<ActivityRow[]> {
     let params = new HttpParams();
     if (query?.entityType) params = params.set('entityType', query.entityType);

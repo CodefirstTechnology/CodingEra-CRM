@@ -223,19 +223,31 @@ export class CreateEntityFormModalComponent {
   });
 
   constructor() {
-    this.leadOwnerOpts.load();
-    this.leadMasterData
-      .loadSalutations()
-      .pipe(take(1))
-      .subscribe((rows) => this.salutationsFromApi.set(rows));
-    this.leadMasterData
-      .loadLeadStatuses()
-      .pipe(take(1))
-      .subscribe((rows) => this.leadStatusesFromApi.set(rows));
     effect(() => {
       const k = this.flow.formKind();
-      if (!k) return;
-      untracked(() => this.resetFor(k));
+      if (!k) {
+        return;
+      }
+      untracked(() => {
+        this.resetFor(k);
+        this.leadOwnerOpts.load();
+        this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
+        if (k === 'lead' || k === 'deal' || k === 'contact') {
+          this.leadMasterData
+            .loadSalutations()
+            .pipe(take(1))
+            .subscribe((rows) => this.salutationsFromApi.set(rows));
+        }
+        if (k === 'lead') {
+          this.leadMasterData
+            .loadLeadStatuses()
+            .pipe(take(1))
+            .subscribe((rows) => this.leadStatusesFromApi.set(rows));
+        }
+        if (k === 'organization') {
+          this.orgMaster.ensureLoaded().pipe(take(1)).subscribe();
+        }
+      });
     });
   }
 

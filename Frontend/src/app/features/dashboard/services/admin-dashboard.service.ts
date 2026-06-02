@@ -2,16 +2,14 @@ import { inject, Injectable } from '@angular/core';
 import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 import { ROLE_ID_USER } from '../../../core/auth/auth-role.util';
-import { AuthService } from '../../../core/auth/auth.service';
 import type { AdminUserRow } from '../../../core/services/admin-users.service';
-import { AdminUsersService } from '../../../core/services/admin-users.service';
+import { CrmEntityCacheService } from '../../../core/services/crm-entity-cache.service';
+import { UserDataScopeService } from '../../../core/services/user-data-scope.service';
 import { ActivitiesService } from '../../../core/services/activities.service';
 import type { ActivityRow } from '../../../core/services/activities/activity-api.models';
-import { DealsService } from '../../../core/services/deals.service';
 import { isDealClosedLost, isDealClosedWon } from '../../../core/services/deals/deal-pipeline.constants';
 import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../../core/services/deals/deal-pipeline.constants';
-import { LeadsService, leadsHttpErrorMessage } from '../../../core/services/leads.service';
-import { TasksService } from '../../../core/services/tasks.service';
+import { leadsHttpErrorMessage } from '../../../core/services/leads.service';
 import {
   activityEntityDisplayLabel,
   buildActivityEntityNameMap,
@@ -54,31 +52,23 @@ interface GroupedRecords {
 
 @Injectable({ providedIn: 'root' })
 export class AdminDashboardService {
-  private readonly auth = inject(AuthService);
-  private readonly adminUsers = inject(AdminUsersService);
-  private readonly leadsService = inject(LeadsService);
-  private readonly dealsService = inject(DealsService);
-  private readonly tasksService = inject(TasksService);
+  private readonly entityCache = inject(CrmEntityCacheService);
+  private readonly scope = inject(UserDataScopeService);
   private readonly activitiesService = inject(ActivitiesService);
 
   loadSnapshot(): Observable<{ data: AdminDashboardSnapshot | null; error: string | null }> {
-    const token = this.auth.token();
-
     return forkJoin({
-      users: this.adminUsers.listUsers(token).pipe(catchError(() => of([] as AdminUserRow[]))),
-      leads: this.leadsService.getAll().pipe(catchError(() => of([] as LeadRow[]))),
-      deals: this.dealsService.getAll().pipe(catchError(() => of([] as DealRow[]))),
-      tasks: this.tasksService.getAll().pipe(catchError(() => of([] as TaskRow[]))),
+      users: this.entityCache.listUsers().pipe(catchError(() => of([] as AdminUserRow[]))),
+      leads: this.entityCache.listLeads().pipe(catchError(() => of([] as LeadRow[]))),
+      deals: this.entityCache.listDeals().pipe(catchError(() => of([] as DealRow[]))),
+      tasks: this.scope.listTasks().pipe(catchError(() => of([] as TaskRow[]))),
     }).pipe(
       switchMap(({ users, leads, deals, tasks }) => {
         const salesUsers = users.filter((u) => u.roleId === ROLE_ID_USER);
         const grouped = this.groupRecords(leads, deals, tasks);
         const entityNames = buildActivityEntityNameMap(leads, deals);
 
-        const leadIds = this.recentRecordIds(leads, 30);
-        const dealIds = this.recentRecordIds(deals, 30);
-
-        return this.activitiesService.getRecentForRecords(leadIds, dealIds, 50).pipe(
+        return this.activitiesService.getRecentFeed(50).pipe(
           catchError(() => of([] as ActivityRow[])),
           map((activities) => ({
             data: this.buildSnapshot(
@@ -131,27 +121,6 @@ export class AdminDashboardService {
     }
 
     return { leadsByOwner, dealsByOwner, tasksByAssignee };
-  }
-
-  private recentRecordIds<T extends { id: string; sortTimestamp?: number; updated?: string; lastModified?: string }>(
-    rows: T[],
-    limit: number,
-  ): number[] {
-    return [...rows]
-      .sort((a, b) => {
-        const ta =
-          a.sortTimestamp ??
-          Date.parse(String(a.updated ?? a.lastModified ?? '')) ??
-          0;
-        const tb =
-          b.sortTimestamp ??
-          Date.parse(String(b.updated ?? b.lastModified ?? '')) ??
-          0;
-        return tb - ta;
-      })
-      .slice(0, limit)
-      .map((r) => Number(r.id))
-      .filter((n) => Number.isFinite(n) && n > 0);
   }
 
   private buildSnapshot(
