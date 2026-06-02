@@ -30,6 +30,7 @@ import { NotesService } from '../../core/services/notes.service';
 import { EmailsService, emailSendErrorMessage } from '../../core/services/emails.service';
 import type { EntityEmailItem } from '../../core/services/emails/email-api.models';
 import { ToastService } from '../../core/toast/toast.service';
+import { QuotationsService } from '../../core/services/quotations.service';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
 import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
 import { dealRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
@@ -75,9 +76,11 @@ export class DealDetailComponent {
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly createFlow = inject(CreateFlowService);
   protected readonly auth = inject(AuthService);
+  private readonly quotationsService = inject(QuotationsService);
 
   protected readonly numericId = signal<number | null>(null);
   protected readonly deal = signal<DealRow | null>(null);
+  protected readonly dealQuotationId = signal<number | null>(null);
   protected readonly activeTab = signal<DetailTab>('Activity');
   protected readonly dataSaving = signal(false);
   protected readonly dealTasks = signal<TaskRow[]>([]);
@@ -226,6 +229,7 @@ export class DealDetailComponent {
             this.commentDraft.set('');
             this.emailComposerOpen.set(false);
             this.emailComposeEmojiOpen.set(false);
+            this.refreshDealQuotation();
           } else {
             this.dealTasks.set([]);
             this.dealNotes.set([]);
@@ -233,6 +237,7 @@ export class DealDetailComponent {
             this.dealAttachments.set([]);
             this.dealComments.set([]);
             this.dealEmails.set([]);
+            this.dealQuotationId.set(null);
             this.commentComposerOpen.set(false);
             this.commentDraft.set('');
             this.emailComposerOpen.set(false);
@@ -883,6 +888,13 @@ export class DealDetailComponent {
     this.createFlow.openPicker();
   }
 
+  protected onViewQuotation(): void {
+    const qid = this.dealQuotationId();
+    if (qid != null) {
+      void this.router.navigate(['/quotations', qid]);
+    }
+  }
+
   protected onCreateQuotation(): void {
     const idn = this.numericId();
     const row = this.deal();
@@ -925,6 +937,24 @@ export class DealDetailComponent {
       queryParams: { dealId: idn },
       state: { dealPrefill: prefill },
     });
+  }
+
+  private refreshDealQuotation(): void {
+    const dealId = this.numericId();
+    if (dealId == null || dealId <= 0) {
+      this.dealQuotationId.set(null);
+      return;
+    }
+    this.quotationsService
+      .list({ dealId })
+      .pipe(take(1))
+      .subscribe({
+        next: (items) => {
+          const latest = items.length > 0 ? items[0] : null;
+          this.dealQuotationId.set(latest?.id ?? null);
+        },
+        error: () => this.dealQuotationId.set(null),
+      });
   }
 
   protected sidebarAnnualRevenueLabel(): string {

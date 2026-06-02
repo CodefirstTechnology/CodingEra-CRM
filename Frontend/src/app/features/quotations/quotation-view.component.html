@@ -60,31 +60,48 @@
               <thead>
                 <tr>
                   <th class="qt-view__th">#</th>
-                  <th class="qt-view__th">Code</th>
+                  <th class="qt-view__th">Item name</th>
                   <th class="qt-view__th">Description</th>
                   <th class="qt-view__th qt-view__th--num">Qty</th>
-                  <th class="qt-view__th">UOM</th>
-                  <th class="qt-view__th qt-view__th--num">Rate</th>
+                  <th class="qt-view__th">Unit</th>
+                  <th class="qt-view__th qt-view__th--num">Weight</th>
+                  <th class="qt-view__th qt-view__th--num">Unit rate</th>
+                  <th class="qt-view__th qt-view__th--num">Disc %</th>
+                  <th class="qt-view__th qt-view__th--num">GST %</th>
                   <th class="qt-view__th qt-view__th--num">Amount</th>
+                  <th class="qt-view__th qt-view__th--num">Line total</th>
                 </tr>
               </thead>
               <tbody>
                 @for (line of q.lineItems; track $index; let i = $index) {
                   <tr>
                     <td class="qt-view__td qt-view__td--muted">{{ i + 1 }}</td>
-                    <td class="qt-view__td">{{ line.itemCode || '—' }}</td>
-                    <td class="qt-view__td">{{ line.description }}</td>
-                    <td class="qt-view__td qt-view__td--num">{{ line.quantity }}</td>
-                    <td class="qt-view__td">{{ line.uom }}</td>
-                    <td class="qt-view__td qt-view__td--num">₹ {{ line.rate | number: '1.2-2' }}</td>
+                    <td class="qt-view__td">{{ line.itemName || line.itemCode || '—' }}</td>
+                    <td class="qt-view__td">{{ line.description || '—' }}</td>
+                    <td class="qt-view__td qt-view__td--num">{{ line.quantity | number: '1.2-4' }}</td>
+                    <td class="qt-view__td">{{ line.uom || '—' }}</td>
+                    <td class="qt-view__td qt-view__td--num">{{ line.weight | number: '1.2-4' }}</td>
+                    <td class="qt-view__td qt-view__td--num">₹ {{ line.rate | number: '1.2-4' }}</td>
+                    <td class="qt-view__td qt-view__td--num">{{ line.discountPercent | number: '1.2-2' }}</td>
+                    <td class="qt-view__td qt-view__td--num">{{ line.gstPercent | number: '1.2-2' }}</td>
                     <td class="qt-view__td qt-view__td--num">₹ {{ line.amount | number: '1.2-2' }}</td>
+                    <td class="qt-view__td qt-view__td--num">₹ {{ (line.lineTotal || line.amount) | number: '1.2-2' }}</td>
                   </tr>
                 }
               </tbody>
               <tfoot>
                 <tr>
-                  <td colspan="6" class="qt-view__total-label">Grand total</td>
-                  <td class="qt-view__total-value">₹ {{ grandTotal() | number: '1.2-2' }}</td>
+                  <td colspan="3" class="qt-view__total-label">Totals</td>
+                  <td class="qt-view__td qt-view__td--num">{{ totalQuantity() | number: '1.2-4' }}</td>
+                  <td></td>
+                  <td class="qt-view__td qt-view__td--num">{{ totalWeight() | number: '1.2-4' }}</td>
+                  <td colspan="3"></td>
+                  <td class="qt-view__total-label">Tax</td>
+                  <td class="qt-view__total-value">₹ {{ taxTotal() | number: '1.2-2' }}</td>
+                </tr>
+                <tr>
+                  <td colspan="9" class="qt-view__total-label">Grand total</td>
+                  <td colspan="2" class="qt-view__total-value">₹ {{ grandTotal() | number: '1.2-2' }}</td>
                 </tr>
               </tfoot>
             </table>

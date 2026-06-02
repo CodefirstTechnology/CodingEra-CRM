@@ -1,0 +1,200 @@
+/* Shared quotation form blocks (used by form + item grid) */
+
+.qt-form__btn {
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  transition: var(--transition-theme);
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.qt-form__btn--sm {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.8125rem;
+}
+
+.qt-form__btn--primary {
+  background: var(--tertiary-color);
+  color: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.06);
+  }
+}
+
+.qt-form__btn--outline {
+  background: transparent;
+  color: var(--tertiary-color);
+  border: 1px solid color-mix(in srgb, var(--tertiary-color) 45%, var(--card-border));
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--tertiary-color) 8%, transparent);
+  }
+}
+
+.qt-form__btn--ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--card-border);
+
+  &:hover:not(:disabled) {
+    color: var(--text-primary);
+  }
+}
+
+.qt-form__section {
+  padding: 1rem 1.15rem 1.15rem;
+}
+
+.qt-form__section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.85rem;
+}
+
+.qt-form__section-title {
+  margin: 0 0 0.85rem;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.qt-form__section-head .qt-form__section-title {
+  margin-bottom: 0;
+}
+
+.qt-form__control {
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  padding: 0.55rem 0.75rem;
+  font-size: 0.875rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: var(--body-bg);
+  transition: var(--transition-theme);
+  width: 100%;
+  box-sizing: border-box;
+
+  &:focus {
+    outline: 2px solid color-mix(in srgb, var(--tertiary-color) 45%, transparent);
+    outline-offset: 1px;
+  }
+}
+
+.qt-form__control--compact {
+  padding: 0.4rem 0.55rem;
+  font-size: 0.8125rem;
+}
+
+.qt-form__lines-scroll {
+  overflow-x: auto;
+  margin: 0 -0.15rem;
+}
+
+.qt-form__lines-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
+  font-family: inherit;
+}
+
+.qt-form__lines-th {
+  text-align: left;
+  padding: 0.55rem 0.5rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--card-border);
+  background: color-mix(in srgb, var(--text-muted) 6%, var(--body-bg));
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.qt-form__lines-th--idx {
+  width: 2.5rem;
+  text-align: center;
+}
+
+.qt-form__lines-th--num {
+  text-align: right;
+}
+
+.qt-form__lines-th--act {
+  width: 2.25rem;
+}
+
+.qt-form__lines-td {
+  padding: 0.45rem 0.35rem;
+  border-bottom: 1px solid var(--card-border);
+  vertical-align: middle;
+  font-family: inherit;
+}
+
+.qt-form__lines-td--idx {
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.qt-form__lines-td--num {
+  text-align: right;
+}
+
+.qt-form__lines-td--act {
+  text-align: center;
+}
+
+.qt-form__line-remove {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: color-mix(in srgb, #b91c1c 10%, transparent);
+  color: #b91c1c;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, #b91c1c 18%, transparent);
+  }
+
+  &:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+  }
+}
+
+.qt-form__lines-total-label {
+  text-align: right;
+  font-weight: 700;
+  padding: 0.65rem 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+}
+
+.qt-form__lines-total-value {
+  font-weight: 700;
+  padding: 0.65rem 0.5rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  text-align: right;
+  font-size: 0.8125rem;
+}

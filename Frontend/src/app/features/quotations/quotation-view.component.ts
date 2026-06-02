@@ -70,7 +70,27 @@ export class QuotationViewComponent {
   }
 
   protected grandTotal(): number {
-    return (this.quotation()?.lineItems ?? []).reduce((s, l) => s + (l.amount || 0), 0);
+    const q = this.quotation();
+    if (q?.grandTotal != null && q.grandTotal > 0) return q.grandTotal;
+    return (q?.lineItems ?? []).reduce((s, l) => s + (l.lineTotal || l.amount || 0), 0);
+  }
+
+  protected taxTotal(): number {
+    const q = this.quotation();
+    if (q?.taxTotal != null) return q.taxTotal;
+    return (q?.lineItems ?? []).reduce((s, l) => s + (l.taxAmount || 0), 0);
+  }
+
+  protected totalQuantity(): number {
+    const q = this.quotation();
+    if (q?.totalQuantity != null) return q.totalQuantity;
+    return (q?.lineItems ?? []).reduce((s, l) => s + (l.quantity || 0), 0);
+  }
+
+  protected totalWeight(): number {
+    const q = this.quotation();
+    if (q?.totalWeight != null) return q.totalWeight;
+    return 0;
   }
 
   protected statusClass(status: string): string {

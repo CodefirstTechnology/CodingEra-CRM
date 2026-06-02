@@ -3,9 +3,19 @@
   <header class="deal-detail__top">
     <p class="deal-detail__crumb"><a routerLink="/deals">Deals</a> / {{ row.organizationName }}</p>
     <div class="deal-detail__top-actions">
-      <button type="button" class="deal-detail__btn deal-detail__btn--quotation" (click)="onCreateQuotation()">
-        Create Quotation
-      </button>
+      @if (dealQuotationId(); as qid) {
+        <button
+          type="button"
+          class="deal-detail__btn deal-detail__btn--quotation deal-detail__btn--quotation-view"
+          (click)="onViewQuotation()"
+        >
+          View Quotation
+        </button>
+      } @else {
+        <button type="button" class="deal-detail__btn deal-detail__btn--quotation" (click)="onCreateQuotation()">
+          Create Quotation
+        </button>
+      }
       @if (auth.user(); as session) {
       <span class="deal-detail__user-chip" title="{{ session.name }}">
         <span class="deal-detail__user-chip-avatar">{{ userHeaderChip() }}</span>

@@ -1,10 +1,13 @@
 import type {
+  QuotationGridColumnDto,
+  QuotationGridColumnsDto,
   QuotationLineItemDto,
   QuotationListItem,
   QuotationNextNumber,
   QuotationSettings,
   QuotationUpsertDto,
 } from './quotation-api.models';
+import { recalcLineGroupValues } from './quotation-line-calc.util';
 
 function pickStr(o: Record<string, unknown>, keys: string[]): string {
   for (const k of keys) {
@@ -80,16 +83,34 @@ function mapLineItem(raw: unknown, index: number): QuotationLineItemDto {
   const o = asRecord(raw);
   const qty = pickNum(o, ['quantity', 'Quantity']) || 1;
   const rate = pickNum(o, ['rate', 'Rate']);
-  const amount = pickNum(o, ['amount', 'Amount']) || qty * rate;
+  const weight = pickNum(o, ['weight', 'Weight']);
+  const unitWeight = pickNum(o, ['unitWeight', 'unit_weight']);
+  const discountPercent = pickNum(o, ['discountPercent', 'discount_percent']);
+  const gstPercent = pickNum(o, ['gstPercent', 'gst_percent']);
+  const calc = recalcLineGroupValues({
+    quantity: qty,
+    rate,
+    discountPercent,
+    gstPercent,
+    weight,
+    unitWeight,
+  });
   return {
     id: pickNum(o, ['id', 'Id']) || undefined,
     lineIndex: pickNum(o, ['lineIndex', 'line_index']) || index,
     itemCode: pickStr(o, ['itemCode', 'item_code']),
+    itemName: pickStr(o, ['itemName', 'item_name']),
     description: pickStr(o, ['description', 'Description']),
     quantity: qty,
     uom: pickStr(o, ['uom', 'Uom']),
+    weight,
+    unitWeight,
     rate,
-    amount,
+    discountPercent,
+    gstPercent,
+    amount: pickNum(o, ['amount', 'Amount']) || calc.amount,
+    taxAmount: pickNum(o, ['taxAmount', 'tax_amount']) || calc.taxAmount,
+    lineTotal: pickNum(o, ['lineTotal', 'line_total']) || calc.lineTotal,
   };
 }
 
@@ -143,6 +164,11 @@ export function mapQuotationDetail(raw: unknown): QuotationUpsertDto {
     quotationDate: pickStr(o, ['quotationDate', 'quotation_date']) || null,
     status: pickStr(o, ['status', 'Status']) || 'Draft',
     remarks: pickStr(o, ['remarks', 'Remarks']),
+    subtotal: pickNum(o, ['subtotal', 'Subtotal']),
+    taxTotal: pickNum(o, ['taxTotal', 'tax_total']),
+    grandTotal: pickNum(o, ['grandTotal', 'grand_total']),
+    totalQuantity: pickNum(o, ['totalQuantity', 'total_quantity']),
+    totalWeight: pickNum(o, ['totalWeight', 'total_weight']),
     lineItems: lines,
   };
 }
@@ -165,6 +191,25 @@ export function mapSettings(raw: unknown): QuotationSettings {
     companyCode: pickStr(o, ['companyCode', 'company_code']),
     documentTypeCode: pickStr(o, ['documentTypeCode', 'document_type_code']) || 'QTN',
   };
+}
+
+export function mapGridColumns(raw: unknown): QuotationGridColumnsDto {
+  const o = asRecord(raw);
+  const colsRaw = o['columns'] ?? o['Columns'];
+  const columns: QuotationGridColumnDto[] = Array.isArray(colsRaw)
+    ? colsRaw.map((c) => {
+        const col = asRecord(c);
+        return {
+          key: pickStr(col, ['key', 'Key']),
+          label: pickStr(col, ['label', 'Label']),
+          visible: col['visible'] !== false && col['Visible'] !== false,
+          order: pickNum(col, ['order', 'Order']),
+          width: pickNum(col, ['width', 'Width']) || 100,
+          editable: col['editable'] !== false && col['Editable'] !== false,
+        };
+      })
+    : [];
+  return { columns };
 }
 
 export function toApiUpsertBody(dto: QuotationUpsertDto): Record<string, unknown> {
@@ -198,15 +243,27 @@ export function toApiUpsertBody(dto: QuotationUpsertDto): Record<string, unknown
     quotationDate: dto.quotationDate || null,
     status: dto.status,
     remarks: dto.remarks,
+    subtotal: dto.subtotal ?? 0,
+    taxTotal: dto.taxTotal ?? 0,
+    grandTotal: dto.grandTotal ?? 0,
+    totalQuantity: dto.totalQuantity ?? 0,
+    totalWeight: dto.totalWeight ?? 0,
     lineItems: dto.lineItems.map((l, i) => ({
       id: l.id ?? 0,
       lineIndex: l.lineIndex ?? i,
       itemCode: l.itemCode,
+      itemName: l.itemName,
       description: l.description,
       quantity: l.quantity,
       uom: l.uom,
+      weight: l.weight,
+      unitWeight: l.unitWeight,
       rate: l.rate,
+      discountPercent: l.discountPercent,
+      gstPercent: l.gstPercent,
       amount: l.amount,
+      taxAmount: l.taxAmount,
+      lineTotal: l.lineTotal,
     })),
   };
 }

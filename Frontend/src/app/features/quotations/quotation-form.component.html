@@ -204,65 +204,7 @@
         </div>
       </section>
 
-      <section class="qt-form__section quotations-card">
-        <div class="qt-form__section-head">
-          <h2 class="qt-form__section-title">Line items</h2>
-          <button type="button" class="qt-form__btn qt-form__btn--outline qt-form__btn--sm" (click)="addLine()">+ Add row</button>
-        </div>
-        <div class="qt-form__lines-scroll">
-          <table class="qt-form__lines-table">
-            <thead>
-              <tr>
-                <th class="qt-form__lines-th qt-form__lines-th--idx">#</th>
-                <th class="qt-form__lines-th">Item code</th>
-                <th class="qt-form__lines-th qt-form__lines-th--desc">Description</th>
-                <th class="qt-form__lines-th qt-form__lines-th--qty">Qty</th>
-                <th class="qt-form__lines-th">UOM</th>
-                <th class="qt-form__lines-th qt-form__lines-th--num">Rate</th>
-                <th class="qt-form__lines-th qt-form__lines-th--num">Amount</th>
-                <th class="qt-form__lines-th qt-form__lines-th--act"></th>
-              </tr>
-            </thead>
-            <tbody formArrayName="lineItems">
-              @for (line of lineItems.controls; track $index; let i = $index) {
-                <tr [formGroupName]="i">
-                  <td class="qt-form__lines-td qt-form__lines-td--idx">{{ i + 1 }}</td>
-                  <td class="qt-form__lines-td">
-                    <input class="qt-form__control qt-form__control--compact" formControlName="itemCode" />
-                  </td>
-                  <td class="qt-form__lines-td">
-                    <input class="qt-form__control qt-form__control--compact" formControlName="description" />
-                    @if (lineFieldInvalid(i, 'description')) {
-                      <span class="qt-form__err">Required</span>
-                    }
-                  </td>
-                  <td class="qt-form__lines-td">
-                    <input type="number" class="qt-form__control qt-form__control--compact" formControlName="quantity" (input)="recalcLine(i)" />
-                  </td>
-                  <td class="qt-form__lines-td">
-                    <input class="qt-form__control qt-form__control--compact" formControlName="uom" />
-                  </td>
-                  <td class="qt-form__lines-td">
-                    <input type="number" class="qt-form__control qt-form__control--compact" formControlName="rate" (input)="recalcLine(i)" />
-                  </td>
-                  <td class="qt-form__lines-td">
-                    <input type="number" class="qt-form__control qt-form__control--compact" formControlName="amount" readonly />
-                  </td>
-                  <td class="qt-form__lines-td qt-form__lines-td--act">
-                    <button type="button" class="qt-form__line-remove" (click)="removeLine(i)" [disabled]="lineItems.length <= 1" aria-label="Remove row">×</button>
-                  </td>
-                </tr>
-              }
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colspan="6" class="qt-form__lines-total-label">Grand total</td>
-                <td colspan="2" class="qt-form__lines-total-value">₹ {{ grandTotal() | number: '1.2-2' }}</td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      </section>
+      <app-quotation-item-grid [lineItems]="lineItems" />
     </form>
   }
 </div>

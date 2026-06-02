@@ -5,6 +5,7 @@ import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import type {
+  QuotationGridColumnsDto,
   QuotationListItem,
   QuotationNextNumber,
   QuotationSettings,
@@ -13,6 +14,7 @@ import type {
 } from './quotation-api.models';
 import {
   extractQuotationList,
+  mapGridColumns,
   mapNextNumber,
   mapQuotationDetail,
   mapQuotationListItem,
@@ -131,5 +133,29 @@ export class QuotationHttpService {
 
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`, { headers: this.jsonHeaders() });
+  }
+
+  getItemGridColumns(): Observable<QuotationGridColumnsDto> {
+    return this.http
+      .get<unknown>(`${this.baseUrl}/item-grid/columns`, { headers: this.jsonHeaders() })
+      .pipe(map((raw) => mapGridColumns(raw)));
+  }
+
+  saveItemGridColumns(columns: QuotationGridColumnsDto): Observable<QuotationGridColumnsDto> {
+    return this.http
+      .put<unknown>(`${this.baseUrl}/item-grid/columns`, columns, { headers: this.jsonHeaders() })
+      .pipe(map((raw) => mapGridColumns(raw)));
+  }
+
+  getItemGridDefaults(): Observable<QuotationGridColumnsDto> {
+    return this.http
+      .get<unknown>(`${this.baseUrl}/item-grid/defaults`, { headers: this.jsonHeaders() })
+      .pipe(map((raw) => mapGridColumns(raw)));
+  }
+
+  saveItemGridDefaults(columns: QuotationGridColumnsDto): Observable<QuotationGridColumnsDto> {
+    return this.http
+      .put<unknown>(`${this.baseUrl}/item-grid/defaults`, columns, { headers: this.jsonHeaders() })
+      .pipe(map((raw) => mapGridColumns(raw)));
   }
 }

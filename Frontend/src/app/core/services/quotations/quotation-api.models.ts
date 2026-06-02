@@ -12,11 +12,39 @@ export interface QuotationLineItemDto {
   id?: number;
   lineIndex: number;
   itemCode: string;
+  itemName: string;
   description: string;
   quantity: number;
   uom: string;
+  weight: number;
+  unitWeight: number;
   rate: number;
+  discountPercent: number;
+  gstPercent: number;
   amount: number;
+  taxAmount: number;
+  lineTotal: number;
+}
+
+export interface QuotationGridColumnDto {
+  key: string;
+  label: string;
+  visible: boolean;
+  order: number;
+  width: number;
+  editable: boolean;
+}
+
+export interface QuotationGridColumnsDto {
+  columns: QuotationGridColumnDto[];
+}
+
+export interface QuotationTotalsDto {
+  subtotal: number;
+  taxTotal: number;
+  grandTotal: number;
+  totalQuantity: number;
+  totalWeight: number;
 }
 
 export interface QuotationUpsertDto {
@@ -49,6 +77,11 @@ export interface QuotationUpsertDto {
   quotationDate?: string | null;
   status: QuotationStatus | string;
   remarks: string;
+  subtotal?: number;
+  taxTotal?: number;
+  grandTotal?: number;
+  totalQuantity?: number;
+  totalWeight?: number;
   lineItems: QuotationLineItemDto[];
 }
 

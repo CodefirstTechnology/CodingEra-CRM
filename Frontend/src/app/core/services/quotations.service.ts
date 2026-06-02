@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import type {
+  QuotationGridColumnsDto,
   QuotationListItem,
   QuotationNextNumber,
   QuotationSettings,
@@ -77,5 +78,21 @@ export class QuotationsService {
 
   patchStatus(id: number, status: string): Observable<QuotationUpsertDto> {
     return this.http.patchStatus(id, status);
+  }
+
+  getItemGridColumns(): Observable<QuotationGridColumnsDto> {
+    return this.http.getItemGridColumns();
+  }
+
+  saveItemGridColumns(columns: QuotationGridColumnsDto): Observable<QuotationGridColumnsDto> {
+    return this.http.saveItemGridColumns(columns);
+  }
+
+  getItemGridDefaults(): Observable<QuotationGridColumnsDto> {
+    return this.http.getItemGridDefaults();
+  }
+
+  saveItemGridDefaults(columns: QuotationGridColumnsDto): Observable<QuotationGridColumnsDto> {
+    return this.http.saveItemGridDefaults(columns);
   }
 }

@@ -1,4 +1,3 @@
-import { DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
@@ -17,6 +16,10 @@ import {
 import type { QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
 import { QUOTATION_STATUSES } from '../../core/services/quotations/quotation-api.models';
 import { QuotationDealPrefillService } from '../../core/services/quotations/quotation-deal-prefill.service';
+import {
+  aggregateQuotationLines,
+  recalcLineGroupValues,
+} from '../../core/services/quotations/quotation-line-calc.util';
 import { QuotationsService, quotationHttpErrorMessage } from '../../core/services/quotations.service';
 import { ToastService } from '../../core/toast/toast.service';
 import {
@@ -24,6 +27,8 @@ import {
   readDealQuotationPrefillFromNavigation,
   revenueStringToNumber,
 } from '../../shared/utils/deal-quotation-prefill.util';
+import { QuotationItemGridComponent } from './quotation-item-grid/quotation-item-grid.component';
+import { createQuotationLineGroup, type QuotationLineFormValue } from './quotation-line-form.util';
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -38,7 +43,7 @@ function parseDealIdFromQuery(qpm: ParamMap): number | null {
 
 @Component({
   selector: 'app-quotation-form',
-  imports: [ReactiveFormsModule, RouterLink, DecimalPipe],
+  imports: [ReactiveFormsModule, RouterLink, QuotationItemGridComponent],
   templateUrl: './quotation-form.component.html',
   styleUrl: './quotation-form.component.scss',
 })
@@ -97,7 +102,8 @@ export class QuotationFormComponent {
     let sum = 0;
     for (const ctrl of this.lineItems.controls) {
       const g = ctrl as FormGroup;
-      sum += Number(g.controls['amount'].value) || 0;
+      const raw = g.getRawValue();
+      sum += recalcLineGroupValues(raw).lineTotal;
     }
     return sum;
   });
@@ -133,20 +139,12 @@ export class QuotationFormComponent {
   }
 
   protected addLine(): void {
-    this.lineItems.push(this.createLineGroup());
+    this.lineItems.push(createQuotationLineGroup(this.fb));
   }
 
   protected removeLine(index: number): void {
     if (this.lineItems.length <= 1) return;
     this.lineItems.removeAt(index);
-  }
-
-  protected recalcLine(index: number): void {
-    const g = this.lineItems.at(index) as FormGroup;
-    const qty = Number(g.controls['quantity'].value) || 0;
-    const rate = Number(g.controls['rate'].value) || 0;
-    const amount = Math.round(qty * rate * 100) / 100;
-    g.controls['amount'].setValue(amount, { emitEvent: false });
   }
 
   protected lineGroupAt(index: number): FormGroup {
@@ -236,6 +234,29 @@ export class QuotationFormComponent {
       [v.salutation.trim(), firstName, lastName].filter(Boolean).join(' ').trim() ||
       customerName;
 
+    const lineRows = (v.lineItems as QuotationLineFormValue[]).map((l, i) => {
+      const calc = recalcLineGroupValues(l);
+      return {
+        lineIndex: i,
+        itemCode: l.itemCode.trim(),
+        itemName: l.itemName.trim(),
+        description: l.description.trim(),
+        quantity: Number(l.quantity) || 1,
+        uom: l.uom.trim(),
+        weight: Number(l.weight) || 0,
+        unitWeight: Number(l.unitWeight) || 0,
+        rate: Number(l.rate) || 0,
+        discountPercent: Number(l.discountPercent) || 0,
+        gstPercent: Number(l.gstPercent) || 0,
+        amount: calc.amount,
+        taxAmount: calc.taxAmount,
+        lineTotal: calc.lineTotal,
+      };
+    });
+    const totals = aggregateQuotationLines(
+      lineRows.map((l) => ({ quantity: l.quantity, amounts: recalcLineGroupValues(l) })),
+    );
+
     return {
       id: this.editId() ?? undefined,
       dealId: v.dealId,
@@ -266,27 +287,17 @@ export class QuotationFormComponent {
       quotationDate: v.quotationDate || null,
       status: statusOverride ?? v.status,
       remarks: v.remarks.trim(),
-      lineItems: v.lineItems.map((l, i) => ({
-        lineIndex: i,
-        itemCode: l.itemCode.trim(),
-        description: l.description.trim(),
-        quantity: Number(l.quantity) || 1,
-        uom: l.uom.trim(),
-        rate: Number(l.rate) || 0,
-        amount: Number(l.amount) || 0,
-      })),
+      subtotal: totals.subtotal,
+      taxTotal: totals.taxTotal,
+      grandTotal: totals.grandTotal,
+      totalQuantity: totals.totalQuantity,
+      totalWeight: totals.totalWeight,
+      lineItems: lineRows,
     };
   }
 
   private createLineGroup() {
-    return this.fb.nonNullable.group({
-      itemCode: [''],
-      description: ['', Validators.required],
-      quantity: [1, [Validators.required, Validators.min(0.001)]],
-      uom: ['Nos'],
-      rate: [0, [Validators.required, Validators.min(0)]],
-      amount: [0],
-    });
+    return createQuotationLineGroup(this.fb);
   }
 
   private initNew(queryParams: ParamMap): void {
@@ -444,6 +455,7 @@ export class QuotationFormComponent {
       ? q.lineItems
       : [
           {
+            itemName: '',
             description: '',
             quantity: 1,
             rate: 0,
@@ -451,17 +463,30 @@ export class QuotationFormComponent {
             lineIndex: 0,
             itemCode: '',
             uom: 'Nos',
+            weight: 0,
+            unitWeight: 0,
+            discountPercent: 0,
+            gstPercent: 0,
+            taxAmount: 0,
+            lineTotal: 0,
           },
         ];
     for (const l of lines) {
       const g = this.createLineGroup();
       g.patchValue({
         itemCode: l.itemCode,
+        itemName: l.itemName ?? l.itemCode,
         description: l.description,
         quantity: l.quantity,
         uom: l.uom || 'Nos',
+        weight: l.weight ?? 0,
+        unitWeight: l.unitWeight ?? 0,
         rate: l.rate,
+        discountPercent: l.discountPercent ?? 0,
+        gstPercent: l.gstPercent ?? 0,
         amount: l.amount,
+        taxAmount: l.taxAmount ?? 0,
+        lineTotal: l.lineTotal ?? l.amount,
       });
       this.lineItems.push(g);
     }
