@@ -3,6 +3,7 @@ import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pip
 import type { DealRow } from '../../features/deals/deals.component';
 import type { LeadRow, LeadStatus } from '../../features/leads/lead-row.model';
 import { leadContactName } from './lead-conversion.util';
+import { normalizeGstin } from './gstin.util';
 
 /**
  * Backend-friendly DTO for creating a deal from a lead (reuse with HttpClient later).
@@ -85,7 +86,7 @@ export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
     employeeCountId: lead.employeeCountId ?? undefined,
     annualRevenue: parseLeadNumericValue(lead),
     website: (lead.website ?? '').trim(),
-    gst: (lead.gst ?? '').trim(),
+    gst: normalizeGstin(lead.gst),
     territory: (lead.territory ?? '').trim(),
     territoryId: lead.territoryId ?? undefined,
     industry: (lead.industry ?? '').trim() || 'Other',

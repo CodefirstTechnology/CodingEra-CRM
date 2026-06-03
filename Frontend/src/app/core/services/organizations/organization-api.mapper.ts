@@ -1,3 +1,4 @@
+import { normalizeGstin } from '../../../shared/utils/gstin.util';
 import { normalizeOrganizationRow } from '../../../shared/utils/normalize-local-rows';
 import type { OrganizationRow } from '../../../features/organizations/organizations.component';
 
@@ -113,7 +114,7 @@ export function organizationCreatePayload(input: OrganizationCreateInput): Recor
   const body: Record<string, unknown> = {
     name,
     website: input.website?.trim() ?? '',
-    gst: input.gst?.trim() ?? '',
+    gst: normalizeGstin(input.gst),
     annualRevenue:
       input.annualRevenue != null && Number.isFinite(Number(input.annualRevenue))
         ? Number(input.annualRevenue)
@@ -153,7 +154,7 @@ export function organizationLeadSyncPayload(
   }
 
   if (options.gst !== undefined) {
-    body['gst'] = String(options.gst).trim();
+    body['gst'] = normalizeGstin(options.gst);
     extras++;
   }
 
@@ -218,7 +219,7 @@ export function mergeOrganizationLeadSyncWithExisting(
     body['website'] = existing.website.trim();
   }
   if (!('gst' in body) && existing.gst?.trim()) {
-    body['gst'] = existing.gst.trim();
+    body['gst'] = normalizeGstin(existing.gst);
   }
 
   return body;

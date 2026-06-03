@@ -27,6 +27,14 @@ import {
   readDealQuotationPrefillFromNavigation,
   revenueStringToNumber,
 } from '../../shared/utils/deal-quotation-prefill.util';
+import {
+  GSTIN_ERROR_KEY,
+  GSTIN_ERROR_MESSAGE,
+  gstControlInvalid,
+  normalizeGstin,
+  syncGstinInputFromEvent,
+} from '../../shared/utils/gstin.util';
+import { gstFormValidators } from '../../shared/validators/crm-validators';
 import { QuotationItemGridComponent } from './quotation-item-grid/quotation-item-grid.component';
 import { createQuotationLineGroup, type QuotationLineFormValue } from './quotation-line-form.util';
 
@@ -79,7 +87,7 @@ export class QuotationFormComponent {
     employees: [''],
     annualRevenue: [''],
     website: ['', Validators.maxLength(512)],
-    gst: ['', Validators.maxLength(32)],
+    gst: ['', gstFormValidators()],
     territory: [''],
     industry: ['', Validators.required],
     contactPerson: ['', Validators.maxLength(256)],
@@ -151,9 +159,20 @@ export class QuotationFormComponent {
     return this.lineItems.at(index) as FormGroup;
   }
 
+  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
+  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+
   protected fieldInvalid(name: keyof typeof this.form.controls): boolean {
     const c = this.form.controls[name];
     return c.invalid && (c.touched || c.dirty);
+  }
+
+  protected gstFieldInvalid(): boolean {
+    return gstControlInvalid(this.form.controls.gst);
+  }
+
+  protected onGstinInput(ev: Event): void {
+    syncGstinInputFromEvent(ev, this.form.controls.gst);
   }
 
   protected lineFieldInvalid(index: number, name: string): boolean {
@@ -269,7 +288,7 @@ export class QuotationFormComponent {
       employees: v.employees.trim(),
       annualRevenue: revenueStringToNumber(v.annualRevenue),
       website: v.website.trim(),
-      gst: v.gst.trim(),
+      gst: normalizeGstin(v.gst),
       territory: v.territory.trim(),
       industry: v.industry.trim(),
       contactPerson,
@@ -433,7 +452,7 @@ export class QuotationFormComponent {
       employees: q.employees ?? '',
       annualRevenue,
       website: q.website ?? '',
-      gst: q.gst ?? '',
+      gst: normalizeGstin(q.gst),
       territory: q.territory ?? '',
       industry: q.industry ?? '',
       contactPerson: q.contactPerson,

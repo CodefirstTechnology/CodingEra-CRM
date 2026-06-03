@@ -394,6 +394,23 @@
               <input type="text" class="deal-detail__input" formControlName="organization" [class.is-invalid]="dataForm.controls.organization.invalid && dataForm.controls.organization.touched" />
             </label>
             <label class="deal-detail__field">
+              <span class="deal-detail__label">GSTIN</span>
+              <input
+                type="text"
+                class="deal-detail__input"
+                formControlName="gst"
+                placeholder="e.g. 27AAJCB6955B1ZM"
+                maxlength="15"
+                autocomplete="off"
+                spellcheck="false"
+                [class.is-invalid]="gstFieldInvalid()"
+                (input)="onGstinInput($event)"
+              />
+              @if (gstFieldInvalid() && dataForm.controls.gst.errors?.[gstinErrorKey]) {
+                <span class="deal-detail__field-error">{{ gstinErrorMessage }}</span>
+              }
+            </label>
+            <label class="deal-detail__field">
               <span class="deal-detail__label">Annual revenue</span>
               <input type="text" class="deal-detail__input" formControlName="annualRevenue" placeholder="0.00" />
             </label>
@@ -712,9 +729,22 @@
             <dd class="deal-detail__kv-dd">
               <input type="text" class="deal-detail__side-field" [formControl]="dataForm.controls.website" [placeholder]="sidebarAddLabel('Website')" autocomplete="url" />
             </dd>
-            <dt>GST</dt>
+            <dt>GSTIN</dt>
             <dd class="deal-detail__kv-dd">
-              <input type="text" class="deal-detail__side-field" [formControl]="dataForm.controls.gst" placeholder="GSTIN" maxlength="32" autocomplete="off" />
+              <input
+                type="text"
+                class="deal-detail__side-field"
+                [class.is-invalid]="gstFieldInvalid()"
+                [formControl]="dataForm.controls.gst"
+                placeholder="e.g. 27AAJCB6955B1ZM"
+                maxlength="15"
+                autocomplete="off"
+                spellcheck="false"
+                (input)="onGstinInput($event)"
+              />
+              @if (gstFieldInvalid() && dataForm.controls.gst.errors?.[gstinErrorKey]) {
+                <span class="deal-detail__field-error">{{ gstinErrorMessage }}</span>
+              }
             </dd>
             <dt>Territory</dt>
             <dd class="deal-detail__kv-dd">

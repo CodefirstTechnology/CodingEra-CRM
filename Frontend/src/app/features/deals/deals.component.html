@@ -166,17 +166,6 @@
                 }
               </label>
               <label class="deals__field">
-                <span class="deals__label">GST</span>
-                <input
-                  class="deals__control deals__control--soft"
-                  type="text"
-                  formControlName="gst"
-                  placeholder="GSTIN"
-                  maxlength="32"
-                  autocomplete="off"
-                />
-              </label>
-              <label class="deals__field">
                 <span class="deals__label">Territory</span>
                 <select class="deals__control deals__control--soft" formControlName="territory">
                   @for (opt of dealMaster.territorySelectOptions(); track opt.id + opt.name) {
@@ -196,6 +185,22 @@
                 }
               </label>
             </div>
+            <label class="deals__field">
+              <span class="deals__label">GSTIN</span>
+              <input
+                class="deals__control deals__control--soft"
+                type="text"
+                formControlName="gst"
+                placeholder="e.g. 27AAJCB6955B1ZM"
+                [attr.maxlength]="15"
+                autocomplete="off"
+                spellcheck="false"
+                (input)="onGstinInput($event)"
+              />
+              @if (gstFieldInvalid() && createForm.get('gst')?.errors?.[gstinErrorKey]) {
+                <span class="deals__err">{{ gstinErrorMessage }}</span>
+              }
+            </label>
           </section>
 
           <hr class="deals__form-rule" />

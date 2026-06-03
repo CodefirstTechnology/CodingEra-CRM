@@ -80,7 +80,7 @@
       *ngComponentOutlet="
         importCmp;
         inputs: importModalOutletInputs();
-        outputs: importModalOutletOutputs()
+        outputs: importModalOutletOutputs
       "
     />
   }
@@ -231,15 +231,20 @@
                 }
               </label>
               <label class="leads__field">
-                <span class="leads__label">GST</span>
+                <span class="leads__label">GSTIN</span>
                 <input
                   class="leads__control leads__control--soft"
                   type="text"
                   formControlName="gst"
-                  placeholder="GSTIN"
+                  placeholder="e.g. 27AAJCB6955B1ZM"
                   autocomplete="off"
-                  maxlength="32"
+                  maxlength="15"
+                  spellcheck="false"
+                  (input)="onGstinInput($event)"
                 />
+                @if (gstFieldInvalid() && createForm.get('gst')?.errors?.[gstinErrorKey]) {
+                  <span class="leads__err">{{ gstinErrorMessage }}</span>
+                }
               </label>
               <label class="leads__field">
                 <span class="leads__label">Territory</span>

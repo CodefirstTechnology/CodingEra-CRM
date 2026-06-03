@@ -101,15 +101,20 @@
             <input class="qt-form__control" type="text" formControlName="website" placeholder="https://" />
           </label>
           <label class="qt-form__field">
-            <span class="qt-form__label">GST</span>
+            <span class="qt-form__label">GSTIN</span>
             <input
               class="qt-form__control"
               type="text"
               formControlName="gst"
-              placeholder="GSTIN"
-              maxlength="32"
+              placeholder="e.g. 27AAJCB6955B1ZM"
+              maxlength="15"
               autocomplete="off"
+              spellcheck="false"
+              (input)="onGstinInput($event)"
             />
+            @if (gstFieldInvalid() && form.controls.gst.errors?.[gstinErrorKey]) {
+              <span class="qt-form__err">{{ gstinErrorMessage }}</span>
+            }
           </label>
           <label class="qt-form__field">
             <span class="qt-form__label">Territory</span>

@@ -1,4 +1,5 @@
 import type { DealNormalized, DealUpsertDto } from './deal-api.models';
+import { normalizeGstin } from '../../../shared/utils/gstin.util';
 import { DEFAULT_DEAL_PIPELINE_STATUS } from './deal-pipeline.constants';
 
 const DEFAULT_DEAL_GENDER = 'Other';
@@ -23,7 +24,7 @@ export function stripDealUpsertForPost(dto: DealUpsertDto): Record<string, unkno
     gender: dto.gender?.trim() || DEFAULT_DEAL_GENDER,
     employees: dto.employees?.trim() || '1-10',
     website: dto.website?.trim() || '',
-    gst: dto.gst?.trim() || '',
+    gst: normalizeGstin(dto.gst),
     territory: dto.territory?.trim() || '',
     industry: dto.industry?.trim() || 'Technology',
     status: dto.status?.trim() || DEFAULT_DEAL_PIPELINE_STATUS,
@@ -92,7 +93,7 @@ export function buildDealPutJson(dto: DealUpsertDto, previous: DealNormalized): 
     gender: dto.gender?.trim() || previous.gender?.trim() || DEFAULT_DEAL_GENDER,
     employees: dto.employees?.trim() || previous.employees?.trim() || '1-10',
     website: dto.website?.trim() ?? previous.website ?? '',
-    gst: dto.gst?.trim() ?? previous.gst ?? '',
+    gst: normalizeGstin(dto.gst ?? previous.gst),
     territory: dto.territory?.trim() ?? previous.territory ?? '',
     industry: dto.industry?.trim() || previous.industry?.trim() || 'Technology',
     status: dto.status?.trim() || previous.status?.trim() || DEFAULT_DEAL_PIPELINE_STATUS,

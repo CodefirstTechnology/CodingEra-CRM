@@ -51,7 +51,18 @@ import { CRM_PAGINATED_SELECT_PAGE_SIZE } from '../../shared/components/crm-pagi
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
 import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import { createIdSelection } from '../../shared/utils/selection-manager';
-import { optionalMobile10Validator, optionalUrlValidator } from '../../shared/validators/crm-validators';
+import {
+  GSTIN_ERROR_KEY,
+  GSTIN_ERROR_MESSAGE,
+  gstControlInvalid,
+  normalizeGstin,
+  syncGstinInputFromEvent,
+} from '../../shared/utils/gstin.util';
+import {
+  gstFormValidators,
+  optionalMobile10Validator,
+  optionalUrlValidator,
+} from '../../shared/validators/crm-validators';
 import { environment } from '../../../environments/environment';
 import {
   isIndiamartLeadRowId,
@@ -628,7 +639,7 @@ export class LeadsComponent {
     employees: [''],
     annualRevenue: ['', Validators.maxLength(32)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
-    gst: ['', Validators.maxLength(32)],
+    gst: ['', gstFormValidators()],
     territory: [''],
     industry: ['', Validators.required],
     status: ['', Validators.required],
@@ -647,6 +658,18 @@ export class LeadsComponent {
     });
   }
 
+  /** Stable fn refs — NgComponentOutlet output maps must not be recreated every CD cycle. */
+  private readonly importModalRequestClose = (): void => this.closeImportModal();
+
+  private readonly importModalRequestImportCompleted = (value: unknown): void =>
+    this.onLeadsImportCompleted(value as LeadImportCommitResult);
+
+  /** Stable output map for {@link NgComponentOutlet}. */
+  protected readonly importModalOutletOutputs: Record<string, (value: unknown) => void> = {
+    dismiss: () => this.closeImportModal(),
+    importCompleted: (value) => this.onLeadsImportCompleted(value as LeadImportCommitResult),
+  };
+
   protected openImportModal(): void {
     this.importModalOpen.set(true);
     if (!this.importModalLazyComponent()) {
@@ -657,13 +680,10 @@ export class LeadsComponent {
   }
 
   protected importModalOutletInputs(): Record<string, unknown> {
-    return { open: this.importModalOpen() };
-  }
-
-  protected importModalOutletOutputs(): Record<string, (value: unknown) => void> {
     return {
-      dismiss: () => this.closeImportModal(),
-      importCompleted: (value) => this.onLeadsImportCompleted(value as LeadImportCommitResult),
+      open: this.importModalOpen(),
+      requestClose: this.importModalRequestClose,
+      requestImportCompleted: this.importModalRequestImportCompleted,
     };
   }
 
@@ -795,7 +815,7 @@ export class LeadsComponent {
             ),
             annualRevenue: arInput,
             website: row.website ?? '',
-            gst: row.gst ?? '',
+            gst: normalizeGstin(row.gst),
             territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
             industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
             status: this.masterSelectControlValue(row.leadStatusId, row.status, this.statusSelectOptions()),
@@ -1353,7 +1373,7 @@ export class LeadsComponent {
       employeeCountId: empPick.masterId,
       annualRevenue: raw.annualRevenue.trim() || undefined,
       website: raw.website.trim() || undefined,
-      gst: raw.gst.trim() || undefined,
+      gst: normalizeGstin(raw.gst) || undefined,
       territory: terrPick.label || undefined,
       territoryId: terrPick.masterId,
       industry: indPick.label || 'Other',
@@ -1574,9 +1594,20 @@ export class LeadsComponent {
     });
   }
 
+  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
+  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+
   protected fieldInvalid(name: string): boolean {
     const c = this.createForm.get(name);
     return !!c && c.invalid && (c.dirty || c.touched);
+  }
+
+  protected gstFieldInvalid(): boolean {
+    return gstControlInvalid(this.createForm.controls.gst);
+  }
+
+  protected onGstinInput(ev: Event): void {
+    syncGstinInputFromEvent(ev, this.createForm.controls.gst);
   }
 
   protected statusClass(status: LeadStatus): string {
