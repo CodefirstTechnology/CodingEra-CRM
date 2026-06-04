@@ -212,4 +212,14 @@
       <app-quotation-item-grid [lineItems]="lineItems" />
     </form>
   }
+
+  <div class="qt-form__actions-bottom">
+    <a routerLink="/quotations" class="qt-form__btn qt-form__btn--ghost">Cancel</a>
+    <button type="button" class="qt-form__btn qt-form__btn--outline" [disabled]="saving()" (click)="saveDraft()">
+      Save as draft
+    </button>
+    <button type="button" class="qt-form__btn qt-form__btn--primary" [disabled]="saving()" (click)="saveQuotation()">
+      {{ saving() ? 'Saving…' : 'Save' }}
+    </button>
+  </div>
 </div>

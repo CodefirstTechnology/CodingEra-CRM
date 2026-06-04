@@ -29,6 +29,8 @@ import {
 export interface QuotationListQuery {
   status?: string;
   dealId?: number;
+  /** Server-side text search (quotation #, customer, company, email). */
+  search?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -53,6 +55,9 @@ export class QuotationHttpService {
     if (query?.status?.trim()) params = params.set('status', query.status.trim());
     if (query?.dealId != null && query.dealId > 0) {
       params = params.set('dealId', String(query.dealId));
+    }
+    if (query?.search?.trim()) {
+      params = params.set('search', query.search.trim());
     }
     return this.http
       .get<unknown>(this.baseUrl, { headers: this.jsonHeaders(), params })
@@ -96,7 +101,7 @@ export class QuotationHttpService {
     return this.http.get<unknown>(`${this.baseUrl}/${id}`, { headers: this.jsonHeaders() }).pipe(
       map((raw) => (raw != null ? mapQuotationDetail(raw) : null)),
       catchError((err: HttpErrorResponse) =>
-        err.status === 404 ? of(null) : throwError(() => err),
+        err.status === 404 || err.status === 403 ? of(null) : throwError(() => err),
       ),
     );
   }

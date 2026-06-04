@@ -64,6 +64,7 @@ export function mapQuotationListItem(raw: unknown): QuotationListItem {
   const o = asRecord(raw);
   return {
     id: pickNum(o, ['id', 'Id']),
+    createdBy: pickNullableNum(o, ['createdBy', 'created_by', 'CreatedBy']),
     dealId: pickNullableNum(o, ['dealId', 'deal_id', 'DealId']),
     customerName: pickStr(o, ['customerName', 'customer_name']),
     companyName: pickStr(o, ['companyName', 'company_name']),
@@ -75,6 +76,8 @@ export function mapQuotationListItem(raw: unknown): QuotationListItem {
     quotationDate: pickStr(o, ['quotationDate', 'quotation_date']),
     status: pickStr(o, ['status', 'Status']) || 'Draft',
     grandTotal: pickNum(o, ['grandTotal', 'grand_total']),
+    createdByName:
+      pickStr(o, ['createdByName', 'created_by_name', 'CreatedByName']) || undefined,
     createdAt: pickStr(o, ['createdAt', 'created_at']) || undefined,
     updatedAt: pickStr(o, ['updatedAt', 'updated_at']) || undefined,
   };

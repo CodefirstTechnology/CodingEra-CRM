@@ -1,15 +1,16 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { take } from 'rxjs';
+import { debounceTime, distinctUntilChanged, take } from 'rxjs';
 import {
   QUOTATION_STATUSES,
   type QuotationListItem,
   type QuotationStatus,
 } from '../../core/services/quotations/quotation-api.models';
 import { QuotationsService, quotationHttpErrorMessage } from '../../core/services/quotations.service';
+import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { ToastService } from '../../core/toast/toast.service';
 
 @Component({
@@ -19,6 +20,7 @@ import { ToastService } from '../../core/toast/toast.service';
   styleUrl: './quotations-list.component.scss',
 })
 export class QuotationsListComponent {
+  private readonly userScope = inject(UserDataScopeService);
   private readonly quotationsService = inject(QuotationsService);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
@@ -27,6 +29,8 @@ export class QuotationsListComponent {
   protected readonly rows = signal<QuotationListItem[]>([]);
   protected readonly loading = signal(false);
   protected readonly statusOptions = QUOTATION_STATUSES;
+  protected readonly showCreatedByColumn = computed(() => this.userScope.canViewAllQuotations());
+  protected readonly tableColSpan = computed(() => (this.showCreatedByColumn() ? 8 : 7));
 
   protected readonly filterForm = this.fb.nonNullable.group({
     status: [''],
@@ -35,19 +39,27 @@ export class QuotationsListComponent {
 
   constructor() {
     this.refresh();
-    this.filterForm.valueChanges.pipe(takeUntilDestroyed()).subscribe(() => this.applyClientFilter());
+    this.filterForm.controls.status.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe(() => this.refresh());
+    this.filterForm.controls.search.valueChanges
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe(() => this.refresh());
   }
 
   protected refresh(): void {
     this.loading.set(true);
     const status = this.filterForm.controls.status.value?.trim();
-    this.quotationsService
-      .list(status ? { status } : undefined)
+    const search = this.filterForm.controls.search.value?.trim();
+    const query: { status?: string; search?: string } = {};
+    if (status) query.status = status;
+    if (search) query.search = search;
+    this.userScope
+      .listQuotations(Object.keys(query).length ? query : undefined)
       .pipe(take(1))
       .subscribe({
         next: (list) => {
-          this.allRows = list;
-          this.applyClientFilter();
+          this.rows.set(list);
           this.loading.set(false);
         },
         error: (err) => {
@@ -55,23 +67,6 @@ export class QuotationsListComponent {
           this.toast.error(quotationHttpErrorMessage(err, 'Failed to load quotations.'));
         },
       });
-  }
-
-  private allRows: QuotationListItem[] = [];
-
-  private applyClientFilter(): void {
-    const q = this.filterForm.controls.search.value.trim().toLowerCase();
-    let list = [...this.allRows];
-    if (q) {
-      list = list.filter(
-        (r) =>
-          r.quotationNumber.toLowerCase().includes(q) ||
-          r.customerName.toLowerCase().includes(q) ||
-          r.companyName.toLowerCase().includes(q) ||
-          r.emailAddress.toLowerCase().includes(q),
-      );
-    }
-    this.rows.set(list);
   }
 
   protected createQuotation(): void {

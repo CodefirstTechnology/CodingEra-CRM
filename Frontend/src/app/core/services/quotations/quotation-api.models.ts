@@ -87,6 +87,8 @@ export interface QuotationUpsertDto {
 
 export interface QuotationListItem {
   id: number;
+  /** `users.id` of creator; used for client-side scope checks when present. */
+  createdBy?: number | null;
   dealId?: number | null;
   customerName: string;
   companyName: string;
@@ -98,6 +100,8 @@ export interface QuotationListItem {
   quotationDate: string;
   status: QuotationStatus | string;
   grandTotal: number;
+  /** Present on list API when the viewer is admin / super-admin. */
+  createdByName?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

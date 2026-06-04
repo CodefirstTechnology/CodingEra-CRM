@@ -46,17 +46,20 @@
             <th class="quotations__th">Company</th>
             <th class="quotations__th quotations__th--status">Status</th>
             <th class="quotations__th quotations__th--num">Total</th>
+            @if (showCreatedByColumn()) {
+              <th class="quotations__th quotations__th--creator">Created by</th>
+            }
             <th class="quotations__th quotations__th--actions">Actions</th>
           </tr>
         </thead>
         <tbody>
           @if (loading()) {
             <tr>
-              <td class="quotations__td quotations__td--empty" colspan="7">Loading…</td>
+              <td class="quotations__td quotations__td--empty" [attr.colspan]="tableColSpan()">Loading…</td>
             </tr>
           } @else if (rows().length === 0) {
             <tr>
-              <td class="quotations__td quotations__td--empty" colspan="7">No quotations found.</td>
+              <td class="quotations__td quotations__td--empty" [attr.colspan]="tableColSpan()">No quotations found.</td>
             </tr>
           } @else {
             @for (row of rows(); track row.id) {
@@ -71,6 +74,9 @@
                   <span class="quotations-pill quotations-pill--{{ statusClass(row.status) }}">{{ row.status }}</span>
                 </td>
                 <td class="quotations__td quotations__td--num">₹ {{ row.grandTotal | number: '1.2-2' }}</td>
+                @if (showCreatedByColumn()) {
+                  <td class="quotations__td quotations__td--creator">{{ row.createdByName?.trim() || '—' }}</td>
+                }
                 <td class="quotations__td quotations__td--actions">
                   <div class="quotations__actions">
                     <button
