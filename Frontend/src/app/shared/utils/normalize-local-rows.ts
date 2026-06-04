@@ -4,6 +4,7 @@ import { DEFAULT_DEAL_PIPELINE_STATUS, resolveDealStatusLabel } from '../../core
 import type { NoteRelatedType, NoteRow, NoteVisibility } from '../../features/notes/notes.component';
 import type { OrganizationRow } from '../../features/organizations/organizations.component';
 import type { TaskRow } from '../../features/tasks/tasks.component';
+import { normalizeGstin } from './gstin.util';
 import { parseRevenueInputToNumber } from './revenue-parse';
 
 function parseLegacyNoteRecord(record: string): {
@@ -62,8 +63,8 @@ export function normalizeDealRow(row: Record<string, unknown>): DealRow {
     employees: String(row['employees'] ?? '1-10'),
     annualRevenue,
     website: String(row['website'] ?? ''),
-    ...(row['gst'] != null && String(row['gst']).trim() !== ''
-      ? { gst: String(row['gst']).trim() }
+    ...(row['gst'] != null && normalizeGstin(String(row['gst'])) !== ''
+      ? { gst: normalizeGstin(String(row['gst'])) }
       : {}),
     territory: String(row['territory'] ?? ''),
     industry: String(row['industry'] ?? 'Technology'),
@@ -107,8 +108,8 @@ export function normalizeOrganizationRow(row: Record<string, unknown>): Organiza
     id,
     name: String(row['name'] ?? ''),
     website: String(row['website'] ?? ''),
-    ...(row['gst'] != null && String(row['gst']).trim() !== ''
-      ? { gst: String(row['gst']).trim() }
+    ...(row['gst'] != null && normalizeGstin(String(row['gst'])) !== ''
+      ? { gst: normalizeGstin(String(row['gst'])) }
       : {}),
     industry: String(row['industry'] ?? ''),
     annualRevenue: parseRevenueInputToNumber(row['annualRevenue'] as string | number),

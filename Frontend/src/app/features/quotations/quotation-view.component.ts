@@ -6,6 +6,7 @@ import { take } from 'rxjs';
 import type { QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
 import { QuotationsService, quotationHttpErrorMessage } from '../../core/services/quotations.service';
 import { ToastService } from '../../core/toast/toast.service';
+import { QuotationPdfService } from './quotation-pdf.service';
 
 @Component({
   selector: 'app-quotation-view',
@@ -18,8 +19,10 @@ export class QuotationViewComponent {
   private readonly router = inject(Router);
   private readonly quotationsService = inject(QuotationsService);
   private readonly toast = inject(ToastService);
+  private readonly quotationPdf = inject(QuotationPdfService);
 
   protected readonly loading = signal(true);
+  protected readonly pdfGenerating = signal(false);
   protected readonly quotation = signal<QuotationUpsertDto | null>(null);
 
   constructor() {
@@ -36,6 +39,20 @@ export class QuotationViewComponent {
   protected edit(): void {
     const id = this.quotation()?.id;
     if (id) void this.router.navigate(['/quotations', id, 'edit']);
+  }
+
+  protected async downloadPdf(): Promise<void> {
+    const q = this.quotation();
+    if (!q || this.pdfGenerating()) return;
+    this.pdfGenerating.set(true);
+    try {
+      await this.quotationPdf.download(q);
+      this.toast.success('PDF downloaded.');
+    } catch {
+      this.toast.error('Could not generate PDF. Please try again.');
+    } finally {
+      this.pdfGenerating.set(false);
+    }
   }
 
   protected duplicate(): void {

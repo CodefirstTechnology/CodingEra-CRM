@@ -1,6 +1,7 @@
 import type { DealRow } from '../../features/deals/deals.component';
 import type { MasterDataOption } from '../../core/services/leads/lead-master-data.service';
 import { masterSelectControlValue } from '../../core/services/organizations/organization-master-select.util';
+import { normalizeGstin } from './gstin.util';
 import { parseRevenueInputToNumber } from './revenue-parse';
 
 export const DEAL_QUOTATION_PREFILL_KEY = 'crm.quotation.dealPrefill';
@@ -114,7 +115,7 @@ export function buildDealQuotationPrefill(
     employees: formEmployees || clean(row.employees),
     annualRevenue: clean(form?.annualRevenue) || annualRevenue,
     website: clean(form?.website) || clean(row.website),
-    gst: clean(form?.gst) || clean(row.gst),
+    gst: normalizeGstin(clean(form?.gst) || clean(row.gst)),
     territory: formTerritory || clean(row.territory),
     industry: formIndustry || clean(row.industry),
     formSalutationValue: formSalutation || undefined,

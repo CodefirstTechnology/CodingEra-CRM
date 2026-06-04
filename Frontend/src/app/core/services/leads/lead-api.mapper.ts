@@ -1,3 +1,4 @@
+import { normalizeGstin } from '../../../shared/utils/gstin.util';
 import { parseRevenueInputToNumber } from '../../../shared/utils/revenue-parse';
 import type { LeadRow, LeadSource, LeadStatus } from '../../../features/leads/lead-row.model';
 import { plainTextFromHtml } from '../../../shared/utils/plain-text-from-html';
@@ -234,7 +235,7 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
   let employees = String(r['employees'] ?? r['Employees'] ?? '').trim();
   let annualRevenue = readOptionalInt(r['annualRevenue']) ?? readOptionalInt(r['AnnualRevenue']);
   let website = String(r['website'] ?? r['Website'] ?? '').trim();
-  let gst = String(r['gst'] ?? r['Gst'] ?? '').trim();
+  let gst = normalizeGstin(String(r['gst'] ?? r['Gst'] ?? ''));
   let territoryId =
     readOptionalInt(r['territoryId']) ??
     readOptionalInt(r['TerritoryId']);
@@ -260,7 +261,7 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
     const rev = o['annualRevenue'] ?? o['AnnualRevenue'];
     if (rev != null && Number.isFinite(Number(rev))) annualRevenue = Number(rev);
     website = String(o['website'] ?? website).trim();
-    gst = String(o['gst'] ?? o['Gst'] ?? gst).trim();
+    gst = normalizeGstin(String(o['gst'] ?? o['Gst'] ?? gst));
   }
 
   const leadStatusId =
@@ -398,7 +399,7 @@ export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
     employees: dto.employees || undefined,
     annualRevenue: formatAnnualRevenueDisplay(dto.annualRevenue),
     website: dto.website || undefined,
-    gst: dto.gst || undefined,
+    gst: normalizeGstin(dto.gst) || undefined,
     territory: dto.territory || undefined,
     industry: dto.industry || 'Other',
     status,
@@ -455,7 +456,7 @@ export function enrichLeadNormalizedFromPatch(
       patch.industry !== undefined ? patch.industry.trim() || baseline.industry : baseline.industry,
     industryId: patch.industryId !== undefined ? patch.industryId ?? baseline.industryId : baseline.industryId,
     website: patch.website !== undefined ? patch.website.trim() || baseline.website : baseline.website,
-    gst: patch.gst !== undefined ? patch.gst.trim() || baseline.gst : baseline.gst,
+    gst: patch.gst !== undefined ? normalizeGstin(patch.gst) || baseline.gst : baseline.gst,
     employees:
       patch.employees !== undefined ? patch.employees.trim() || baseline.employees : baseline.employees,
     employeeCountId:
@@ -562,7 +563,7 @@ function rowToNormalized(row: LeadRow, previous?: LeadNormalized): LeadNormalize
     annualRevenue:
       parseAnnualRevenueForApi(row.annualRevenue) ?? previous?.annualRevenue ?? null,
     website: row.website ?? previous?.website ?? '',
-    gst: row.gst ?? previous?.gst ?? '',
+    gst: normalizeGstin(row.gst ?? previous?.gst),
     leadStatusId: row.leadStatusId ?? previous?.leadStatusId ?? null,
     statusName: row.status ?? previous?.statusName ?? 'New',
     requestTypeId: row.requestTypeId ?? previous?.requestTypeId ?? null,

@@ -86,7 +86,11 @@ export class ImportLeadsModalComponent {
   );
 
   protected onDismiss(): void {
-    if (this.isBusy()) return;
+    if (this.parsing() || this.importing()) {
+      this.parsing.set(false);
+      this.importing.set(false);
+      this.progress.set(null);
+    }
     this.resetState();
     this.dismiss.emit();
   }
@@ -137,7 +141,7 @@ export class ImportLeadsModalComponent {
   }
 
   protected clearSelectedFile(): void {
-    if (this.isBusy()) return;
+    if (this.importing()) return;
     this.selectedFile.set(null);
     this.parseResult.set(null);
     this.commitResult.set(null);

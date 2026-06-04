@@ -9,13 +9,27 @@ import type { LeadImportCommitResult } from './import/lead-import-api.models';
   template: `
     <app-import-leads-modal
       [open]="open()"
-      (dismiss)="dismiss.emit()"
-      (importCompleted)="importCompleted.emit($event)"
+      (dismiss)="onModalDismiss()"
+      (importCompleted)="onImportCompleted($event)"
     />
   `,
 })
 export class LeadsImportModalLazyComponent {
   readonly open = input(false);
+  /** Parent callback when using NgComponentOutlet (output bindings can be unreliable). */
+  readonly requestClose = input<(() => void) | undefined>();
+  readonly requestImportCompleted = input<((result: LeadImportCommitResult) => void) | undefined>();
+
   readonly dismiss = output<void>();
   readonly importCompleted = output<LeadImportCommitResult>();
+
+  protected onModalDismiss(): void {
+    this.dismiss.emit();
+    this.requestClose()?.();
+  }
+
+  protected onImportCompleted(result: LeadImportCommitResult): void {
+    this.importCompleted.emit(result);
+    this.requestImportCompleted()?.(result);
+  }
 }

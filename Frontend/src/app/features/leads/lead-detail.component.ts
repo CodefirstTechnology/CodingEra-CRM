@@ -20,6 +20,11 @@ import {
   type MasterDataOption,
 } from '../../core/services/leads/lead-master-data.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
+import {
+  buildLeadDisplayName,
+  fullNameFromLeadParts,
+  splitFullName,
+} from './lead-full-name.util';
 import { ToastService } from '../../core/toast/toast.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
@@ -259,8 +264,7 @@ export class LeadDetailComponent {
     source: [''],
     owner: [''],
     salutation: [''],
-    firstName: ['', Validators.required],
-    lastName: [''],
+    fullName: ['', [Validators.required, Validators.maxLength(200)]],
     email: [''],
     mobile: [''],
   });
@@ -729,8 +733,7 @@ export class LeadDetailComponent {
   protected openCreateNoteFromLead(): void {
     const l = this.lead();
     if (!l?.id) return;
-    const displayName =
-      [l.firstName?.trim(), l.lastName?.trim()].filter(Boolean).join(' ') || l.name.trim() || 'Lead';
+    const displayName = fullNameFromLeadParts(l) || 'Lead';
     this.createFlow.selectEntity('note', {
       noteFromLead: {
         relatedLeadId: String(l.id),
@@ -813,8 +816,7 @@ export class LeadDetailComponent {
         source: row.source?.trim() || row.leadSource || '',
         owner: row.leadOwnerId ?? '',
         salutation: this.masterSelectControlValue(row.salutationId, salutationPlain, this.salutationSelectOptions()),
-        firstName: row.firstName ?? '',
-        lastName: row.lastName ?? '',
+        fullName: fullNameFromLeadParts(row),
         email: row.email ?? '',
         mobile: row.mobile ?? '',
       },
@@ -842,7 +844,8 @@ export class LeadDetailComponent {
   }
 
   protected leadInitial(): string {
-    const name = this.lead()?.firstName?.trim() || this.lead()?.name?.trim() || 'L';
+    const row = this.lead();
+    const name = (row ? fullNameFromLeadParts(row) : '') || 'L';
     return name.charAt(0).toUpperCase();
   }
 
@@ -866,15 +869,16 @@ export class LeadDetailComponent {
     const v = this.dataForm.getRawValue();
     const salLabel = this.salutationLabelFromFormValue(v.salutation);
     const salutationNorm = salLabel.trim() ? `${salLabel.trim().replace(/\.$/, '')}.` : '';
+    const { firstName, lastName } = splitFullName(v.fullName);
     return (
-      [salutationNorm, v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(' ').trim() ||
-      v.firstName.trim() ||
+      buildLeadDisplayName(salutationNorm, firstName, lastName) ||
+      v.fullName.trim() ||
       row.name
     );
   }
 
   protected sidebarLeadAvatarLetter(row: LeadRow): string {
-    const fn = this.dataForm.controls.firstName.value?.trim();
+    const fn = splitFullName(this.dataForm.controls.fullName.value ?? '').firstName;
     if (fn) return fn.charAt(0).toUpperCase();
     return this.leadInitial();
   }
@@ -910,10 +914,8 @@ export class LeadDetailComponent {
     const indPick = this.resolveMasterPick(v.industry, this.industrySelectOptions());
     const salBase = salPick.label.trim().replace(/\.$/, '');
     const salutationNorm = salBase ? `${salBase}.` : '';
-    const name =
-      [salutationNorm, v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(' ').trim() ||
-      v.firstName.trim() ||
-      row.name;
+    const { firstName, lastName } = splitFullName(v.fullName);
+    const name = buildLeadDisplayName(salutationNorm, firstName, lastName) || v.fullName.trim() || row.name;
 
     const ownerId = this.isAdminViewer() ? v.owner.trim() : (row.leadOwnerId ?? '').trim();
     const opt = this.isAdminViewer() ? this.leadOwnerOpts.findById(ownerId) : null;
@@ -922,8 +924,8 @@ export class LeadDetailComponent {
     this.dataSaving.set(true);
     const payload: Partial<Omit<LeadRow, 'id'>> = {
       name,
-      firstName: v.firstName.trim(),
-      lastName: v.lastName.trim(),
+      firstName,
+      lastName,
       salutation: salutationNorm || undefined,
       salutationId: salPick.masterId,
       email: v.email.trim(),
@@ -951,8 +953,7 @@ export class LeadDetailComponent {
         this.emailSubjectText.set(`Mr ${updated.name} (${this.leadCode()})`);
         const ownerDirty = this.isAdminViewer() && this.dataForm.controls.owner.dirty;
         const otherDirty =
-          this.dataForm.controls.firstName.dirty ||
-          this.dataForm.controls.lastName.dirty ||
+          this.dataForm.controls.fullName.dirty ||
           this.dataForm.controls.email.dirty ||
           this.dataForm.controls.mobile.dirty ||
           this.dataForm.controls.organization.dirty ||

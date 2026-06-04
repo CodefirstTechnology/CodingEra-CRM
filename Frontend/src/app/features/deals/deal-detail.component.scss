@@ -1220,8 +1220,17 @@
   outline-offset: 1px;
 }
 
-.deal-detail__input.is-invalid {
+.deal-detail__input.is-invalid,
+.deal-detail__side-field.is-invalid {
   border-color: rgba(220, 38, 38, 0.55);
+}
+
+.deal-detail__field-error {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #b91c1c;
 }
 
 .deal-detail__side {

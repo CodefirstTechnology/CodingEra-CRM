@@ -6,9 +6,8 @@ function readOptionalInt(v: unknown): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
-function emptyToNull(v: string | undefined | null): string | null {
-  const s = (v ?? '').trim();
-  return s ? s : null;
+function trimString(v: string | undefined | null): string {
+  return (v ?? '').trim();
 }
 
 function formatLastModified(iso: string | undefined | null): string {
@@ -83,15 +82,15 @@ export function contactRowToUpsertDto(data: Omit<ContactRow, 'id'>, id?: number)
 
   return {
     id,
-    salutation: emptyToNull(data.salutation),
-    firstName: data.firstName?.trim() || null,
-    lastName: data.lastName?.trim() || null,
-    email: data.email?.trim() || null,
-    phone: data.phone?.trim() || null,
-    gender: emptyToNull(data.gender),
+    salutation: trimString(data.salutation),
+    firstName: trimString(data.firstName),
+    lastName: trimString(data.lastName),
+    email: trimString(data.email),
+    phone: trimString(data.phone),
+    gender: trimString(data.gender),
     organizationId,
-    designation: emptyToNull(data.designation),
-    address: emptyToNull(data.address),
+    designation: trimString(data.designation),
+    address: trimString(data.address),
   };
 }
 

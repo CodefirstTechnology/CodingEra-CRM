@@ -51,7 +51,24 @@ import { CRM_PAGINATED_SELECT_PAGE_SIZE } from '../../shared/components/crm-pagi
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
 import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import { createIdSelection } from '../../shared/utils/selection-manager';
-import { optionalMobile10Validator, optionalUrlValidator } from '../../shared/validators/crm-validators';
+import {
+  GSTIN_ERROR_KEY,
+  GSTIN_ERROR_MESSAGE,
+  gstControlInvalid,
+  normalizeGstin,
+  syncGstinInputFromEvent,
+} from '../../shared/utils/gstin.util';
+import {
+  gstFormValidators,
+  optionalEmailValidator,
+  optionalMobile10Validator,
+  optionalUrlValidator,
+} from '../../shared/validators/crm-validators';
+import {
+  buildLeadDisplayName,
+  fullNameFromLeadParts,
+  splitFullName,
+} from './lead-full-name.util';
 import { environment } from '../../../environments/environment';
 import {
   isIndiamartLeadRowId,
@@ -619,16 +636,15 @@ export class LeadsComponent {
 
   protected readonly createForm = this.fb.nonNullable.group({
     salutation: [''],
-    lastName: ['', [Validators.required, Validators.maxLength(120)]],
+    fullName: ['', [Validators.required, Validators.maxLength(200)]],
     mobile: ['', [optionalMobile10Validator()]],
-    firstName: ['', [Validators.required, Validators.maxLength(80)]],
-    email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
+    email: ['', [Validators.maxLength(160), optionalEmailValidator()]],
     gender: [''],
     organization: ['', [Validators.required, Validators.maxLength(160)]],
     employees: [''],
     annualRevenue: ['', Validators.maxLength(32)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
-    gst: ['', Validators.maxLength(32)],
+    gst: ['', gstFormValidators()],
     territory: [''],
     industry: ['', Validators.required],
     status: ['', Validators.required],
@@ -647,6 +663,18 @@ export class LeadsComponent {
     });
   }
 
+  /** Stable fn refs — NgComponentOutlet output maps must not be recreated every CD cycle. */
+  private readonly importModalRequestClose = (): void => this.closeImportModal();
+
+  private readonly importModalRequestImportCompleted = (value: unknown): void =>
+    this.onLeadsImportCompleted(value as LeadImportCommitResult);
+
+  /** Stable output map for {@link NgComponentOutlet}. */
+  protected readonly importModalOutletOutputs: Record<string, (value: unknown) => void> = {
+    dismiss: () => this.closeImportModal(),
+    importCompleted: (value) => this.onLeadsImportCompleted(value as LeadImportCommitResult),
+  };
+
   protected openImportModal(): void {
     this.importModalOpen.set(true);
     if (!this.importModalLazyComponent()) {
@@ -657,13 +685,10 @@ export class LeadsComponent {
   }
 
   protected importModalOutletInputs(): Record<string, unknown> {
-    return { open: this.importModalOpen() };
-  }
-
-  protected importModalOutletOutputs(): Record<string, (value: unknown) => void> {
     return {
-      dismiss: () => this.closeImportModal(),
-      importCompleted: (value) => this.onLeadsImportCompleted(value as LeadImportCommitResult),
+      open: this.importModalOpen(),
+      requestClose: this.importModalRequestClose,
+      requestImportCompleted: this.importModalRequestImportCompleted,
     };
   }
 
@@ -704,9 +729,8 @@ export class LeadsComponent {
     this.clearEditQuery();
     this.createForm.reset({
       salutation: '',
-      lastName: '',
+      fullName: '',
       mobile: '',
-      firstName: '',
       email: '',
       gender: '',
       organization: '',
@@ -733,9 +757,8 @@ export class LeadsComponent {
     this.clearEditQuery();
     this.createForm.reset({
       salutation: '',
-      lastName: '',
+      fullName: '',
       mobile: '',
-      firstName: '',
       email: '',
       gender: '',
       organization: '',
@@ -782,9 +805,8 @@ export class LeadsComponent {
           const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
           this.createForm.patchValue({
             salutation: this.masterSelectControlValue(row.salutationId, row.salutation, this.salutationSelectOptions()),
-            lastName: row.lastName ?? '',
+            fullName: fullNameFromLeadParts(row),
             mobile: (row.mobile ?? '').replace(/\D/g, '').slice(-10) || row.mobile || '',
-            firstName: row.firstName ?? '',
             email: row.email ?? '',
             gender: row.gender ?? '',
             organization: row.organization ?? '',
@@ -795,7 +817,7 @@ export class LeadsComponent {
             ),
             annualRevenue: arInput,
             website: row.website ?? '',
-            gst: row.gst ?? '',
+            gst: normalizeGstin(row.gst),
             territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
             industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
             status: this.masterSelectControlValue(row.leadStatusId, row.status, this.statusSelectOptions()),
@@ -1291,11 +1313,6 @@ export class LeadsComponent {
     return { label: v };
   }
 
-  private buildDisplayName(salutation: string, first: string, last: string): string {
-    const parts = [salutation.trim(), first.trim(), last.trim()].filter(Boolean);
-    return parts.join(' ').trim() || first.trim() || last.trim() || 'Lead';
-  }
-
   protected submitLead(): void {
     this.createForm.markAllAsTouched();
     if (this.createForm.invalid) return;
@@ -1337,13 +1354,14 @@ export class LeadsComponent {
       return;
     }
     const salLabel = salPick.label;
+    const { firstName, lastName } = splitFullName(raw.fullName);
 
     const payload: Omit<LeadRow, 'id'> = {
       salutation: salLabel || undefined,
       salutationId: salPick.masterId,
-      firstName: raw.firstName.trim(),
-      lastName: raw.lastName.trim(),
-      name: this.buildDisplayName(this.salutationLabelFromFormValue(raw.salutation), raw.firstName, raw.lastName),
+      firstName,
+      lastName,
+      name: buildLeadDisplayName(this.salutationLabelFromFormValue(raw.salutation), firstName, lastName),
       mobile: raw.mobile.trim(),
       leadOwnerId,
       gender: raw.gender || undefined,
@@ -1353,7 +1371,7 @@ export class LeadsComponent {
       employeeCountId: empPick.masterId,
       annualRevenue: raw.annualRevenue.trim() || undefined,
       website: raw.website.trim() || undefined,
-      gst: raw.gst.trim() || undefined,
+      gst: normalizeGstin(raw.gst) || undefined,
       territory: terrPick.label || undefined,
       territoryId: terrPick.masterId,
       industry: indPick.label || 'Other',
@@ -1574,9 +1592,20 @@ export class LeadsComponent {
     });
   }
 
+  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
+  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+
   protected fieldInvalid(name: string): boolean {
     const c = this.createForm.get(name);
     return !!c && c.invalid && (c.dirty || c.touched);
+  }
+
+  protected gstFieldInvalid(): boolean {
+    return gstControlInvalid(this.createForm.controls.gst);
+  }
+
+  protected onGstinInput(ev: Event): void {
+    syncGstinInputFromEvent(ev, this.createForm.controls.gst);
   }
 
   protected statusClass(status: LeadStatus): string {

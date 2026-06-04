@@ -5,6 +5,7 @@ import {
   resolveDealStatusLabel,
 } from './deal-pipeline.constants';
 import type { DealNormalized, DealUpsertDto } from './deal-api.models';
+import { normalizeGstin } from '../../../shared/utils/gstin.util';
 
 function coerceDealStatus(raw: string | undefined | null): DealPipelineStatus {
   return resolveDealStatusLabel(raw ?? DEFAULT_DEAL_PIPELINE_STATUS);
@@ -106,7 +107,7 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
   let employees = String(r['employees'] ?? readMasterName(r['employeeCount'])).trim();
   let annualRevenue = readOptionalInt(r['annualRevenue']);
   let website = String(r['website'] ?? '').trim();
-  let gst = String(r['gst'] ?? r['Gst'] ?? '').trim();
+  let gst = normalizeGstin(String(r['gst'] ?? r['Gst'] ?? ''));
 
   if (orgRaw != null && typeof orgRaw === 'object') {
     const o = orgRaw as Record<string, unknown>;
@@ -118,7 +119,7 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
     const rev = o['annualRevenue'];
     if (rev != null && Number.isFinite(Number(rev))) annualRevenue = Number(rev);
     website = String(o['website'] ?? website).trim();
-    gst = String(o['gst'] ?? o['Gst'] ?? gst).trim();
+    gst = normalizeGstin(String(o['gst'] ?? o['Gst'] ?? gst));
   } else if (typeof orgRaw === 'string') {
     organizationName = orgRaw.trim();
   }
@@ -229,7 +230,7 @@ export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
     annualRevenue:
       dto.annualRevenue != null && Number.isFinite(dto.annualRevenue) ? dto.annualRevenue : 0,
     website: dto.website ?? '',
-    gst: dto.gst ?? '',
+    gst: normalizeGstin(dto.gst),
     territory: dto.territory ?? '',
     industry: dto.industry ?? 'Technology',
     salutation: dto.salutation ?? '',
@@ -338,7 +339,7 @@ function normalizedToUpsertDto(n: DealNormalized, idOverride?: number): DealUpse
     annualRevenue: n.annualRevenue,
     employees: n.employees || null,
     website: n.website || null,
-    gst: n.gst || null,
+    gst: normalizeGstin(n.gst) || null,
     territory: n.territory || null,
     industry: n.industry || null,
     status: n.status || null,
@@ -377,7 +378,7 @@ function rowToNormalized(row: DealRow, previous?: DealNormalized): DealNormalize
     annualRevenue: annual ?? previous?.annualRevenue ?? null,
     employees: row.employees ?? previous?.employees ?? '1-10',
     website: row.website ?? previous?.website ?? '',
-    gst: row.gst ?? previous?.gst ?? '',
+    gst: normalizeGstin(row.gst ?? previous?.gst),
     territory: row.territory ?? previous?.territory ?? '',
     industry: row.industry ?? previous?.industry ?? 'Technology',
     status: row.status ?? previous?.status ?? DEFAULT_DEAL_PIPELINE_STATUS,

@@ -40,16 +40,6 @@
         </header>
 
         <form class="contacts__modal-form" [formGroup]="createForm" (ngSubmit)="submitContact()">
-          <label class="contacts__field">
-            <span class="contacts__label">Salutation</span>
-            <select class="contacts__control contacts__control--soft" formControlName="salutation">
-              <option value="">Salutation</option>
-              @for (opt of salutationSelectOptions(); track opt.id + opt.name) {
-                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-              }
-            </select>
-          </label>
-
           <div class="contacts__row2">
             <label class="contacts__field">
               <span class="contacts__label">First Name</span>

@@ -460,13 +460,15 @@
             </label>
             <label class="lead-detail__field">
               <span class="lead-detail__label"
-                >First Name<span class="lead-detail__req" aria-hidden="true">*</span></span
+                >Full name<span class="lead-detail__req" aria-hidden="true">*</span></span
               >
-              <input type="text" class="lead-detail__input" formControlName="firstName" [class.is-invalid]="dataForm.controls.firstName.invalid && dataForm.controls.firstName.touched" />
-            </label>
-            <label class="lead-detail__field">
-              <span class="lead-detail__label">Last Name</span>
-              <input type="text" class="lead-detail__input" formControlName="lastName" />
+              <input
+                type="text"
+                class="lead-detail__input"
+                formControlName="fullName"
+                autocomplete="name"
+                [class.is-invalid]="dataForm.controls.fullName.invalid && dataForm.controls.fullName.touched"
+              />
             </label>
             <label class="lead-detail__field">
               <span class="lead-detail__label">Email</span>
@@ -805,25 +807,15 @@
                 [formControl]="dataForm.controls.salutation"
               />
             </dd>
-            <dt><span class="lead-detail__req">*</span> First Name</dt>
+            <dt><span class="lead-detail__req">*</span> Full name</dt>
             <dd class="lead-detail__kv-dd">
               <input
                 type="text"
                 class="lead-detail__side-field"
-                [class.lead-detail__side-field--invalid]="dataForm.controls.firstName.invalid && dataForm.controls.firstName.touched"
-                [formControl]="dataForm.controls.firstName"
-                [placeholder]="sidebarAddLabel('First Name')"
-                autocomplete="given-name"
-              />
-            </dd>
-            <dt>Last Name</dt>
-            <dd class="lead-detail__kv-dd">
-              <input
-                type="text"
-                class="lead-detail__side-field"
-                [formControl]="dataForm.controls.lastName"
-                [placeholder]="sidebarAddLabel('Last Name')"
-                autocomplete="family-name"
+                [class.lead-detail__side-field--invalid]="dataForm.controls.fullName.invalid && dataForm.controls.fullName.touched"
+                [formControl]="dataForm.controls.fullName"
+                [placeholder]="sidebarAddLabel('Full name')"
+                autocomplete="name"
               />
             </dd>
             <dt>Email</dt>

@@ -7,16 +7,6 @@ import { CreateRowBusService } from '../../core/create-flow/create-row-bus.servi
 import { ContactsService } from '../../core/services/contacts.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
-import {
-  LeadMasterDataService,
-  type MasterDataOption,
-} from '../../core/services/leads/lead-master-data.service';
-import {
-  masterOptionFormValue,
-  masterSelectControlValue,
-  resolveSalutationLabel,
-  salutationSelectOptions,
-} from '../../core/services/organizations/organization-master-select.util';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 
@@ -47,7 +37,6 @@ export class ContactsComponent {
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly contactsService = inject(ContactsService);
   private readonly toast = inject(ToastService);
-  private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
 
@@ -56,12 +45,6 @@ export class ContactsComponent {
   private lastRouteEdit = '';
 
   protected readonly formOpen = signal(false);
-
-  private readonly salutationsFromApi = signal<MasterDataOption[]>([]);
-  protected readonly salutationSelectOptions = computed(() =>
-    salutationSelectOptions(this.salutationsFromApi()),
-  );
-  protected readonly masterOptionFormValue = masterOptionFormValue;
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
   protected readonly addressOptions = [
@@ -78,10 +61,6 @@ export class ContactsComponent {
   protected readonly rows = signal<ContactRow[]>([]);
 
   constructor() {
-    this.leadMasterData
-      .loadSalutations()
-      .pipe(take(1))
-      .subscribe((rows) => this.salutationsFromApi.set(rows));
     this.refreshContacts();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'contact') return;
@@ -107,7 +86,6 @@ export class ContactsComponent {
   );
 
   protected readonly createForm = this.fb.nonNullable.group({
-    salutation: [''],
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
@@ -144,7 +122,6 @@ export class ContactsComponent {
     this.editingNumericId.set(null);
     this.clearEditQuery();
     this.createForm.reset({
-      salutation: '',
       firstName: '',
       lastName: '',
       email: '',
@@ -163,7 +140,6 @@ export class ContactsComponent {
     this.editingNumericId.set(null);
     this.clearEditQuery();
     this.createForm.reset({
-      salutation: '',
       firstName: '',
       lastName: '',
       email: '',
@@ -188,11 +164,6 @@ export class ContactsComponent {
         if (!row) return;
         this.editingNumericId.set(id);
         this.createForm.patchValue({
-          salutation: masterSelectControlValue(
-            null,
-            row.salutation,
-            this.salutationSelectOptions(),
-          ),
           firstName: row.firstName ?? '',
           lastName: row.lastName ?? '',
           email: row.email,
@@ -270,7 +241,7 @@ export class ContactsComponent {
     }
 
     const payload: Omit<ContactRow, 'id'> = {
-      salutation: resolveSalutationLabel(raw.salutation, this.salutationSelectOptions()),
+      salutation: '',
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
       email: raw.email.trim(),

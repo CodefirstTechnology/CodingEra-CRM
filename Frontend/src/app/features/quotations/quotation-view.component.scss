@@ -77,6 +77,9 @@
 }
 
 .qt-view__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   border-radius: var(--radius-sm);
   padding: 0.5rem 1rem;
   font-size: 0.875rem;
@@ -85,6 +88,26 @@
   border: none;
   font-family: inherit;
   transition: var(--transition-theme);
+
+  &:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+}
+
+.qt-view__btn-spinner {
+  width: 0.875rem;
+  height: 0.875rem;
+  border: 2px solid color-mix(in srgb, currentColor 25%, transparent);
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: qt-view-spin 0.7s linear infinite;
+}
+
+@keyframes qt-view-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .qt-view__btn--primary {

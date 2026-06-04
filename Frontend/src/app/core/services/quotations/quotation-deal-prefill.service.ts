@@ -10,6 +10,7 @@ import {
   buildDealQuotationPrefill,
   prefillToFormPatch,
 } from '../../../shared/utils/deal-quotation-prefill.util';
+import { normalizeGstin } from '../../../shared/utils/gstin.util';
 import { DealMasterSelectService } from '../deals/deal-master-select.service';
 import { DealsService } from '../deals.service';
 import { OrganizationHttpService } from '../organizations/organization-http.service';
@@ -86,7 +87,7 @@ export class QuotationDealPrefillService {
       ...prefill,
       officeAddress: prefill.officeAddress.trim() || org.address?.trim() || '',
       website: prefill.website.trim() || org.website?.trim() || '',
-      gst: prefill.gst.trim() || org.gst?.trim() || '',
+      gst: normalizeGstin(prefill.gst) || normalizeGstin(org.gst) || '',
       salutation: prefill.salutation.trim() || '',
       employees: prefill.employees.trim() || org.employees?.trim() || '',
       territory: prefill.territory.trim() || org.territory?.trim() || '',

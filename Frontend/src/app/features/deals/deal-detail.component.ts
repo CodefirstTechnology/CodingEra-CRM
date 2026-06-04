@@ -35,6 +35,14 @@ import { EntityActivityTimelineComponent } from '../../shared/components/entity-
 import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
 import { dealRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from './deals.component';
+import {
+  GSTIN_ERROR_KEY,
+  GSTIN_ERROR_MESSAGE,
+  gstControlInvalid,
+  normalizeGstin,
+  syncGstinInputFromEvent,
+} from '../../shared/utils/gstin.util';
+import { gstFormValidators } from '../../shared/validators/crm-validators';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import {
   buildDealQuotationPrefill,
@@ -169,7 +177,7 @@ export class DealDetailComponent {
     mobile: [''],
     dealOwner: [this.ownerOpts.defaultOwnerId(), Validators.required],
     website: [''],
-    gst: ['', Validators.maxLength(32)],
+    gst: ['', gstFormValidators()],
     territory: [''],
     probabilityPercent: ['10'],
     nextStep: [''],
@@ -645,7 +653,7 @@ export class DealDetailComponent {
         mobile: mobileVal && mobileVal !== '—' ? mobileVal : '',
         dealOwner: ownerId || this.ownerOpts.defaultOwnerId(),
         website: row.website?.trim() ?? '',
-        gst: row.gst?.trim() ?? '',
+        gst: normalizeGstin(row.gst),
         territory: masterSelectControlValue(
           row.territoryId,
           row.territory,
@@ -686,6 +694,17 @@ export class DealDetailComponent {
   protected userHeaderChip(): string {
     const name = this.auth.user()?.name?.trim() || '';
     return name ? name.charAt(0).toUpperCase() : '?';
+  }
+
+  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
+  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+
+  protected gstFieldInvalid(): boolean {
+    return gstControlInvalid(this.dataForm.controls.gst);
+  }
+
+  protected onGstinInput(ev: Event): void {
+    syncGstinInputFromEvent(ev, this.dataForm.controls.gst);
   }
 
   protected discardDataEdits(): void {
@@ -858,7 +877,7 @@ export class DealDetailComponent {
       patch.website = v.website.trim();
     }
     if (this.dataForm.controls.gst.dirty) {
-      patch.gst = v.gst.trim();
+      patch.gst = normalizeGstin(v.gst);
     }
     if (this.dataForm.controls.territory.dirty) {
       const terrPick = resolveOrgMasterPick(v.territory, this.dealMaster.territorySelectOptions());
@@ -912,7 +931,7 @@ export class DealDetailComponent {
         email: v.email,
         mobile: v.mobile,
         website: v.website,
-        gst: v.gst,
+        gst: normalizeGstin(v.gst),
         annualRevenue: v.annualRevenue,
         territory: v.territory,
         employees: masterSelectControlValue(

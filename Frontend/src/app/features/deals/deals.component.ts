@@ -27,7 +27,18 @@ import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-pic
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { DealPipelineBoardComponent } from './deal-pipeline-board.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
-import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
+import {
+  GSTIN_ERROR_KEY,
+  GSTIN_ERROR_MESSAGE,
+  gstControlInvalid,
+  normalizeGstin,
+  syncGstinInputFromEvent,
+} from '../../shared/utils/gstin.util';
+import {
+  gstFormValidators,
+  optionalPhoneValidator,
+  optionalUrlValidator,
+} from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { leadPersonName } from '../../shared/utils/lead-person-name.util';
 
@@ -335,7 +346,7 @@ export class DealsComponent {
     employees: ['1-10'],
     annualRevenue: ['', Validators.maxLength(40)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
-    gst: ['', Validators.maxLength(32)],
+    gst: ['', gstFormValidators()],
     territory: [''],
     industry: ['Technology', Validators.required],
     salutation: [''],
@@ -594,7 +605,7 @@ export class DealsComponent {
           ),
           annualRevenue: revInput,
           website: row.website,
-          gst: row.gst ?? '',
+          gst: normalizeGstin(row.gst),
           territory: masterSelectControlValue(
             row.territoryId,
             row.territory,
@@ -722,9 +733,20 @@ export class DealsComponent {
     c.setErrors(Object.keys(next).length ? next : null);
   }
 
+  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
+  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+
   protected fieldInvalid(name: string): boolean {
     const c = this.createForm.get(name);
     return !!c && c.invalid && (c.dirty || c.touched);
+  }
+
+  protected onGstinInput(ev: Event): void {
+    syncGstinInputFromEvent(ev, this.createForm.controls.gst);
+  }
+
+  protected gstFieldInvalid(): boolean {
+    return gstControlInvalid(this.createForm.controls.gst);
   }
 
   protected submitDeal(): void {
@@ -762,7 +784,7 @@ export class DealsComponent {
       employeeCountId: empPick.masterId,
       annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
       website: raw.website.trim(),
-      gst: raw.gst.trim(),
+      gst: normalizeGstin(raw.gst),
       territory: terrPick.label.trim(),
       territoryId: terrPick.masterId,
       industry: indPick.label.trim() || 'Technology',

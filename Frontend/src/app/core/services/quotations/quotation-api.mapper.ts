@@ -7,6 +7,7 @@ import type {
   QuotationSettings,
   QuotationUpsertDto,
 } from './quotation-api.models';
+import { normalizeGstin } from '../../../shared/utils/gstin.util';
 import { recalcLineGroupValues } from './quotation-line-calc.util';
 
 function pickStr(o: Record<string, unknown>, keys: string[]): string {
@@ -146,7 +147,7 @@ export function mapQuotationDetail(raw: unknown): QuotationUpsertDto {
     employees: pickStr(o, ['employees', 'Employees']),
     annualRevenue: pickNullableNum(o, ['annualRevenue', 'annual_revenue']),
     website: pickStr(o, ['website', 'Website']),
-    gst: pickStr(o, ['gst', 'Gst']),
+    gst: normalizeGstin(pickStr(o, ['gst', 'Gst'])),
     territory: pickStr(o, ['territory', 'Territory']),
     industry: pickStr(o, ['industry', 'Industry']),
     contactPerson: pickStr(o, ['contactPerson', 'contact_person']),
@@ -225,7 +226,7 @@ export function toApiUpsertBody(dto: QuotationUpsertDto): Record<string, unknown
     employees: dto.employees ?? '',
     annualRevenue: dto.annualRevenue ?? null,
     website: dto.website ?? '',
-    gst: dto.gst ?? '',
+    gst: normalizeGstin(dto.gst),
     territory: dto.territory ?? '',
     industry: dto.industry ?? '',
     contactPerson: dto.contactPerson,
