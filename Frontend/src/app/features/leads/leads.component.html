@@ -136,26 +136,15 @@
             <h3 class="leads__form-section-title">Personal information</h3>
             <div class="leads__form-grid leads__form-grid--3">
               <label class="leads__field">
-                <span class="leads__label">Salutation</span>
-                <select class="leads__control leads__control--soft" formControlName="salutation">
-                  <option value="">— Select —</option>
-                  @for (opt of salutationSelectOptions(); track opt.id + opt.name) {
-                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-                  }
-                </select>
-              </label>
-              <label class="leads__field">
-                <span class="leads__label">First name <span class="leads__req">*</span></span>
-                <input class="leads__control leads__control--soft" type="text" formControlName="firstName" autocomplete="given-name" />
-                @if (fieldInvalid('firstName')) {
-                  <span class="leads__err">First name is required.</span>
-                }
-              </label>
-              <label class="leads__field">
-                <span class="leads__label">Last name <span class="leads__req">*</span></span>
-                <input class="leads__control leads__control--soft" type="text" formControlName="lastName" autocomplete="family-name" />
-                @if (fieldInvalid('lastName')) {
-                  <span class="leads__err">Last name is required.</span>
+                <span class="leads__label">Full name <span class="leads__req">*</span></span>
+                <input
+                  class="leads__control leads__control--soft"
+                  type="text"
+                  formControlName="fullName"
+                  autocomplete="name"
+                />
+                @if (fieldInvalid('fullName')) {
+                  <span class="leads__err">Full name is required.</span>
                 }
               </label>
               <label class="leads__field">
@@ -166,7 +155,7 @@
                 }
               </label>
               <label class="leads__field">
-                <span class="leads__label">Email <span class="leads__req">*</span></span>
+                <span class="leads__label">Email</span>
                 <input
                   class="leads__control leads__control--soft"
                   type="email"
@@ -176,8 +165,6 @@
                 />
                 @if (createForm.get('email')?.errors?.['duplicate']) {
                   <span class="leads__err">A lead with this email already exists.</span>
-                } @else if (fieldInvalid('email') && createForm.get('email')?.errors?.['required']) {
-                  <span class="leads__err">Email is required.</span>
                 } @else if (fieldInvalid('email') && createForm.get('email')?.errors?.['email']) {
                   <span class="leads__err">Use a valid email address.</span>
                 }

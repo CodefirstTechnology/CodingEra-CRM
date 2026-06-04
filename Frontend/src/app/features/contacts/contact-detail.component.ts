@@ -8,16 +8,6 @@ import { ContactsService } from '../../core/services/contacts.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { DealsService } from '../../core/services/deals.service';
-import {
-  LeadMasterDataService,
-  type MasterDataOption,
-} from '../../core/services/leads/lead-master-data.service';
-import {
-  masterOptionFormValue,
-  masterSelectControlValue,
-  resolveSalutationLabel,
-  salutationSelectOptions,
-} from '../../core/services/organizations/organization-master-select.util';
 import type { ContactRow } from './contacts.component';
 import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
 import { dealStatusCssKind } from '../../core/services/deals/deal-status.constants';
@@ -35,7 +25,6 @@ export class ContactDetailComponent {
   private readonly contactsService = inject(ContactsService);
   private readonly toast = inject(ToastService);
   private readonly dealsService = inject(DealsService);
-  private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly createRowBus = inject(CreateRowBusService);
 
   protected readonly numericId = signal<number | null>(null);
@@ -44,12 +33,6 @@ export class ContactDetailComponent {
   protected readonly saving = signal(false);
   protected readonly resolved = signal(false);
   protected readonly detailsOpen = signal(true);
-
-  private readonly salutationsFromApi = signal<MasterDataOption[]>([]);
-  protected readonly salutationSelectOptions = computed(() =>
-    salutationSelectOptions(this.salutationsFromApi()),
-  );
-  protected readonly masterOptionFormValue = masterOptionFormValue;
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
   protected readonly addressOptions = [
@@ -64,7 +47,6 @@ export class ContactDetailComponent {
   ] as const;
 
   protected readonly detailForm = this.fb.nonNullable.group({
-    salutation: [''],
     firstName: ['', [Validators.maxLength(80)]],
     lastName: ['', Validators.maxLength(120)],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
@@ -78,10 +60,6 @@ export class ContactDetailComponent {
   protected readonly dealCount = computed(() => this.relatedDeals().length);
 
   constructor() {
-    this.leadMasterData
-      .loadSalutations()
-      .pipe(take(1))
-      .subscribe((rows) => this.salutationsFromApi.set(rows));
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const raw = params.get('id');
       const id = raw != null ? Number(raw) : NaN;
@@ -121,11 +99,6 @@ export class ContactDetailComponent {
   private patchDetailForm(row: ContactRow): void {
     this.detailForm.patchValue(
       {
-        salutation: masterSelectControlValue(
-          null,
-          row.salutation,
-          this.salutationSelectOptions(),
-        ),
         firstName: row.firstName ?? '',
         lastName: row.lastName ?? '',
         email: row.email,
@@ -216,7 +189,6 @@ export class ContactDetailComponent {
           phone: v.mobile.trim() || '—',
           organization: v.companyName.trim(),
           lastModified: 'Just now',
-          salutation: resolveSalutationLabel(v.salutation, this.salutationSelectOptions()) || undefined,
           firstName: v.firstName.trim() || undefined,
           lastName: v.lastName.trim() || undefined,
           gender: v.gender.trim() || undefined,

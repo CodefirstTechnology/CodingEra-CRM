@@ -60,9 +60,15 @@ import {
 } from '../../shared/utils/gstin.util';
 import {
   gstFormValidators,
+  optionalEmailValidator,
   optionalMobile10Validator,
   optionalUrlValidator,
 } from '../../shared/validators/crm-validators';
+import {
+  buildLeadDisplayName,
+  fullNameFromLeadParts,
+  splitFullName,
+} from './lead-full-name.util';
 import { environment } from '../../../environments/environment';
 import {
   isIndiamartLeadRowId,
@@ -630,10 +636,9 @@ export class LeadsComponent {
 
   protected readonly createForm = this.fb.nonNullable.group({
     salutation: [''],
-    lastName: ['', [Validators.required, Validators.maxLength(120)]],
+    fullName: ['', [Validators.required, Validators.maxLength(200)]],
     mobile: ['', [optionalMobile10Validator()]],
-    firstName: ['', [Validators.required, Validators.maxLength(80)]],
-    email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
+    email: ['', [Validators.maxLength(160), optionalEmailValidator()]],
     gender: [''],
     organization: ['', [Validators.required, Validators.maxLength(160)]],
     employees: [''],
@@ -724,9 +729,8 @@ export class LeadsComponent {
     this.clearEditQuery();
     this.createForm.reset({
       salutation: '',
-      lastName: '',
+      fullName: '',
       mobile: '',
-      firstName: '',
       email: '',
       gender: '',
       organization: '',
@@ -753,9 +757,8 @@ export class LeadsComponent {
     this.clearEditQuery();
     this.createForm.reset({
       salutation: '',
-      lastName: '',
+      fullName: '',
       mobile: '',
-      firstName: '',
       email: '',
       gender: '',
       organization: '',
@@ -802,9 +805,8 @@ export class LeadsComponent {
           const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
           this.createForm.patchValue({
             salutation: this.masterSelectControlValue(row.salutationId, row.salutation, this.salutationSelectOptions()),
-            lastName: row.lastName ?? '',
+            fullName: fullNameFromLeadParts(row),
             mobile: (row.mobile ?? '').replace(/\D/g, '').slice(-10) || row.mobile || '',
-            firstName: row.firstName ?? '',
             email: row.email ?? '',
             gender: row.gender ?? '',
             organization: row.organization ?? '',
@@ -1311,11 +1313,6 @@ export class LeadsComponent {
     return { label: v };
   }
 
-  private buildDisplayName(salutation: string, first: string, last: string): string {
-    const parts = [salutation.trim(), first.trim(), last.trim()].filter(Boolean);
-    return parts.join(' ').trim() || first.trim() || last.trim() || 'Lead';
-  }
-
   protected submitLead(): void {
     this.createForm.markAllAsTouched();
     if (this.createForm.invalid) return;
@@ -1357,13 +1354,14 @@ export class LeadsComponent {
       return;
     }
     const salLabel = salPick.label;
+    const { firstName, lastName } = splitFullName(raw.fullName);
 
     const payload: Omit<LeadRow, 'id'> = {
       salutation: salLabel || undefined,
       salutationId: salPick.masterId,
-      firstName: raw.firstName.trim(),
-      lastName: raw.lastName.trim(),
-      name: this.buildDisplayName(this.salutationLabelFromFormValue(raw.salutation), raw.firstName, raw.lastName),
+      firstName,
+      lastName,
+      name: buildLeadDisplayName(this.salutationLabelFromFormValue(raw.salutation), firstName, lastName),
       mobile: raw.mobile.trim(),
       leadOwnerId,
       gender: raw.gender || undefined,

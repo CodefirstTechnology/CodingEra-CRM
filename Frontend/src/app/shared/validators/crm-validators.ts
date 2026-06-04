@@ -21,6 +21,15 @@ export function optionalUrlValidator(): ValidatorFn {
   };
 }
 
+/** Empty is valid; non-empty must be a valid email address. */
+export function optionalEmailValidator(): ValidatorFn {
+  return (control: AbstractControl): ValidationErrors | null => {
+    const v = String(control.value ?? '').trim();
+    if (!v) return null;
+    return Validators.email(control);
+  };
+}
+
 /** Empty is valid; non-empty must be exactly 10 digits (Indian mobile). */
 export function optionalMobile10Validator(): ValidatorFn {
   return (control: AbstractControl): ValidationErrors | null => {
