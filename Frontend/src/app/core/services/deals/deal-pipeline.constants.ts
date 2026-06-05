@@ -1,196 +1,134 @@
 import type { MasterDataOption } from '../leads/lead-master-data.service';
+import {
+  defaultDealStatusLabel,
+  isClosedLostStatus,
+  isClosedStatus,
+  isClosedWonStatus,
+  toDealPipelineRows,
+} from './deal-pipeline-config.util';
 
-export type DealPipelineStatus =
-  | 'Quotation Shared'
-  | 'Follow-Up Ongoing'
-  | 'Site Visit / Meeting Done'
-  | 'Technical Approval'
-  | 'Sample Approval'
-  | 'Negotiation Stage'
-  | 'PO Received'
-  | 'Advance Payment Pending'
-  | 'Advance Payment Received'
-  | 'Production Started'
-  | 'Material Ready For Dispatch'
-  | 'Full Payment Pending'
-  | 'Full Payment Received'
-  | 'Material Dispatched'
-  | 'Material Delivered'
-  | 'Lead Closed - Won'
-  | 'Lead Closed - Lost';
+/** @deprecated Use pipeline rows from API; kept for gradual migration. */
+export type DealPipelineStatus = string;
 
-export type DealPipelineGroupId =
-  | 'proposal'
-  | 'technical'
-  | 'order'
-  | 'production'
-  | 'dispatch'
-  | 'closed';
+export const DEFAULT_DEAL_PIPELINE_STATUS = '';
 
-export interface DealPipelineGroup {
-  id: DealPipelineGroupId;
-  label: string;
-  stages: readonly DealPipelineStatus[];
+export const FALLBACK_DEAL_STATUS_OPTIONS: readonly MasterDataOption[] = [];
+
+export function resolveDealStatusLabel(name: string): string {
+  return name.trim();
 }
 
-export const DEAL_PIPELINE_STATUSES: readonly DealPipelineStatus[] = [
-  'Quotation Shared',
-  'Follow-Up Ongoing',
-  'Site Visit / Meeting Done',
-  'Technical Approval',
-  'Sample Approval',
-  'Negotiation Stage',
-  'PO Received',
-  'Advance Payment Pending',
-  'Advance Payment Received',
-  'Production Started',
-  'Material Ready For Dispatch',
-  'Full Payment Pending',
-  'Full Payment Received',
-  'Material Dispatched',
-  'Material Delivered',
-  'Lead Closed - Won',
-  'Lead Closed - Lost',
-];
-
-export const DEAL_PIPELINE_GROUPS: readonly DealPipelineGroup[] = [
-  {
-    id: 'proposal',
-    label: 'Proposal',
-    stages: ['Quotation Shared', 'Follow-Up Ongoing', 'Site Visit / Meeting Done'],
-  },
-  {
-    id: 'technical',
-    label: 'Technical',
-    stages: ['Technical Approval', 'Sample Approval', 'Negotiation Stage'],
-  },
-  {
-    id: 'order',
-    label: 'Order',
-    stages: ['PO Received', 'Advance Payment Pending', 'Advance Payment Received'],
-  },
-  {
-    id: 'production',
-    label: 'Production',
-    stages: ['Production Started', 'Material Ready For Dispatch'],
-  },
-  {
-    id: 'dispatch',
-    label: 'Dispatch',
-    stages: [
-      'Full Payment Pending',
-      'Full Payment Received',
-      'Material Dispatched',
-      'Material Delivered',
-    ],
-  },
-  {
-    id: 'closed',
-    label: 'Closed',
-    stages: ['Lead Closed - Won', 'Lead Closed - Lost'],
-  },
-];
-
-/** Maps legacy pipeline labels to the current canonical stage names. */
-const LEGACY_STATUS_MAP: Record<string, DealPipelineStatus> = {
-  Qualification: 'Quotation Shared',
-  Proposal: 'Quotation Shared',
-  Negotiation: 'Negotiation Stage',
-  'Demo/Making': 'Technical Approval',
-  'Closed Won': 'Lead Closed - Won',
-  'Closed Lost': 'Lead Closed - Lost',
-};
-
-export const FALLBACK_DEAL_STATUS_OPTIONS: readonly MasterDataOption[] =
-  DEAL_PIPELINE_STATUSES.map((name) => ({ id: 0, name }));
-
-export const DEFAULT_DEAL_PIPELINE_STATUS: DealPipelineStatus = 'Follow-Up Ongoing';
-
-export function resolveDealStatusLabel(name: string): DealPipelineStatus {
-  const s = name.trim();
-  if (DEAL_PIPELINE_STATUSES.includes(s as DealPipelineStatus)) {
-    return s as DealPipelineStatus;
-  }
-  const legacy = LEGACY_STATUS_MAP[s] ?? LEGACY_STATUS_MAP[s.toLowerCase()];
-  if (legacy) return legacy;
-  const match = DEAL_PIPELINE_STATUSES.find((p) => p.toLowerCase() === s.toLowerCase());
-  return match ?? DEFAULT_DEAL_PIPELINE_STATUS;
+export function isDealClosedWon(status: string, options: readonly MasterDataOption[] = []): boolean {
+  const pipeline = toDealPipelineRows(options);
+  if (pipeline.length > 0) return isClosedWonStatus(pipeline, status);
+  return false;
 }
 
-export function pipelineGroupForStage(status: string): DealPipelineGroup | null {
-  const canonical = resolveDealStatusLabel(status);
-  return DEAL_PIPELINE_GROUPS.find((g) => g.stages.includes(canonical)) ?? null;
+export function isDealClosedLost(status: string, options: readonly MasterDataOption[] = []): boolean {
+  const pipeline = toDealPipelineRows(options);
+  if (pipeline.length > 0) return isClosedLostStatus(pipeline, status);
+  return false;
 }
 
-export function isDealClosedWon(status: string): boolean {
-  const s = resolveDealStatusLabel(status);
-  return s === 'Lead Closed - Won';
+export function isDealClosed(status: string, options: readonly MasterDataOption[] = []): boolean {
+  const pipeline = toDealPipelineRows(options);
+  if (pipeline.length > 0) return isClosedStatus(pipeline, status);
+  return false;
 }
 
-export function isDealClosedLost(status: string): boolean {
-  const s = resolveDealStatusLabel(status);
-  return s === 'Lead Closed - Lost';
+export function isDealActivePipeline(status: string, options: readonly MasterDataOption[] = []): boolean {
+  return !isDealClosed(status, options);
 }
 
-export function isDealClosed(status: string): boolean {
-  return isDealClosedWon(status) || isDealClosedLost(status);
-}
-
-export function isDealActivePipeline(status: string): boolean {
-  return !isDealClosed(status);
-}
-
-export function dealStatusCssKind(status: string): 'won' | 'lost' | 'accent' | 'demo' | 'muted' {
-  const s = resolveDealStatusLabel(status);
-  if (s === 'Lead Closed - Won') return 'won';
-  if (s === 'Lead Closed - Lost') return 'lost';
-  if (s === 'Technical Approval' || s === 'Sample Approval') return 'demo';
-  if (
-    s === 'Negotiation Stage' ||
-    s === 'Follow-Up Ongoing' ||
-    s === 'Quotation Shared' ||
-    s === 'PO Received'
-  ) {
-    return 'accent';
-  }
+export function dealStatusCssKind(
+  status: string,
+  options: readonly MasterDataOption[] = [],
+): 'won' | 'lost' | 'accent' | 'demo' | 'muted' {
+  const pipeline = toDealPipelineRows(options);
+  const row = pipeline.find((s) => s.name.toLowerCase() === status.trim().toLowerCase());
+  if (row?.isWon) return 'won';
+  if (row?.isLost) return 'lost';
   return 'muted';
 }
 
-/**
- * Maps a deal's stored status to the &lt;select&gt; value (master id or legacy label).
- * Prefers the denormalized status label over a stale dealStatusId FK.
- */
 export function resolveDealStatusSelectValue(
   dealStatusId: number | null | undefined,
   statusLabel: string | null | undefined,
   options: readonly MasterDataOption[],
 ): string {
-  const canonical = resolveDealStatusLabel(statusLabel ?? '');
+  const label = (statusLabel ?? '').trim();
 
   if (options.length > 0) {
-    const byName = options.find(
-      (o) => o.id > 0 && resolveDealStatusLabel(o.name) === canonical,
-    );
+    const byName = options.find((o) => o.id > 0 && o.name.toLowerCase() === label.toLowerCase());
     if (byName) return String(byName.id);
   }
 
   if (dealStatusId != null && dealStatusId > 0 && options.length > 0) {
     const byId = options.find((o) => o.id === dealStatusId);
-    if (byId && resolveDealStatusLabel(byId.name) === canonical) {
-      return String(byId.id);
-    }
+    if (byId) return String(byId.id);
   }
 
   if (dealStatusId != null && dealStatusId > 0) {
     return String(dealStatusId);
   }
 
-  const legacy = options.find(
-    (o) => o.id === 0 && resolveDealStatusLabel(o.name) === canonical,
-  );
-  if (legacy) return legacy.name;
+  return label || defaultDealStatusLabel(options);
+}
 
-  return canonical;
+export interface DealDetailProgressStage {
+  name: string;
+  dealStatusId: number;
+  sortOrder: number;
+  isWon: boolean;
+  isLost: boolean;
+}
+
+export function buildDealDetailProgressStages(
+  options: readonly MasterDataOption[],
+): DealDetailProgressStage[] {
+  return toDealPipelineRows(options).map((o) => ({
+    name: o.name.trim(),
+    dealStatusId: o.id,
+    sortOrder: o.sortOrder > 0 ? o.sortOrder : o.id * 10,
+    isWon: o.isWon,
+    isLost: o.isLost,
+  }));
+}
+
+export function dealStatusMatchesProgressStage(
+  statusLabel: string,
+  stage: Pick<DealDetailProgressStage, 'name'>,
+): boolean {
+  return statusLabel.trim().toLowerCase() === stage.name.trim().toLowerCase();
+}
+
+export function dealDetailProgressIndex(
+  status: string,
+  stages: readonly DealDetailProgressStage[],
+): number {
+  if (!stages.length) return 0;
+
+  const directIdx = stages.findIndex((s) => dealStatusMatchesProgressStage(status, s));
+  if (directIdx >= 0) return directIdx;
+
+  const targetOrder = stages.find((s) => s.name.toLowerCase() === status.trim().toLowerCase())?.sortOrder ?? -1;
+  if (targetOrder < 0) return 0;
+
+  for (let i = stages.length - 1; i >= 0; i--) {
+    if (stages[i].sortOrder <= targetOrder) return i;
+  }
+  return 0;
+}
+
+export type DealProgressStageVisualState = 'completed' | 'current' | 'pending';
+
+export function dealProgressStageVisualState(
+  stageIndex: number,
+  currentIndex: number,
+): DealProgressStageVisualState {
+  if (stageIndex < currentIndex) return 'completed';
+  if (stageIndex === currentIndex) return 'current';
+  return 'pending';
 }
 
 export function resolveDealStatusForApi(
@@ -198,10 +136,8 @@ export function resolveDealStatusForApi(
   dealStatusId: number | null | undefined,
   options: readonly MasterDataOption[],
 ): { status: string; dealStatusId?: number } {
-  const canonical = resolveDealStatusLabel(statusLabel);
-  const byName = options.find(
-    (o) => o.name === canonical || o.name.toLowerCase() === canonical.toLowerCase(),
-  );
+  const label = statusLabel.trim();
+  const byName = options.find((o) => o.name.toLowerCase() === label.toLowerCase());
   if (byName && byName.id > 0) {
     return { status: byName.name, dealStatusId: byName.id };
   }
@@ -211,5 +147,5 @@ export function resolveDealStatusForApi(
       return { status: byId.name, dealStatusId: byId.id };
     }
   }
-  return { status: canonical };
+  return { status: label || defaultDealStatusLabel(options) };
 }

@@ -1,11 +1,8 @@
 import { Component, computed, input, output } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import type { DealRow } from './deals.component';
-import {
-  DEAL_PIPELINE_GROUPS,
-  pipelineGroupForStage,
-  resolveDealStatusLabel,
-} from '../../core/services/deals/deal-pipeline.constants';
+import { resolveDealStatusLabel } from '../../core/services/deals/deal-pipeline.constants';
+import { toDealPipelineRows } from '../../core/services/deals/deal-pipeline-config.util';
 import type { MasterDataOption } from '../../core/services/leads/lead-master-data.service';
 import { masterOptionFormValue } from '../../core/services/organizations/organization-master-select.util';
 import { dealPersonName } from '../../shared/utils/lead-person-name.util';
@@ -29,20 +26,33 @@ export class DealPipelineBoardComponent {
 
   readonly stageChange = output<DealPipelineStageChange>();
 
-  protected readonly groups = DEAL_PIPELINE_GROUPS;
   protected readonly masterOptionFormValue = masterOptionFormValue;
 
-  protected readonly dealsByGroup = computed(() => {
-    const map = new Map<string, DealRow[]>();
-    for (const group of this.groups) {
-      map.set(group.id, []);
+  protected readonly columns = computed(() => toDealPipelineRows(this.statusOptions()));
+
+  protected readonly dealsByColumn = computed(() => {
+    const map = new Map<number, DealRow[]>();
+    for (const col of this.columns()) {
+      map.set(col.id, []);
     }
     for (const deal of this.deals()) {
-      const group = pipelineGroupForStage(deal.status);
-      const key = group?.id ?? 'proposal';
+      const opt =
+        this.statusOptions().find(
+          (o) =>
+            o.id === deal.dealStatusId
+            || o.name.toLowerCase() === deal.status.trim().toLowerCase(),
+        ) ?? null;
+      const key = opt?.id ?? 0;
       const list = map.get(key) ?? [];
       list.push(deal);
-      map.set(key, list);
+      if (key > 0) {
+        map.set(key, list);
+      } else if (this.columns().length > 0) {
+        const fallback = this.columns()[0].id;
+        const fbList = map.get(fallback) ?? [];
+        fbList.push(deal);
+        map.set(fallback, fbList);
+      }
     }
     return map;
   });
@@ -72,9 +82,10 @@ export class DealPipelineBoardComponent {
   }
 
   protected statusSelectValue(row: DealRow): string {
-    const canonical = resolveDealStatusLabel(row.status);
-    const opt = this.statusOptions().find((o) => o.name === canonical);
-    return opt ? masterOptionFormValue(opt) : canonical;
+    const opt = this.statusOptions().find(
+      (o) => o.id === row.dealStatusId || o.name.toLowerCase() === row.status.trim().toLowerCase(),
+    );
+    return opt ? masterOptionFormValue(opt) : row.status;
   }
 
   protected onStageSelect(row: DealRow, ev: Event): void {
@@ -82,7 +93,7 @@ export class DealPipelineBoardComponent {
     const raw = select.value;
     const opt = this.statusOptions().find((o) => masterOptionFormValue(o) === raw || o.name === raw);
     const status = resolveDealStatusLabel(opt?.name ?? raw);
-    if (status === resolveDealStatusLabel(row.status)) return;
+    if (status.toLowerCase() === row.status.trim().toLowerCase()) return;
     this.stageChange.emit({
       dealId: row.id,
       status,

@@ -8,7 +8,8 @@ import {
   ORG_EMPLOYEE_FALLBACK_LABELS,
   ORG_INDUSTRY_FALLBACK_LABELS,
   ORG_TERRITORY_FALLBACK_LABELS,
-  salutationSelectOptions,
+  SALUTATION_FALLBACK_LABELS,
+  salutationSelectOptions as buildSalutationSelectOptions,
 } from '../organizations/organization-master-select.util';
 import { LeadMasterDataService, type MasterDataOption } from '../leads/lead-master-data.service';
 import { FALLBACK_DEAL_STATUS_OPTIONS } from './deal-status.constants';
@@ -21,6 +22,8 @@ const territoryWithBlank = (middle: MasterDataOption[]): MasterDataOption[] => [
   ...middle,
 ];
 
+const SALUTATION_FALLBACK = labelsToMasterOptions([...SALUTATION_FALLBACK_LABELS]);
+
 /**
  * Loads MasterData for deal forms:
  * salutations, employee-counts, territories, industries, deal-statuses.
@@ -29,7 +32,7 @@ const territoryWithBlank = (middle: MasterDataOption[]): MasterDataOption[] => [
 export class DealMasterSelectService {
   private readonly master = inject(LeadMasterDataService);
 
-  private readonly salutations = signal<MasterDataOption[]>([]);
+  private readonly salutations = signal<MasterDataOption[]>(SALUTATION_FALLBACK);
   private readonly employees = signal<MasterDataOption[]>(EMPLOYEE_FALLBACK);
   private readonly territories = signal<MasterDataOption[]>(
     territoryWithBlank(labelsToMasterOptions([...ORG_TERRITORY_FALLBACK_LABELS])),
@@ -38,7 +41,9 @@ export class DealMasterSelectService {
   private readonly statuses = signal<MasterDataOption[]>([...FALLBACK_DEAL_STATUS_OPTIONS]);
   private statusesReady$?: Observable<readonly MasterDataOption[]>;
 
-  readonly salutationSelectOptions = computed(() => salutationSelectOptions(this.salutations()));
+  readonly salutationSelectOptions = computed(() =>
+    buildSalutationSelectOptions(this.salutations()),
+  );
   readonly employeeSelectOptions = computed(() => this.employees());
   readonly territorySelectOptions = computed(() => this.territories());
   readonly industrySelectOptions = computed(() => this.industries());
@@ -64,7 +69,7 @@ export class DealMasterSelectService {
       statuses: this.master.loadDealStatuses(),
     }).pipe(
       tap(({ salutations, employees, territories, industries, statuses }) => {
-        this.salutations.set(salutations);
+        this.salutations.set(buildSalutationSelectOptions(salutations));
         this.employees.set(mergeApiOrFallback(employees, EMPLOYEE_FALLBACK));
         const tMid = territories.length
           ? territories

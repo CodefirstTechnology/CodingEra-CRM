@@ -94,7 +94,6 @@ import type {
 /** @deprecated Import from `./lead-row.model` instead. */
 export type { LeadListStatusFilter as StatusFilter, LeadRow, LeadOwnerOption, LeadStatus } from './lead-row.model';
 
-const FALLBACK_SALUTATION_NAMES = ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
 const FALLBACK_EMPLOYEE_LABELS = ['1-10', '11-50', '51-200', '201-500', '500+'] as const;
 const FALLBACK_TERRITORY_NAMES = ['India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
 const FALLBACK_REQUEST_TYPE_NAMES = ['Sales', 'Support', 'Partnership', 'General inquiry'] as const;
@@ -191,7 +190,9 @@ export class LeadsComponent {
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
 
-  private readonly salutationsFromApi = signal<MasterDataOption[]>([]);
+  /** UI-only: set true to show Request type in create/edit modal (form control + API unchanged). */
+  protected readonly showRequestTypeField = false;
+
   private readonly employeeCountsFromApi = signal<MasterDataOption[]>([]);
   private readonly territoriesFromApi = signal<MasterDataOption[]>([]);
   private readonly requestTypesFromApi = signal<MasterDataOption[]>([]);
@@ -199,10 +200,6 @@ export class LeadsComponent {
   private readonly leadStatusesFromApi = signal<MasterDataOption[]>([]);
 
   /** Dropdown options: API rows when available, else legacy labels (`id` 0 → value is {@link MasterDataOption.name}). */
-  protected readonly salutationSelectOptions = computed<MasterDataOption[]>(() => {
-    const api = this.salutationsFromApi();
-    return api.length > 0 ? api : FALLBACK_SALUTATION_NAMES.map((name) => ({ id: 0, name }));
-  });
   protected readonly employeeSelectOptions = computed<MasterDataOption[]>(() => {
     const api = this.employeeCountsFromApi();
     return api.length > 0 ? api : FALLBACK_EMPLOYEE_LABELS.map((name) => ({ id: 0, name }));
@@ -328,7 +325,6 @@ export class LeadsComponent {
     });
     this.refreshLeads();
     forkJoin({
-      salutations: this.leadMasterData.loadSalutations(),
       employeeCounts: this.leadMasterData.loadEmployeeCounts(),
       territories: this.leadMasterData.loadTerritories(),
       requestTypes: this.leadMasterData.loadRequestTypes(),
@@ -338,7 +334,6 @@ export class LeadsComponent {
       .pipe(takeUntilDestroyed())
       .subscribe({
         next: (r) => {
-          this.salutationsFromApi.set(r.salutations);
           this.employeeCountsFromApi.set(r.employeeCounts);
           this.territoriesFromApi.set(r.territories);
           this.requestTypesFromApi.set(r.requestTypes);
@@ -635,7 +630,6 @@ export class LeadsComponent {
   }
 
   protected readonly createForm = this.fb.nonNullable.group({
-    salutation: [''],
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
     mobile: ['', [optionalMobile10Validator()]],
     email: ['', [Validators.maxLength(160), optionalEmailValidator()]],
@@ -728,7 +722,6 @@ export class LeadsComponent {
     this.modalLeadSource.set('Manual');
     this.clearEditQuery();
     this.createForm.reset({
-      salutation: '',
       fullName: '',
       mobile: '',
       email: '',
@@ -756,7 +749,6 @@ export class LeadsComponent {
     this.modalLeadSource.set('Manual');
     this.clearEditQuery();
     this.createForm.reset({
-      salutation: '',
       fullName: '',
       mobile: '',
       email: '',
@@ -804,7 +796,6 @@ export class LeadsComponent {
           const ar = row.annualRevenue?.trim() ?? '';
           const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
           this.createForm.patchValue({
-            salutation: this.masterSelectControlValue(row.salutationId, row.salutation, this.salutationSelectOptions()),
             fullName: fullNameFromLeadParts(row),
             mobile: (row.mobile ?? '').replace(/\D/g, '').slice(-10) || row.mobile || '',
             email: row.email ?? '',
@@ -1280,16 +1271,6 @@ export class LeadsComponent {
     return legacy ? legacy.name : name;
   }
 
-  private salutationLabelFromFormValue(value: string): string {
-    const v = value.trim();
-    if (!v) return '';
-    const n = Number(v);
-    if (Number.isFinite(n) && n > 0) {
-      return this.salutationSelectOptions().find((o) => o.id === n)?.name ?? '';
-    }
-    return v;
-  }
-
   private resolveMasterPick(
     rawValue: string,
     options: MasterDataOption[],
@@ -1341,7 +1322,6 @@ export class LeadsComponent {
     const initials = ownerOpt?.initials ?? leadOwnerId;
     const leadOwnerName = ownerOpt?.label ?? leadOwnerId;
 
-    const salPick = this.resolveMasterPick(raw.salutation, this.salutationSelectOptions());
     const empPick = this.resolveMasterPick(raw.employees, this.employeeSelectOptions());
     const terrPick = this.resolveMasterPick(raw.territory, this.territorySelectOptions());
     const rtPick = this.resolveMasterPick(raw.requestType, this.requestTypeSelectOptions());
@@ -1353,15 +1333,14 @@ export class LeadsComponent {
       );
       return;
     }
-    const salLabel = salPick.label;
     const { firstName, lastName } = splitFullName(raw.fullName);
 
     const payload: Omit<LeadRow, 'id'> = {
-      salutation: salLabel || undefined,
-      salutationId: salPick.masterId,
+      salutation: undefined,
+      salutationId: undefined,
       firstName,
       lastName,
-      name: buildLeadDisplayName(this.salutationLabelFromFormValue(raw.salutation), firstName, lastName),
+      name: buildLeadDisplayName('', firstName, lastName) || raw.fullName.trim(),
       mobile: raw.mobile.trim(),
       leadOwnerId,
       gender: raw.gender || undefined,

@@ -1,9 +1,5 @@
 import type { DealPipelineStatus, DealRow } from '../../../features/deals/deals.component';
-import {
-  DEFAULT_DEAL_PIPELINE_STATUS,
-  DEAL_PIPELINE_STATUSES,
-  resolveDealStatusLabel,
-} from './deal-pipeline.constants';
+import { DEFAULT_DEAL_PIPELINE_STATUS, resolveDealStatusLabel } from './deal-pipeline.constants';
 import type { DealNormalized, DealUpsertDto } from './deal-api.models';
 import { normalizeGstin } from '../../../shared/utils/gstin.util';
 
@@ -208,6 +204,7 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
     territoryId,
     industryId,
     dealStatusId,
+    lostReason: String(r['lostReason'] ?? r['LostReason'] ?? r['lost_reason'] ?? '').trim(),
   };
 }
 
@@ -248,6 +245,7 @@ export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
     createdAtAt: dto.createdAt || undefined,
     probabilityPercent,
     nextStep: dto.nextStep ?? '',
+    lostReason: dto.lostReason?.trim() || undefined,
   };
 
   if (dto.nextFollowUpDate?.trim()) {

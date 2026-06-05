@@ -25,6 +25,12 @@ function extractMasterDataRows(raw: unknown): Record<string, unknown>[] {
 export interface MasterDataOption {
   id: number;
   name: string;
+  /** Pipeline position from deal-status master (`sort_order`). */
+  sortOrder?: number;
+  /** Terminal won flag from deal-status master. */
+  isWon?: boolean;
+  /** Terminal lost flag from deal-status master. */
+  isLost?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -158,6 +164,9 @@ export class LeadMasterDataService {
             .map((row) => ({
               id: Number(row['id']),
               name: String(row['name'] ?? row['description'] ?? '').trim(),
+              sortOrder: Number(row['sortOrder'] ?? row['sort_order'] ?? 0) || undefined,
+              isWon: row['isWon'] === true || row['is_won'] === true || row['IsWon'] === true,
+              isLost: row['isLost'] === true || row['is_lost'] === true || row['IsLost'] === true,
             }))
             .filter((o) => Number.isFinite(o.id) && o.id > 0 && o.name.length > 0),
         ),

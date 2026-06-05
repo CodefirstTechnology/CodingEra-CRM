@@ -420,6 +420,12 @@ export class QuotationFormComponent {
             void this.router.navigate(['/quotations']);
             return;
           }
+          if (q.dealClosed) {
+            this.loading.set(false);
+            this.toast.error('Quotations linked to closed deals cannot be modified.');
+            void this.router.navigate(['/quotations', id]);
+            return;
+          }
           this.patchFromDto(q);
           this.loading.set(false);
         },

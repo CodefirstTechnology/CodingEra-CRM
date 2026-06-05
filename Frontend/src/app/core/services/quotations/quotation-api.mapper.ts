@@ -31,6 +31,16 @@ function pickNum(o: Record<string, unknown>, keys: string[]): number {
   return 0;
 }
 
+function pickBool(o: Record<string, unknown>, keys: string[]): boolean {
+  for (const k of keys) {
+    const v = o[k];
+    if (typeof v === 'boolean') return v;
+    if (v === 'true' || v === 1) return true;
+    if (v === 'false' || v === 0) return false;
+  }
+  return false;
+}
+
 function pickNullableNum(o: Record<string, unknown>, keys: string[]): number | null {
   for (const k of keys) {
     const v = o[k];
@@ -66,6 +76,7 @@ export function mapQuotationListItem(raw: unknown): QuotationListItem {
     id: pickNum(o, ['id', 'Id']),
     createdBy: pickNullableNum(o, ['createdBy', 'created_by', 'CreatedBy']),
     dealId: pickNullableNum(o, ['dealId', 'deal_id', 'DealId']),
+    dealClosed: pickBool(o, ['dealClosed', 'deal_closed', 'DealClosed']),
     customerName: pickStr(o, ['customerName', 'customer_name']),
     companyName: pickStr(o, ['companyName', 'company_name']),
     contactPerson: pickStr(o, ['contactPerson', 'contact_person']),
@@ -141,6 +152,7 @@ export function mapQuotationDetail(raw: unknown): QuotationUpsertDto {
   return {
     id: pickNum(o, ['id', 'Id']) || undefined,
     dealId: pickNullableNum(o, ['dealId', 'deal_id']),
+    dealClosed: pickBool(o, ['dealClosed', 'deal_closed', 'DealClosed']),
     salutation: pickStr(o, ['salutation', 'Salutation']),
     firstName,
     lastName,
