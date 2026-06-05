@@ -165,16 +165,14 @@
           </select>
         </label>
         <label class="create-form__field">
-          <span class="create-form__label">Primary email <span class="create-form__req">*</span></span>
+          <span class="create-form__label">Primary email</span>
           <input
             class="create-form__control"
             type="email"
             formControlName="primaryEmail"
             (input)="clearDealEmailDuplicate()"
           />
-          @if (fieldInvalid('deal', 'primaryEmail') && dealForm.get('primaryEmail')?.errors?.['required']) {
-            <span class="create-form__err">Email is required.</span>
-          } @else if (fieldInvalid('deal', 'primaryEmail') && dealForm.get('primaryEmail')?.errors?.['email']) {
+          @if (fieldInvalid('deal', 'primaryEmail') && dealForm.get('primaryEmail')?.errors?.['email']) {
             <span class="create-form__err">Use a valid email.</span>
           }
         </label>
@@ -186,17 +184,10 @@
           }
         </label>
         <label class="create-form__field">
-          <span class="create-form__label">First name <span class="create-form__req">*</span></span>
-          <input class="create-form__control" type="text" formControlName="firstName" />
-          @if (fieldInvalid('deal', 'firstName')) {
-            <span class="create-form__err">First name is required.</span>
-          }
-        </label>
-        <label class="create-form__field">
-          <span class="create-form__label">Last name <span class="create-form__req">*</span></span>
-          <input class="create-form__control" type="text" formControlName="lastName" />
-          @if (fieldInvalid('deal', 'lastName')) {
-            <span class="create-form__err">Last name is required.</span>
+          <span class="create-form__label">Full name <span class="create-form__req">*</span></span>
+          <input class="create-form__control" type="text" formControlName="fullName" autocomplete="name" />
+          @if (fieldInvalid('deal', 'fullName')) {
+            <span class="create-form__err">Full name is required.</span>
           }
         </label>
         <label class="create-form__field create-form__field--span3">

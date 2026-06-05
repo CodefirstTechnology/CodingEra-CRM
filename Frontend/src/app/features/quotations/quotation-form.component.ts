@@ -301,8 +301,8 @@ export class QuotationFormComponent {
       companyCode: v.companyCode.trim(),
       documentTypeCode: v.documentTypeCode.trim() || 'QTN',
       fiscalYearLabel: v.fiscalYearLabel.trim(),
-      sequenceNumber: v.sequenceNumber,
-      quotationNumber: v.quotationNumber.trim(),
+      sequenceNumber: this.editId() != null ? v.sequenceNumber : 0,
+      quotationNumber: this.editId() != null ? v.quotationNumber.trim() : '',
       quotationDate: v.quotationDate || null,
       status: statusOverride ?? v.status,
       remarks: v.remarks.trim(),
@@ -418,6 +418,12 @@ export class QuotationFormComponent {
             this.loading.set(false);
             this.toast.error('Quotation not found.');
             void this.router.navigate(['/quotations']);
+            return;
+          }
+          if (q.dealClosed) {
+            this.loading.set(false);
+            this.toast.error('Quotations linked to closed deals cannot be modified.');
+            void this.router.navigate(['/quotations', id]);
             return;
           }
           this.patchFromDto(q);

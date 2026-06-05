@@ -34,6 +34,7 @@ export interface DealNormalized {
   territoryId?: number | null;
   industryId?: number | null;
   dealStatusId?: number | null;
+  lostReason?: string;
 }
 
 /** Body for `POST` / `PUT /api/deals` per Swagger `DealUpsertDto`. */
@@ -64,6 +65,7 @@ export interface DealUpsertDto {
   probabilityPercent?: number | null;
   nextStep?: string | null;
   nextFollowUpDate?: string | null;
+  lostReason?: string | null;
 }
 
 /** @deprecated Use {@link DealNormalized} / {@link DealUpsertDto}. */

@@ -32,11 +32,16 @@ export class MasterFormPanelComponent {
     name: ['', [Validators.required, Validators.maxLength(128)]],
     description: ['', [Validators.maxLength(500)]],
     isActive: [true],
+    sortOrder: [0],
+    isWon: [false],
+    isLost: [false],
   });
+
+  protected readonly isDealStatuses = computed(() => this.config().slug === 'deal-statuses');
 
   protected readonly filteredRows = computed(() => {
     const q = this.searchQuery().trim().toLowerCase();
-    const all = this.rows();
+    const all = [...this.rows()].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id - b.id);
     if (!q) return all;
     return all.filter(
       (r) =>
@@ -69,7 +74,15 @@ export class MasterFormPanelComponent {
 
   protected openCreate(): void {
     this.editingId.set(null);
-    this.form.reset({ name: '', description: '', isActive: true });
+    const maxSort = this.rows().reduce((m, r) => Math.max(m, r.sortOrder ?? 0), 0);
+    this.form.reset({
+      name: '',
+      description: '',
+      isActive: true,
+      sortOrder: maxSort + 10,
+      isWon: false,
+      isLost: false,
+    });
     this.modalOpen.set(true);
   }
 
@@ -79,6 +92,9 @@ export class MasterFormPanelComponent {
       name: row.name,
       description: row.description,
       isActive: row.isActive,
+      sortOrder: row.sortOrder ?? 0,
+      isWon: row.isWon === true,
+      isLost: row.isLost === true,
     });
     this.modalOpen.set(true);
   }
@@ -86,7 +102,14 @@ export class MasterFormPanelComponent {
   protected closeModal(): void {
     this.modalOpen.set(false);
     this.editingId.set(null);
-    this.form.reset({ name: '', description: '', isActive: true });
+    this.form.reset({
+      name: '',
+      description: '',
+      isActive: true,
+      sortOrder: 0,
+      isWon: false,
+      isLost: false,
+    });
   }
 
   protected fieldInvalid(field: 'name' | 'description'): boolean {
@@ -109,10 +132,19 @@ export class MasterFormPanelComponent {
     if (this.form.invalid || this.duplicateNameError()) return;
 
     const cfg = this.config();
+    const v = this.form.getRawValue();
+    if (v.isWon && v.isLost) {
+      this.toast.error('A stage cannot be both Won and Lost.');
+      return;
+    }
+
     const payload = {
-      name: this.form.controls.name.value.trim(),
-      description: this.form.controls.description.value.trim(),
-      isActive: this.form.controls.isActive.value,
+      name: v.name.trim(),
+      description: v.description.trim(),
+      isActive: v.isActive,
+      sortOrder: this.isDealStatuses() ? v.sortOrder : undefined,
+      isWon: this.isDealStatuses() ? v.isWon : undefined,
+      isLost: this.isDealStatuses() ? v.isLost : undefined,
     };
 
     const editId = this.editingId();
@@ -163,6 +195,41 @@ export class MasterFormPanelComponent {
         this.toast.error('Could not update status. Please try again.');
       },
     });
+  }
+
+  protected moveStage(row: MasterFormRow, direction: -1 | 1): void {
+    if (!this.isDealStatuses() || this.togglingId() != null) return;
+    const ordered = [...this.rows()].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id - b.id);
+    const idx = ordered.findIndex((r) => r.id === row.id);
+    const swapIdx = idx + direction;
+    if (idx < 0 || swapIdx < 0 || swapIdx >= ordered.length) return;
+
+    const current = ordered[idx];
+    const other = ordered[swapIdx];
+    const currentOrder = current.sortOrder ?? idx * 10;
+    const otherOrder = other.sortOrder ?? swapIdx * 10;
+
+    this.togglingId.set(row.id);
+    this.api
+      .reorderDealStatuses([
+        { id: current.id, sortOrder: otherOrder },
+        { id: other.id, sortOrder: currentOrder },
+      ])
+      .subscribe({
+        next: (res) => {
+          this.togglingId.set(null);
+          if (!res.ok) {
+            this.toast.error(res.error);
+            return;
+          }
+          this.toast.success('Pipeline order updated.');
+          this.reload(this.config());
+        },
+        error: () => {
+          this.togglingId.set(null);
+          this.toast.error('Could not reorder stages.');
+        },
+      });
   }
 
   protected formatDate(value: string | null): string {

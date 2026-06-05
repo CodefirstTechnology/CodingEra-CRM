@@ -17,7 +17,9 @@
           </div>
         </div>
         <div class="qt-view__actions">
-          <button type="button" class="qt-view__btn qt-view__btn--primary" (click)="edit()">Edit</button>
+          @if (!q.dealClosed) {
+            <button type="button" class="qt-view__btn qt-view__btn--primary" (click)="edit()">Edit</button>
+          }
           <button
             type="button"
             class="qt-view__btn qt-view__btn--ghost"
@@ -32,7 +34,9 @@
             }
           </button>
           <button type="button" class="qt-view__btn qt-view__btn--ghost" (click)="duplicate()">Duplicate</button>
-          <button type="button" class="qt-view__btn qt-view__btn--danger" (click)="deleteDoc()">Delete</button>
+          @if (!q.dealClosed) {
+            <button type="button" class="qt-view__btn qt-view__btn--danger" (click)="deleteDoc()">Delete</button>
+          }
         </div>
       </div>
     </header>

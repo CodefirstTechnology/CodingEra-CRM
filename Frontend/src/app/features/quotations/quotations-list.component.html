@@ -46,17 +46,20 @@
             <th class="quotations__th">Company</th>
             <th class="quotations__th quotations__th--status">Status</th>
             <th class="quotations__th quotations__th--num">Total</th>
+            @if (showCreatedByColumn()) {
+              <th class="quotations__th quotations__th--creator">Created by</th>
+            }
             <th class="quotations__th quotations__th--actions">Actions</th>
           </tr>
         </thead>
         <tbody>
           @if (loading()) {
             <tr>
-              <td class="quotations__td quotations__td--empty" colspan="7">Loading…</td>
+              <td class="quotations__td quotations__td--empty" [attr.colspan]="tableColSpan()">Loading…</td>
             </tr>
           } @else if (rows().length === 0) {
             <tr>
-              <td class="quotations__td quotations__td--empty" colspan="7">No quotations found.</td>
+              <td class="quotations__td quotations__td--empty" [attr.colspan]="tableColSpan()">No quotations found.</td>
             </tr>
           } @else {
             @for (row of rows(); track row.id) {
@@ -71,6 +74,9 @@
                   <span class="quotations-pill quotations-pill--{{ statusClass(row.status) }}">{{ row.status }}</span>
                 </td>
                 <td class="quotations__td quotations__td--num">₹ {{ row.grandTotal | number: '1.2-2' }}</td>
+                @if (showCreatedByColumn()) {
+                  <td class="quotations__td quotations__td--creator">{{ row.createdByName?.trim() || '—' }}</td>
+                }
                 <td class="quotations__td quotations__td--actions">
                   <div class="quotations__actions">
                     <button
@@ -85,18 +91,20 @@
                         <circle cx="12" cy="12" r="3" />
                       </svg>
                     </button>
-                    <button
-                      type="button"
-                      class="quotations__action-btn"
-                      aria-label="Edit quotation"
-                      title="Edit"
-                      (click)="editRow(row.id)"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M12 20h9" />
-                        <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4Z" />
-                      </svg>
-                    </button>
+                    @if (!row.dealClosed) {
+                      <button
+                        type="button"
+                        class="quotations__action-btn"
+                        aria-label="Edit quotation"
+                        title="Edit"
+                        (click)="editRow(row.id)"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4Z" />
+                        </svg>
+                      </button>
+                    }
                     <button
                       type="button"
                       class="quotations__action-btn"
@@ -109,20 +117,22 @@
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                       </svg>
                     </button>
-                    <button
-                      type="button"
-                      class="quotations__action-btn quotations__action-btn--danger"
-                      aria-label="Delete quotation"
-                      title="Delete"
-                      (click)="deleteRow(row.id, row.quotationNumber)"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                        <path d="M3 6h18" />
-                        <path d="M8 6V4h8v2" />
-                        <path d="M19 6l-1 14H6L5 6" />
-                        <path d="M10 11v6M14 11v6" />
-                      </svg>
-                    </button>
+                    @if (!row.dealClosed) {
+                      <button
+                        type="button"
+                        class="quotations__action-btn quotations__action-btn--danger"
+                        aria-label="Delete quotation"
+                        title="Delete"
+                        (click)="deleteRow(row.id, row.quotationNumber)"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4h8v2" />
+                          <path d="M19 6l-1 14H6L5 6" />
+                          <path d="M10 11v6M14 11v6" />
+                        </svg>
+                      </button>
+                    }
                   </div>
                 </td>
               </tr>
