@@ -34,8 +34,14 @@
     <table class="mf-panel__table">
       <thead>
         <tr>
+          @if (isDealStatuses()) {
+            <th scope="col">Order</th>
+          }
           <th scope="col">Name</th>
           <th scope="col">Description</th>
+          @if (isDealStatuses()) {
+            <th scope="col">Flags</th>
+          }
           <th scope="col">Active</th>
           <th scope="col">Created</th>
           <th scope="col"><span class="visually-hidden">Actions</span></th>
@@ -44,8 +50,22 @@
       <tbody>
         @for (row of filteredRows(); track row.id) {
           <tr [class.mf-panel__row--inactive]="!row.isActive">
+            @if (isDealStatuses()) {
+              <td class="mf-panel__order">
+                <span>{{ row.sortOrder ?? '—' }}</span>
+                <button type="button" class="mf-panel__action" [disabled]="togglingId() === row.id" (click)="moveStage(row, -1)" aria-label="Move up">↑</button>
+                <button type="button" class="mf-panel__action" [disabled]="togglingId() === row.id" (click)="moveStage(row, 1)" aria-label="Move down">↓</button>
+              </td>
+            }
             <td>{{ row.name }}</td>
             <td>{{ row.description || '—' }}</td>
+            @if (isDealStatuses()) {
+              <td>
+                @if (row.isWon) { <span class="mf-panel__badge">Won</span> }
+                @if (row.isLost) { <span class="mf-panel__badge mf-panel__badge--inactive">Lost</span> }
+                @if (!row.isWon && !row.isLost) { — }
+              </td>
+            }
             <td>
               <span class="mf-panel__badge" [class.mf-panel__badge--inactive]="!row.isActive">
                 {{ row.isActive ? 'Active' : 'Inactive' }}
@@ -95,6 +115,20 @@
       <input type="checkbox" formControlName="isActive" />
       <span>Active</span>
     </label>
+    @if (isDealStatuses()) {
+      <label class="mf-panel__field">
+        <span>Sort order</span>
+        <input type="number" formControlName="sortOrder" min="1" step="1" />
+      </label>
+      <label class="mf-panel__checkbox">
+        <input type="checkbox" formControlName="isWon" />
+        <span>Closed Won (terminal)</span>
+      </label>
+      <label class="mf-panel__checkbox">
+        <input type="checkbox" formControlName="isLost" />
+        <span>Closed Lost (terminal)</span>
+      </label>
+    }
   </form>
 
   <div crmModalFooter>

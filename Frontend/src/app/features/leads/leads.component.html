@@ -296,15 +296,17 @@
                   </span>
                 }
               </label>
-              <label class="leads__field">
-                <span class="leads__label">Request type</span>
-                <select class="leads__control leads__control--soft" formControlName="requestType">
-                  <option value="">— Select —</option>
-                  @for (opt of requestTypeSelectOptions(); track opt.id + opt.name) {
-                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-                  }
-                </select>
-              </label>
+              @if (showRequestTypeField) {
+                <label class="leads__field">
+                  <span class="leads__label">Request type</span>
+                  <select class="leads__control leads__control--soft" formControlName="requestType">
+                    <option value="">— Select —</option>
+                    @for (opt of requestTypeSelectOptions(); track opt.id + opt.name) {
+                      <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
+                    }
+                  </select>
+                </label>
+              }
               <label class="leads__field leads__field--full">
                 <span class="leads__label">Requirement <span class="leads__req">*</span></span>
                 <input
@@ -446,15 +448,6 @@
         <table class="leads__table">
           <thead>
             <tr>
-              <th class="leads__th leads__th--check">
-                <input
-                  type="checkbox"
-                  class="leads__checkbox"
-                  [checked]="allSelectedFiltered()"
-                  (change)="toggleSelectAllFiltered()"
-                  aria-label="Select all visible leads"
-                />
-              </th>
               @for (column of visibleColumns(); track column.id) {
                 <th [class.leads__th--mobile]="column.id === 'mobile'">{{ column.label }}</th>
               }
@@ -464,15 +457,6 @@
           <tbody>
             @for (row of paginatedFiltered(); track row.id) {
               <tr>
-                <td class="leads__td leads__td--check">
-                  <input
-                    type="checkbox"
-                    class="leads__checkbox"
-                    [checked]="sel.isSelected(row.id)"
-                    (change)="toggleRowSelection(row.id, $event)"
-                    [attr.aria-label]="'Select ' + row.name"
-                  />
-                </td>
                 @for (column of visibleColumns(); track column.id) {
                   <td
                     [class.leads__strong]="column.id === 'name'"

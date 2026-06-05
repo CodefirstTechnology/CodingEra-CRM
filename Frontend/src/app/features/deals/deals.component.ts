@@ -14,7 +14,6 @@ import {
   masterOptionFormValue,
   masterSelectControlValue,
   resolveOrgMasterPick,
-  resolveSalutationLabel,
 } from '../../core/services/organizations/organization-master-select.util';
 import {
   resolveDealStatusLabel,
@@ -36,11 +35,13 @@ import {
 } from '../../shared/utils/gstin.util';
 import {
   gstFormValidators,
+  optionalEmailValidator,
   optionalPhoneValidator,
   optionalUrlValidator,
 } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { leadPersonName } from '../../shared/utils/lead-person-name.util';
+import { fullNameFromLeadParts, splitFullName } from '../leads/lead-full-name.util';
 
 export type { DealPipelineStatus };
 
@@ -116,6 +117,8 @@ export interface DealRow {
   source?: string;
   /** Source lead id when created via lead conversion (local store + future API FK). */
   sourceLeadId?: string;
+  /** Set when deal is closed as lost. */
+  lostReason?: string;
 }
 
 interface DealColumnOption {
@@ -349,11 +352,9 @@ export class DealsComponent {
     gst: ['', gstFormValidators()],
     territory: [''],
     industry: ['Technology', Validators.required],
-    salutation: [''],
-    firstName: ['', [Validators.required, Validators.maxLength(80)]],
-    lastName: ['', [Validators.required, Validators.maxLength(120)]],
+    fullName: ['', [Validators.required, Validators.maxLength(200)]],
     primaryMobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
-    primaryEmail: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
+    primaryEmail: ['', [Validators.maxLength(160), optionalEmailValidator()]],
     gender: [''],
     status: this.fb.nonNullable.control<string>(DEFAULT_DEAL_PIPELINE_STATUS, Validators.required),
     dealOwner: [this.ownerOpts.defaultOwnerId(), Validators.required],
@@ -550,10 +551,8 @@ export class DealsComponent {
       gst: '',
       territory: '',
       industry: defaultIndustry ? masterOptionFormValue(defaultIndustry) : 'Technology',
-      salutation: '',
-      lastName: '',
+      fullName: '',
       primaryMobile: '',
-      firstName: '',
       primaryEmail: '',
       gender: '',
       status: masterSelectControlValue(
@@ -564,20 +563,7 @@ export class DealsComponent {
       dealOwner: this.ownerOpts.defaultOwnerId(),
       requirement: '',
     });
-    this.applyPrimaryEmailValidators('create');
     this.createForm.markAsUntouched();
-  }
-
-  /** Create always requires email; edit keeps legacy rows without email valid. */
-  private applyPrimaryEmailValidators(mode: 'create' | 'edit-empty' | 'edit-filled'): void {
-    const c = this.createForm.get('primaryEmail');
-    if (!c) return;
-    if (mode === 'create' || mode === 'edit-filled') {
-      c.setValidators([Validators.required, Validators.email, Validators.maxLength(160)]);
-    } else {
-      c.setValidators([Validators.email, Validators.maxLength(160)]);
-    }
-    c.updateValueAndValidity({ emitEvent: false });
   }
 
   private beginEditFromRoute(idStr: string): void {
@@ -595,7 +581,6 @@ export class DealsComponent {
         const revInput =
           row.annualRevenue != null && row.annualRevenue !== 0 ? String(row.annualRevenue) : '';
         const emailFromRow = row.email.trim() ? row.email : '';
-        this.applyPrimaryEmailValidators(emailFromRow.trim() ? 'edit-filled' : 'edit-empty');
         this.createForm.patchValue({
           organizationName: row.organizationName,
           employees: masterSelectControlValue(
@@ -616,15 +601,9 @@ export class DealsComponent {
             row.industry,
             this.dealMaster.industrySelectOptions(),
           ),
-          salutation: masterSelectControlValue(
-            row.salutationId,
-            row.salutation,
-            this.dealMaster.salutationSelectOptions(),
-          ),
           primaryEmail: emailFromRow,
           primaryMobile: row.mobile,
-          firstName: row.firstName || 'Contact',
-          lastName: row.lastName || 'Primary',
+          fullName: fullNameFromLeadParts(row) || '',
           gender: row.gender,
           status: resolveDealStatusSelectValue(
             row.dealStatusId,
@@ -771,13 +750,11 @@ export class DealsComponent {
     }
 
     const owner = this.dealOwnerOptions().find((o) => o.id === raw.dealOwner);
-    const salPick = resolveOrgMasterPick(raw.salutation, this.dealMaster.salutationSelectOptions());
     const empPick = resolveOrgMasterPick(raw.employees, this.dealMaster.employeeSelectOptions());
     const terrPick = resolveOrgMasterPick(raw.territory, this.dealMaster.territorySelectOptions());
     const indPick = resolveOrgMasterPick(raw.industry, this.dealMaster.industrySelectOptions());
     const statPick = resolveOrgMasterPick(raw.status, this.dealMaster.statusSelectOptions());
-    const salLabel = resolveSalutationLabel(raw.salutation, this.dealMaster.salutationSelectOptions());
-
+    const { firstName, lastName } = splitFullName(raw.fullName);
     const payload: Omit<DealRow, 'id'> = {
       organizationName: raw.organizationName.trim(),
       employees: empPick.label.trim() || '1-10',
@@ -789,10 +766,10 @@ export class DealsComponent {
       territoryId: terrPick.masterId,
       industry: indPick.label.trim() || 'Technology',
       industryId: indPick.masterId,
-      salutation: salLabel,
-      salutationId: salPick.masterId,
-      firstName: raw.firstName.trim(),
-      lastName: raw.lastName.trim(),
+      salutation: '',
+      salutationId: undefined,
+      firstName,
+      lastName,
       email: emailTrim,
       mobile: raw.primaryMobile.trim(),
       gender: raw.gender,

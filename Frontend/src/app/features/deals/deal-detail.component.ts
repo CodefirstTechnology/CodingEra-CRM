@@ -21,9 +21,29 @@ import {
 } from '../../core/services/organizations/organization-master-select.util';
 import { resolveDealStatusLabel, dealStatusCssKind } from '../../core/services/deals/deal-status.constants';
 import {
+  buildDealDetailProgressStages,
+  dealStatusMatchesProgressStage,
   DEFAULT_DEAL_PIPELINE_STATUS,
+  dealDetailProgressIndex,
+  dealProgressStageVisualState,
+  isDealClosed,
+  isDealClosedLost,
   resolveDealStatusSelectValue,
+  type DealDetailProgressStage,
+  type DealProgressStageVisualState,
 } from '../../core/services/deals/deal-pipeline.constants';
+import {
+  isClosedLostStatus,
+  isClosedStatus,
+  toDealPipelineRows,
+} from '../../core/services/deals/deal-pipeline-config.util';
+import type { DealStageHistoryRecord } from '../../core/services/deals/deal-http.service';
+import {
+  canSelectDealStage,
+  DEAL_STAGE_CLOSED_MESSAGE,
+  validateDealStageTransition,
+} from '../../core/services/deals/deal-stage-validation.util';
+import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
@@ -85,6 +105,7 @@ export class DealDetailComponent {
   private readonly createFlow = inject(CreateFlowService);
   protected readonly auth = inject(AuthService);
   private readonly quotationsService = inject(QuotationsService);
+  private readonly userScope = inject(UserDataScopeService);
 
   protected readonly numericId = signal<number | null>(null);
   protected readonly deal = signal<DealRow | null>(null);
@@ -109,8 +130,15 @@ export class DealDetailComponent {
 
   protected readonly emailComposeEmojiChoices = ['😊', '👍', '✅', '🙏', '🎉', '❤️'] as const;
 
-  protected readonly sidebarDetailsOpen = signal(true);
-  protected readonly sidebarContactsOpen = signal(true);
+  protected readonly stageHistory = signal<DealStageHistoryRecord[]>([]);
+  protected readonly progressUpdating = signal(false);
+  protected readonly lostReasonModalOpen = signal(false);
+  protected readonly lostReasonDraft = signal('');
+  protected readonly pendingLostStage = signal<{
+    status: string;
+    name: string;
+    dealStatusId: number;
+  } | null>(null);
   protected readonly emailTo = signal('');
   protected readonly emailCc = signal('');
   protected readonly emailBcc = signal('');
@@ -158,8 +186,60 @@ export class DealDetailComponent {
 
   protected readonly dealStatuses = this.dealMaster.statusSelectOptions;
   protected readonly masterOptionFormValue = masterOptionFormValue;
+  protected readonly progressStages = computed(() => buildDealDetailProgressStages(this.dealStatuses()));
+  protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
 
   protected readonly dealOwnerOptions = this.ownerOpts.options;
+
+  protected readonly isDealReadOnly = computed(() => {
+    const row = this.deal();
+    if (!row) return false;
+    const pipeline = toDealPipelineRows(this.dealStatuses());
+    if (pipeline.length > 0) return isClosedStatus(pipeline, row.status);
+    return isDealClosed(row.status);
+  });
+
+  protected readonly isStatusLocked = this.isDealReadOnly;
+
+  protected readonly statusLockedMessage = computed(() => {
+    const row = this.deal();
+    if (!row) return '';
+    const pipeline = toDealPipelineRows(this.dealStatuses());
+    const closed =
+      pipeline.length > 0 ? isClosedStatus(pipeline, row.status) : isDealClosed(row.status);
+    if (!closed) return '';
+    return DEAL_STAGE_CLOSED_MESSAGE;
+  });
+
+  protected readonly currentProgressIndex = computed(() => {
+    const row = this.deal();
+    const stages = this.progressStages();
+    if (!row || stages.length === 0) return 0;
+
+    const idx = dealDetailProgressIndex(row.status, stages);
+    if (idx >= 0) return idx;
+
+    const pipeline = toDealPipelineRows(this.dealStatuses());
+    const isLost =
+      pipeline.length > 0
+        ? isClosedLostStatus(pipeline, row.status)
+        : isDealClosedLost(row.status);
+    if (isLost) {
+      for (let i = stages.length - 1; i >= 0; i--) {
+        const stage = stages[i];
+        const hit = this.stageHistory().some((h) =>
+          dealStatusMatchesProgressStage(h.newStage, stage),
+        );
+        if (hit) return i;
+      }
+      const lastOpenIdx = stages.reduce(
+        (best, s, i) => (!s.isWon && !s.isLost ? i : best),
+        0,
+      );
+      return lastOpenIdx;
+    }
+    return 0;
+  });
 
   private readonly noteRelatedTypeLabels: Record<NoteRelatedType, string> = {
     lead: 'Lead',
@@ -239,6 +319,7 @@ export class DealDetailComponent {
             this.emailComposerOpen.set(false);
             this.emailComposeEmojiOpen.set(false);
             this.refreshDealQuotation();
+            this.refreshStageHistory();
           } else {
             this.dealTasks.set([]);
             this.dealNotes.set([]);
@@ -247,6 +328,7 @@ export class DealDetailComponent {
             this.dealComments.set([]);
             this.dealEmails.set([]);
             this.dealQuotationId.set(null);
+            this.stageHistory.set([]);
             this.commentComposerOpen.set(false);
             this.commentDraft.set('');
             this.emailComposerOpen.set(false);
@@ -622,12 +704,136 @@ export class DealDetailComponent {
     return '?';
   }
 
-  protected toggleSidebarDetails(): void {
-    this.sidebarDetailsOpen.update((o) => !o);
+  private refreshStageHistory(): void {
+    const id = this.numericId();
+    if (id == null) {
+      this.stageHistory.set([]);
+      return;
+    }
+    this.dealsService
+      .getStageHistory(id)
+      .pipe(take(1))
+      .subscribe({
+        next: (rows) => this.stageHistory.set(rows),
+        error: () => this.stageHistory.set([]),
+      });
   }
 
-  protected toggleSidebarContacts(): void {
-    this.sidebarContactsOpen.update((o) => !o);
+  protected progressStageState(stageIndex: number): DealProgressStageVisualState {
+    const row = this.deal();
+    if (!row) return 'pending';
+    const current = this.currentProgressIndex();
+    const pipeline = toDealPipelineRows(this.dealStatuses());
+    const isLost =
+      pipeline.length > 0
+        ? isClosedLostStatus(pipeline, row.status)
+        : isDealClosedLost(row.status);
+    if (isLost) {
+      if (stageIndex < current) return 'completed';
+      if (stageIndex === current) return 'current';
+      return 'pending';
+    }
+    return dealProgressStageVisualState(stageIndex, current);
+  }
+
+  protected isProgressLostStage(stage: DealDetailProgressStage): boolean {
+    return stage.isLost;
+  }
+
+  protected isProgressWonStage(stage: DealDetailProgressStage): boolean {
+    return stage.isWon;
+  }
+
+  protected progressStageTooltip(stage: DealDetailProgressStage, stageIndex: number): string {
+    const fullName = stage.name?.trim();
+    const state = this.progressStageState(stageIndex);
+    const stateLabel = state === 'completed' ? 'Completed' : state === 'current' ? 'Current' : 'Pending';
+    const date = this.progressStageDateLabel(stage);
+    if (date) return `${fullName} (${stateLabel}) — ${date}`;
+    return `${fullName} (${stateLabel})`;
+  }
+
+  protected progressStageDateLabel(stage: DealDetailProgressStage): string | null {
+    const match = this.stageHistory().find((h) =>
+      dealStatusMatchesProgressStage(h.newStage, stage),
+    );
+    if (!match?.changedAt) return null;
+    const t = Date.parse(match.changedAt);
+    if (Number.isNaN(t)) return null;
+    try {
+      return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }).format(t);
+    } catch {
+      return new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    }
+  }
+
+  protected isProgressStageDisabled(stage: DealDetailProgressStage, stageIndex: number): boolean {
+    if (this.isDealReadOnly() || this.progressUpdating() || this.progressStageState(stageIndex) === 'current') {
+      return true;
+    }
+    const row = this.deal();
+    if (!row) return true;
+    return !canSelectDealStage({
+      fromStatus: row.status,
+      toStatus: stage.name,
+      stageHistory: this.stageHistory(),
+      statusOptions: this.dealStatuses(),
+    });
+  }
+
+  protected onProgressStageClick(stage: DealDetailProgressStage): void {
+    const stageIndex = this.progressStages().findIndex((s) => s.dealStatusId === stage.dealStatusId);
+    if (this.isProgressStageDisabled(stage, stageIndex)) {
+      const row = this.deal();
+      if (!row || this.isDealReadOnly()) return;
+      const result = validateDealStageTransition({
+        fromStatus: row.status,
+        toStatus: stage.name,
+        stageHistory: this.stageHistory(),
+        statusOptions: this.dealStatuses(),
+      });
+      if (!result.allowed && result.message) {
+        this.toast.error(result.message);
+      }
+      return;
+    }
+
+    const row = this.deal();
+    const idn = this.numericId();
+    if (!row || idn == null) return;
+
+    const target = resolveDealStatusLabel(stage.name);
+    if (resolveDealStatusLabel(row.status) === target) return;
+
+    const opt =
+      this.dealStatuses().find((o) => o.id === stage.dealStatusId) ??
+      this.dealStatuses().find((o) => resolveDealStatusLabel(o.name) === target);
+    const formValue = opt ? masterOptionFormValue(opt) : target;
+
+    this.dataForm.controls.status.setValue(formValue);
+    this.dataForm.controls.status.markAsDirty();
+    this.requestStageChange(row, idn);
+  }
+
+  protected cancelLostReasonModal(): void {
+    const row = this.deal();
+    this.lostReasonModalOpen.set(false);
+    this.lostReasonDraft.set('');
+    this.pendingLostStage.set(null);
+    if (row) this.patchDataForm(row);
+  }
+
+  protected submitLostReasonModal(): void {
+    const row = this.deal();
+    const idn = this.numericId();
+    const reason = this.lostReasonDraft().trim();
+    if (!row || idn == null || !reason) {
+      this.toast.error('Lost reason is required.');
+      return;
+    }
+    this.lostReasonModalOpen.set(false);
+    this.pendingLostStage.set(null);
+    this.requestStageChange(row, idn, reason);
   }
 
   private revenueNumberToInputString(value: number | undefined): string {
@@ -667,6 +873,11 @@ export class DealDetailComponent {
       { emitEvent: false },
     );
     this.dataForm.markAsPristine();
+    if (isDealClosed(row.status)) {
+      this.dataForm.disable({ emitEvent: false });
+    } else {
+      this.dataForm.enable({ emitEvent: false });
+    }
   }
 
   protected noteRelatedLabel(note: NoteRow): string {
@@ -717,30 +928,81 @@ export class DealDetailComponent {
     const row = this.deal();
     const idn = this.numericId();
     if (!row || idn == null || !this.dataForm.controls.status.dirty) return;
+    if (this.isDealReadOnly()) {
+      this.toast.error(this.statusLockedMessage());
+      this.patchDataForm(row);
+      return;
+    }
+    this.requestStageChange(row, idn);
+  }
 
+  private requestStageChange(row: DealRow, idn: number, lostReason?: string): void {
     const v = this.dataForm.getRawValue();
     const statPick = resolveOrgMasterPick(v.status, this.dealMaster.statusSelectOptions());
     const status = resolveDealStatusLabel(statPick.label || v.status);
 
+    const pipeline = toDealPipelineRows(this.dealStatuses());
+    const validation = validateDealStageTransition({
+      fromStatus: row.status,
+      toStatus: status,
+      stageHistory: this.stageHistory(),
+      lostReason,
+      statusOptions: this.dealStatuses(),
+    });
+
+    if (!validation.allowed) {
+      const closingLost =
+        pipeline.length > 0 ? isClosedLostStatus(pipeline, status) : isDealClosedLost(status);
+      if (closingLost && validation.message?.includes('Lost reason')) {
+        this.pendingLostStage.set({
+          status,
+          name: statPick.label || status,
+          dealStatusId: statPick.masterId ?? 0,
+        });
+        this.lostReasonDraft.set('');
+        this.lostReasonModalOpen.set(true);
+        return;
+      }
+      this.toast.error(validation.message ?? 'This stage change is not allowed.');
+      this.patchDataForm(row);
+      return;
+    }
+
+    this.applyPipelineStatusChange(row, idn, lostReason);
+  }
+
+  private applyPipelineStatusChange(row: DealRow, idn: number, lostReason?: string): void {
+    const v = this.dataForm.getRawValue();
+    const statPick = resolveOrgMasterPick(v.status, this.dealMaster.statusSelectOptions());
+    const status = resolveDealStatusLabel(statPick.label || v.status);
+    const comment = v.stageComment.trim() || undefined;
+
     this.dataSaving.set(true);
+    this.progressUpdating.set(true);
     this.dealsService
       .updateStatus(idn, {
         status,
         dealStatusId: statPick.masterId,
+        comment,
+        lostReason: lostReason?.trim() || undefined,
       })
       .pipe(take(1))
       .subscribe({
         next: (updated) => {
           this.dataSaving.set(false);
+          this.progressUpdating.set(false);
+          this.lostReasonDraft.set('');
           if (updated) {
             this.deal.set(updated);
             this.patchDataForm(updated);
             this.refreshDealActivities();
+            this.refreshStageHistory();
             this.toast.success(`Stage updated to ${status}.`);
           }
         },
         error: (e: unknown) => {
           this.dataSaving.set(false);
+          this.progressUpdating.set(false);
           this.toast.error(leadsHttpErrorMessage(e));
           this.patchDataForm(row);
         },
@@ -771,6 +1033,11 @@ export class DealDetailComponent {
     const idn = this.numericId();
     if (!row || idn == null) return;
 
+    if (this.isDealReadOnly()) {
+      this.toast.error(this.statusLockedMessage());
+      return;
+    }
+
     if (this.dataForm.invalid) {
       this.dataForm.markAllAsTouched();
       return;
@@ -786,6 +1053,29 @@ export class DealDetailComponent {
     if (statusDirty) {
       const statPick = resolveOrgMasterPick(v.status, this.dealMaster.statusSelectOptions());
       const status = resolveDealStatusLabel(statPick.label || v.status);
+      const pipeline = toDealPipelineRows(this.dealStatuses());
+      const validation = validateDealStageTransition({
+        fromStatus: row.status,
+        toStatus: status,
+        stageHistory: this.stageHistory(),
+        statusOptions: this.dealStatuses(),
+      });
+      if (!validation.allowed) {
+        const closingLost =
+          pipeline.length > 0 ? isClosedLostStatus(pipeline, status) : isDealClosedLost(status);
+        if (closingLost) {
+          this.pendingLostStage.set({
+            status,
+            name: statPick.label || status,
+            dealStatusId: statPick.masterId ?? 0,
+          });
+          this.lostReasonDraft.set('');
+          this.lostReasonModalOpen.set(true);
+          return;
+        }
+        this.toast.error(validation.message ?? 'This stage change is not allowed.');
+        return;
+      }
       const comment = v.stageComment.trim() || undefined;
       delete payload.status;
       delete payload.dealStatusId;
@@ -814,6 +1104,7 @@ export class DealDetailComponent {
             const org = updated.organizationName.trim() || 'Deal';
             this.emailSubjectText.set(`${org} (${this.dealCode()})`);
             this.refreshDealActivities();
+            this.refreshStageHistory();
             const ownerDirty = this.dataForm.controls.dealOwner.dirty;
             const otherDirty =
               this.dataForm.controls.organization.dirty ||
@@ -944,11 +1235,7 @@ export class DealDetailComponent {
           row.industry,
           this.dealMaster.industrySelectOptions(),
         ),
-        salutation: masterSelectControlValue(
-          row.salutationId,
-          row.salutation,
-          this.dealMaster.salutationSelectOptions(),
-        ),
+        salutation: '',
       },
       this.dealCode(),
     );
@@ -1027,6 +1314,7 @@ export class DealDetailComponent {
   }
 
   protected confirmDeleteDeal(): void {
+    if (!this.isAdminViewer() || this.isDealReadOnly()) return;
     const idn = this.numericId();
     if (idn == null) return;
     if (!confirm('Delete this deal?')) return;

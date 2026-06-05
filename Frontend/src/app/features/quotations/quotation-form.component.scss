@@ -59,6 +59,14 @@
   gap: 0.5rem;
 }
 
+.qt-form__actions-bottom {
+  margin-top: 1rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
 .qt-form__loading {
   color: var(--text-muted);
   font-size: 0.9375rem;

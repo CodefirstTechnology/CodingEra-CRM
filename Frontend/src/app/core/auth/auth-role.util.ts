@@ -125,6 +125,18 @@ export function isAdmin(user: UserSession | null | undefined): boolean {
   return roleIdFromSession(user) === ROLE_ID_ADMIN;
 }
 
+/** Admin (role 2) or role label indicating super-admin — can see all quotations. */
+export function canViewAllQuotations(user: UserSession | null | undefined): boolean {
+  if (isAdmin(user)) return true;
+  const label = (user?.role ?? '').trim().toLowerCase();
+  return (
+    label.includes('super admin') ||
+    label.includes('superadmin') ||
+    label === 'super_admin' ||
+    label === 'super-admin'
+  );
+}
+
 export function isUser(user: UserSession | null | undefined): boolean {
   return !isAdmin(user);
 }

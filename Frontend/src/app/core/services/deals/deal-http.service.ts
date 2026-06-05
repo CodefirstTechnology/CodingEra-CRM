@@ -14,6 +14,42 @@ export interface DealListQuery {
   status?: string;
 }
 
+export interface DealStageHistoryRecord {
+  id: number;
+  dealId: number;
+  previousStage: string;
+  newStage: string;
+  changedByUserId: number | null;
+  changedAt: string;
+  comment: string | null;
+}
+
+function normalizeDealStageHistoryRecord(raw: unknown): DealStageHistoryRecord | null {
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const id = Number(r['id'] ?? r['Id']);
+  const dealId = Number(r['dealId'] ?? r['DealId']);
+  if (!Number.isFinite(id) || !Number.isFinite(dealId)) return null;
+  const changedAt = String(r['changedAt'] ?? r['ChangedAt'] ?? '').trim();
+  return {
+    id: Math.trunc(id),
+    dealId: Math.trunc(dealId),
+    previousStage: String(r['previousStage'] ?? r['PreviousStage'] ?? '').trim(),
+    newStage: String(r['newStage'] ?? r['NewStage'] ?? '').trim(),
+    changedByUserId: (() => {
+      const v = r['changedByUserId'] ?? r['ChangedByUserId'];
+      if (v == null || v === '') return null;
+      const n = Number(v);
+      return Number.isFinite(n) ? Math.trunc(n) : null;
+    })(),
+    changedAt: changedAt || new Date().toISOString(),
+    comment: (() => {
+      const c = r['comment'] ?? r['Comment'];
+      return c != null && String(c).trim() ? String(c).trim() : null;
+    })(),
+  };
+}
+
 function extractDealRecords(raw: unknown): unknown[] {
   if (Array.isArray(raw)) return raw;
   if (raw != null && typeof raw === 'object' && !Array.isArray(raw)) {
@@ -91,9 +127,29 @@ export class DealHttpService {
     return this.http.delete<void>(`${this.baseUrl}/${id}`, { headers: this.jsonHeaders() });
   }
 
+  getStageHistory(id: number): Observable<DealStageHistoryRecord[]> {
+    const session = this.auth.user();
+    const userId = session?.id;
+    let params = new HttpParams();
+    if (userId != null && Number(userId) > 0) {
+      params = params.set('userId', String(userId));
+    }
+    return this.http
+      .get<unknown>(`${this.baseUrl}/${id}/stage-history`, { headers: this.jsonHeaders(), params })
+      .pipe(
+        map((raw) => {
+          const rows = Array.isArray(raw) ? raw : [];
+          return rows
+            .map((item) => normalizeDealStageHistoryRecord(item))
+            .filter((row): row is DealStageHistoryRecord => row != null);
+        }),
+        catchError(() => of([])),
+      );
+  }
+
   patchStatus(
     id: number,
-    patch: { status: string; dealStatusId?: number | null; comment?: string },
+    patch: { status: string; dealStatusId?: number | null; comment?: string; lostReason?: string },
   ): Observable<DealNormalized> {
     const session = this.auth.user();
     const userId = session?.id;
@@ -107,6 +163,9 @@ export class DealHttpService {
     }
     if (patch.comment?.trim()) {
       body['comment'] = patch.comment.trim();
+    }
+    if (patch.lostReason?.trim()) {
+      body['lostReason'] = patch.lostReason.trim();
     }
     return this.http
       .patch<unknown>(`${this.baseUrl}/${id}/status`, body, {

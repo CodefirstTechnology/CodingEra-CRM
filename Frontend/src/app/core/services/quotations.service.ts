@@ -27,7 +27,7 @@ export function quotationHttpErrorMessage(err: unknown, fallback = 'Request fail
     }
     if (typeof body === 'string' && body.trim()) return body;
     if (err.status === 400) return 'Please check required fields and try again.';
-    if (err.status === 404) return 'Quotation not found.';
+    if (err.status === 404 || err.status === 403) return 'Quotation not found or you do not have access.';
   }
   return fallback;
 }

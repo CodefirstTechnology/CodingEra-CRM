@@ -1,7 +1,22 @@
 @if (deal(); as row) {
 <div class="deal-detail">
   <header class="deal-detail__top">
-    <p class="deal-detail__crumb"><a routerLink="/deals">Deals</a> / {{ row.organizationName }}</p>
+    <div class="deal-detail__top-left">
+      <p class="deal-detail__crumb"><a routerLink="/deals">Deals</a> / {{ row.organizationName }}</p>
+      <div class="deal-detail__essentials">
+        <span class="deal-detail__essentials-code">{{ dealCode() }}</span>
+        <span class="deal-detail__essentials-divider" aria-hidden="true">·</span>
+        <span class="deal-detail__avatar deal-detail__avatar--sm">{{ sidebarDealAvatarLetter(row) }}</span>
+        <span class="deal-detail__essentials-org">{{ sidebarDealHeadline(row) }}</span>
+        <span class="deal-detail__essentials-divider" aria-hidden="true">·</span>
+        <span class="deal-detail__essentials-contact">{{ dealPrimaryContactName() }}</span>
+        <span class="deal-detail__essentials-divider" aria-hidden="true">·</span>
+        <span class="deal-detail__essentials-owner">
+          <span class="deal-detail__owner-badge">{{ sidebarOwnerChipInitial() }}</span>
+          {{ row.assignedTo || 'Unassigned' }}
+        </span>
+      </div>
+    </div>
     <div class="deal-detail__top-actions">
       @if (dealQuotationId(); as qid) {
         <button
@@ -11,10 +26,26 @@
         >
           View Quotation
         </button>
-      } @else {
+      } @else if (!isDealReadOnly()) {
         <button type="button" class="deal-detail__btn deal-detail__btn--quotation" (click)="onCreateQuotation()">
           Create Quotation
         </button>
+      }
+      @if (!isDealReadOnly()) {
+        <button type="button" class="deal-detail__btn deal-detail__btn--light" (click)="setTab('Data')" title="Edit deal data">
+          Edit Data
+        </button>
+        @if (isAdminViewer()) {
+          <button
+            type="button"
+            class="deal-detail__btn deal-detail__btn--danger"
+            aria-label="Delete deal"
+            title="Delete deal"
+            (click)="confirmDeleteDeal()"
+          >
+            Delete
+          </button>
+        }
       }
       @if (auth.user(); as session) {
       <span class="deal-detail__user-chip" title="{{ session.name }}">
@@ -22,12 +53,13 @@
         <span class="deal-detail__user-chip-name">{{ session.name }}</span>
       </span>
       }
-      <div class="deal-detail__hdr-status">
+      <div class="deal-detail__hdr-status" [class.is-locked]="isStatusLocked()">
         <span [class]="headerStatusDotClass()" aria-hidden="true"></span>
         <select
           class="deal-detail__hdr-status-select"
           [formControl]="dataForm.controls.status"
           aria-label="Pipeline status"
+          [disabled]="isStatusLocked() || dataSaving() || progressUpdating()"
           (change)="onHeaderPipelineStatusChange()"
         >
           @for (opt of dealStatuses(); track opt.id + opt.name) {
@@ -37,6 +69,63 @@
       </div>
     </div>
   </header>
+
+  @if (isDealReadOnly()) {
+  <p class="deal-detail__status-lock-msg" role="status">{{ statusLockedMessage() }}</p>
+  @if (row.lostReason?.trim()) {
+  <p class="deal-detail__lost-reason"><strong>Lost reason:</strong> {{ row.lostReason }}</p>
+  }
+  }
+
+  <section class="deal-detail__progress card" aria-label="Deal progress">
+    @if (progressStages().length === 0) {
+    <p class="deal-detail__progress-empty" role="status">Loading deal statuses…</p>
+    } @else {
+    <div class="deal-detail__progress-scroll" [class.is-updating]="progressUpdating()">
+      <ol class="deal-detail__progress-steps">
+        @for (stage of progressStages(); track stage.dealStatusId; let i = $index; let last = $last) {
+        <li
+          class="deal-detail__progress-item"
+          [class.is-completed]="progressStageState(i) === 'completed'"
+          [class.is-current]="progressStageState(i) === 'current'"
+          [class.is-pending]="progressStageState(i) === 'pending'"
+          [class.is-blocked]="isProgressStageDisabled(stage, i) && progressStageState(i) !== 'current'"
+          [class.is-lost-stage]="isProgressLostStage(stage) && progressStageState(i) === 'current'"
+          [class.is-won-stage]="isProgressWonStage(stage) && progressStageState(i) === 'current'"
+        >
+          @if (!last) {
+          <span class="deal-detail__progress-line" aria-hidden="true"></span>
+          }
+          <button
+            type="button"
+            class="deal-detail__progress-node"
+            [disabled]="isProgressStageDisabled(stage, i)"
+            [attr.aria-current]="progressStageState(i) === 'current' ? 'step' : null"
+            [attr.aria-label]="progressStageTooltip(stage, i)"
+            (click)="onProgressStageClick(stage)"
+          >
+            @if (progressStageState(i) === 'completed') {
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="m5 12 4 4L19 7" />
+            </svg>
+            } @else {
+            <span>{{ i + 1 }}</span>
+            }
+          </button>
+          <span class="deal-detail__progress-label" [title]="stage.name">{{ stage.name }}</span>
+          <span class="deal-detail__progress-meta">
+            @if (progressStageDateLabel(stage); as dateLabel) {
+            <time>{{ dateLabel }}</time>
+            } @else if (progressStageState(i) === 'current') {
+            <span class="deal-detail__progress-current">Current</span>
+            }
+          </span>
+        </li>
+        }
+      </ol>
+    </div>
+    }
+  </section>
 
   <div class="deal-detail__tabs-bar">
     <nav class="deal-detail__tabs" aria-label="Deal detail sections">
@@ -88,19 +177,23 @@
   </div>
 
   <section class="deal-detail__layout">
-    <article class="deal-detail__main card">
+    <article class="deal-detail__main card deal-detail__main--full">
       @if (activeTab() === 'Activity') {
       <header class="deal-detail__main-head deal-detail__main-head--activity">
-        <h2>Activity</h2>
+        <div>
+          <h2>Deal Timeline</h2>
+          <p class="deal-detail__activity-sub">Track deal milestones, status changes, emails, tasks, and notes.</p>
+        </div>
         <button type="button" class="deal-detail__btn deal-detail__btn--dark deal-detail__btn--with-caret" (click)="openCreatePicker()">
           + New
         </button>
       </header>
       <app-entity-activity-timeline
+        class="deal-detail__activity-timeline"
         [groups]="dealActivityGroups()"
         [loading]="dealActivityLoading()"
-        ariaLabel="Activity on this deal"
-        emptyMessage="No activity on this deal yet."
+        ariaLabel="Deal activity timeline"
+        emptyMessage="No activity on this deal yet. Status changes, emails, tasks, and notes will appear here."
         (reply)="setTab('Emails')"
         (comment)="setTab('Comments')"
       />
@@ -372,6 +465,7 @@
       } @else if (activeTab() === 'Data') {
       <header class="deal-detail__main-head">
         <h2>Data</h2>
+        @if (!isDealReadOnly()) {
         <div class="deal-detail__data-actions">
           <button type="button" class="deal-detail__icon-btn" aria-label="Discard unsaved edits" title="Revert" (click)="discardDataEdits()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -383,6 +477,7 @@
             Save
           </button>
         </div>
+        }
       </header>
 
       <form class="deal-detail__data-form" [formGroup]="dataForm" (ngSubmit)="saveDataTab()">
@@ -416,11 +511,14 @@
             </label>
             <label class="deal-detail__field">
               <span class="deal-detail__label">Pipeline status<span class="deal-detail__req" aria-hidden="true">*</span></span>
-              <select class="deal-detail__select" formControlName="status">
+              <select class="deal-detail__select" formControlName="status" [disabled]="isStatusLocked()">
                 @for (opt of dealStatuses(); track opt.id + opt.name) {
                 <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
               </select>
+              @if (isStatusLocked()) {
+              <span class="deal-detail__field-hint">{{ statusLockedMessage() }}</span>
+              }
             </label>
             @if (dataForm.controls.status.dirty) {
             <label class="deal-detail__field deal-detail__field--span2">
@@ -440,6 +538,26 @@
                 <option [value]="o.id">{{ o.label }}</option>
                 }
               </select>
+            </label>
+            <label class="deal-detail__field">
+              <span class="deal-detail__label">Website</span>
+              <input type="text" class="deal-detail__input" formControlName="website" placeholder="https://example.com" autocomplete="url" />
+            </label>
+            <label class="deal-detail__field">
+              <span class="deal-detail__label">Territory</span>
+              <select class="deal-detail__select" formControlName="territory">
+                @for (opt of dealMaster.territorySelectOptions(); track opt.id + opt.name) {
+                <option [value]="masterOptionFormValue(opt)">{{ opt.name === '' ? '— Select —' : opt.name }}</option>
+                }
+              </select>
+            </label>
+            <label class="deal-detail__field">
+              <span class="deal-detail__label">Probability</span>
+              <input type="text" class="deal-detail__input" formControlName="probabilityPercent" aria-label="Win probability percent" />
+            </label>
+            <label class="deal-detail__field deal-detail__field--span2">
+              <span class="deal-detail__label">Next step</span>
+              <input type="text" class="deal-detail__input" formControlName="nextStep" placeholder="Add next step..." />
             </label>
           </div>
         </fieldset>
@@ -611,209 +729,36 @@
       }
       }
     </article>
-
-    <aside class="deal-detail__side card">
-      <header class="deal-detail__side-id">{{ dealCode() }}</header>
-
-      <div class="deal-detail__side-head">
-        <span class="deal-detail__avatar deal-detail__avatar--lg">{{ sidebarDealAvatarLetter(row) }}</span>
-        <div class="deal-detail__side-ident">
-          <p class="deal-detail__name">{{ sidebarDealHeadline(row) }}</p>
-          <div class="deal-detail__side-actions">
-            <button type="button" class="deal-detail__side-icon" aria-label="Email" title="Email" (click)="setTab('Emails')">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="5" width="18" height="14" rx="2" />
-                <path d="m3 7 9 6 9-6" />
-              </svg>
-            </button>
-            <button type="button" class="deal-detail__side-icon" aria-label="Attachments" title="Attachments" (click)="setTab('Attachments')">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              class="deal-detail__side-icon deal-detail__side-icon--danger"
-              aria-label="Delete deal"
-              title="Delete"
-              (click)="confirmDeleteDeal()"
-            >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 6h18" />
-                <path d="M8 6V4h8v2" />
-                <path d="M19 6l-1 14H6L5 6" />
-                <path d="M10 11v6M14 11v6" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <section class="deal-detail__side-section">
-        <div class="deal-detail__side-section-head">
-          <button type="button" class="deal-detail__side-toggle" (click)="toggleSidebarContacts()" [attr.aria-expanded]="sidebarContactsOpen()">
-            <svg class="deal-detail__side-chevron" [class.is-collapsed]="!sidebarContactsOpen()" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <span class="deal-detail__side-toggle-text">Contacts</span>
-          </button>
-          <button type="button" class="deal-detail__side-edit" aria-label="Add or open contact" title="Contact" (click)="openDealContactTarget()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-          </button>
-        </div>
-        @if (sidebarContactsOpen()) {
-        <div class="deal-detail__side-section-body deal-detail__side-section-body--contacts">
-          <div class="deal-detail__contact-row">
-            <span class="deal-detail__contact-avatar">{{ dealPrimaryContactInitial() }}</span>
-            <div class="deal-detail__contact-core">
-              <p class="deal-detail__contact-name">{{ dealPrimaryContactName() }}</p>
-              <span class="deal-detail__contact-badge">Primary</span>
-            </div>
-            <div class="deal-detail__contact-tools">
-              <button type="button" class="deal-detail__contact-tool" aria-label="More" disabled title="Demo">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.85"/><circle cx="12" cy="12" r="1.85"/><circle cx="19" cy="12" r="1.85"/></svg>
-              </button>
-              <button type="button" class="deal-detail__contact-tool" aria-label="Open contact" title="Open contact" (click)="openDealContactTarget()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14 21 3"/></svg>
-              </button>
-              <button type="button" class="deal-detail__contact-tool" aria-label="More details" disabled title="Demo">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
-              </button>
-            </div>
-          </div>
-        </div>
-        }
-      </section>
-
-      <section class="deal-detail__side-section deal-detail__side-section--last">
-        <div class="deal-detail__side-section-head">
-          <button type="button" class="deal-detail__side-toggle" (click)="toggleSidebarDetails()" [attr.aria-expanded]="sidebarDetailsOpen()">
-            <svg class="deal-detail__side-chevron" [class.is-collapsed]="!sidebarDetailsOpen()" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <span class="deal-detail__side-toggle-text">Organization Details</span>
-          </button>
-          <button type="button" class="deal-detail__side-edit" aria-label="Open Data tab" title="Edit" (click)="setTab('Data')">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-        </div>
-        @if (sidebarDetailsOpen()) {
-        <div class="deal-detail__side-section-body">
-          <dl class="deal-detail__kv deal-detail__kv--side deal-detail__kv--editable">
-            <dt>Organization</dt>
-            <dd class="deal-detail__kv-dd deal-detail__kv-dd--row">
-              <input
-                type="text"
-                class="deal-detail__side-field"
-                [formControl]="dataForm.controls.organization"
-                [placeholder]="sidebarAddLabel('Organization')"
-                autocomplete="organization"
-              />
-              @if (row.relatedOrganizationId && row.relatedOrganizationId.toString().trim() !== '') {
-              <a
-                class="deal-detail__ext-link"
-                [routerLink]="['/organizations', row.relatedOrganizationId]"
-                aria-label="Open organization"
-                title="Open organization"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14 21 3"/></svg>
-              </a>
-              }
-            </dd>
-            <dt>Website</dt>
-            <dd class="deal-detail__kv-dd">
-              <input type="text" class="deal-detail__side-field" [formControl]="dataForm.controls.website" [placeholder]="sidebarAddLabel('Website')" autocomplete="url" />
-            </dd>
-            <dt>GSTIN</dt>
-            <dd class="deal-detail__kv-dd">
-              <input
-                type="text"
-                class="deal-detail__side-field"
-                [class.is-invalid]="gstFieldInvalid()"
-                [formControl]="dataForm.controls.gst"
-                placeholder="e.g. 27AAJCB6955B1ZM"
-                maxlength="15"
-                autocomplete="off"
-                spellcheck="false"
-                (input)="onGstinInput($event)"
-              />
-              @if (gstFieldInvalid() && dataForm.controls.gst.errors?.[gstinErrorKey]) {
-                <span class="deal-detail__field-error">{{ gstinErrorMessage }}</span>
-              }
-            </dd>
-            <dt>Territory</dt>
-            <dd class="deal-detail__kv-dd">
-              <select class="deal-detail__side-field" [formControl]="dataForm.controls.territory">
-                @for (opt of dealMaster.territorySelectOptions(); track opt.id + opt.name) {
-                <option [value]="masterOptionFormValue(opt)">{{ opt.name === '' ? '— Select —' : opt.name }}</option>
-                }
-              </select>
-            </dd>
-            <dt>Annual revenue</dt>
-            <dd class="deal-detail__kv-dd deal-detail__kv-dd--muted">{{ sidebarAnnualRevenueLabel() }}</dd>
-            <dt>Probability</dt>
-            <dd class="deal-detail__kv-dd deal-detail__kv-dd--prob">
-              <input
-                type="text"
-                class="deal-detail__side-field"
-                [formControl]="dataForm.controls.probabilityPercent"
-                aria-label="Win probability percent"
-              />
-              <span class="deal-detail__kv-suffix">%</span>
-            </dd>
-            <dt>Next step</dt>
-            <dd class="deal-detail__kv-dd">
-              <input type="text" class="deal-detail__side-field" [formControl]="dataForm.controls.nextStep" [placeholder]="sidebarAddLabel('Next Step')" />
-            </dd>
-            <dt>Deal owner</dt>
-            <dd class="deal-detail__kv-owner deal-detail__kv-owner--editable">
-              <span class="deal-detail__owner-badge deal-detail__owner-badge--side">{{ sidebarOwnerChipInitial() }}</span>
-              <select class="deal-detail__side-field deal-detail__side-field--select deal-detail__side-field--owner" [formControl]="dataForm.controls.dealOwner" aria-label="Deal owner">
-                @for (o of dealOwnerOptions(); track o.id) {
-                <option [value]="o.id">{{ o.label }}</option>
-                }
-              </select>
-            </dd>
-          </dl>
-          <details class="deal-detail__side-contact-fields">
-            <summary>Contact email & phone</summary>
-            <dl class="deal-detail__kv deal-detail__kv--side deal-detail__kv--editable deal-detail__kv--tight">
-              <dt>Email</dt>
-              <dd class="deal-detail__kv-dd">
-                <input type="email" class="deal-detail__side-field" [formControl]="dataForm.controls.email" [placeholder]="sidebarAddLabel('Email')" autocomplete="email" />
-              </dd>
-              <dt>Mobile No</dt>
-              <dd class="deal-detail__kv-dd">
-                <input type="tel" class="deal-detail__side-field" [formControl]="dataForm.controls.mobile" [placeholder]="sidebarAddLabel('Mobile No')" autocomplete="tel" />
-              </dd>
-            </dl>
-          </details>
-        </div>
-        }
-      </section>
-
-      @if (dataForm.dirty) {
-      <footer class="deal-detail__side-save">
-        <button type="button" class="deal-detail__btn deal-detail__btn--light deal-detail__side-save-discard" [disabled]="dataSaving()" (click)="discardDataEdits()">
-          Discard
-        </button>
-        <button
-          type="button"
-          class="deal-detail__btn deal-detail__btn--solid deal-detail__side-save-commit"
-          [disabled]="dataSaving()"
-          (click)="saveDataTab()"
-        >
-          {{ dataSaving() ? 'Saving…' : 'Save changes' }}
-        </button>
-      </footer>
-      }
-    </aside>
   </section>
+
+  @if (lostReasonModalOpen()) {
+  <div class="deal-detail__lost-backdrop" role="presentation" (click)="cancelLostReasonModal()"></div>
+  <div class="deal-detail__lost-modal card" role="dialog" aria-labelledby="deal-lost-reason-title" aria-modal="true">
+    <h3 id="deal-lost-reason-title" class="deal-detail__lost-modal-title">Close deal as lost</h3>
+    <p class="deal-detail__lost-modal-hint">A lost reason is required before closing this deal.</p>
+    <label class="deal-detail__lost-modal-label">
+      <span>Lost reason</span>
+      <textarea
+        class="deal-detail__lost-modal-input"
+        rows="3"
+        placeholder="Describe why this deal was lost…"
+        [value]="lostReasonDraft()"
+        (input)="lostReasonDraft.set($any($event.target).value)"
+      ></textarea>
+    </label>
+    <footer class="deal-detail__lost-modal-actions">
+      <button type="button" class="deal-detail__btn deal-detail__btn--light" (click)="cancelLostReasonModal()">Cancel</button>
+      <button
+        type="button"
+        class="deal-detail__btn deal-detail__btn--solid"
+        [disabled]="!lostReasonDraft().trim()"
+        (click)="submitLostReasonModal()"
+      >
+        Close as lost
+      </button>
+    </footer>
+  </div>
+  }
 </div>
 } @else {
 <div class="deal-detail deal-detail--empty">

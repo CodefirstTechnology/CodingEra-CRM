@@ -450,15 +450,6 @@
           <legend class="lead-detail__fieldset-legend">Person</legend>
           <div class="lead-detail__field-grid">
             <label class="lead-detail__field">
-              <span class="lead-detail__label">Salutation</span>
-              <select class="lead-detail__select" formControlName="salutation">
-                <option value="">—</option>
-                @for (opt of salutationSelectOptions(); track opt.id + opt.name) {
-                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-                }
-              </select>
-            </label>
-            <label class="lead-detail__field">
               <span class="lead-detail__label"
                 >Full name<span class="lead-detail__req" aria-hidden="true">*</span></span
               >
@@ -797,16 +788,6 @@
         @if (sidebarPersonOpen()) {
         <div class="lead-detail__side-section-body">
           <dl class="lead-detail__kv lead-detail__kv--side lead-detail__kv--editable">
-            <dt>Salutation</dt>
-            <dd class="lead-detail__kv-dd">
-              <app-crm-paginated-select
-                stylePrefix="lead-detail"
-                ariaLabel="Salutation"
-                placeholder="—"
-                [options]="salutationPaginatedOptions()"
-                [formControl]="dataForm.controls.salutation"
-              />
-            </dd>
             <dt><span class="lead-detail__req">*</span> Full name</dt>
             <dd class="lead-detail__kv-dd">
               <input

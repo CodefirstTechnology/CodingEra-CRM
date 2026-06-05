@@ -50,6 +50,8 @@ export interface QuotationTotalsDto {
 export interface QuotationUpsertDto {
   id?: number;
   dealId?: number | null;
+  /** True when the linked deal is closed (Won/Lost). */
+  dealClosed?: boolean;
   salutation?: string;
   firstName?: string;
   lastName?: string;
@@ -87,7 +89,10 @@ export interface QuotationUpsertDto {
 
 export interface QuotationListItem {
   id: number;
+  /** `users.id` of creator; used for client-side scope checks when present. */
+  createdBy?: number | null;
   dealId?: number | null;
+  dealClosed?: boolean;
   customerName: string;
   companyName: string;
   contactPerson: string;
@@ -98,6 +103,8 @@ export interface QuotationListItem {
   quotationDate: string;
   status: QuotationStatus | string;
   grandTotal: number;
+  /** Present on list API when the viewer is admin / super-admin. */
+  createdByName?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

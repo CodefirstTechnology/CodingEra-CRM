@@ -21,6 +21,9 @@ export interface MasterFormRow {
   description: string;
   isActive: boolean;
   createdAt: string | null;
+  sortOrder?: number;
+  isWon?: boolean;
+  isLost?: boolean;
 }
 
 export interface MasterFormUpsertPayload {
@@ -28,6 +31,14 @@ export interface MasterFormUpsertPayload {
   name: string;
   description: string;
   isActive: boolean;
+  sortOrder?: number;
+  isWon?: boolean;
+  isLost?: boolean;
+}
+
+export interface DealStatusReorderItem {
+  id: number;
+  sortOrder: number;
 }
 
 export type MasterFormSaveResult =
@@ -51,7 +62,7 @@ export const MASTER_FORM_ENTITIES: readonly MasterFormEntityConfig[] = [
     slug: 'deal-statuses',
     label: 'Deal Statuses',
     singularLabel: 'Deal Status',
-    description: 'Pipeline stages for deals (Qualification, Proposal, Closed Won, etc.).',
+    description: 'Configure deal pipeline stages, order, and Won/Lost terminal flags.',
   },
   {
     slug: 'request-types',
