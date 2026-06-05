@@ -1,14 +1,14 @@
 <div class="deal-pipeline" aria-label="Deal pipeline board">
   <div class="deal-pipeline__board">
-    @for (group of groups; track group.id) {
-      <section class="deal-pipeline__column card" [attr.aria-label]="group.label">
+    @for (col of columns(); track col.id) {
+      <section class="deal-pipeline__column card" [attr.aria-label]="col.name">
         <header class="deal-pipeline__column-head">
-          <h2 class="deal-pipeline__column-title">{{ group.label }}</h2>
-          <span class="deal-pipeline__column-count">{{ (dealsByGroup().get(group.id) ?? []).length }}</span>
+          <h2 class="deal-pipeline__column-title">{{ col.name }}</h2>
+          <span class="deal-pipeline__column-count">{{ (dealsByColumn().get(col.id) ?? []).length }}</span>
         </header>
 
         <div class="deal-pipeline__cards">
-          @for (deal of dealsByGroup().get(group.id) ?? []; track deal.id) {
+          @for (deal of dealsByColumn().get(col.id) ?? []; track deal.id) {
             <article class="deal-pipeline__card" [class.is-updating]="isUpdating(deal)">
               <a class="deal-pipeline__card-title" [routerLink]="['/deals', deal.id]">
                 {{ dealTitle(deal) }}
@@ -51,7 +51,7 @@
               </label>
             </article>
           } @empty {
-            <p class="deal-pipeline__empty">No deals in this stage group.</p>
+            <p class="deal-pipeline__empty">No deals in this stage.</p>
           }
         </div>
       </section>

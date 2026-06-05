@@ -1,3 +1,4 @@
+<app-crm-route-loading />
 <div class="shell" [class.shell--sidebar-collapsed]="sidebarCollapse.collapsed()">
   <app-crm-sidebar class="shell__sidebar" />
   <div class="shell__main">
@@ -7,8 +8,6 @@
     </main>
   </div>
 </div>
-<app-theme-settings />
-<app-profile-panel />
-<app-notifications-panel />
-<app-create-picker-modal />
-<app-create-entity-form-modal />
+@if (overlaysComponent(); as overlay) {
+  <ng-container *ngComponentOutlet="overlay" />
+}

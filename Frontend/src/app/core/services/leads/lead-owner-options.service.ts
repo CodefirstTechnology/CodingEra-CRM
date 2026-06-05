@@ -1,5 +1,5 @@
-import { inject, Injectable, signal } from '@angular/core';
-import { catchError, map, Observable, of, take } from 'rxjs';
+import { effect, inject, Injectable, signal, untracked } from '@angular/core';
+import { catchError, map, Observable, of, shareReplay, take } from 'rxjs';
 import { AuthService } from '../../auth/auth.service';
 import { ROLE_ID_ADMIN } from '../../auth/auth-role.util';
 import { AdminUsersService, type AdminUserRow } from '../admin-users.service';
@@ -40,9 +40,23 @@ export class LeadOwnerOptionsService {
 
   private readonly optionsSignal = signal<LeadOwnerOption[]>([]);
   private readonly loadedSignal = signal(false);
+  private load$?: Observable<readonly LeadOwnerOption[]>;
 
   readonly options = this.optionsSignal.asReadonly();
   readonly loaded = this.loadedSignal.asReadonly();
+
+  private lastSessionUserId: string | null = null;
+
+  constructor() {
+    effect(() => {
+      const uid = this.auth.user()?.id?.trim() ?? '';
+      if (uid === this.lastSessionUserId) return;
+      untracked(() => {
+        this.lastSessionUserId = uid;
+        this.reset();
+      });
+    });
+  }
 
   load(): void {
     this.ensureLoaded().pipe(take(1)).subscribe();
@@ -53,19 +67,29 @@ export class LeadOwnerOptionsService {
     if (this.loadedSignal()) {
       return of(this.optionsSignal());
     }
-    return this.adminUsers.listUsers(this.auth.token()).pipe(
-      map((users) => {
-        const opts = users.filter(isLeadAssignableUser).map(adminUserToLeadOwnerOption);
-        this.optionsSignal.set(opts);
-        this.loadedSignal.set(true);
-        return opts;
-      }),
-      catchError(() => {
-        this.optionsSignal.set([]);
-        this.loadedSignal.set(true);
-        return of([] as LeadOwnerOption[]);
-      }),
-    );
+    if (!this.load$) {
+      this.load$ = this.adminUsers.listUsers(this.auth.token()).pipe(
+        map((users) => {
+          const opts = users.filter(isLeadAssignableUser).map(adminUserToLeadOwnerOption);
+          this.optionsSignal.set(opts);
+          this.loadedSignal.set(true);
+          return opts;
+        }),
+        catchError(() => {
+          this.optionsSignal.set([]);
+          this.loadedSignal.set(true);
+          return of([] as LeadOwnerOption[]);
+        }),
+        shareReplay(1),
+      );
+    }
+    return this.load$;
+  }
+
+  private reset(): void {
+    this.loadedSignal.set(false);
+    this.optionsSignal.set([]);
+    this.load$ = undefined;
   }
 
   findById(id: string | undefined | null): LeadOwnerOption | undefined {

@@ -5,6 +5,7 @@ import { catchError, map, switchMap, tap } from 'rxjs/operators';
 import { DealsService } from './deals.service';
 import { LeadConversionStorageService } from './leads/lead-conversion-storage.service';
 import type { ConvertLeadOptions, ConvertLeadResult } from './leads/lead-conversion.types';
+import { normalizeGstin } from '../../shared/utils/gstin.util';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
 import { isLeadConverted, validateLeadForConversion } from '../../shared/utils/lead-conversion.util';
 import {
@@ -314,6 +315,7 @@ export class LeadsService {
         industry: patch?.industry?.trim() || prev.industry?.trim() || undefined,
         industryId: patch?.industryId ?? prev.industryId ?? undefined,
         website: patch?.website?.trim() || prev.website?.trim() || undefined,
+        gst: normalizeGstin(patch?.gst) || normalizeGstin(prev.gst) || undefined,
         employees: patch?.employees?.trim() || prev.employees?.trim() || undefined,
         employeeCountId: patch?.employeeCountId ?? prev.employeeCountId ?? undefined,
       })
@@ -337,6 +339,7 @@ export class LeadsService {
       industry: patch.industry?.trim() || undefined,
       industryId: patch.industryId,
       website: patch.website?.trim() || undefined,
+      gst: normalizeGstin(patch.gst) || undefined,
       employees: patch.employees?.trim() || undefined,
       employeeCountId: patch.employeeCountId,
     });
@@ -353,6 +356,7 @@ export class LeadsService {
         industry: data.industry?.trim() || undefined,
         industryId: data.industryId,
         website: data.website?.trim() || undefined,
+        gst: normalizeGstin(data.gst) || undefined,
         employees: data.employees?.trim() || undefined,
         employeeCountId: data.employeeCountId,
       })
@@ -380,6 +384,7 @@ export class LeadsService {
     const patch: Partial<Omit<LeadRow, 'id'>> = {
       organization: data.organization?.trim() || '',
       website: data.website?.trim() || undefined,
+      gst: normalizeGstin(data.gst) || undefined,
       territory: data.territory?.trim() || undefined,
       territoryId: data.territoryId,
       industry: data.industry?.trim() || undefined,

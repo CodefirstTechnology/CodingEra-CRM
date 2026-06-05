@@ -10,7 +10,7 @@ import {
   mapDealNormalizedToRow,
   mergeDealApiDtoWithRowPatch,
 } from './deals/deal-api.mapper';
-import { DealHttpService } from './deals/deal-http.service';
+import { DealHttpService, type DealStageHistoryRecord } from './deals/deal-http.service';
 import { DealMasterSelectService } from './deals/deal-master-select.service';
 import { resolveDealStatusForApi } from './deals/deal-pipeline.constants';
 
@@ -125,9 +125,13 @@ export class DealsService {
     return this.dealHttp.delete(id);
   }
 
+  getStageHistory(id: number): Observable<DealStageHistoryRecord[]> {
+    return this.dealHttp.getStageHistory(id);
+  }
+
   updateStatus(
     id: number,
-    patch: { status: string; dealStatusId?: number | null; comment?: string },
+    patch: { status: string; dealStatusId?: number | null; comment?: string; lostReason?: string },
   ): Observable<DealRow | null> {
     return this.dealHttp.patchStatus(id, patch).pipe(
       map((dto) => {

@@ -185,6 +185,22 @@
                 }
               </label>
             </div>
+            <label class="deals__field">
+              <span class="deals__label">GSTIN</span>
+              <input
+                class="deals__control deals__control--soft"
+                type="text"
+                formControlName="gst"
+                placeholder="e.g. 27AAJCB6955B1ZM"
+                [attr.maxlength]="15"
+                autocomplete="off"
+                spellcheck="false"
+                (input)="onGstinInput($event)"
+              />
+              @if (gstFieldInvalid() && createForm.get('gst')?.errors?.[gstinErrorKey]) {
+                <span class="deals__err">{{ gstinErrorMessage }}</span>
+              }
+            </label>
           </section>
 
           <hr class="deals__form-rule" />
@@ -193,36 +209,15 @@
             <h3 class="deals__form-section-title">Contact details</h3>
             <div class="deals__form-grid deals__form-grid--3">
               <label class="deals__field">
-                <span class="deals__label">Salutation</span>
-                <select class="deals__control deals__control--soft" formControlName="salutation">
-                  <option value="">— Select —</option>
-                  @for (opt of dealMaster.salutationSelectOptions(); track opt.id + opt.name) {
-                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-                  }
-                </select>
-              </label>
-              <label class="deals__field">
-                <span class="deals__label">First name <span class="deals__req">*</span></span>
+                <span class="deals__label">Full name <span class="deals__req">*</span></span>
                 <input
                   class="deals__control deals__control--soft"
                   type="text"
-                  formControlName="firstName"
-                  autocomplete="given-name"
+                  formControlName="fullName"
+                  autocomplete="name"
                 />
-                @if (fieldInvalid('firstName')) {
-                  <span class="deals__err">First name is required.</span>
-                }
-              </label>
-              <label class="deals__field">
-                <span class="deals__label">Last name <span class="deals__req">*</span></span>
-                <input
-                  class="deals__control deals__control--soft"
-                  type="text"
-                  formControlName="lastName"
-                  autocomplete="family-name"
-                />
-                @if (fieldInvalid('lastName')) {
-                  <span class="deals__err">Last name is required.</span>
+                @if (fieldInvalid('fullName')) {
+                  <span class="deals__err">Full name is required.</span>
                 }
               </label>
               <label class="deals__field">
@@ -238,7 +233,7 @@
                 }
               </label>
               <label class="deals__field">
-                <span class="deals__label">Primary email <span class="deals__req">*</span></span>
+                <span class="deals__label">Primary email</span>
                 <input
                   class="deals__control deals__control--soft"
                   type="email"
@@ -248,8 +243,6 @@
                 />
                 @if (createForm.get('primaryEmail')?.errors?.['duplicate']) {
                   <span class="deals__err">This email is already used on a deal.</span>
-                } @else if (fieldInvalid('primaryEmail') && createForm.get('primaryEmail')?.errors?.['required']) {
-                  <span class="deals__err">Email is required.</span>
                 } @else if (fieldInvalid('primaryEmail') && createForm.get('primaryEmail')?.errors?.['email']) {
                   <span class="deals__err">Enter a valid email.</span>
                 }

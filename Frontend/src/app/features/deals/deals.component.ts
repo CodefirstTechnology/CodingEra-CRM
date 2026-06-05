@@ -14,18 +14,34 @@ import {
   masterOptionFormValue,
   masterSelectControlValue,
   resolveOrgMasterPick,
-  resolveSalutationLabel,
 } from '../../core/services/organizations/organization-master-select.util';
-import { resolveDealStatusLabel, dealStatusCssKind } from '../../core/services/deals/deal-status.constants';
+import {
+  resolveDealStatusLabel,
+  resolveDealStatusSelectValue,
+  dealStatusCssKind,
+} from '../../core/services/deals/deal-status.constants';
 import type { DealPipelineStatus } from '../../core/services/deals/deal-pipeline.constants';
 import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { DealPipelineBoardComponent } from './deal-pipeline-board.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
-import { optionalPhoneValidator, optionalUrlValidator } from '../../shared/validators/crm-validators';
+import {
+  GSTIN_ERROR_KEY,
+  GSTIN_ERROR_MESSAGE,
+  gstControlInvalid,
+  normalizeGstin,
+  syncGstinInputFromEvent,
+} from '../../shared/utils/gstin.util';
+import {
+  gstFormValidators,
+  optionalEmailValidator,
+  optionalPhoneValidator,
+  optionalUrlValidator,
+} from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { leadPersonName } from '../../shared/utils/lead-person-name.util';
+import { fullNameFromLeadParts, splitFullName } from '../leads/lead-full-name.util';
 
 export type { DealPipelineStatus };
 
@@ -49,6 +65,7 @@ export interface DealRow {
   /** Stored as a plain number (no currency formatting). */
   annualRevenue: number;
   website: string;
+  gst?: string;
   territory: string;
   /** Master data FK (`/api/MasterData/territories`). */
   territoryId?: number | null;
@@ -80,6 +97,7 @@ export interface DealRow {
   createdAtAt?: string;
   /** When set, deal appears on the matching contact's detail "Deals" tab. */
   relatedContactId?: string;
+  organizationId?: string;
   /** When set, deal appears on the matching organization's detail "Deals" tab. */
   relatedOrganizationId?: string;
   /** Win probability (e.g. 10 = 10%). */
@@ -99,6 +117,8 @@ export interface DealRow {
   source?: string;
   /** Source lead id when created via lead conversion (local store + future API FK). */
   sourceLeadId?: string;
+  /** Set when deal is closed as lost. */
+  lostReason?: string;
 }
 
 interface DealColumnOption {
@@ -257,6 +277,7 @@ export class DealsComponent {
 
   constructor() {
     this.ownerOpts.load();
+    this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
     this.refreshDeals();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'deal') return;
@@ -328,13 +349,12 @@ export class DealsComponent {
     employees: ['1-10'],
     annualRevenue: ['', Validators.maxLength(40)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
+    gst: ['', gstFormValidators()],
     territory: [''],
     industry: ['Technology', Validators.required],
-    salutation: [''],
-    firstName: ['', [Validators.required, Validators.maxLength(80)]],
-    lastName: ['', [Validators.required, Validators.maxLength(120)]],
+    fullName: ['', [Validators.required, Validators.maxLength(200)]],
     primaryMobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
-    primaryEmail: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
+    primaryEmail: ['', [Validators.maxLength(160), optionalEmailValidator()]],
     gender: [''],
     status: this.fb.nonNullable.control<string>(DEFAULT_DEAL_PIPELINE_STATUS, Validators.required),
     dealOwner: [this.ownerOpts.defaultOwnerId(), Validators.required],
@@ -521,7 +541,6 @@ export class DealsComponent {
   private resetCreateForm(): void {
     const defaultIndustry = this.dealMaster.industrySelectOptions()[0];
     const defaultEmployees = this.dealMaster.employeeSelectOptions()[0];
-    const defaultStatus = this.dealMaster.statusSelectOptions()[0];
     this.createForm.reset({
       useExistingOrg: false,
       useExistingContact: false,
@@ -529,34 +548,22 @@ export class DealsComponent {
       employees: defaultEmployees ? masterOptionFormValue(defaultEmployees) : '1-10',
       annualRevenue: '',
       website: '',
+      gst: '',
       territory: '',
       industry: defaultIndustry ? masterOptionFormValue(defaultIndustry) : 'Technology',
-      salutation: '',
-      lastName: '',
+      fullName: '',
       primaryMobile: '',
-      firstName: '',
       primaryEmail: '',
       gender: '',
-      status: defaultStatus
-        ? masterOptionFormValue(defaultStatus)
-        : DEFAULT_DEAL_PIPELINE_STATUS,
+      status: masterSelectControlValue(
+        undefined,
+        DEFAULT_DEAL_PIPELINE_STATUS,
+        this.dealMaster.statusSelectOptions(),
+      ),
       dealOwner: this.ownerOpts.defaultOwnerId(),
       requirement: '',
     });
-    this.applyPrimaryEmailValidators('create');
     this.createForm.markAsUntouched();
-  }
-
-  /** Create always requires email; edit keeps legacy rows without email valid. */
-  private applyPrimaryEmailValidators(mode: 'create' | 'edit-empty' | 'edit-filled'): void {
-    const c = this.createForm.get('primaryEmail');
-    if (!c) return;
-    if (mode === 'create' || mode === 'edit-filled') {
-      c.setValidators([Validators.required, Validators.email, Validators.maxLength(160)]);
-    } else {
-      c.setValidators([Validators.email, Validators.maxLength(160)]);
-    }
-    c.updateValueAndValidity({ emitEvent: false });
   }
 
   private beginEditFromRoute(idStr: string): void {
@@ -574,7 +581,6 @@ export class DealsComponent {
         const revInput =
           row.annualRevenue != null && row.annualRevenue !== 0 ? String(row.annualRevenue) : '';
         const emailFromRow = row.email.trim() ? row.email : '';
-        this.applyPrimaryEmailValidators(emailFromRow.trim() ? 'edit-filled' : 'edit-empty');
         this.createForm.patchValue({
           organizationName: row.organizationName,
           employees: masterSelectControlValue(
@@ -584,6 +590,7 @@ export class DealsComponent {
           ),
           annualRevenue: revInput,
           website: row.website,
+          gst: normalizeGstin(row.gst),
           territory: masterSelectControlValue(
             row.territoryId,
             row.territory,
@@ -594,17 +601,11 @@ export class DealsComponent {
             row.industry,
             this.dealMaster.industrySelectOptions(),
           ),
-          salutation: masterSelectControlValue(
-            row.salutationId,
-            row.salutation,
-            this.dealMaster.salutationSelectOptions(),
-          ),
           primaryEmail: emailFromRow,
           primaryMobile: row.mobile,
-          firstName: row.firstName || 'Contact',
-          lastName: row.lastName || 'Primary',
+          fullName: fullNameFromLeadParts(row) || '',
           gender: row.gender,
-          status: masterSelectControlValue(
+          status: resolveDealStatusSelectValue(
             row.dealStatusId,
             row.status,
             this.dealMaster.statusSelectOptions(),
@@ -711,9 +712,20 @@ export class DealsComponent {
     c.setErrors(Object.keys(next).length ? next : null);
   }
 
+  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
+  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+
   protected fieldInvalid(name: string): boolean {
     const c = this.createForm.get(name);
     return !!c && c.invalid && (c.dirty || c.touched);
+  }
+
+  protected onGstinInput(ev: Event): void {
+    syncGstinInputFromEvent(ev, this.createForm.controls.gst);
+  }
+
+  protected gstFieldInvalid(): boolean {
+    return gstControlInvalid(this.createForm.controls.gst);
   }
 
   protected submitDeal(): void {
@@ -738,27 +750,26 @@ export class DealsComponent {
     }
 
     const owner = this.dealOwnerOptions().find((o) => o.id === raw.dealOwner);
-    const salPick = resolveOrgMasterPick(raw.salutation, this.dealMaster.salutationSelectOptions());
     const empPick = resolveOrgMasterPick(raw.employees, this.dealMaster.employeeSelectOptions());
     const terrPick = resolveOrgMasterPick(raw.territory, this.dealMaster.territorySelectOptions());
     const indPick = resolveOrgMasterPick(raw.industry, this.dealMaster.industrySelectOptions());
     const statPick = resolveOrgMasterPick(raw.status, this.dealMaster.statusSelectOptions());
-    const salLabel = resolveSalutationLabel(raw.salutation, this.dealMaster.salutationSelectOptions());
-
+    const { firstName, lastName } = splitFullName(raw.fullName);
     const payload: Omit<DealRow, 'id'> = {
       organizationName: raw.organizationName.trim(),
       employees: empPick.label.trim() || '1-10',
       employeeCountId: empPick.masterId,
       annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
       website: raw.website.trim(),
+      gst: normalizeGstin(raw.gst),
       territory: terrPick.label.trim(),
       territoryId: terrPick.masterId,
       industry: indPick.label.trim() || 'Technology',
       industryId: indPick.masterId,
-      salutation: salLabel,
-      salutationId: salPick.masterId,
-      firstName: raw.firstName.trim(),
-      lastName: raw.lastName.trim(),
+      salutation: '',
+      salutationId: undefined,
+      firstName,
+      lastName,
       email: emailTrim,
       mobile: raw.primaryMobile.trim(),
       gender: raw.gender,

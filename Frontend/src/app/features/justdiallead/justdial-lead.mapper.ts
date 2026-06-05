@@ -3,18 +3,17 @@ import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { JustdialLead } from './justdial-lead.model';
 
-export const JUSTDIAL_LEAD_ROW_ID_PREFIX = 'jd-';
+import {
+  JUSTDIAL_LEAD_ROW_ID_PREFIX,
+  isJustdialLeadRowId,
+  parseJustdialNumericIdFromRowId,
+} from '../leads/lead-marketplace-id.util';
 
-export function isJustdialLeadRowId(id: string): boolean {
-  return id.startsWith(JUSTDIAL_LEAD_ROW_ID_PREFIX);
-}
-
-/** Parses numeric Justdial id from a unified row id, or `null` if not a Justdial row. */
-export function parseJustdialNumericIdFromRowId(id: string): number | null {
-  if (!isJustdialLeadRowId(id)) return null;
-  const n = Number(id.slice(JUSTDIAL_LEAD_ROW_ID_PREFIX.length));
-  return Number.isFinite(n) ? n : null;
-}
+export {
+  JUSTDIAL_LEAD_ROW_ID_PREFIX,
+  isJustdialLeadRowId,
+  parseJustdialNumericIdFromRowId,
+};
 
 function mapJustdialStatusToLeadStatus(status: JustdialLead['status']): LeadStatus {
   const coerced = coerceLeadStatus(status);

@@ -61,7 +61,7 @@
         @if (detailsOpen()) {
         <div class="contact-detail__section-body">
           <div class="contact-detail__fields">
-            <label class="contact-detail__row">
+            <!-- <label class="contact-detail__row">
               <span class="contact-detail__row-label">Salutation</span>
               <select class="contact-detail__input" formControlName="salutation">
                 <option value="">{{ sidebarPlaceholder('Salutation') }}</option>
@@ -69,7 +69,7 @@
                   <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
               </select>
-            </label>
+            </label> -->
             <label class="contact-detail__row">
               <span class="contact-detail__row-label">First Name</span>
               <input type="text" class="contact-detail__input" formControlName="firstName" [placeholder]="sidebarPlaceholder('First Name')" />

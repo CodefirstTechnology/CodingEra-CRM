@@ -20,6 +20,11 @@ import {
   type MasterDataOption,
 } from '../../core/services/leads/lead-master-data.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
+import {
+  buildLeadDisplayName,
+  fullNameFromLeadParts,
+  splitFullName,
+} from './lead-full-name.util';
 import { ToastService } from '../../core/toast/toast.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
@@ -41,7 +46,6 @@ import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
 
 const FALLBACK_TERRITORY_NAMES = ['India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
-const FALLBACK_SALUTATION_NAMES = ['Mr', 'Mrs', 'Ms', 'Dr', 'Prof'] as const;
 const FALLBACK_INDUSTRY_NAMES = [
   'Technology',
   'Finance',
@@ -187,17 +191,12 @@ export class LeadDetailComponent {
 
   protected readonly sourceOptions = ['', 'Website', 'Referral', 'Ads', 'Cold Call', 'Event', 'Other'] as const;
 
-  private readonly salutationsFromApi = signal<MasterDataOption[]>([]);
   private readonly territoriesFromApi = signal<MasterDataOption[]>([]);
   private readonly industriesFromApi = signal<MasterDataOption[]>([]);
 
   protected readonly territorySelectOptions = computed<MasterDataOption[]>(() => {
     const api = this.territoriesFromApi();
     return api.length > 0 ? api : FALLBACK_TERRITORY_NAMES.map((name) => ({ id: 0, name }));
-  });
-  protected readonly salutationSelectOptions = computed<MasterDataOption[]>(() => {
-    const api = this.salutationsFromApi();
-    return api.length > 0 ? api : FALLBACK_SALUTATION_NAMES.map((name) => ({ id: 0, name }));
   });
   protected readonly industrySelectOptions = computed<MasterDataOption[]>(() => {
     const api = this.industriesFromApi();
@@ -225,9 +224,6 @@ export class LeadDetailComponent {
       value: '',
       label: '— Select —',
     }),
-  );
-  protected readonly salutationPaginatedOptions = computed(() =>
-    masterDataToPaginatedOptions(this.salutationSelectOptions(), { value: '', label: '—' }),
   );
   protected readonly sourcePaginatedOptions = computed(() =>
     this.sourceOptionsForLead().map((s) => ({
@@ -258,9 +254,7 @@ export class LeadDetailComponent {
     industry: [''],
     source: [''],
     owner: [''],
-    salutation: [''],
-    firstName: ['', Validators.required],
-    lastName: [''],
+    fullName: ['', [Validators.required, Validators.maxLength(200)]],
     email: [''],
     mobile: [''],
   });
@@ -268,14 +262,12 @@ export class LeadDetailComponent {
   constructor() {
     this.leadOwnerOpts.load();
     forkJoin({
-      salutations: this.leadMasterData.loadSalutations(),
       territories: this.leadMasterData.loadTerritories(),
       industries: this.leadMasterData.loadIndustries(),
     })
       .pipe(takeUntilDestroyed())
       .subscribe({
         next: (r) => {
-          this.salutationsFromApi.set(r.salutations);
           this.territoriesFromApi.set(r.territories);
           this.industriesFromApi.set(r.industries);
         },
@@ -729,8 +721,7 @@ export class LeadDetailComponent {
   protected openCreateNoteFromLead(): void {
     const l = this.lead();
     if (!l?.id) return;
-    const displayName =
-      [l.firstName?.trim(), l.lastName?.trim()].filter(Boolean).join(' ') || l.name.trim() || 'Lead';
+    const displayName = fullNameFromLeadParts(l) || 'Lead';
     this.createFlow.selectEntity('note', {
       noteFromLead: {
         relatedLeadId: String(l.id),
@@ -770,16 +761,6 @@ export class LeadDetailComponent {
     return legacy ? legacy.name : name;
   }
 
-  private salutationLabelFromFormValue(value: string): string {
-    const v = value.trim();
-    if (!v) return '';
-    const n = Number(v);
-    if (Number.isFinite(n) && n > 0) {
-      return this.salutationSelectOptions().find((o) => o.id === n)?.name ?? '';
-    }
-    return v;
-  }
-
   private resolveMasterPick(
     rawValue: string,
     options: MasterDataOption[],
@@ -803,7 +784,6 @@ export class LeadDetailComponent {
   }
 
   protected patchDataForm(row: LeadRow): void {
-    const salutationPlain = row.salutation?.replace(/\.$/, '') ?? '';
     this.dataForm.patchValue(
       {
         organization: row.organization ?? '',
@@ -812,9 +792,7 @@ export class LeadDetailComponent {
         industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
         source: row.source?.trim() || row.leadSource || '',
         owner: row.leadOwnerId ?? '',
-        salutation: this.masterSelectControlValue(row.salutationId, salutationPlain, this.salutationSelectOptions()),
-        firstName: row.firstName ?? '',
-        lastName: row.lastName ?? '',
+        fullName: fullNameFromLeadParts(row),
         email: row.email ?? '',
         mobile: row.mobile ?? '',
       },
@@ -842,7 +820,8 @@ export class LeadDetailComponent {
   }
 
   protected leadInitial(): string {
-    const name = this.lead()?.firstName?.trim() || this.lead()?.name?.trim() || 'L';
+    const row = this.lead();
+    const name = (row ? fullNameFromLeadParts(row) : '') || 'L';
     return name.charAt(0).toUpperCase();
   }
 
@@ -864,17 +843,12 @@ export class LeadDetailComponent {
   /** Sidebar name line — mirrors `saveDataTab` name computation. */
   protected sidebarLeadHeadline(row: LeadRow): string {
     const v = this.dataForm.getRawValue();
-    const salLabel = this.salutationLabelFromFormValue(v.salutation);
-    const salutationNorm = salLabel.trim() ? `${salLabel.trim().replace(/\.$/, '')}.` : '';
-    return (
-      [salutationNorm, v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(' ').trim() ||
-      v.firstName.trim() ||
-      row.name
-    );
+    const { firstName, lastName } = splitFullName(v.fullName);
+    return buildLeadDisplayName('', firstName, lastName) || v.fullName.trim() || row.name;
   }
 
   protected sidebarLeadAvatarLetter(row: LeadRow): string {
-    const fn = this.dataForm.controls.firstName.value?.trim();
+    const fn = splitFullName(this.dataForm.controls.fullName.value ?? '').firstName;
     if (fn) return fn.charAt(0).toUpperCase();
     return this.leadInitial();
   }
@@ -905,15 +879,10 @@ export class LeadDetailComponent {
     }
 
     const v = this.dataForm.getRawValue();
-    const salPick = this.resolveMasterPick(v.salutation, this.salutationSelectOptions());
     const terrPick = this.resolveMasterPick(v.territory, this.territorySelectOptions());
     const indPick = this.resolveMasterPick(v.industry, this.industrySelectOptions());
-    const salBase = salPick.label.trim().replace(/\.$/, '');
-    const salutationNorm = salBase ? `${salBase}.` : '';
-    const name =
-      [salutationNorm, v.firstName.trim(), v.lastName.trim()].filter(Boolean).join(' ').trim() ||
-      v.firstName.trim() ||
-      row.name;
+    const { firstName, lastName } = splitFullName(v.fullName);
+    const name = buildLeadDisplayName('', firstName, lastName) || v.fullName.trim() || row.name;
 
     const ownerId = this.isAdminViewer() ? v.owner.trim() : (row.leadOwnerId ?? '').trim();
     const opt = this.isAdminViewer() ? this.leadOwnerOpts.findById(ownerId) : null;
@@ -922,10 +891,10 @@ export class LeadDetailComponent {
     this.dataSaving.set(true);
     const payload: Partial<Omit<LeadRow, 'id'>> = {
       name,
-      firstName: v.firstName.trim(),
-      lastName: v.lastName.trim(),
-      salutation: salutationNorm || undefined,
-      salutationId: salPick.masterId,
+      firstName,
+      lastName,
+      salutation: undefined,
+      salutationId: undefined,
       email: v.email.trim(),
       mobile: v.mobile.trim() || undefined,
       organization: v.organization.trim(),
@@ -951,16 +920,14 @@ export class LeadDetailComponent {
         this.emailSubjectText.set(`Mr ${updated.name} (${this.leadCode()})`);
         const ownerDirty = this.isAdminViewer() && this.dataForm.controls.owner.dirty;
         const otherDirty =
-          this.dataForm.controls.firstName.dirty ||
-          this.dataForm.controls.lastName.dirty ||
+          this.dataForm.controls.fullName.dirty ||
           this.dataForm.controls.email.dirty ||
           this.dataForm.controls.mobile.dirty ||
           this.dataForm.controls.organization.dirty ||
           this.dataForm.controls.website.dirty ||
           this.dataForm.controls.territory.dirty ||
           this.dataForm.controls.industry.dirty ||
-          this.dataForm.controls.source.dirty ||
-          this.dataForm.controls.salutation.dirty;
+          this.dataForm.controls.source.dirty;
         if (ownerDirty && !otherDirty) {
           const name = enriched.leadOwnerName?.trim() || '—';
           this.toast.success(

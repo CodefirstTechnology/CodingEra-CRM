@@ -1,4 +1,15 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { NgComponentOutlet } from '@angular/common';
+import {
+  afterNextRender,
+  Component,
+  computed,
+  effect,
+  inject,
+  Injector,
+  signal,
+  Type,
+  untracked,
+} from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -35,29 +46,41 @@ import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-
 import { isLeadConverted, isLeadQualifiedForConversion } from '../../shared/utils/lead-conversion.util';
 import type { ConvertLeadOptions } from '../../core/services/leads/lead-conversion.types';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
-import { ImportLeadsModalComponent } from '../../shared/components/import-leads-modal/import-leads-modal.component';
 import type { LeadImportCommitResult } from './import/lead-import-api.models';
 import { CRM_PAGINATED_SELECT_PAGE_SIZE } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
 import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import { createIdSelection } from '../../shared/utils/selection-manager';
-import { optionalMobile10Validator, optionalUrlValidator } from '../../shared/validators/crm-validators';
+import {
+  GSTIN_ERROR_KEY,
+  GSTIN_ERROR_MESSAGE,
+  gstControlInvalid,
+  normalizeGstin,
+  syncGstinInputFromEvent,
+} from '../../shared/utils/gstin.util';
+import {
+  gstFormValidators,
+  optionalEmailValidator,
+  optionalMobile10Validator,
+  optionalUrlValidator,
+} from '../../shared/validators/crm-validators';
+import {
+  buildLeadDisplayName,
+  fullNameFromLeadParts,
+  splitFullName,
+} from './lead-full-name.util';
 import { environment } from '../../../environments/environment';
 import {
   isIndiamartLeadRowId,
-  mapIndiaMartLeadToLeadRow,
-} from '../indiamartlead/indiamart-lead.mapper';
-import { IndiamartLeadsService } from '../indiamartlead/indiamart-leads.service';
-import {
   isJustdialLeadRowId,
-  mapJustdialLeadToLeadRow,
-} from '../justdiallead/justdial-lead.mapper';
-import { JustdialLeadsService } from '../justdiallead/justdial-leads.service';
-import {
   isTradeIndiaLeadRowId,
-  mapTradeIndiaLeadToLeadRow,
-} from '../tradeindialead/tradeindia-lead.mapper';
-import { TradeIndiaLeadsService } from '../tradeindialead/tradeindia-leads.service';
+} from './lead-marketplace-id.util';
+import {
+  hasAnyMarketplaceFeatureEnabled,
+  loadLeadsMarketplaceRuntime,
+  needsLocalMarketplaceMerge,
+  type LeadsMarketplaceRuntime,
+} from './leads-marketplace.runtime';
 import type {
   LeadListOwnerFilter,
   LeadListSourceFilter,
@@ -71,7 +94,6 @@ import type {
 /** @deprecated Import from `./lead-row.model` instead. */
 export type { LeadListStatusFilter as StatusFilter, LeadRow, LeadOwnerOption, LeadStatus } from './lead-row.model';
 
-const FALLBACK_SALUTATION_NAMES = ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.'] as const;
 const FALLBACK_EMPLOYEE_LABELS = ['1-10', '11-50', '51-200', '201-500', '500+'] as const;
 const FALLBACK_TERRITORY_NAMES = ['India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
 const FALLBACK_REQUEST_TYPE_NAMES = ['Sales', 'Support', 'Partnership', 'General inquiry'] as const;
@@ -104,7 +126,7 @@ interface LeadColumnOption {
     CrmAssignPickerComponent,
     CrmPaginationFooterComponent,
     ConvertLeadModalComponent,
-    ImportLeadsModalComponent,
+    NgComponentOutlet,
   ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
@@ -123,17 +145,23 @@ export class LeadsComponent {
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly leadRoundRobin = inject(LeadRoundRobinService);
-  private readonly indiamartLeadsService = inject(IndiamartLeadsService);
-  /** Mirrors {@link IndiamartLeadsService.pullInProgress} for the sync button. */
-  protected readonly indiamartPullLoading = this.indiamartLeadsService.pullInProgress;
-  /** Set when live IndiaMART pull is misconfigured (e.g. missing CRM key in `.env`). */
-  protected readonly indiamartConfigError = computed(() =>
-    this.indiamartLeadsService.getLivePullConfigurationError(),
+  private readonly injector = inject(Injector);
+
+  private readonly marketplaceRuntime = signal<LeadsMarketplaceRuntime | null>(null);
+  private readonly marketplaceLocalRows = signal<LeadRow[]>([]);
+
+  protected readonly indiamartPullLoading = computed(
+    () => this.marketplaceRuntime()?.indiamart?.pullInProgress() ?? false,
   );
-  private readonly justdialLeadsService = inject(JustdialLeadsService);
-  protected readonly justdialLoading = this.justdialLeadsService.loading;
-  private readonly tradeindiaLeadsService = inject(TradeIndiaLeadsService);
-  protected readonly tradeindiaLoading = this.tradeindiaLeadsService.loading;
+  protected readonly indiamartConfigError = computed(
+    () => this.marketplaceRuntime()?.indiamart?.getConfigError() ?? null,
+  );
+  protected readonly justdialLoading = computed(
+    () => this.marketplaceRuntime()?.justdial?.loading() ?? false,
+  );
+  protected readonly tradeindiaLoading = computed(
+    () => this.marketplaceRuntime()?.tradeindia?.loading() ?? false,
+  );
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
@@ -142,6 +170,7 @@ export class LeadsComponent {
   /** When set, assign/clear apply to these ids instead of the checkbox selection. */
   private readonly assignTargetIds = signal<string[]>([]);
   protected readonly importModalOpen = signal(false);
+  protected readonly importModalLazyComponent = signal<Type<unknown> | null>(null);
   protected readonly convertModalOpen = signal(false);
   protected readonly convertTargets = signal<LeadRow[]>([]);
   protected readonly openRowMenuId = signal<string | null>(null);
@@ -161,7 +190,9 @@ export class LeadsComponent {
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
 
-  private readonly salutationsFromApi = signal<MasterDataOption[]>([]);
+  /** UI-only: set true to show Request type in create/edit modal (form control + API unchanged). */
+  protected readonly showRequestTypeField = false;
+
   private readonly employeeCountsFromApi = signal<MasterDataOption[]>([]);
   private readonly territoriesFromApi = signal<MasterDataOption[]>([]);
   private readonly requestTypesFromApi = signal<MasterDataOption[]>([]);
@@ -169,10 +200,6 @@ export class LeadsComponent {
   private readonly leadStatusesFromApi = signal<MasterDataOption[]>([]);
 
   /** Dropdown options: API rows when available, else legacy labels (`id` 0 → value is {@link MasterDataOption.name}). */
-  protected readonly salutationSelectOptions = computed<MasterDataOption[]>(() => {
-    const api = this.salutationsFromApi();
-    return api.length > 0 ? api : FALLBACK_SALUTATION_NAMES.map((name) => ({ id: 0, name }));
-  });
   protected readonly employeeSelectOptions = computed<MasterDataOption[]>(() => {
     const api = this.employeeCountsFromApi();
     return api.length > 0 ? api : FALLBACK_EMPLOYEE_LABELS.map((name) => ({ id: 0, name }));
@@ -298,7 +325,6 @@ export class LeadsComponent {
     });
     this.refreshLeads();
     forkJoin({
-      salutations: this.leadMasterData.loadSalutations(),
       employeeCounts: this.leadMasterData.loadEmployeeCounts(),
       territories: this.leadMasterData.loadTerritories(),
       requestTypes: this.leadMasterData.loadRequestTypes(),
@@ -308,7 +334,6 @@ export class LeadsComponent {
       .pipe(takeUntilDestroyed())
       .subscribe({
         next: (r) => {
-          this.salutationsFromApi.set(r.salutations);
           this.employeeCountsFromApi.set(r.employeeCounts);
           this.territoriesFromApi.set(r.territories);
           this.requestTypesFromApi.set(r.requestTypes);
@@ -325,6 +350,55 @@ export class LeadsComponent {
       if (edit != null && edit !== '') {
         this.beginEditFromRoute(String(edit));
       }
+    });
+
+    effect(() => {
+      const rt = this.marketplaceRuntime();
+      if (!rt) return;
+      rt.indiamart?.pullInProgress();
+      rt.justdial?.loading();
+      rt.tradeindia?.loading();
+      untracked(() => this.refreshMarketplaceLocalRows());
+    });
+
+    effect(() => {
+      const src = this.sourceFilter();
+      if (src === 'IndiaMART' || src === 'Justdial' || src === 'TradeIndia') {
+        untracked(() => void this.ensureMarketplaceRuntime());
+      }
+    });
+
+    afterNextRender(() => {
+      if (!needsLocalMarketplaceMerge()) return;
+      const schedule =
+        typeof requestIdleCallback === 'function'
+          ? (cb: () => void) => requestIdleCallback(cb, { timeout: 4000 })
+          : (cb: () => void) => setTimeout(cb, 1500);
+      schedule(() => void this.ensureMarketplaceRuntime());
+    });
+  }
+
+  private refreshMarketplaceLocalRows(): void {
+    const rt = this.marketplaceRuntime();
+    if (!rt) {
+      this.marketplaceLocalRows.set([]);
+      return;
+    }
+    const rows: LeadRow[] = [];
+    if (rt.indiamart) rows.push(...rt.indiamart.getLocalLeadRows());
+    if (rt.justdial) rows.push(...rt.justdial.getLocalLeadRows());
+    if (rt.tradeindia) rows.push(...rt.tradeindia.getLocalLeadRows());
+    this.marketplaceLocalRows.set(rows);
+  }
+
+  private ensureMarketplaceRuntime(): Promise<LeadsMarketplaceRuntime | null> {
+    if (!hasAnyMarketplaceFeatureEnabled()) {
+      return Promise.resolve(null);
+    }
+    return loadLeadsMarketplaceRuntime(this.injector).then((rt) => {
+      this.marketplaceRuntime.set(rt);
+      this.refreshMarketplaceLocalRows();
+      return rt;
     });
   }
 
@@ -363,16 +437,8 @@ export class LeadsComponent {
       return [...manual].sort((a, b) => (b.sortTimestamp ?? 0) - (a.sortTimestamp ?? 0));
     }
 
-    const im = environment.enableIndiamartLead
-      ? this.indiamartLeadsService.leads().map(mapIndiaMartLeadToLeadRow)
-      : [];
-    const jd = environment.justdial.enabled
-      ? this.justdialLeadsService.leads().map(mapJustdialLeadToLeadRow)
-      : [];
-    const ti = environment.tradeindia.enabled
-      ? this.tradeindiaLeadsService.leads().map(mapTradeIndiaLeadToLeadRow)
-      : [];
-    return [...manual, ...im, ...jd, ...ti].sort(
+    const marketplace = this.marketplaceLocalRows();
+    return [...manual, ...marketplace].sort(
       (a, b) => (b.sortTimestamp ?? 0) - (a.sortTimestamp ?? 0),
     );
   }
@@ -564,16 +630,15 @@ export class LeadsComponent {
   }
 
   protected readonly createForm = this.fb.nonNullable.group({
-    salutation: [''],
-    lastName: ['', [Validators.required, Validators.maxLength(120)]],
+    fullName: ['', [Validators.required, Validators.maxLength(200)]],
     mobile: ['', [optionalMobile10Validator()]],
-    firstName: ['', [Validators.required, Validators.maxLength(80)]],
-    email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
+    email: ['', [Validators.maxLength(160), optionalEmailValidator()]],
     gender: [''],
     organization: ['', [Validators.required, Validators.maxLength(160)]],
     employees: [''],
     annualRevenue: ['', Validators.maxLength(32)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
+    gst: ['', gstFormValidators()],
     territory: [''],
     industry: ['', Validators.required],
     status: ['', Validators.required],
@@ -592,8 +657,33 @@ export class LeadsComponent {
     });
   }
 
+  /** Stable fn refs — NgComponentOutlet output maps must not be recreated every CD cycle. */
+  private readonly importModalRequestClose = (): void => this.closeImportModal();
+
+  private readonly importModalRequestImportCompleted = (value: unknown): void =>
+    this.onLeadsImportCompleted(value as LeadImportCommitResult);
+
+  /** Stable output map for {@link NgComponentOutlet}. */
+  protected readonly importModalOutletOutputs: Record<string, (value: unknown) => void> = {
+    dismiss: () => this.closeImportModal(),
+    importCompleted: (value) => this.onLeadsImportCompleted(value as LeadImportCommitResult),
+  };
+
   protected openImportModal(): void {
     this.importModalOpen.set(true);
+    if (!this.importModalLazyComponent()) {
+      void import('./leads-import-modal-lazy.component').then((m) => {
+        this.importModalLazyComponent.set(m.LeadsImportModalLazyComponent);
+      });
+    }
+  }
+
+  protected importModalOutletInputs(): Record<string, unknown> {
+    return {
+      open: this.importModalOpen(),
+      requestClose: this.importModalRequestClose,
+      requestImportCompleted: this.importModalRequestImportCompleted,
+    };
   }
 
   protected closeImportModal(): void {
@@ -632,16 +722,15 @@ export class LeadsComponent {
     this.modalLeadSource.set('Manual');
     this.clearEditQuery();
     this.createForm.reset({
-      salutation: '',
-      lastName: '',
+      fullName: '',
       mobile: '',
-      firstName: '',
       email: '',
       gender: '',
       organization: '',
       employees: '',
       annualRevenue: '',
       website: '',
+      gst: '',
       territory: '',
       industry: '',
       status: '',
@@ -660,16 +749,15 @@ export class LeadsComponent {
     this.modalLeadSource.set('Manual');
     this.clearEditQuery();
     this.createForm.reset({
-      salutation: '',
-      lastName: '',
+      fullName: '',
       mobile: '',
-      firstName: '',
       email: '',
       gender: '',
       organization: '',
       employees: '',
       annualRevenue: '',
       website: '',
+      gst: '',
       territory: '',
       industry: '',
       status: '',
@@ -708,10 +796,8 @@ export class LeadsComponent {
           const ar = row.annualRevenue?.trim() ?? '';
           const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
           this.createForm.patchValue({
-            salutation: this.masterSelectControlValue(row.salutationId, row.salutation, this.salutationSelectOptions()),
-            lastName: row.lastName ?? '',
+            fullName: fullNameFromLeadParts(row),
             mobile: (row.mobile ?? '').replace(/\D/g, '').slice(-10) || row.mobile || '',
-            firstName: row.firstName ?? '',
             email: row.email ?? '',
             gender: row.gender ?? '',
             organization: row.organization ?? '',
@@ -722,6 +808,7 @@ export class LeadsComponent {
             ),
             annualRevenue: arInput,
             website: row.website ?? '',
+            gst: normalizeGstin(row.gst),
             territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
             industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
             status: this.masterSelectControlValue(row.leadStatusId, row.status, this.statusSelectOptions()),
@@ -1184,16 +1271,6 @@ export class LeadsComponent {
     return legacy ? legacy.name : name;
   }
 
-  private salutationLabelFromFormValue(value: string): string {
-    const v = value.trim();
-    if (!v) return '';
-    const n = Number(v);
-    if (Number.isFinite(n) && n > 0) {
-      return this.salutationSelectOptions().find((o) => o.id === n)?.name ?? '';
-    }
-    return v;
-  }
-
   private resolveMasterPick(
     rawValue: string,
     options: MasterDataOption[],
@@ -1215,11 +1292,6 @@ export class LeadsComponent {
       return { label: byName.name };
     }
     return { label: v };
-  }
-
-  private buildDisplayName(salutation: string, first: string, last: string): string {
-    const parts = [salutation.trim(), first.trim(), last.trim()].filter(Boolean);
-    return parts.join(' ').trim() || first.trim() || last.trim() || 'Lead';
   }
 
   protected submitLead(): void {
@@ -1250,7 +1322,6 @@ export class LeadsComponent {
     const initials = ownerOpt?.initials ?? leadOwnerId;
     const leadOwnerName = ownerOpt?.label ?? leadOwnerId;
 
-    const salPick = this.resolveMasterPick(raw.salutation, this.salutationSelectOptions());
     const empPick = this.resolveMasterPick(raw.employees, this.employeeSelectOptions());
     const terrPick = this.resolveMasterPick(raw.territory, this.territorySelectOptions());
     const rtPick = this.resolveMasterPick(raw.requestType, this.requestTypeSelectOptions());
@@ -1262,14 +1333,14 @@ export class LeadsComponent {
       );
       return;
     }
-    const salLabel = salPick.label;
+    const { firstName, lastName } = splitFullName(raw.fullName);
 
     const payload: Omit<LeadRow, 'id'> = {
-      salutation: salLabel || undefined,
-      salutationId: salPick.masterId,
-      firstName: raw.firstName.trim(),
-      lastName: raw.lastName.trim(),
-      name: this.buildDisplayName(this.salutationLabelFromFormValue(raw.salutation), raw.firstName, raw.lastName),
+      salutation: undefined,
+      salutationId: undefined,
+      firstName,
+      lastName,
+      name: buildLeadDisplayName('', firstName, lastName) || raw.fullName.trim(),
       mobile: raw.mobile.trim(),
       leadOwnerId,
       gender: raw.gender || undefined,
@@ -1279,6 +1350,7 @@ export class LeadsComponent {
       employeeCountId: empPick.masterId,
       annualRevenue: raw.annualRevenue.trim() || undefined,
       website: raw.website.trim() || undefined,
+      gst: normalizeGstin(raw.gst) || undefined,
       territory: terrPick.label || undefined,
       territoryId: terrPick.masterId,
       industry: indPick.label || 'Other',
@@ -1438,58 +1510,81 @@ export class LeadsComponent {
 
   /** Pulls IndiaMART leads from `environment.indiamart.pullApiUrl`. */
   protected syncIndiaMartFromApi(): void {
-    this.indiamartLeadsService
-      .fetchFromIndiaMartAPI()
-      .pipe(take(1))
-      .subscribe({
-        next: (r) => {
-          this.refreshLeads();
-          this.toast.success(
-            `IndiaMART sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
-          );
-        },
-        error: (e: unknown) =>
-          this.toast.error(e instanceof Error ? e.message : 'IndiaMART sync failed.'),
-      });
+    void this.ensureMarketplaceRuntime().then((rt) => {
+      const im = rt?.indiamart;
+      if (!im) return;
+      im.fetchFromApi()
+        .pipe(take(1))
+        .subscribe({
+          next: (r) => {
+            this.refreshMarketplaceLocalRows();
+            this.refreshLeads();
+            this.toast.success(
+              `IndiaMART sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
+            );
+          },
+          error: (e: unknown) =>
+            this.toast.error(e instanceof Error ? e.message : 'IndiaMART sync failed.'),
+        });
+    });
   }
 
   /** Pulls Justdial leads from `environment.justdial.pullApiUrl`. */
   protected syncJustdialFromApi(): void {
-    this.justdialLeadsService
-      .fetchFromAPI()
-      .pipe(take(1))
-      .subscribe({
-        next: (r) => {
-          this.refreshLeads();
-          this.toast.success(
-            `Justdial sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
-          );
-        },
-        error: (e: unknown) =>
-          this.toast.error(e instanceof Error ? e.message : 'Justdial sync failed.'),
-      });
+    void this.ensureMarketplaceRuntime().then((rt) => {
+      const jd = rt?.justdial;
+      if (!jd) return;
+      jd.fetchFromApi()
+        .pipe(take(1))
+        .subscribe({
+          next: (r) => {
+            this.refreshMarketplaceLocalRows();
+            this.refreshLeads();
+            this.toast.success(
+              `Justdial sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
+            );
+          },
+          error: (e: unknown) =>
+            this.toast.error(e instanceof Error ? e.message : 'Justdial sync failed.'),
+        });
+    });
   }
 
   /** Pulls TradeIndia leads from `environment.tradeindia.pullApiUrl`. */
   protected syncTradeIndiaFromApi(): void {
-    this.tradeindiaLeadsService
-      .fetchFromAPI()
-      .pipe(take(1))
-      .subscribe({
-        next: (r) => {
-          this.refreshLeads();
-          this.toast.success(
-            `TradeIndia sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
-          );
-        },
-        error: (e: unknown) =>
-          this.toast.error(e instanceof Error ? e.message : 'TradeIndia sync failed.'),
-      });
+    void this.ensureMarketplaceRuntime().then((rt) => {
+      const ti = rt?.tradeindia;
+      if (!ti) return;
+      ti.fetchFromApi()
+        .pipe(take(1))
+        .subscribe({
+          next: (r) => {
+            this.refreshMarketplaceLocalRows();
+            this.refreshLeads();
+            this.toast.success(
+              `TradeIndia sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
+            );
+          },
+          error: (e: unknown) =>
+            this.toast.error(e instanceof Error ? e.message : 'TradeIndia sync failed.'),
+        });
+    });
   }
+
+  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
+  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
 
   protected fieldInvalid(name: string): boolean {
     const c = this.createForm.get(name);
     return !!c && c.invalid && (c.dirty || c.touched);
+  }
+
+  protected gstFieldInvalid(): boolean {
+    return gstControlInvalid(this.createForm.controls.gst);
+  }
+
+  protected onGstinInput(ev: Event): void {
+    syncGstinInputFromEvent(ev, this.createForm.controls.gst);
   }
 
   protected statusClass(status: LeadStatus): string {

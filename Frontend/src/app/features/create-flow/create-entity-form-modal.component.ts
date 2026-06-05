@@ -29,6 +29,7 @@ import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pip
 import { resolveDealStatusLabel } from '../../core/services/deals/deal-status.constants';
 import {
   masterOptionFormValue,
+  masterSelectControlValue,
   resolveOrgMasterPick,
   resolveSalutationLabel,
   salutationSelectOptions,
@@ -43,6 +44,7 @@ import type { OrganizationRow } from '../organizations/organizations.component';
 import type { NoteRelatedType, NoteRow, NoteVisibility } from '../notes/notes.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import {
+  optionalEmailValidator,
   optionalMobile10Validator,
   optionalPhoneValidator,
   optionalUrlValidator,
@@ -50,6 +52,7 @@ import {
 import type { AssigneeOption, TaskPriority, TaskRow, TaskStatus } from '../tasks/tasks.component';
 import { resolveNumericRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
 import { initialsFromDisplayName } from '../../core/services/leads/lead-owner-options.service';
+import { splitFullName } from '../leads/lead-full-name.util';
 
 @Component({
   selector: 'app-create-entity-form-modal',
@@ -174,10 +177,9 @@ export class CreateEntityFormModalComponent {
     territory: [''],
     industry: ['Technology', Validators.required],
     salutation: [''],
-    lastName: ['', [Validators.required, Validators.maxLength(120)]],
+    fullName: ['', [Validators.required, Validators.maxLength(200)]],
     primaryMobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
-    firstName: ['', [Validators.required, Validators.maxLength(80)]],
-    primaryEmail: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
+    primaryEmail: ['', [Validators.maxLength(160), optionalEmailValidator()]],
     gender: [''],
     status: this.fb.nonNullable.control<string>(DEFAULT_DEAL_PIPELINE_STATUS, Validators.required),
     dealOwner: [this.leadOwnerOpts.defaultOwnerId(), Validators.required],
@@ -223,19 +225,31 @@ export class CreateEntityFormModalComponent {
   });
 
   constructor() {
-    this.leadOwnerOpts.load();
-    this.leadMasterData
-      .loadSalutations()
-      .pipe(take(1))
-      .subscribe((rows) => this.salutationsFromApi.set(rows));
-    this.leadMasterData
-      .loadLeadStatuses()
-      .pipe(take(1))
-      .subscribe((rows) => this.leadStatusesFromApi.set(rows));
     effect(() => {
       const k = this.flow.formKind();
-      if (!k) return;
-      untracked(() => this.resetFor(k));
+      if (!k) {
+        return;
+      }
+      untracked(() => {
+        this.resetFor(k);
+        this.leadOwnerOpts.load();
+        this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
+        if (k === 'lead' || k === 'deal' || k === 'contact') {
+          this.leadMasterData
+            .loadSalutations()
+            .pipe(take(1))
+            .subscribe((rows) => this.salutationsFromApi.set(rows));
+        }
+        if (k === 'lead') {
+          this.leadMasterData
+            .loadLeadStatuses()
+            .pipe(take(1))
+            .subscribe((rows) => this.leadStatusesFromApi.set(rows));
+        }
+        if (k === 'organization') {
+          this.orgMaster.ensureLoaded().pipe(take(1)).subscribe();
+        }
+      });
     });
   }
 
@@ -356,12 +370,15 @@ export class CreateEntityFormModalComponent {
           territory: '',
           industry: masterOptionFormValue(this.dealMaster.industrySelectOptions()[0] ?? { id: 0, name: 'Technology' }),
           salutation: '',
-          lastName: '',
+          fullName: '',
           primaryMobile: '',
-          firstName: '',
           primaryEmail: '',
           gender: '',
-          status: masterOptionFormValue(this.dealMaster.statusSelectOptions()[0] ?? { id: 0, name: DEFAULT_DEAL_PIPELINE_STATUS }),
+          status: masterSelectControlValue(
+            undefined,
+            DEFAULT_DEAL_PIPELINE_STATUS,
+            this.dealMaster.statusSelectOptions(),
+          ),
           dealOwner: this.leadOwnerOpts.defaultOwnerId(),
           requirement: '',
         });
@@ -601,6 +618,7 @@ export class CreateEntityFormModalComponent {
     const indPick = resolveOrgMasterPick(raw.industry, this.dealMaster.industrySelectOptions());
     const statPick = resolveOrgMasterPick(raw.status, this.dealMaster.statusSelectOptions());
     const salLabel = resolveSalutationLabel(raw.salutation, this.dealMaster.salutationSelectOptions());
+    const { firstName, lastName } = splitFullName(raw.fullName);
 
     const payload: Omit<DealRow, 'id'> = {
       organizationName: raw.organizationName.trim(),
@@ -614,8 +632,8 @@ export class CreateEntityFormModalComponent {
       industryId: indPick.masterId,
       salutation: salLabel,
       salutationId: salPick.masterId,
-      firstName: raw.firstName.trim(),
-      lastName: raw.lastName.trim(),
+      firstName,
+      lastName,
       email: emailTrim,
       mobile: raw.primaryMobile.trim(),
       gender: raw.gender,

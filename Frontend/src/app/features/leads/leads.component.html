@@ -75,11 +75,15 @@
     (dismiss)="onBulkDismiss()"
   />
 
-  <app-import-leads-modal
-    [open]="importModalOpen()"
-    (dismiss)="closeImportModal()"
-    (importCompleted)="onLeadsImportCompleted($event)"
-  />
+  @if (importModalOpen() && importModalLazyComponent(); as importCmp) {
+    <ng-container
+      *ngComponentOutlet="
+        importCmp;
+        inputs: importModalOutletInputs();
+        outputs: importModalOutletOutputs
+      "
+    />
+  }
 
   <app-convert-lead-modal
     [open]="convertModalOpen()"
@@ -132,26 +136,15 @@
             <h3 class="leads__form-section-title">Personal information</h3>
             <div class="leads__form-grid leads__form-grid--3">
               <label class="leads__field">
-                <span class="leads__label">Salutation</span>
-                <select class="leads__control leads__control--soft" formControlName="salutation">
-                  <option value="">— Select —</option>
-                  @for (opt of salutationSelectOptions(); track opt.id + opt.name) {
-                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-                  }
-                </select>
-              </label>
-              <label class="leads__field">
-                <span class="leads__label">First name <span class="leads__req">*</span></span>
-                <input class="leads__control leads__control--soft" type="text" formControlName="firstName" autocomplete="given-name" />
-                @if (fieldInvalid('firstName')) {
-                  <span class="leads__err">First name is required.</span>
-                }
-              </label>
-              <label class="leads__field">
-                <span class="leads__label">Last name <span class="leads__req">*</span></span>
-                <input class="leads__control leads__control--soft" type="text" formControlName="lastName" autocomplete="family-name" />
-                @if (fieldInvalid('lastName')) {
-                  <span class="leads__err">Last name is required.</span>
+                <span class="leads__label">Full name <span class="leads__req">*</span></span>
+                <input
+                  class="leads__control leads__control--soft"
+                  type="text"
+                  formControlName="fullName"
+                  autocomplete="name"
+                />
+                @if (fieldInvalid('fullName')) {
+                  <span class="leads__err">Full name is required.</span>
                 }
               </label>
               <label class="leads__field">
@@ -162,7 +155,7 @@
                 }
               </label>
               <label class="leads__field">
-                <span class="leads__label">Email <span class="leads__req">*</span></span>
+                <span class="leads__label">Email</span>
                 <input
                   class="leads__control leads__control--soft"
                   type="email"
@@ -172,8 +165,6 @@
                 />
                 @if (createForm.get('email')?.errors?.['duplicate']) {
                   <span class="leads__err">A lead with this email already exists.</span>
-                } @else if (fieldInvalid('email') && createForm.get('email')?.errors?.['required']) {
-                  <span class="leads__err">Email is required.</span>
                 } @else if (fieldInvalid('email') && createForm.get('email')?.errors?.['email']) {
                   <span class="leads__err">Use a valid email address.</span>
                 }
@@ -224,6 +215,22 @@
                 <input class="leads__control leads__control--soft" type="text" formControlName="website" placeholder="https://" />
                 @if (fieldInvalid('website') && createForm.get('website')?.errors?.['url']) {
                   <span class="leads__err">Enter a valid website URL.</span>
+                }
+              </label>
+              <label class="leads__field">
+                <span class="leads__label">GSTIN</span>
+                <input
+                  class="leads__control leads__control--soft"
+                  type="text"
+                  formControlName="gst"
+                  placeholder="e.g. 27AAJCB6955B1ZM"
+                  autocomplete="off"
+                  maxlength="15"
+                  spellcheck="false"
+                  (input)="onGstinInput($event)"
+                />
+                @if (gstFieldInvalid() && createForm.get('gst')?.errors?.[gstinErrorKey]) {
+                  <span class="leads__err">{{ gstinErrorMessage }}</span>
                 }
               </label>
               <label class="leads__field">
@@ -289,15 +296,17 @@
                   </span>
                 }
               </label>
-              <label class="leads__field">
-                <span class="leads__label">Request type</span>
-                <select class="leads__control leads__control--soft" formControlName="requestType">
-                  <option value="">— Select —</option>
-                  @for (opt of requestTypeSelectOptions(); track opt.id + opt.name) {
-                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-                  }
-                </select>
-              </label>
+              @if (showRequestTypeField) {
+                <label class="leads__field">
+                  <span class="leads__label">Request type</span>
+                  <select class="leads__control leads__control--soft" formControlName="requestType">
+                    <option value="">— Select —</option>
+                    @for (opt of requestTypeSelectOptions(); track opt.id + opt.name) {
+                      <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
+                    }
+                  </select>
+                </label>
+              }
               <label class="leads__field leads__field--full">
                 <span class="leads__label">Requirement <span class="leads__req">*</span></span>
                 <input
@@ -439,15 +448,6 @@
         <table class="leads__table">
           <thead>
             <tr>
-              <th class="leads__th leads__th--check">
-                <input
-                  type="checkbox"
-                  class="leads__checkbox"
-                  [checked]="allSelectedFiltered()"
-                  (change)="toggleSelectAllFiltered()"
-                  aria-label="Select all visible leads"
-                />
-              </th>
               @for (column of visibleColumns(); track column.id) {
                 <th [class.leads__th--mobile]="column.id === 'mobile'">{{ column.label }}</th>
               }
@@ -457,15 +457,6 @@
           <tbody>
             @for (row of paginatedFiltered(); track row.id) {
               <tr>
-                <td class="leads__td leads__td--check">
-                  <input
-                    type="checkbox"
-                    class="leads__checkbox"
-                    [checked]="sel.isSelected(row.id)"
-                    (change)="toggleRowSelection(row.id, $event)"
-                    [attr.aria-label]="'Select ' + row.name"
-                  />
-                </td>
                 @for (column of visibleColumns(); track column.id) {
                   <td
                     [class.leads__strong]="column.id === 'name'"

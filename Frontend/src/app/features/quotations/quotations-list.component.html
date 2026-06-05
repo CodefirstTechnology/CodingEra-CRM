@@ -1,0 +1,145 @@
+<div class="quotations">
+  <header class="quotations__head">
+    <div>
+      <h1 class="quotations__title">Quotations</h1>
+      <p class="quotations__sub">Create and manage customer quotations from draft through approval.</p>
+    </div>
+    <button type="button" class="quotations__btn" (click)="createQuotation()">+ Create quotation</button>
+  </header>
+
+  <div class="quotations__toolbar quotations-card">
+    <form [formGroup]="filterForm" class="quotations__filters">
+      <label class="quotations__filter-field">
+        <span class="quotations__filter-label">Status</span>
+        <select class="quotations__filter-select" formControlName="status" (change)="refresh()">
+          <option value="">All statuses</option>
+          @for (st of statusOptions; track st) {
+            <option [value]="st">{{ st }}</option>
+          }
+        </select>
+      </label>
+      <label class="quotations__search">
+        <span class="visually-hidden">Search quotations</span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="8" />
+          <path d="m21 21-4.3-4.3" />
+        </svg>
+        <input
+          type="search"
+          class="quotations__search-input"
+          formControlName="search"
+          placeholder="Number, customer, company, email…"
+        />
+      </label>
+      <button type="button" class="quotations__btn quotations__btn--ghost" (click)="refresh()">Refresh</button>
+    </form>
+  </div>
+
+  <div class="quotations__card quotations-card">
+    <div class="quotations__scroll">
+      <table class="quotations__table">
+        <thead>
+          <tr class="quotations__thead-row">
+            <th class="quotations__th">Quotation #</th>
+            <th class="quotations__th quotations__th--date">Date</th>
+            <th class="quotations__th">Customer</th>
+            <th class="quotations__th">Company</th>
+            <th class="quotations__th quotations__th--status">Status</th>
+            <th class="quotations__th quotations__th--num">Total</th>
+            @if (showCreatedByColumn()) {
+              <th class="quotations__th quotations__th--creator">Created by</th>
+            }
+            <th class="quotations__th quotations__th--actions">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loading()) {
+            <tr>
+              <td class="quotations__td quotations__td--empty" [attr.colspan]="tableColSpan()">Loading…</td>
+            </tr>
+          } @else if (rows().length === 0) {
+            <tr>
+              <td class="quotations__td quotations__td--empty" [attr.colspan]="tableColSpan()">No quotations found.</td>
+            </tr>
+          } @else {
+            @for (row of rows(); track row.id) {
+              <tr class="quotations__row">
+                <td class="quotations__td quotations__td--number">
+                  <a class="quotations__link" [routerLink]="['/quotations', row.id]">{{ row.quotationNumber || '—' }}</a>
+                </td>
+                <td class="quotations__td quotations__td--muted">{{ row.quotationDate | date: 'mediumDate' }}</td>
+                <td class="quotations__td">{{ row.customerName }}</td>
+                <td class="quotations__td">{{ row.companyName }}</td>
+                <td class="quotations__td">
+                  <span class="quotations-pill quotations-pill--{{ statusClass(row.status) }}">{{ row.status }}</span>
+                </td>
+                <td class="quotations__td quotations__td--num">₹ {{ row.grandTotal | number: '1.2-2' }}</td>
+                @if (showCreatedByColumn()) {
+                  <td class="quotations__td quotations__td--creator">{{ row.createdByName?.trim() || '—' }}</td>
+                }
+                <td class="quotations__td quotations__td--actions">
+                  <div class="quotations__actions">
+                    <button
+                      type="button"
+                      class="quotations__action-btn"
+                      aria-label="View quotation"
+                      title="View"
+                      (click)="viewRow(row.id)"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                    @if (!row.dealClosed) {
+                      <button
+                        type="button"
+                        class="quotations__action-btn"
+                        aria-label="Edit quotation"
+                        title="Edit"
+                        (click)="editRow(row.id)"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M12 20h9" />
+                          <path d="M16.5 3.5a2.12 2.12 0 1 1 3 3L7 19l-4 1 1-4Z" />
+                        </svg>
+                      </button>
+                    }
+                    <button
+                      type="button"
+                      class="quotations__action-btn"
+                      aria-label="Duplicate quotation"
+                      title="Duplicate"
+                      (click)="duplicateRow(row.id)"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="9" y="9" width="13" height="13" rx="2" />
+                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                      </svg>
+                    </button>
+                    @if (!row.dealClosed) {
+                      <button
+                        type="button"
+                        class="quotations__action-btn quotations__action-btn--danger"
+                        aria-label="Delete quotation"
+                        title="Delete"
+                        (click)="deleteRow(row.id, row.quotationNumber)"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M3 6h18" />
+                          <path d="M8 6V4h8v2" />
+                          <path d="M19 6l-1 14H6L5 6" />
+                          <path d="M10 11v6M14 11v6" />
+                        </svg>
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>

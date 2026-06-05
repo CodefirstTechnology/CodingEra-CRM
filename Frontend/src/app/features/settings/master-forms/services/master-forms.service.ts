@@ -4,6 +4,7 @@ import { Observable, catchError, map, of, timeout } from 'rxjs';
 import { environment } from '../../../../../environments/environment';
 import { AuthService } from '../../../../core/auth/auth.service';
 import type {
+  DealStatusReorderItem,
   MasterFormEntitySlug,
   MasterFormRow,
   MasterFormSaveResult,
@@ -40,12 +41,19 @@ function mapRow(raw: Record<string, unknown>): MasterFormRow | null {
     createdAt = createdRaw.trim();
   }
 
+  const sortOrderRaw = raw['sortOrder'] ?? raw['sort_order'] ?? raw['SortOrder'];
+  const sortOrder =
+    typeof sortOrderRaw === 'number' && Number.isFinite(sortOrderRaw) ? Math.trunc(sortOrderRaw) : undefined;
+
   return {
     id: Math.trunc(id),
     name,
     description,
     isActive: isActive !== false && isActive !== 'false' && isActive !== 0,
     createdAt,
+    sortOrder,
+    isWon: raw['isWon'] === true || raw['is_won'] === true || raw['IsWon'] === true,
+    isLost: raw['isLost'] === true || raw['is_lost'] === true || raw['IsLost'] === true,
   };
 }
 
@@ -81,6 +89,29 @@ export class MasterFormsService {
     payload: MasterFormUpsertPayload,
   ): Observable<MasterFormSaveResult> {
     return this.upsert(entity, 'PUT', { ...payload, id }, id);
+  }
+
+  reorderDealStatuses(items: DealStatusReorderItem[]): Observable<MasterFormSaveResult> {
+    const base = this.apiBase();
+    if (!base) {
+      return of({ ok: false, error: 'API URL is not configured.' });
+    }
+
+    return this.http
+      .put<unknown>(`${base}/master-data/deal-statuses/reorder`, { items }, { headers: this.jsonHeaders() })
+      .pipe(
+        timeout(15000),
+        map((raw): MasterFormSaveResult => {
+          const rows = extractRows(raw)
+            .map((row) => mapRow(row))
+            .filter((row): row is MasterFormRow => row != null);
+          if (rows.length === 0) {
+            return { ok: false, error: 'Unexpected response from server.' };
+          }
+          return { ok: true, row: rows[0] };
+        }),
+        catchError((err) => of(this.mapError(err))),
+      );
   }
 
   setActive(
@@ -119,12 +150,17 @@ export class MasterFormsService {
       return of({ ok: false, error: 'API URL is not configured.' });
     }
 
-    const body = {
+    const body: Record<string, unknown> = {
       id: payload.id ?? 0,
       name: payload.name.trim(),
       description: payload.description.trim(),
       isActive: payload.isActive,
     };
+    if (entity === 'deal-statuses') {
+      if (payload.sortOrder != null && payload.sortOrder > 0) body['sortOrder'] = payload.sortOrder;
+      if (payload.isWon != null) body['isWon'] = payload.isWon;
+      if (payload.isLost != null) body['isLost'] = payload.isLost;
+    }
 
     const url =
       method === 'POST' ? `${base}/master-data/${entity}` : `${base}/master-data/${entity}/${id}`;

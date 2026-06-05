@@ -1,6 +1,6 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
-import { forkJoin, of } from 'rxjs';
-import { catchError, take } from 'rxjs/operators';
+import { forkJoin, Observable, of } from 'rxjs';
+import { catchError, map, shareReplay, take, tap } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import {
   labelsToMasterOptions,
@@ -38,26 +38,37 @@ export class OrganizationMasterSelectService {
   readonly employeeSelectOptions = computed(() => this.employees());
   readonly territorySelectOptions = computed(() => this.territories());
 
-  constructor() {
-    const base = environment.apiUrl?.trim();
-    if (!base) return;
+  private ready$?: Observable<void>;
 
-    forkJoin({
+  /** Loads org form master data on first use (not at app shell startup). */
+  ensureLoaded(): Observable<void> {
+    if (this.ready$) {
+      return this.ready$;
+    }
+    const base = environment.apiUrl?.trim();
+    if (!base) {
+      this.ready$ = of(undefined);
+      return this.ready$;
+    }
+
+    this.ready$ = forkJoin({
       industries: this.master.loadIndustries(),
       employees: this.master.loadEmployeeCounts(),
       territories: this.master.loadTerritories(),
-    })
-      .pipe(
-        take(1),
-        catchError(() => of({ industries: [] as MasterDataOption[], employees: [], territories: [] })),
-      )
-      .subscribe(({ industries, employees, territories }) => {
+    }).pipe(
+      catchError(() => of({ industries: [] as MasterDataOption[], employees: [], territories: [] })),
+      take(1),
+      tap(({ industries, employees, territories }) => {
         this.industries.set(mergeApiOrFallback(industries, INDUSTRY_FALLBACK));
         this.employees.set(mergeApiOrFallback(employees, EMPLOYEE_FALLBACK));
         const tMid = territories.length
           ? territories
           : labelsToMasterOptions([...ORG_TERRITORY_FALLBACK_LABELS]);
         this.territories.set(territoryWithBlank(tMid));
-      });
+      }),
+      map(() => undefined),
+      shareReplay(1),
+    );
+    return this.ready$;
   }
 }

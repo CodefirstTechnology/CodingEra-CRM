@@ -3,6 +3,7 @@ import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pip
 import type { DealRow } from '../../features/deals/deals.component';
 import type { LeadRow, LeadStatus } from '../../features/leads/lead-row.model';
 import { leadContactName } from './lead-conversion.util';
+import { normalizeGstin } from './gstin.util';
 
 /**
  * Backend-friendly DTO for creating a deal from a lead (reuse with HttpClient later).
@@ -48,18 +49,10 @@ export function mapLeadToDealDraft(lead: LeadRow): LeadToDealDraft {
 }
 
 export function mapLeadStatusToDealPipelineStatus(status: LeadStatus): DealPipelineStatus {
-  switch (status) {
-    case 'Qualified':
-      return 'Quotation Shared';
-    case 'Lost':
-      return 'Lead Closed - Lost';
-    case 'Contacted':
-      return 'Quotation Shared';
-    case 'Converted':
-      return DEFAULT_DEAL_PIPELINE_STATUS;
-    default:
-      return DEFAULT_DEAL_PIPELINE_STATUS;
+  if (status === 'Lost') {
+    return 'Lead Closed - Lost';
   }
+  return DEFAULT_DEAL_PIPELINE_STATUS;
 }
 
 /**
@@ -83,7 +76,8 @@ export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
   const ownerId = (lead.leadOwnerId ?? '').trim();
   const contactName = leadContactName(lead);
   const createdAt = new Date().toISOString();
-  const orgId = lead.organizationId?.trim();
+  const orgFk = lead.organizationId?.trim();
+  const orgId = orgFk && Number(orgFk) > 0 ? orgFk : undefined;
   return {
     dealTitle: draft.title,
     contactName,
@@ -92,6 +86,7 @@ export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
     employeeCountId: lead.employeeCountId ?? undefined,
     annualRevenue: parseLeadNumericValue(lead),
     website: (lead.website ?? '').trim(),
+    gst: normalizeGstin(lead.gst),
     territory: (lead.territory ?? '').trim(),
     territoryId: lead.territoryId ?? undefined,
     industry: (lead.industry ?? '').trim() || 'Other',
@@ -114,6 +109,7 @@ export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
     notes: (lead.notes ?? '').trim() || undefined,
     source: 'lead_conversion',
     sourceLeadId: lead.id,
-    relatedOrganizationId: orgId && Number(orgId) > 0 ? orgId : undefined,
+    organizationId: orgId,
+    relatedOrganizationId: orgId,
   };
 }

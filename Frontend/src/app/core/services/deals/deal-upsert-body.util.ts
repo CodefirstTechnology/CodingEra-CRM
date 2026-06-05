@@ -1,4 +1,5 @@
 import type { DealNormalized, DealUpsertDto } from './deal-api.models';
+import { normalizeGstin } from '../../../shared/utils/gstin.util';
 import { DEFAULT_DEAL_PIPELINE_STATUS } from './deal-pipeline.constants';
 
 const DEFAULT_DEAL_GENDER = 'Other';
@@ -23,6 +24,7 @@ export function stripDealUpsertForPost(dto: DealUpsertDto): Record<string, unkno
     gender: dto.gender?.trim() || DEFAULT_DEAL_GENDER,
     employees: dto.employees?.trim() || '1-10',
     website: dto.website?.trim() || '',
+    gst: normalizeGstin(dto.gst),
     territory: dto.territory?.trim() || '',
     industry: dto.industry?.trim() || 'Technology',
     status: dto.status?.trim() || DEFAULT_DEAL_PIPELINE_STATUS,
@@ -64,8 +66,14 @@ export function stripDealUpsertForPost(dto: DealUpsertDto): Record<string, unkno
   if (dto.relatedContactId != null && dto.relatedContactId > 0) {
     body['relatedContactId'] = dto.relatedContactId;
   }
-  if (dto.relatedOrganizationId != null && dto.relatedOrganizationId > 0) {
-    body['relatedOrganizationId'] = dto.relatedOrganizationId;
+  const relatedOrgId =
+    dto.relatedOrganizationId != null && dto.relatedOrganizationId > 0
+      ? dto.relatedOrganizationId
+      : dto.organizationId != null && dto.organizationId > 0
+        ? dto.organizationId
+        : null;
+  if (relatedOrgId != null) {
+    body['relatedOrganizationId'] = relatedOrgId;
   }
 
   return body;
@@ -85,6 +93,7 @@ export function buildDealPutJson(dto: DealUpsertDto, previous: DealNormalized): 
     gender: dto.gender?.trim() || previous.gender?.trim() || DEFAULT_DEAL_GENDER,
     employees: dto.employees?.trim() || previous.employees?.trim() || '1-10',
     website: dto.website?.trim() ?? previous.website ?? '',
+    gst: normalizeGstin(dto.gst ?? previous.gst),
     territory: dto.territory?.trim() ?? previous.territory ?? '',
     industry: dto.industry?.trim() || previous.industry?.trim() || 'Technology',
     status: dto.status?.trim() || previous.status?.trim() || DEFAULT_DEAL_PIPELINE_STATUS,
@@ -161,7 +170,13 @@ export function buildDealPutJson(dto: DealUpsertDto, previous: DealNormalized): 
   const relatedOrganizationId =
     dto.relatedOrganizationId != null && dto.relatedOrganizationId > 0
       ? dto.relatedOrganizationId
-      : previous.relatedOrganizationId;
+      : dto.organizationId != null && dto.organizationId > 0
+        ? dto.organizationId
+        : previous.relatedOrganizationId != null && previous.relatedOrganizationId > 0
+          ? previous.relatedOrganizationId
+          : previous.organizationId != null && previous.organizationId > 0
+            ? previous.organizationId
+            : null;
   if (relatedOrganizationId != null && relatedOrganizationId > 0) {
     body['relatedOrganizationId'] = relatedOrganizationId;
   }

@@ -4,7 +4,8 @@ import { catchError, map, switchMap } from 'rxjs/operators';
 import type { TaskRow } from '../../features/tasks/tasks.component';
 import { filterTasksForUser } from '../../features/user-dashboard/utils/user-ownership.util';
 import { AuthService } from '../auth/auth.service';
-import { AdminUsersService, type AdminUserRow } from './admin-users.service';
+import type { AdminUserRow } from './admin-users.service';
+import { CrmEntityCacheService } from './crm-entity-cache.service';
 import { initialsFromDisplayName } from './leads/lead-owner-options.service';
 import { LeadsService } from './leads.service';
 import { DealsService } from './deals.service';
@@ -21,7 +22,7 @@ import {
 export class TasksService {
   private readonly taskHttp = inject(TaskHttpService);
   private readonly auth = inject(AuthService);
-  private readonly adminUsers = inject(AdminUsersService);
+  private readonly entityCache = inject(CrmEntityCacheService);
   private readonly leadsService = inject(LeadsService);
   private readonly dealsService = inject(DealsService);
 
@@ -87,8 +88,8 @@ export class TasksService {
   private enrichRows(source: Observable<TaskRow[]>): Observable<TaskRow[]> {
     return this.withUsers((users) =>
       forkJoin({
-        leads: this.leadsService.getAll().pipe(catchError(() => of([]))),
-        deals: this.dealsService.getAll().pipe(catchError(() => of([]))),
+        leads: this.entityCache.listLeads().pipe(catchError(() => of([]))),
+        deals: this.entityCache.listDeals().pipe(catchError(() => of([]))),
       }).pipe(
         switchMap(({ leads, deals }) => {
           const leadNames = buildLeadNameByIdMap(leads);
@@ -108,8 +109,8 @@ export class TasksService {
   private enrichRow(source: Observable<TaskRow | null>): Observable<TaskRow | null> {
     return this.withUsers((users) =>
       forkJoin({
-        leads: this.leadsService.getAll().pipe(catchError(() => of([]))),
-        deals: this.dealsService.getAll().pipe(catchError(() => of([]))),
+        leads: this.entityCache.listLeads().pipe(catchError(() => of([]))),
+        deals: this.entityCache.listDeals().pipe(catchError(() => of([]))),
       }).pipe(
         switchMap(({ leads, deals }) => {
           const leadNames = buildLeadNameByIdMap(leads);
@@ -148,7 +149,7 @@ export class TasksService {
   }
 
   private withUsers<T>(project: (users: AdminUserRow[]) => Observable<T>): Observable<T> {
-    return this.adminUsers.listUsers(this.auth.token()).pipe(
+    return this.entityCache.listUsers().pipe(
       catchError(() => of([] as AdminUserRow[])),
       switchMap((users) => project(users)),
     );

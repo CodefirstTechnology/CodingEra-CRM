@@ -13,6 +13,7 @@ export interface DealNormalized {
   annualRevenue: number | null;
   employees: string;
   website: string;
+  gst?: string;
   territory: string;
   industry: string;
   status: string;
@@ -33,6 +34,7 @@ export interface DealNormalized {
   territoryId?: number | null;
   industryId?: number | null;
   dealStatusId?: number | null;
+  lostReason?: string;
 }
 
 /** Body for `POST` / `PUT /api/deals` per Swagger `DealUpsertDto`. */
@@ -50,6 +52,7 @@ export interface DealUpsertDto {
   annualRevenue?: number | null;
   employees?: string | null;
   website?: string | null;
+  gst?: string | null;
   territory?: string | null;
   industry?: string | null;
   status?: string | null;
@@ -62,6 +65,7 @@ export interface DealUpsertDto {
   probabilityPercent?: number | null;
   nextStep?: string | null;
   nextFollowUpDate?: string | null;
+  lostReason?: string | null;
 }
 
 /** @deprecated Use {@link DealNormalized} / {@link DealUpsertDto}. */

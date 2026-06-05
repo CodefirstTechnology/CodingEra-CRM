@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
-import { isAdmin } from '../auth/auth-role.util';
+import { map, Observable } from 'rxjs';
+import { canViewAllQuotations, isAdmin } from '../auth/auth-role.util';
 import { AuthService } from '../auth/auth.service';
 import type { DealRow } from '../../features/deals/deals.component';
 import type { LeadRow } from '../../features/leads/lead-row.model';
@@ -16,6 +16,9 @@ import { DealsService } from './deals.service';
 import { LeadsService } from './leads.service';
 import { NotesService } from './notes.service';
 import { TasksService } from './tasks.service';
+import { QuotationsService } from './quotations.service';
+import type { QuotationListItem } from './quotations/quotation-api.models';
+import type { QuotationListQuery } from './quotations/quotation-http.service';
 
 /**
  * Returns list observables scoped to the logged-in user when `role_id` is User (1).
@@ -28,9 +31,14 @@ export class UserDataScopeService {
   private readonly dealsService = inject(DealsService);
   private readonly tasksService = inject(TasksService);
   private readonly notesService = inject(NotesService);
+  private readonly quotationsService = inject(QuotationsService);
 
   isAdminSession(): boolean {
     return isAdmin(this.auth.user());
+  }
+
+  canViewAllQuotations(): boolean {
+    return canViewAllQuotations(this.auth.user());
   }
 
   private sessionIds(): { userId: string; name: string; email: string } | null {
@@ -58,6 +66,25 @@ export class UserDataScopeService {
     if (!session) return this.tasksService.getAll();
     if (this.isAdminSession()) return this.tasksService.getAll();
     return this.tasksService.getAssignedToUser(session.userId, session.name, session.email);
+  }
+
+  /**
+   * Quotations list — scoped on the API by `created_by` for standard users.
+   * Applies an extra client filter when `createdBy` is present on rows.
+   */
+  listQuotations(query?: QuotationListQuery): Observable<QuotationListItem[]> {
+    return this.quotationsService.list(query).pipe(
+      map((rows) => this.filterQuotations(rows)),
+    );
+  }
+
+  filterQuotations(rows: QuotationListItem[]): QuotationListItem[] {
+    if (this.canViewAllQuotations()) return rows;
+    const session = this.sessionIds();
+    if (!session) return rows;
+    const uid = Number(session.userId);
+    if (!Number.isFinite(uid) || uid <= 0) return rows;
+    return rows.filter((r) => r.createdBy == null || r.createdBy === uid);
   }
 
   listNotes(leadIds: ReadonlySet<string> = new Set(), dealIds: ReadonlySet<string> = new Set()): Observable<NoteRow[]> {

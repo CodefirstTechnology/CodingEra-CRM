@@ -1,6 +1,5 @@
 /** Column headers for the lead import Excel template (row 1). */
 export const LEAD_IMPORT_TEMPLATE_COLUMNS = [
-  'Salutation',
   'First Name',
   'Last Name',
   'Mobile',
@@ -22,7 +21,6 @@ export type LeadImportTemplateColumn = (typeof LEAD_IMPORT_TEMPLATE_COLUMNS)[num
 
 /** Row 2 in downloadable templates — Required/Optional hints aligned with columns. */
 export const LEAD_IMPORT_TEMPLATE_HINT_ROW = [
-  'Optional',
   'Required',
   'Required',
   'Required',

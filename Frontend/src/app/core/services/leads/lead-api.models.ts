@@ -12,6 +12,7 @@ export interface LeadOrganizationRef {
   id: number;
   name?: string | null;
   website?: string | null;
+  gst?: string | null;
   annualRevenue?: number | null;
   industry?: MasterDataRef | string | null;
   employeeCount?: MasterDataRef | string | null;
@@ -41,6 +42,7 @@ export interface LeadNormalized {
   employees: string;
   annualRevenue: number | null;
   website: string;
+  gst?: string;
   leadStatusId: number | null;
   statusName: string;
   requestTypeId: number | null;

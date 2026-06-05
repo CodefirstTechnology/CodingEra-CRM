@@ -1,0 +1,198 @@
+<section class="qt-form__section quotations-card" aria-label="Quotation line items">
+  <div class="qt-form__section-head">
+    <h2 class="qt-form__section-title">Line items</h2>
+    <div class="qt-grid__toolbar-actions">
+      <input
+        type="search"
+        class="qt-form__control qt-grid__search"
+        placeholder="Search items…"
+        [value]="searchQuery()"
+        (input)="searchQuery.set($any($event.target).value)"
+        aria-label="Search line items"
+      />
+      <button type="button" class="qt-form__btn qt-form__btn--outline qt-form__btn--sm" (click)="openConfig()">
+        Columns
+      </button>
+    </div>
+  </div>
+
+  <div class="qt-form__lines-scroll">
+    <table class="qt-form__lines-table qt-grid__table">
+      <thead>
+        <tr>
+          <th class="qt-form__lines-th qt-grid__th--drag" scope="col" aria-label="Reorder"></th>
+          <th class="qt-form__lines-th qt-form__lines-th--idx" scope="col">#</th>
+          @for (col of visibleColumns(); track col.key) {
+            <th
+              class="qt-form__lines-th"
+              [class.qt-form__lines-th--num]="isNumericColumn(col.key)"
+              scope="col"
+              [style.min-width]="columnWidth(col)"
+            >
+              {{ col.label }}
+            </th>
+          }
+          <th class="qt-form__lines-th qt-form__lines-th--act" scope="col"></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (rowIndex of filteredIndices(); track rowIndex) {
+          <tr
+            class="qt-grid__row"
+            [formGroup]="lineAt(rowIndex)"
+            [class.qt-grid__row--dragging]="dragRowIndex() === rowIndex"
+          >
+            <td
+              class="qt-form__lines-td qt-grid__td--drag"
+              draggable="true"
+              (dragstart)="onRowDragStart(rowIndex, $event)"
+              (dragover)="onRowDragOver($event)"
+              (drop)="onRowDrop(rowIndex, $event)"
+              aria-hidden="true"
+              title="Drag to reorder"
+            >
+              ⋮⋮
+            </td>
+            <td class="qt-form__lines-td qt-form__lines-td--idx">{{ rowIndex + 1 }}</td>
+            @for (col of visibleColumns(); track col.key) {
+              <td
+                class="qt-form__lines-td"
+                [class.qt-form__lines-td--num]="isNumericColumn(col.key)"
+                [style.min-width]="columnWidth(col)"
+              >
+                @if (formControlName(col); as ctrlName) {
+                  @if (col.key === 'amount') {
+                    <span class="qt-grid__amount">{{ displayAmount(rowIndex) | number: '1.2-4' }}</span>
+                  } @else if (isNumericColumn(col.key)) {
+                    <input
+                      type="number"
+                      step="any"
+                      class="qt-form__control qt-form__control--compact"
+                      [formControlName]="ctrlName"
+                      (input)="onLineInput(rowIndex)"
+                    />
+                  } @else {
+                    <input
+                      type="text"
+                      class="qt-form__control qt-form__control--compact"
+                      [formControlName]="ctrlName"
+                      (input)="onLineInput(rowIndex)"
+                    />
+                  }
+                }
+              </td>
+            }
+            <td class="qt-form__lines-td qt-form__lines-td--act">
+              <button
+                type="button"
+                class="qt-form__line-remove"
+                (click)="removeRow(rowIndex)"
+                [disabled]="lineItems().length <= 1"
+                aria-label="Remove row"
+              >
+                ×
+              </button>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td [attr.colspan]="visibleColumns().length + 3" class="qt-grid__empty">
+              No rows match your search.
+            </td>
+          </tr>
+        }
+      </tbody>
+      <div class="no-parent-style">
+        <button type="button" class="qt-form__btn qt-form__btn--outline qt-form__btn--sm" (click)="addRow()">
+           Add
+        </button>
+      </div>
+      <tfoot>
+        <tr>
+          <td [attr.colspan]="visibleColumns().length + 2" class="qt-form__lines-total-label">Total quantity</td>
+          <td class="qt-form__lines-td qt-form__lines-td--num">{{ totals().totalQuantity | number: '1.2-4' }}</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td [attr.colspan]="visibleColumns().length + 2" class="qt-form__lines-total-label">Total weight</td>
+          <td class="qt-form__lines-td qt-form__lines-td--num">{{ totals().totalWeight | number: '1.2-4' }}</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td [attr.colspan]="visibleColumns().length + 2" class="qt-form__lines-total-label">Tax total</td>
+          <td class="qt-form__lines-total-value">₹ {{ totals().taxTotal | number: '1.2-2' }}</td>
+          <td></td>
+        </tr>
+        <tr>
+          <td [attr.colspan]="visibleColumns().length + 2" class="qt-form__lines-total-label">Grand total</td>
+          <td class="qt-form__lines-total-value qt-grid__grand">₹ {{ totals().grandTotal | number: '1.2-2' }}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  @if (configOpen()) {
+    <div class="qt-grid__overlay" (click)="closeConfig()" role="presentation"></div>
+    <aside class="qt-grid__panel" aria-label="Column configuration" (click)="$event.stopPropagation()">
+      <header class="qt-grid__panel-head">
+        <h3 class="qt-grid__panel-title">Column configuration</h3>
+        <button type="button" class="qt-grid__panel-close" (click)="closeConfig()" aria-label="Close">×</button>
+      </header>
+      <p class="qt-grid__panel-hint">Drag to reorder. Toggle visibility and set width. Layout is saved for your account.</p>
+      <ul class="qt-grid__col-list">
+        @for (col of sortedDraftColumns(); track col.key; let ci = $index) {
+          <li
+            class="qt-grid__col-item"
+            draggable="true"
+            (dragstart)="onColDragStart(ci, $event)"
+            (dragover)="onRowDragOver($event)"
+            (drop)="onColDrop(ci, $event)"
+          >
+            <span class="qt-grid__col-drag" aria-hidden="true">⋮⋮</span>
+            <label class="qt-grid__col-check">
+              <input
+                type="checkbox"
+                [checked]="col.visible"
+                (change)="setColumnVisible(col.key, $any($event.target).checked)"
+              />
+              {{ col.label }}
+            </label>
+            <input
+              type="number"
+              class="qt-form__control qt-grid__col-width"
+              [value]="col.width"
+              min="48"
+              max="480"
+              (change)="updateColumnWidth(col.key, $event)"
+              aria-label="Column width in pixels"
+            />
+          </li>
+        }
+      </ul>
+      <footer class="qt-grid__panel-foot">
+        <button type="button" class="qt-form__btn qt-form__btn--ghost qt-form__btn--sm" (click)="closeConfig()">
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="qt-form__btn qt-form__btn--primary qt-form__btn--sm"
+          [disabled]="savingConfig()"
+          (click)="applyColumnConfig(false)"
+        >
+          {{ savingConfig() ? 'Saving…' : 'Save my layout' }}
+        </button>
+        @if (isAdmin()) {
+          <button
+            type="button"
+            class="qt-form__btn qt-form__btn--outline qt-form__btn--sm"
+            [disabled]="savingConfig()"
+            (click)="applyColumnConfig(true)"
+          >
+            Save as default
+          </button>
+        }
+      </footer>
+    </aside>
+  }
+</section>

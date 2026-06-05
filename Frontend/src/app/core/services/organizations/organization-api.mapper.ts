@@ -1,3 +1,4 @@
+import { normalizeGstin } from '../../../shared/utils/gstin.util';
 import { normalizeOrganizationRow } from '../../../shared/utils/normalize-local-rows';
 import type { OrganizationRow } from '../../../features/organizations/organizations.component';
 
@@ -69,6 +70,7 @@ export function normalizeOrganizationApiRecord(raw: unknown): OrganizationRow {
     id: r['id'] ?? r['Id'],
     name: r['name'] ?? r['Name'] ?? r['organizationName'],
     website: r['website'],
+    gst: r['gst'] ?? r['Gst'],
     industry:
       readRefName(industryRaw) || (typeof industryRaw === 'string' ? industryRaw.trim() : ''),
     annualRevenue: r['annualRevenue'],
@@ -96,6 +98,7 @@ export interface OrganizationCreateInput {
   industry?: string;
   industryId?: number | null;
   website?: string;
+  gst?: string;
   employees?: string;
   employeeCountId?: number | null;
   /** Sent as `annualRevenue` on `OrganizationUpsertDto`; defaults to `0` when omitted. */
@@ -111,6 +114,7 @@ export function organizationCreatePayload(input: OrganizationCreateInput): Recor
   const body: Record<string, unknown> = {
     name,
     website: input.website?.trim() ?? '',
+    gst: normalizeGstin(input.gst),
     annualRevenue:
       input.annualRevenue != null && Number.isFinite(Number(input.annualRevenue))
         ? Number(input.annualRevenue)
@@ -146,6 +150,11 @@ export function organizationLeadSyncPayload(
 
   if (options.website !== undefined) {
     body['website'] = String(options.website).trim();
+    extras++;
+  }
+
+  if (options.gst !== undefined) {
+    body['gst'] = normalizeGstin(options.gst);
     extras++;
   }
 
@@ -208,6 +217,9 @@ export function mergeOrganizationLeadSyncWithExisting(
   }
   if (!('website' in body) && existing.website?.trim()) {
     body['website'] = existing.website.trim();
+  }
+  if (!('gst' in body) && existing.gst?.trim()) {
+    body['gst'] = normalizeGstin(existing.gst);
   }
 
   return body;

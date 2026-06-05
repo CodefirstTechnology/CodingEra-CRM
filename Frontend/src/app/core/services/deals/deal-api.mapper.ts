@@ -1,10 +1,7 @@
 import type { DealPipelineStatus, DealRow } from '../../../features/deals/deals.component';
-import {
-  DEFAULT_DEAL_PIPELINE_STATUS,
-  DEAL_PIPELINE_STATUSES,
-  resolveDealStatusLabel,
-} from './deal-pipeline.constants';
+import { DEFAULT_DEAL_PIPELINE_STATUS, resolveDealStatusLabel } from './deal-pipeline.constants';
 import type { DealNormalized, DealUpsertDto } from './deal-api.models';
+import { normalizeGstin } from '../../../shared/utils/gstin.util';
 
 function coerceDealStatus(raw: string | undefined | null): DealPipelineStatus {
   return resolveDealStatusLabel(raw ?? DEFAULT_DEAL_PIPELINE_STATUS);
@@ -106,6 +103,7 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
   let employees = String(r['employees'] ?? readMasterName(r['employeeCount'])).trim();
   let annualRevenue = readOptionalInt(r['annualRevenue']);
   let website = String(r['website'] ?? '').trim();
+  let gst = normalizeGstin(String(r['gst'] ?? r['Gst'] ?? ''));
 
   if (orgRaw != null && typeof orgRaw === 'object') {
     const o = orgRaw as Record<string, unknown>;
@@ -117,13 +115,28 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
     const rev = o['annualRevenue'];
     if (rev != null && Number.isFinite(Number(rev))) annualRevenue = Number(rev);
     website = String(o['website'] ?? website).trim();
+    gst = normalizeGstin(String(o['gst'] ?? o['Gst'] ?? gst));
   } else if (typeof orgRaw === 'string') {
     organizationName = orgRaw.trim();
   }
 
-  const statusRaw = r['dealStatus'] ?? r['status'];
-  const status =
-    readMasterName(statusRaw) || (typeof statusRaw === 'string' ? statusRaw.trim() : DEFAULT_DEAL_PIPELINE_STATUS);
+  const statusNav = r['dealStatus'];
+  let dealStatusId =
+    readOptionalInt(r['dealStatusId']) ?? readOptionalInt(r['DealStatusId']);
+  let status = String(r['status'] ?? '').trim();
+
+  if (statusNav != null && typeof statusNav === 'object') {
+    const ds = statusNav as Record<string, unknown>;
+    dealStatusId = readOptionalInt(ds['id']) ?? dealStatusId;
+    const navName = readMasterName(ds);
+    if (navName) status = navName;
+  } else if (typeof statusNav === 'string' && statusNav.trim()) {
+    status = statusNav.trim();
+  }
+
+  if (!status) {
+    status = DEFAULT_DEAL_PIPELINE_STATUS;
+  }
 
   const salutationId =
     readOptionalInt(r['salutationId']) ??
@@ -142,11 +155,6 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
     readOptionalInt(r['industryId']) ??
     readOptionalInt(r['IndustryId']) ??
     readMasterId(r['industry']);
-  const dealStatusId =
-    readOptionalInt(r['dealStatusId']) ??
-    readOptionalInt(r['DealStatusId']) ??
-    readMasterId(statusRaw);
-
   const prob = r['probabilityPercent'];
   const probabilityPercent =
     prob != null && Number.isFinite(Number(prob)) ? Number(prob) : null;
@@ -165,6 +173,7 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
     annualRevenue,
     employees: employees || '1-10',
     website,
+    gst,
     territory,
     industry: industry || 'Technology',
     status,
@@ -195,6 +204,7 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
     territoryId,
     industryId,
     dealStatusId,
+    lostReason: String(r['lostReason'] ?? r['LostReason'] ?? r['lost_reason'] ?? '').trim(),
   };
 }
 
@@ -217,6 +227,7 @@ export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
     annualRevenue:
       dto.annualRevenue != null && Number.isFinite(dto.annualRevenue) ? dto.annualRevenue : 0,
     website: dto.website ?? '',
+    gst: normalizeGstin(dto.gst),
     territory: dto.territory ?? '',
     industry: dto.industry ?? 'Technology',
     salutation: dto.salutation ?? '',
@@ -234,6 +245,7 @@ export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
     createdAtAt: dto.createdAt || undefined,
     probabilityPercent,
     nextStep: dto.nextStep ?? '',
+    lostReason: dto.lostReason?.trim() || undefined,
   };
 
   if (dto.nextFollowUpDate?.trim()) {
@@ -243,8 +255,13 @@ export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
   if (dto.relatedContactId != null && dto.relatedContactId > 0) {
     out.relatedContactId = String(dto.relatedContactId);
   }
+  if (dto.organizationId != null && dto.organizationId > 0) {
+    out.organizationId = String(dto.organizationId);
+  }
   if (dto.relatedOrganizationId != null && dto.relatedOrganizationId > 0) {
     out.relatedOrganizationId = String(dto.relatedOrganizationId);
+  } else if (dto.organizationId != null && dto.organizationId > 0) {
+    out.relatedOrganizationId = String(dto.organizationId);
   }
   if (assignedToUserId > 0) {
     out.assignedToUserId = String(assignedToUserId);
@@ -320,6 +337,7 @@ function normalizedToUpsertDto(n: DealNormalized, idOverride?: number): DealUpse
     annualRevenue: n.annualRevenue,
     employees: n.employees || null,
     website: n.website || null,
+    gst: normalizeGstin(n.gst) || null,
     territory: n.territory || null,
     industry: n.industry || null,
     status: n.status || null,
@@ -345,7 +363,8 @@ function rowToNormalized(row: DealRow, previous?: DealNormalized): DealNormalize
   const owners = syncDealOwnerUserIds(parsedOwner, parsedAssignee);
   return {
     id: previous?.id ?? (Number.isFinite(Number(row.id)) ? Number(row.id) : 0),
-    organizationId: previous?.organizationId ?? null,
+    organizationId:
+      parseOptionalPositiveInt(row.organizationId) ?? previous?.organizationId ?? null,
     contactId: previous?.contactId ?? null,
     organizationName: row.organizationName ?? '',
     salutation: row.salutation ?? '',
@@ -357,6 +376,7 @@ function rowToNormalized(row: DealRow, previous?: DealNormalized): DealNormalize
     annualRevenue: annual ?? previous?.annualRevenue ?? null,
     employees: row.employees ?? previous?.employees ?? '1-10',
     website: row.website ?? previous?.website ?? '',
+    gst: normalizeGstin(row.gst ?? previous?.gst),
     territory: row.territory ?? previous?.territory ?? '',
     industry: row.industry ?? previous?.industry ?? 'Technology',
     status: row.status ?? previous?.status ?? DEFAULT_DEAL_PIPELINE_STATUS,
@@ -371,7 +391,9 @@ function rowToNormalized(row: DealRow, previous?: DealNormalized): DealNormalize
       parseOptionalPositiveInt(row.relatedContactId) ?? previous?.relatedContactId ?? null,
     relatedOrganizationId:
       parseOptionalPositiveInt(row.relatedOrganizationId) ??
+      parseOptionalPositiveInt(row.organizationId) ??
       previous?.relatedOrganizationId ??
+      previous?.organizationId ??
       null,
     probabilityPercent:
       roundProbabilityPercent(row.probabilityPercent ?? previous?.probabilityPercent ?? 10) ?? 10,
