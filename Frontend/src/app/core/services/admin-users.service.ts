@@ -3,6 +3,8 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, catchError, map, of, shareReplay, tap, timeout } from 'rxjs';
 import type { RegisterApiRequest } from '../auth/auth.models';
 import { readUsersTableRoleId } from '../auth/auth-role.util';
+import { hasAnyPermission } from '../auth/permission.util';
+import { AuthService } from '../auth/auth.service';
 import { environment } from '../../../environments/environment';
 
 export type CreateUserResult = { ok: true } | { ok: false; error: string };
@@ -29,6 +31,7 @@ function pickStr(obj: Record<string, unknown>, keys: string[]): string | undefin
 @Injectable({ providedIn: 'root' })
 export class AdminUsersService {
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
 
   private listUsersCache$?: Observable<AdminUserRow[]>;
   private listUsersCacheToken: string | null = null;
@@ -159,6 +162,10 @@ export class AdminUsersService {
   listUsers(bearerToken: string | null): Observable<AdminUserRow[]> {
     const base = environment.apiUrl?.replace(/\/$/, '');
     if (!base) return of([]);
+
+    if (!hasAnyPermission(this.auth.user(), ['users.view', 'settings.manage'])) {
+      return of([]);
+    }
 
     const tokenKey = bearerToken ?? '';
     if (this.listUsersCache$ && this.listUsersCacheToken === tokenKey) {
