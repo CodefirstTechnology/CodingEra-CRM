@@ -1,17 +1,22 @@
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
-import { canViewAllQuotations, isAdmin } from '../auth/auth-role.util';
+import { canViewAllQuotations } from '../auth/auth-role.util';
+import { getModuleAccessScope } from '../auth/permission.util';
 import { AuthService } from '../auth/auth.service';
+import { PermissionService } from './permission.service';
+import type { ContactRow } from '../../features/contacts/contacts.component';
 import type { DealRow } from '../../features/deals/deals.component';
 import type { LeadRow } from '../../features/leads/lead-row.model';
 import type { NoteRow } from '../../features/notes/notes.component';
 import type { TaskRow } from '../../features/tasks/tasks.component';
 import {
+  filterContactsByCreatedBy,
   filterDealsForUser,
   filterLeadsByLeadOwnerId,
   filterNotesForUser,
   filterTasksForUser,
 } from '../../features/user-dashboard/utils/user-ownership.util';
+import { ContactsService } from './contacts.service';
 import { DealsService } from './deals.service';
 import { LeadsService } from './leads.service';
 import { NotesService } from './notes.service';
@@ -27,6 +32,8 @@ import type { QuotationListQuery } from './quotations/quotation-http.service';
 @Injectable({ providedIn: 'root' })
 export class UserDataScopeService {
   private readonly auth = inject(AuthService);
+  private readonly permissions = inject(PermissionService);
+  private readonly contactsService = inject(ContactsService);
   private readonly leadsService = inject(LeadsService);
   private readonly dealsService = inject(DealsService);
   private readonly tasksService = inject(TasksService);
@@ -34,7 +41,11 @@ export class UserDataScopeService {
   private readonly quotationsService = inject(QuotationsService);
 
   isAdminSession(): boolean {
-    return isAdmin(this.auth.user());
+    return this.permissions.canViewAllRecords();
+  }
+
+  moduleScope(module: string): 'own' | 'team' | 'all' {
+    return getModuleAccessScope(this.auth.user(), module);
   }
 
   canViewAllQuotations(): boolean {
@@ -45,6 +56,10 @@ export class UserDataScopeService {
     const u = this.auth.user();
     if (!u?.id) return null;
     return { userId: u.id, name: u.name, email: u.email };
+  }
+
+  listContacts(): Observable<ContactRow[]> {
+    return this.contactsService.getAll().pipe(map((rows) => this.filterContacts(rows)));
   }
 
   listLeads(): Observable<LeadRow[]> {
@@ -101,6 +116,16 @@ export class UserDataScopeService {
   }
 
   /** Client-side filter for merged lead lists (e.g. marketplace rows in local storage). */
+  filterContacts(rows: ContactRow[]): ContactRow[] {
+    if (this.isAdminSession()) return rows;
+    const session = this.sessionIds();
+    if (!session) return rows;
+    const scope = this.moduleScope('contacts');
+    if (scope === 'all') return rows;
+    if (scope === 'own') return filterContactsByCreatedBy(rows, session.userId);
+    return rows;
+  }
+
   filterLeads(rows: LeadRow[]): LeadRow[] {
     const session = this.sessionIds();
     if (!session || this.isAdminSession()) return rows;

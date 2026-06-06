@@ -1,7 +1,8 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
 import { ProfilePanelService } from '../../core/profile/profile-panel.service';
+import { PermissionService } from '../../core/services/permission.service';
 
 @Component({
   selector: 'app-profile-panel',
@@ -12,7 +13,12 @@ import { ProfilePanelService } from '../../core/profile/profile-panel.service';
 export class ProfilePanelComponent {
   protected readonly panel = inject(ProfilePanelService);
   protected readonly auth = inject(AuthService);
+  private readonly permissions = inject(PermissionService);
   private readonly router = inject(Router);
+
+  protected readonly showAdvancedSettings = computed(
+    () => this.permissions.hasAny(['settings.view', 'settings.manage', 'roles.view']),
+  );
 
   protected close(): void {
     this.panel.close();

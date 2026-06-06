@@ -21,6 +21,7 @@ import {
   sessionRoleLabel,
   unwrapApiRecord,
 } from './auth-role.util';
+import { parsePermissionsFromApi } from './permission.util';
 import type { RegisterApiRequest, RegisterPayload, UserSession } from './auth.models';
 import { SKIP_USER_ID_QUERY } from '../http/skip-user-id-query.context';
 
@@ -151,6 +152,9 @@ export class AuthService {
       const normalized = this.normalizeStoredSession(user);
       this._user.set(normalized);
       localStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized));
+      if (!(normalized.permissions?.length)) {
+        this.refreshSessionPermissions();
+      }
       writeLoginLog('session_restored', {
         maskedEmail: maskEmail(user.email),
         userId: user.id,
@@ -219,6 +223,21 @@ export class AuthService {
                 pickNumericDbUserId(serverUserId) ??
                 numericFromLogin;
 
+              const resRecord = res as Record<string, unknown>;
+              const perms = parsePermissionsFromApi(
+                profile?.['permissions'] ??
+                  profile?.['Permissions'] ??
+                  resRecord['permissions'] ??
+                  resRecord['Permissions'],
+              );
+
+              const roleName =
+                typeof profile?.['role'] === 'string'
+                  ? profile['role']
+                  : typeof profile?.['Role'] === 'string'
+                    ? profile['Role']
+                    : null;
+
               const loginPayload: Record<string, unknown> = {
                 ...(u && typeof u === 'object' ? u : {}),
                 ...(profile ?? {}),
@@ -226,6 +245,7 @@ export class AuthService {
                 email: emailResolved,
                 role_id: roleId,
                 roleId,
+                permissions: perms,
               };
 
               const session =
@@ -236,8 +256,9 @@ export class AuthService {
                   name: String(
                     u?.['name'] ?? u?.['fullName'] ?? profile?.['fullName'] ?? this.displayNameFromEmail(trimmed),
                   ),
-                  role: sessionRoleLabel(roleId),
+                  role: sessionRoleLabel(roleId, roleName),
                   roleId,
+                  permissions: perms.length ? perms : undefined,
                 } satisfies UserSession);
 
               if (numericUserId) {
@@ -245,7 +266,8 @@ export class AuthService {
               }
 
               session.roleId = roleId;
-              session.role = sessionRoleLabel(roleId);
+              session.role = sessionRoleLabel(roleId, roleName);
+              if (perms.length) session.permissions = perms;
               this.setSession(token, session);
 
               const redirectTo = homeUrlForRoleId(roleId);
@@ -600,6 +622,26 @@ export class AuthService {
       roleId,
       role: sessionRoleLabel(roleId),
     };
+  }
+
+  /** Loads effective permissions from API and updates the stored session. */
+  refreshSessionPermissions(): void {
+    const token = this._token();
+    const user = this._user();
+    const base = environment.apiUrl?.replace(/\/$/, '');
+    if (!token || !user?.id || !base || !pickNumericDbUserId(user.id)) return;
+
+    const headers = new HttpHeaders({ Authorization: `Bearer ${token}` });
+    this.http.get<unknown>(`${base}/rbac/me/permissions`, { headers }).subscribe({
+      next: (body) => {
+        const perms = parsePermissionsFromApi(body);
+        if (!perms.length) return;
+        const updated: UserSession = { ...user, permissions: perms };
+        this._user.set(updated);
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
+      },
+      error: () => {},
+    });
   }
 
   private displayNameFromEmail(email: string): string {

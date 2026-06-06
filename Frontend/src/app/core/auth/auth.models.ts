@@ -1,10 +1,14 @@
+import type { UserPermission } from './permission.models';
+
 export interface UserSession {
   id: string;
   email: string;
   name: string;
   role: string;
-  /** `users.role_id` — `1` User, `2` Admin. */
+  /** `users.role_id` from database — dynamic role FK. */
   roleId: number;
+  /** Effective permissions loaded from RBAC (session / login). */
+  permissions?: UserPermission[];
 }
 
 /** Sent to POST /auth/register — password is never persisted on the client. */

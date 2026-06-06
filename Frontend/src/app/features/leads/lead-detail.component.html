@@ -429,7 +429,7 @@
             </label>
             <label class="lead-detail__field">
               <span class="lead-detail__label">Lead Owner</span>
-              @if (isAdminViewer()) {
+              @if (canAssignLeads() && isAdminViewer()) {
                 <select class="lead-detail__select" formControlName="owner">
                   <option value="">— Select owner —</option>
                   @for (o of leadOwnerOptions(); track o.id) {
@@ -756,9 +756,9 @@
               />
             </dd>
             <dt>Lead Owner</dt>
-            <dd class="lead-detail__kv-owner" [class.lead-detail__kv-owner--editable]="isAdminViewer()">
+            <dd class="lead-detail__kv-owner" [class.lead-detail__kv-owner--editable]="canAssignLeads() && isAdminViewer()">
               <span class="lead-detail__owner-badge lead-detail__owner-badge--side">{{ sidebarOwnerChipInitial() }}</span>
-              @if (isAdminViewer()) {
+              @if (canAssignLeads() && isAdminViewer()) {
                 <app-crm-paginated-select
                   class="lead-detail__owner-paginated-select"
                   stylePrefix="lead-detail"

@@ -25,13 +25,13 @@
   </aside>
 
   <section class="adv-settings__content">
-    @if (isAdminViewer() && activeItem() === 'Users') {
+    @if (activeItem() === 'Users') {
     <article class="adv-settings__card">
       <header class="adv-users__head">
         <div>
           <h2 class="adv-users__title">Users</h2>
           <p class="adv-users__sub">
-            View CRM users. Use Invite User to add a new account with role id 1 (User).
+            Manage CRM users. Assign roles dynamically from the database.
           </p>
         </div>
         <button type="button" class="adv-users__new-btn" (click)="openInviteUser()">
@@ -52,7 +52,7 @@
         <label class="adv-users__filter">
           <span class="visually-hidden">Role filter</span>
           <select (change)="setRoleFilter($event)" [value]="selectedRoleFilter()">
-            @for (role of roleFilters; track role) {
+            @for (role of roleFilters(); track role) {
             <option [value]="role">{{ role }}</option>
             }
           </select>
@@ -78,6 +78,16 @@
           </div>
           <div class="adv-users__row-end">
             <span class="adv-users__role">{{ user.role }}</span>
+            @if (canEditUser()) {
+              <button
+                type="button"
+                class="adv-users__edit-btn"
+                (click)="openEditUser(user)"
+                [attr.aria-label]="'Edit ' + user.name"
+              >
+                Edit
+              </button>
+            }
             @if (canDeleteUser(user)) {
               <button
                 type="button"
@@ -99,14 +109,20 @@
         (deleted)="onUserDeleted()"
         (dismiss)="closeDeleteUserModal()"
       />
+      <app-edit-user-modal
+        [open]="editModalOpen()"
+        [target]="editTarget()"
+        (saved)="onUserSaved()"
+        (dismiss)="closeEditUserModal()"
+      />
     </article>
-    } @else if (isAdminViewer() && activeItem() === 'Invite User') {
+    } @else if (activeItem() === 'Invite User') {
     <article class="adv-settings__card">
       <header class="adv-users__head">
         <div>
           <h2 class="adv-users__title">Invite User</h2>
           <p class="adv-users__sub">
-            Admin only. New users are created with role id 1 (User) and access the user dashboard.
+            Create a new user and assign a role from your configured roles.
           </p>
         </div>
       </header>
@@ -129,6 +145,18 @@
             <input type="email" formControlName="email" autocomplete="email" />
             @if (inviteFieldInvalid('email')) {
               <small class="adv-settings__field-error">Enter a valid email.</small>
+            }
+          </label>
+          <label class="adv-settings__field">
+            <span>Role <span class="adv-settings__req">*</span></span>
+            <select formControlName="roleId">
+              <option [value]="0" disabled>Select role</option>
+              @for (role of rolesFromApi(); track role.id) {
+                <option [value]="role.id">{{ role.name }}</option>
+              }
+            </select>
+            @if (inviteFieldInvalid('roleId')) {
+              <small class="adv-settings__field-error">Select a role.</small>
             }
           </label>
           <label class="adv-settings__field">
@@ -167,7 +195,11 @@
         </footer>
       </form>
     </article>
-    } @else if (isAdminViewer() && activeItem() === 'Master Forms') {
+    } @else if (activeItem() === 'Roles' || activeItem() === 'Permissions') {
+    <article class="adv-settings__card">
+      <app-role-management />
+    </article>
+    } @else if (activeItem() === 'Master Forms') {
     <article class="adv-settings__card">
       <app-master-forms />
     </article>

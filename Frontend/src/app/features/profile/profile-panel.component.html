@@ -22,7 +22,9 @@
     <p class="pp-email">{{ auth.user()?.email ?? '' }}</p>
     <ul class="pp-actions">
       <li><button type="button" class="pp-link">Account settings</button></li>
-      <li><button type="button" class="pp-link" (click)="openAdvancedSettings()">Advanced settings</button></li>
+      @if (showAdvancedSettings()) {
+        <li><button type="button" class="pp-link" (click)="openAdvancedSettings()">Advanced settings</button></li>
+      }
       <li><button type="button" class="pp-link">Preferences</button></li>
       <li><button type="button" class="pp-link">Help &amp; docs</button></li>
     </ul>

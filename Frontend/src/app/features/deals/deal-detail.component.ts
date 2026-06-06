@@ -44,6 +44,7 @@ import {
   validateDealStageTransition,
 } from '../../core/services/deals/deal-stage-validation.util';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { PermissionService } from '../../core/services/permission.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
@@ -106,6 +107,7 @@ export class DealDetailComponent {
   protected readonly auth = inject(AuthService);
   private readonly quotationsService = inject(QuotationsService);
   private readonly userScope = inject(UserDataScopeService);
+  private readonly permissions = inject(PermissionService);
 
   protected readonly numericId = signal<number | null>(null);
   protected readonly deal = signal<DealRow | null>(null);
@@ -188,6 +190,7 @@ export class DealDetailComponent {
   protected readonly masterOptionFormValue = masterOptionFormValue;
   protected readonly progressStages = computed(() => buildDealDetailProgressStages(this.dealStatuses()));
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
+  protected readonly canAssignDeals = computed(() => this.permissions.canAssignDeals());
 
   protected readonly dealOwnerOptions = this.ownerOpts.options;
 
@@ -1156,7 +1159,7 @@ export class DealDetailComponent {
     if (this.dataForm.controls.mobile.dirty) {
       patch.mobile = v.mobile.trim() || '—';
     }
-    if (this.dataForm.controls.dealOwner.dirty) {
+    if (this.canAssignDeals() && this.isAdminViewer() && this.dataForm.controls.dealOwner.dirty) {
       const opt = this.dealOwnerOptions().find((o) => o.id === v.dealOwner.trim());
       const ownerId = v.dealOwner.trim();
       patch.dealOwnerId = ownerId;

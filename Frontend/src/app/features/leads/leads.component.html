@@ -65,7 +65,7 @@
     [assignActionsEnabled]="bulkAssignEnabled()"
     [convertLeadEnabled]="bulkConvertEnabled()"
     [showEdit]="!isAdminViewer()"
-    [showAssignActions]="isAdminViewer()"
+    [showAssignActions]="canManageLeadAssignment()"
     [showConvertLead]="!isAdminViewer()"
     [showDelete]="false"
     (edit)="onBulkEdit()"
@@ -281,13 +281,13 @@
               </label>
               <label class="leads__field leads__field--span2-md">
                 <span class="leads__label">Lead owner</span>
-                @if (isAdminViewer()) {
+                @if (showLeadOwnerPicker()) {
                   <select class="leads__control leads__control--soft leads__control--owner" formControlName="leadOwner">
                     @for (o of leadOwnerOptions(); track o.id) {
                       <option [value]="o.id">{{ o.label }}</option>
                     }
                   </select>
-                } @else {
+                } @else if (showSelfAssignedLeadOwner()) {
                   <span class="leads__owner-readonly">
                     @if (createFormLeadOwnerDisplay().initials) {
                       <span class="leads__avatar">{{ createFormLeadOwnerDisplay().initials }}</span>
@@ -495,7 +495,7 @@
                         }
                       }
                       @case ('owner') {
-                        @if (isAdminViewer() && isPersistedApiLeadRow(row.id) && leadOwnerOptions().length > 0) {
+                        @if (canManageLeadAssignment() && isPersistedApiLeadRow(row.id) && leadOwnerOptions().length > 0) {
                           <select
                             class="leads__owner-select"
                             [ngModel]="resolveOwnerSelectValue(row)"
@@ -540,7 +540,7 @@
                       ⋯
                     </summary>
                     <div class="leads__row-menu-panel" role="menu">
-                      @if (isAdminViewer()) {
+                      @if (canManageLeadAssignment()) {
                         @if (canAssignLead(row)) {
                           <button type="button" role="menuitem" (click)="onRowAssignTo(row, $event)">
                             Assign to…

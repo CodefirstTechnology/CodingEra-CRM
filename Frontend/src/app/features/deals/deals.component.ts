@@ -8,6 +8,9 @@ import { DealsService } from '../../core/services/deals.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { AuthService } from '../../core/auth/auth.service';
+import { resolveRecordOwnerIdForSubmit, showOwnerPickerOnCreate, showSelfAssignedOwnerOnCreate } from '../../shared/utils/record-owner-assignment.util';
 import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
 import { DealMasterSelectService } from '../../core/services/deals/deal-master-select.service';
 import {
@@ -141,10 +144,12 @@ interface DealColumnOption {
 })
 export class DealsComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly auth = inject(AuthService);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly dealsService = inject(DealsService);
   private readonly toast = inject(ToastService);
   private readonly userScope = inject(UserDataScopeService);
+  private readonly permissions = inject(PermissionService);
   private readonly ownerOpts = inject(LeadOwnerOptionsService);
   protected readonly dealMaster = inject(DealMasterSelectService);
   private readonly router = inject(Router);
@@ -170,6 +175,16 @@ export class DealsComponent {
   protected readonly dealOwnerOptions = this.ownerOpts.options;
   protected readonly masterOptionFormValue = masterOptionFormValue;
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
+  protected readonly canAssignDeals = computed(() => this.permissions.canAssignDeals());
+  protected readonly canManageDealAssignment = computed(
+    () => this.canAssignDeals() && this.isAdminViewer(),
+  );
+  protected readonly showDealOwnerPicker = computed(() =>
+    showOwnerPickerOnCreate(this.canAssignDeals(), this.isAdminViewer()),
+  );
+  protected readonly showSelfAssignedDealOwner = computed(() =>
+    showSelfAssignedOwnerOnCreate(this.canAssignDeals(), this.isAdminViewer()),
+  );
 
   protected readonly statusFilterOptions = computed(() => {
     const items: { id: DealListStatusFilter; label: string }[] = [
@@ -538,6 +553,28 @@ export class DealsComponent {
     this.resetCreateForm();
   }
 
+  private defaultDealOwnerForForm(): string {
+    return this.ownerOpts.defaultOwnerId();
+  }
+
+  protected dealOwnerDisplayLabel(): string {
+    return this.ownerOpts.sessionOwnerDisplay().label;
+  }
+
+  private resolveDealOwnerIdForSubmit(rawOwnerId: string, editId: number | null): string {
+    const row =
+      editId != null ? this.rows().find((r) => Number(r.id) === editId) : undefined;
+    const existing = row?.dealOwnerId ?? row?.assignedToUserId;
+    return resolveRecordOwnerIdForSubmit({
+      canAssign: this.canAssignDeals(),
+      isAdminSession: this.isAdminViewer(),
+      rawOwnerId,
+      existingOwnerId: existing,
+      sessionOwnerId: this.ownerOpts.sessionOwnerId(),
+      fallbackOwnerId: this.ownerOpts.defaultOwnerId(),
+    });
+  }
+
   private resetCreateForm(): void {
     const defaultIndustry = this.dealMaster.industrySelectOptions()[0];
     const defaultEmployees = this.dealMaster.employeeSelectOptions()[0];
@@ -560,7 +597,7 @@ export class DealsComponent {
         DEFAULT_DEAL_PIPELINE_STATUS,
         this.dealMaster.statusSelectOptions(),
       ),
-      dealOwner: this.ownerOpts.defaultOwnerId(),
+      dealOwner: this.defaultDealOwnerForForm(),
       requirement: '',
     });
     this.createForm.markAsUntouched();
@@ -633,7 +670,7 @@ export class DealsComponent {
   }
 
   protected onAssignToMenu(): void {
-    if (!this.isAdminViewer()) return;
+    if (!this.canManageDealAssignment()) return;
     this.assignPickerOpen.set(true);
   }
 
@@ -642,7 +679,7 @@ export class DealsComponent {
   }
 
   protected onAssignPicked(ownerKey: string): void {
-    if (!this.isAdminViewer()) return;
+    if (!this.canManageDealAssignment()) return;
     const opt = this.dealOwnerOptions().find((o) => o.id === ownerKey);
     if (!opt) {
       this.assignPickerOpen.set(false);
@@ -676,7 +713,7 @@ export class DealsComponent {
   }
 
   protected onClearAssignmentBulk(): void {
-    if (!this.isAdminViewer()) return;
+    if (!this.canManageDealAssignment()) return;
     const ids = this.sel.selectedItems();
     if (ids.length === 0) return;
     const streams = ids.map((sid) =>
@@ -749,7 +786,9 @@ export class DealsComponent {
       return;
     }
 
-    const owner = this.dealOwnerOptions().find((o) => o.id === raw.dealOwner);
+    const ownerId = this.resolveDealOwnerIdForSubmit(raw.dealOwner, editId);
+    const owner = this.dealOwnerOptions().find((o) => o.id === ownerId);
+    const display = this.ownerOpts.sessionOwnerDisplay();
     const empPick = resolveOrgMasterPick(raw.employees, this.dealMaster.employeeSelectOptions());
     const terrPick = resolveOrgMasterPick(raw.territory, this.dealMaster.territorySelectOptions());
     const indPick = resolveOrgMasterPick(raw.industry, this.dealMaster.industrySelectOptions());
@@ -775,10 +814,10 @@ export class DealsComponent {
       gender: raw.gender,
       status: resolveDealStatusLabel(statPick.label || raw.status),
       dealStatusId: statPick.masterId,
-      dealOwnerId: raw.dealOwner,
-      assignedToUserId: raw.dealOwner,
-      assignedTo: owner?.label ?? '',
-      assignedInitials: owner?.initials ?? '',
+      dealOwnerId: ownerId,
+      assignedToUserId: ownerId,
+      assignedTo: owner?.label ?? display.label,
+      assignedInitials: owner?.initials ?? display.initials,
       lastModified: 'Just now',
       probabilityPercent: 10,
       nextStep: '',

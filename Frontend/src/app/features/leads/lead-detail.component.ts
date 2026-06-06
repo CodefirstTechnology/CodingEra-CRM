@@ -36,6 +36,8 @@ import {
 } from '../../shared/utils/lead-conversion.util';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { resolveRecordOwnerIdForSubmit } from '../../shared/utils/record-owner-assignment.util';
 import { CrmPaginatedSelectComponent } from '../../shared/components/crm-paginated-select/crm-paginated-select.component';
 import { masterDataToPaginatedOptions } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
@@ -236,8 +238,9 @@ export class LeadDetailComponent {
   );
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly userScope = inject(UserDataScopeService);
+  private readonly permissions = inject(PermissionService);
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
-  /** Only admins may change lead owner; users see read-only owner text. */
+  protected readonly canAssignLeads = computed(() => this.permissions.canAssignLeads());
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
 
   private readonly noteRelatedTypeLabels: Record<NoteRelatedType, string> = {
@@ -884,8 +887,16 @@ export class LeadDetailComponent {
     const { firstName, lastName } = splitFullName(v.fullName);
     const name = buildLeadDisplayName('', firstName, lastName) || v.fullName.trim() || row.name;
 
-    const ownerId = this.isAdminViewer() ? v.owner.trim() : (row.leadOwnerId ?? '').trim();
-    const opt = this.isAdminViewer() ? this.leadOwnerOpts.findById(ownerId) : null;
+    const ownerId = resolveRecordOwnerIdForSubmit({
+      canAssign: this.canAssignLeads(),
+      isAdminSession: this.isAdminViewer(),
+      rawOwnerId: v.owner.trim(),
+      existingOwnerId: row.leadOwnerId,
+      sessionOwnerId: this.leadOwnerOpts.sessionOwnerId(),
+      fallbackOwnerId: this.leadOwnerOpts.defaultOwnerId(),
+    });
+    const opt =
+      this.canAssignLeads() && this.isAdminViewer() ? this.leadOwnerOpts.findById(ownerId) : null;
     const leadOwnerName = opt?.label ?? row.leadOwnerName;
 
     this.dataSaving.set(true);
@@ -918,7 +929,8 @@ export class LeadDetailComponent {
         this.lead.set(enriched);
         this.patchDataForm(enriched);
         this.emailSubjectText.set(`Mr ${updated.name} (${this.leadCode()})`);
-        const ownerDirty = this.isAdminViewer() && this.dataForm.controls.owner.dirty;
+        const ownerDirty =
+          this.canAssignLeads() && this.isAdminViewer() && this.dataForm.controls.owner.dirty;
         const otherDirty =
           this.dataForm.controls.fullName.dirty ||
           this.dataForm.controls.email.dirty ||

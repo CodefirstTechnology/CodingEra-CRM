@@ -7,6 +7,8 @@ import { CreateRowBusService } from '../../core/create-flow/create-row-bus.servi
 import { CrmModalComponent } from '../../core/modal/crm-modal.component';
 import { AuthService } from '../../core/auth/auth.service';
 import { isAdmin } from '../../core/auth/auth-role.util';
+import { PermissionService } from '../../core/services/permission.service';
+import { resolveRecordOwnerIdForSubmit, showOwnerPickerOnCreate, showSelfAssignedOwnerOnCreate } from '../../shared/utils/record-owner-assignment.util';
 import { ContactsService } from '../../core/services/contacts.service';
 import { DealsService } from '../../core/services/deals.service';
 import { composeLeadNotesForApi } from '../../core/services/leads/lead-notes-requirement.util';
@@ -75,6 +77,7 @@ export class CreateEntityFormModalComponent {
   private readonly tasksService = inject(TasksService);
   private readonly notesService = inject(NotesService);
   protected readonly auth = inject(AuthService);
+  private readonly permissions = inject(PermissionService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly leadRoundRobin = inject(LeadRoundRobinService);
   private readonly leadMasterData = inject(LeadMasterDataService);
@@ -120,6 +123,22 @@ export class CreateEntityFormModalComponent {
 
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
   protected readonly isAdminViewer = computed(() => isAdmin(this.auth.user()));
+  protected readonly canAssignLeads = computed(() => this.permissions.canAssignLeads());
+  protected readonly canSelfAssignLeads = computed(() => this.permissions.canSelfAssignLeads());
+  protected readonly canAssignDeals = computed(() => this.permissions.canAssignDeals());
+  protected readonly canSelfAssignDeals = computed(() => this.permissions.canSelfAssignDeals());
+  protected readonly showLeadOwnerPicker = computed(() =>
+    showOwnerPickerOnCreate(this.canAssignLeads(), this.isAdminViewer()),
+  );
+  protected readonly showSelfAssignedLeadOwner = computed(() =>
+    showSelfAssignedOwnerOnCreate(this.canAssignLeads(), this.isAdminViewer()),
+  );
+  protected readonly showDealOwnerPicker = computed(() =>
+    showOwnerPickerOnCreate(this.canAssignDeals(), this.isAdminViewer()),
+  );
+  protected readonly showSelfAssignedDealOwner = computed(() =>
+    showSelfAssignedOwnerOnCreate(this.canAssignDeals(), this.isAdminViewer()),
+  );
 
   protected readonly leadSubmitting = signal(false);
 
@@ -326,15 +345,25 @@ export class CreateEntityFormModalComponent {
   }
 
   private defaultLeadOwnerForForm(): string {
-    if (this.isAdminViewer()) {
+    if (showOwnerPickerOnCreate(this.canAssignLeads(), this.isAdminViewer())) {
       return this.leadRoundRobin.nextOwnerIdForForm();
     }
     return this.leadOwnerOpts.defaultOwnerId();
   }
 
+  private defaultDealOwnerForForm(): string {
+    if (showOwnerPickerOnCreate(this.canAssignDeals(), this.isAdminViewer())) {
+      return this.leadOwnerOpts.defaultOwnerId();
+    }
+    return this.leadOwnerOpts.defaultOwnerId();
+  }
+
   protected leadOwnerDisplayLabel(): string {
-    const id = this.leadForm.controls.leadOwner.value?.trim() ?? '';
-    return this.leadOwnerOpts.findById(id)?.label ?? this.auth.user()?.name?.trim() ?? 'You';
+    return this.leadOwnerOpts.sessionOwnerDisplay().label;
+  }
+
+  protected dealOwnerDisplayLabel(): string {
+    return this.leadOwnerOpts.sessionOwnerDisplay().label;
   }
 
   private resetFor(kind: CreateEntityKind): void {
@@ -379,7 +408,7 @@ export class CreateEntityFormModalComponent {
             DEFAULT_DEAL_PIPELINE_STATUS,
             this.dealMaster.statusSelectOptions(),
           ),
-          dealOwner: this.leadOwnerOpts.defaultOwnerId(),
+          dealOwner: this.defaultDealOwnerForForm(),
           requirement: '',
         });
         this.dealForm.markAsUntouched();
@@ -556,12 +585,17 @@ export class CreateEntityFormModalComponent {
       return;
     }
 
-    const ownerId = this.isAdminViewer()
-      ? raw.leadOwner
-      : this.leadOwnerOpts.defaultOwnerId() || raw.leadOwner;
+    const ownerId = resolveRecordOwnerIdForSubmit({
+      canAssign: this.canAssignLeads(),
+      isAdminSession: this.isAdminViewer(),
+      rawOwnerId: raw.leadOwner,
+      sessionOwnerId: this.leadOwnerOpts.sessionOwnerId(),
+      fallbackOwnerId: this.leadOwnerOpts.defaultOwnerId(),
+    });
     const ownerOpt = this.leadOwnerOpts.findById(ownerId);
-    const initials = ownerOpt?.initials ?? ownerId;
-    const leadOwnerName = ownerOpt?.label ?? ownerId;
+    const display = this.leadOwnerOpts.sessionOwnerDisplay();
+    const initials = ownerOpt?.initials ?? display.initials;
+    const leadOwnerName = ownerOpt?.label ?? display.label;
 
     const salPick = resolveOrgMasterPick(raw.salutation, this.salutationSelectOptions());
 
@@ -611,7 +645,15 @@ export class CreateEntityFormModalComponent {
 
     const raw = this.dealForm.getRawValue();
     const emailTrim = raw.primaryEmail.trim();
-    const owner = this.dealOwnerOptions().find((o) => o.id === raw.dealOwner);
+    const dealOwnerId = resolveRecordOwnerIdForSubmit({
+      canAssign: this.canAssignDeals(),
+      isAdminSession: this.isAdminViewer(),
+      rawOwnerId: raw.dealOwner,
+      sessionOwnerId: this.leadOwnerOpts.sessionOwnerId(),
+      fallbackOwnerId: this.leadOwnerOpts.defaultOwnerId(),
+    });
+    const owner = this.dealOwnerOptions().find((o) => o.id === dealOwnerId);
+    const display = this.leadOwnerOpts.sessionOwnerDisplay();
     const salPick = resolveOrgMasterPick(raw.salutation, this.dealMaster.salutationSelectOptions());
     const empPick = resolveOrgMasterPick(raw.employees, this.dealMaster.employeeSelectOptions());
     const terrPick = resolveOrgMasterPick(raw.territory, this.dealMaster.territorySelectOptions());
@@ -639,10 +681,10 @@ export class CreateEntityFormModalComponent {
       gender: raw.gender,
       status: resolveDealStatusLabel(statPick.label || raw.status),
       dealStatusId: statPick.masterId,
-      dealOwnerId: raw.dealOwner,
-      assignedToUserId: raw.dealOwner,
-      assignedTo: owner?.label ?? '',
-      assignedInitials: owner?.initials ?? '',
+      dealOwnerId,
+      assignedToUserId: dealOwnerId,
+      assignedTo: owner?.label ?? display.label,
+      assignedInitials: owner?.initials ?? display.initials,
       lastModified: 'Just now',
       probabilityPercent: 10,
       nextStep: '',

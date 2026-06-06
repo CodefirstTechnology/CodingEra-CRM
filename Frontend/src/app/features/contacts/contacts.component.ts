@@ -4,6 +4,7 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { ContactsService } from '../../core/services/contacts.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
@@ -21,6 +22,8 @@ export interface ContactRow {
   organization: string;
   /** Backend FK when returned by API. */
   organizationId?: string;
+  /** `users.id` who created the contact (RBAC own-scope). */
+  createdBy?: string;
   designation: string;
   address: string;
   lastModified: string;
@@ -35,6 +38,7 @@ export interface ContactRow {
 export class ContactsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
+  private readonly userScope = inject(UserDataScopeService);
   private readonly contactsService = inject(ContactsService);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
@@ -75,8 +79,8 @@ export class ContactsComponent {
   }
 
   private refreshContacts(): void {
-    this.contactsService
-      .getAll()
+    this.userScope
+      .listContacts()
       .pipe(take(1))
       .subscribe((rows) => this.rows.set(rows));
   }

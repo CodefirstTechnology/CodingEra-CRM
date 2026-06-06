@@ -533,11 +533,15 @@
             }
             <label class="deal-detail__field">
               <span class="deal-detail__label">Deal owner<span class="deal-detail__req" aria-hidden="true">*</span></span>
-              <select class="deal-detail__select" formControlName="dealOwner">
-                @for (o of dealOwnerOptions(); track o.id) {
-                <option [value]="o.id">{{ o.label }}</option>
-                }
-              </select>
+              @if (canAssignDeals() && isAdminViewer()) {
+                <select class="deal-detail__select" formControlName="dealOwner">
+                  @for (o of dealOwnerOptions(); track o.id) {
+                  <option [value]="o.id">{{ o.label }}</option>
+                  }
+                </select>
+              } @else {
+                <span class="deal-detail__owner-readonly">{{ deal()?.assignedTo || '—' }}</span>
+              }
             </label>
             <label class="deal-detail__field">
               <span class="deal-detail__label">Website</span>

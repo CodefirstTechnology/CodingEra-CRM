@@ -30,7 +30,7 @@
   <app-crm-selection-bar
     [selectionCount]="sel.selectedCount()"
     [canEdit]="sel.selectedCount() === 1"
-    [showAssignActions]="isAdminViewer()"
+    [showAssignActions]="canManageDealAssignment()"
     [showConvertLead]="false"
     [showDelete]="false"
     (edit)="onBulkEdit()"
@@ -276,11 +276,15 @@
               </label>
               <label class="deals__field">
                 <span class="deals__label">Deal owner</span>
-                <select class="deals__control deals__control--soft" formControlName="dealOwner">
-                  @for (o of dealOwnerOptions(); track o.id) {
-                    <option [value]="o.id">{{ o.label }}</option>
-                  }
-                </select>
+                @if (showDealOwnerPicker()) {
+                  <select class="deals__control deals__control--soft" formControlName="dealOwner">
+                    @for (o of dealOwnerOptions(); track o.id) {
+                      <option [value]="o.id">{{ o.label }}</option>
+                    }
+                  </select>
+                } @else if (showSelfAssignedDealOwner()) {
+                  <span class="deals__owner-readonly">{{ dealOwnerDisplayLabel() }}</span>
+                }
               </label>
               <label class="deals__field deals__field--span2">
                 <span class="deals__label">Requirement</span>

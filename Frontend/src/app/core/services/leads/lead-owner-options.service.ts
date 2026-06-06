@@ -112,12 +112,26 @@ export class LeadOwnerOptionsService {
   }
 
   defaultOwnerId(): string {
-    const opts = this.optionsSignal();
     const sessionId = this.auth.user()?.id?.trim();
-    if (sessionId && opts.some((o) => o.id === sessionId)) {
+    if (sessionId) {
       return sessionId;
     }
-    return opts[0]?.id ?? '';
+    return this.optionsSignal()[0]?.id ?? '';
+  }
+
+  sessionOwnerId(): string {
+    return this.auth.user()?.id?.trim() ?? '';
+  }
+
+  sessionOwnerDisplay(): { id: string; label: string; initials: string } {
+    const id = this.sessionOwnerId();
+    const opt = id ? this.findById(id) : undefined;
+    if (opt) {
+      return { id: opt.id, label: opt.label, initials: opt.initials };
+    }
+    const user = this.auth.user();
+    const label = user?.name?.trim() || user?.email?.trim() || 'You';
+    return { id, label, initials: initialsFromDisplayName(label) };
   }
 
   applyOwnerToRow(row: LeadRow): LeadRow {

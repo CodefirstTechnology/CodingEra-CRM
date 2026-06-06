@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom, Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, tap } from 'rxjs/operators';
+import { AuthService } from '../auth/auth.service';
 import { DealsService } from './deals.service';
 import { LeadConversionStorageService } from './leads/lead-conversion-storage.service';
 import type { ConvertLeadOptions, ConvertLeadResult } from './leads/lead-conversion.types';
@@ -27,6 +28,7 @@ import type { LeadNormalized, LeadUpsertDto } from './leads/lead-api.models';
 import { buildLeadPutJson } from './leads/lead-upsert-body.util';
 import { LeadHttpService } from './leads/lead-http.service';
 import type { LeadImportCommitResult, LeadImportRowDto } from '../../features/leads/import/lead-import-api.models';
+import { PermissionService } from './permission.service';
 
 /** Maps failed lead HTTP calls to a short user-facing message. */
 export function leadsHttpErrorMessage(err: unknown): string {
@@ -75,6 +77,8 @@ export class LeadsService {
   private readonly roundRobin = inject(LeadRoundRobinService);
   private readonly dealsService = inject(DealsService);
   private readonly conversionStorage = inject(LeadConversionStorageService);
+  private readonly permissions = inject(PermissionService);
+  private readonly auth = inject(AuthService);
 
   getAll(): Observable<LeadRow[]> {
     return this.leadHttp
@@ -201,13 +205,25 @@ export class LeadsService {
   }
 
   create(data: Omit<LeadRow, 'id'>): Observable<LeadRow> {
+    const canPickOwner =
+      this.permissions.canAssignLeads() && this.permissions.canViewAllRecords();
     const ownerProvided = !!data.leadOwnerId?.trim();
-    const withOwner = ownerProvided ? data : this.roundRobin.applyOwnerIfMissing(data);
-    const usedRoundRobin = !ownerProvided && !!withOwner.leadOwnerId?.trim();
+    let withOwner = data;
+    if (!ownerProvided) {
+      if (canPickOwner) {
+        withOwner = this.roundRobin.applyOwnerIfMissing(data);
+      } else {
+        const selfId = this.auth.user()?.id?.trim() ?? '';
+        withOwner = selfId ? { ...data, leadOwnerId: selfId } : data;
+      }
+    }
+    const usedRoundRobin = canPickOwner && !ownerProvided && !!withOwner.leadOwnerId?.trim();
 
     return this.withResolvedOrganization(withOwner).pipe(
       switchMap((body) => {
-        const dto = this.roundRobin.applyToUpsertDto(body);
+        const dto = canPickOwner
+          ? this.roundRobin.applyToUpsertDto(body)
+          : this.applySelfOwnerToUpsertDto(body);
         const orgPatch = this.orgFieldsPatchFromLeadData(data, dto.organizationId ?? null);
         return this.leadHttp.create(dto).pipe(
           map(mapLeadNormalizedToRow),
@@ -375,6 +391,17 @@ export class LeadsService {
     if (id == null || !String(id).trim()) return null;
     const n = Number(String(id).trim());
     return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
+  }
+
+  private applySelfOwnerToUpsertDto(dto: LeadUpsertDto): LeadUpsertDto {
+    if (dto.leadOwnerId != null && dto.leadOwnerId > 0) {
+      return dto;
+    }
+    const selfId = Number(this.auth.user()?.id?.trim());
+    if (!Number.isFinite(selfId) || selfId <= 0) {
+      return dto;
+    }
+    return { ...dto, leadOwnerId: selfId };
   }
 
   private orgFieldsPatchFromLeadData(

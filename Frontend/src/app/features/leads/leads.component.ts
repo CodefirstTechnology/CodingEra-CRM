@@ -40,6 +40,8 @@ import {
 } from '../../core/services/leads/lead-notes-requirement.util';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { resolveRecordOwnerIdForSubmit, showOwnerPickerOnCreate, showSelfAssignedOwnerOnCreate } from '../../shared/utils/record-owner-assignment.util';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
@@ -142,6 +144,7 @@ export class LeadsComponent {
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly leadsService = inject(LeadsService);
   private readonly userScope = inject(UserDataScopeService);
+  private readonly permissions = inject(PermissionService);
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly leadRoundRobin = inject(LeadRoundRobinService);
@@ -409,6 +412,18 @@ export class LeadsComponent {
 
   /** Admins see lead status as read-only text in the table; users get dropdowns. */
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
+  protected readonly canAssignLeads = computed(() => this.permissions.canAssignLeads());
+  /** Bulk/inline reassignment — admin dashboard only (Sales keeps assign for backend round-robin). */
+  protected readonly canManageLeadAssignment = computed(
+    () => this.canAssignLeads() && this.isAdminViewer(),
+  );
+  protected readonly canSelfAssignLeads = computed(() => this.permissions.canSelfAssignLeads());
+  protected readonly showLeadOwnerPicker = computed(() =>
+    showOwnerPickerOnCreate(this.canAssignLeads(), this.isAdminViewer()),
+  );
+  protected readonly showSelfAssignedLeadOwner = computed(() =>
+    showSelfAssignedOwnerOnCreate(this.canAssignLeads(), this.isAdminViewer()),
+  );
 
   private persistMarketplaceLeadsToDb(): boolean {
     const flag = (environment as { persistMarketplaceLeadsToDb?: boolean }).persistMarketplaceLeadsToDb;
@@ -575,12 +590,12 @@ export class LeadsComponent {
   });
 
   protected readonly bulkAssignEnabled = computed(() => {
-    if (!this.isAdminViewer()) return false;
+    if (!this.canManageLeadAssignment()) return false;
     return this.canAssignIds(this.sel.selectedItems());
   });
 
   protected canAssignLead(row: LeadRow): boolean {
-    return this.isAdminViewer() && isPersistedApiLeadRow(row.id);
+    return this.canManageLeadAssignment() && isPersistedApiLeadRow(row.id);
   }
 
   private assignIdsForAction(): string[] {
@@ -589,7 +604,7 @@ export class LeadsComponent {
   }
 
   private canAssignIds(ids: string[]): boolean {
-    return this.isAdminViewer() && ids.length > 0 && ids.every((id) => isPersistedApiLeadRow(id));
+    return this.canManageLeadAssignment() && ids.length > 0 && ids.every((id) => isPersistedApiLeadRow(id));
   }
 
   protected readonly bulkConvertEnabled = computed(() => {
@@ -696,25 +711,25 @@ export class LeadsComponent {
     }
   }
 
-  /** Admins pick/rotate owners; sales users are assigned as owner on manual create. */
+  /** Admins with assign pick/rotate; user-dashboard create self-assigns (legacy production). */
   private defaultLeadOwnerForForm(): string {
-    if (this.isAdminViewer()) {
+    if (showOwnerPickerOnCreate(this.canAssignLeads(), this.isAdminViewer())) {
       return this.leadRoundRobin.nextOwnerIdForForm();
     }
     return this.leadOwnerOpts.defaultOwnerId();
   }
 
   private resolveLeadOwnerIdForSubmit(rawOwnerId: string, editId: number | null): string {
-    if (this.isAdminViewer()) {
-      return rawOwnerId;
-    }
-    if (editId != null) {
-      const existing = this.rows().find((r) => Number(r.id) === editId);
-      if (existing?.leadOwnerId) {
-        return existing.leadOwnerId;
-      }
-    }
-    return this.leadOwnerOpts.defaultOwnerId() || rawOwnerId;
+    const existing =
+      editId != null ? this.rows().find((r) => Number(r.id) === editId)?.leadOwnerId : undefined;
+    return resolveRecordOwnerIdForSubmit({
+      canAssign: this.canAssignLeads(),
+      isAdminSession: this.isAdminViewer(),
+      rawOwnerId,
+      existingOwnerId: existing,
+      sessionOwnerId: this.leadOwnerOpts.sessionOwnerId(),
+      fallbackOwnerId: this.leadOwnerOpts.defaultOwnerId(),
+    });
   }
 
   protected openForm(): void {
@@ -947,18 +962,19 @@ export class LeadsComponent {
     return this.leadOwnerOpts.resolveSelectValue(row);
   }
 
-  /** Read-only lead owner line in create/edit modal for non-admin users. */
+  /** Read-only lead owner line in create/edit modal for self-assign users. */
   protected createFormLeadOwnerDisplay(): { initials: string; label: string } {
+    const display = this.leadOwnerOpts.sessionOwnerDisplay();
     const id = this.createForm.controls.leadOwner.value?.trim() ?? '';
-    const opt = this.leadOwnerOpts.findById(id);
-    return {
-      initials: opt?.initials ?? '',
-      label: opt?.label ?? '—',
-    };
+    const opt = id ? this.leadOwnerOpts.findById(id) : undefined;
+    if (opt) {
+      return { initials: opt.initials, label: opt.label };
+    }
+    return { initials: display.initials, label: display.label };
   }
 
   protected onLeadOwnerSelectChange(row: LeadRow, ownerKey: string): void {
-    if (!this.isAdminViewer() || !isPersistedApiLeadRow(row.id)) return;
+    if (!this.canManageLeadAssignment() || !isPersistedApiLeadRow(row.id)) return;
     const idn = Number(row.id);
     if (!Number.isFinite(idn)) return;
 

@@ -404,6 +404,22 @@
   font-weight: 600;
 }
 
+.adv-users__edit-btn {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  background: var(--surface);
+  cursor: pointer;
+}
+
+.adv-users__edit-btn:hover {
+  border-color: var(--tertiary-color);
+  color: var(--tertiary-color);
+}
+
 .adv-users__delete-btn {
   border: 1px solid #fecaca;
   border-radius: 8px;

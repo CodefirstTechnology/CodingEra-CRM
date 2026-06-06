@@ -108,13 +108,13 @@
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Lead owner</span>
-          @if (isAdminViewer()) {
+          @if (showLeadOwnerPicker()) {
             <select class="create-form__control" formControlName="leadOwner">
               @for (o of leadOwnerOptions(); track o.id) {
                 <option [value]="o.id">{{ o.label }}</option>
               }
             </select>
-          } @else {
+          } @else if (showSelfAssignedLeadOwner()) {
             <span class="create-form__owner-readonly">{{ leadOwnerDisplayLabel() }}</span>
           }
         </label>
@@ -158,11 +158,15 @@
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Deal owner</span>
-          <select class="create-form__control" formControlName="dealOwner">
-            @for (o of dealOwnerOptions(); track o.id) {
-              <option [value]="o.id">{{ o.label }}</option>
-            }
-          </select>
+          @if (showDealOwnerPicker()) {
+            <select class="create-form__control" formControlName="dealOwner">
+              @for (o of dealOwnerOptions(); track o.id) {
+                <option [value]="o.id">{{ o.label }}</option>
+              }
+            </select>
+          } @else if (showSelfAssignedDealOwner()) {
+            <span class="create-form__owner-readonly">{{ dealOwnerDisplayLabel() }}</span>
+          }
         </label>
         <label class="create-form__field">
           <span class="create-form__label">Primary email</span>

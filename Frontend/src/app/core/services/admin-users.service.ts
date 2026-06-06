@@ -2,11 +2,12 @@ import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http
 import { inject, Injectable } from '@angular/core';
 import { Observable, catchError, map, of, shareReplay, tap, timeout } from 'rxjs';
 import type { RegisterApiRequest } from '../auth/auth.models';
-import { readUsersTableRoleId, ROLE_ID_USER, sessionRoleLabel } from '../auth/auth-role.util';
+import { readUsersTableRoleId } from '../auth/auth-role.util';
 import { environment } from '../../../environments/environment';
 
 export type CreateUserResult = { ok: true } | { ok: false; error: string };
 export type DeleteUserResult = { ok: true } | { ok: false; error: string };
+export type UpdateUserResult = { ok: true } | { ok: false; error: string };
 
 export interface AdminUserRow {
   id: string;
@@ -34,7 +35,7 @@ export class AdminUsersService {
 
   /**
    * Creates a CRM user via POST `{apiUrl}/auth/register`.
-   * Always assigns `roleId: 1` (User — user dashboard access).
+   * Role is chosen from the invite form (dynamic roles from DB).
    */
   createUser(
     bearerToken: string | null,
@@ -43,6 +44,7 @@ export class AdminUsersService {
       email: string;
       password: string;
       phone?: string;
+      roleId?: number;
     },
   ): Observable<CreateUserResult> {
     const base = environment.apiUrl?.replace(/\/$/, '');
@@ -54,7 +56,7 @@ export class AdminUsersService {
       fullName: payload.fullName.trim(),
       email: payload.email.trim(),
       password: payload.password,
-      roleId: ROLE_ID_USER,
+      roleId: payload.roleId && payload.roleId > 0 ? payload.roleId : undefined,
     };
     const phone = payload.phone?.trim();
     if (phone) body.phone = phone;
@@ -110,6 +112,41 @@ export class AdminUsersService {
           if (result.ok) this.invalidateListCache();
         }),
         catchError((err: unknown) => of(this.mapDeleteUserError(err))),
+      );
+  }
+
+  updateUser(
+    bearerToken: string | null,
+    targetUserId: string,
+    payload: {
+      fullName?: string;
+      phone?: string;
+      roleId?: number;
+      isActive?: boolean;
+    },
+  ): Observable<UpdateUserResult> {
+    const base = environment.apiUrl?.replace(/\/$/, '');
+    if (!base) return of({ ok: true });
+
+    const id = Number(String(targetUserId).trim());
+    if (!Number.isFinite(id) || id <= 0) {
+      return of({ ok: false, error: 'Invalid user id.' });
+    }
+
+    const headers =
+      bearerToken && bearerToken.length > 0
+        ? new HttpHeaders({ Authorization: `Bearer ${bearerToken}` })
+        : undefined;
+
+    return this.http
+      .put<unknown>(`${base}/auth/users/${id}`, payload, { headers })
+      .pipe(
+        timeout(15000),
+        map(() => ({ ok: true as const })),
+        tap((result) => {
+          if (result.ok) this.invalidateListCache();
+        }),
+        catchError((err: unknown) => of(this.mapUpdateUserError(err))),
       );
   }
 
@@ -171,30 +208,30 @@ export class AdminUsersService {
       this.nameFromEmail(email);
 
     const roleRaw = pickStr(o, ['role', 'Role', 'userRole', 'UserRole']) ?? 'User';
-    const roleId = readUsersTableRoleId(o) ?? ROLE_ID_USER;
+    const roleId = readUsersTableRoleId(o);
 
     const id =
       pickStr(o, ['id', 'Id', 'userId', 'UserId']) ?? email;
-
-    const role = sessionRoleLabel(roleId);
 
     return {
       id,
       name,
       email,
-      role,
-      roleId,
+      role: roleRaw,
+      roleId: roleId ?? undefined,
     };
   }
 
-  private normalizeRoleLabel(role: string): string {
-    const r = role.trim();
-    if (!r) return 'User';
-    const lower = r.toLowerCase();
-    if (lower === 'administrator' || lower === 'admin') return 'Admin';
-    if (lower === 'manager') return 'Manager';
-    if (lower.includes('sales')) return 'Sales User';
-    return r.charAt(0).toUpperCase() + r.slice(1);
+  private mapUpdateUserError(err: unknown): UpdateUserResult {
+    if (!(err instanceof HttpErrorResponse)) {
+      return { ok: false, error: 'Something went wrong. Please try again.' };
+    }
+    if (err.status === 403) {
+      return { ok: false, error: 'You do not have permission to edit users.' };
+    }
+    const detail = this.httpErrorDetail(err);
+    if (detail) return { ok: false, error: detail.slice(0, 220) };
+    return { ok: false, error: 'Could not update user.' };
   }
 
   private nameFromEmail(email: string): string {
