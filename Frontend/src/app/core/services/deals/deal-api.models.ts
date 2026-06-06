@@ -11,6 +11,7 @@ export interface DealNormalized {
   mobile: string;
   gender: string;
   annualRevenue: number | null;
+  dealAmount: number | null;
   employees: string;
   website: string;
   gst?: string;
@@ -52,6 +53,7 @@ export interface DealUpsertDto {
   mobile?: string | null;
   gender?: string | null;
   annualRevenue?: number | null;
+  dealAmount?: number | null;
   employees?: string | null;
   website?: string | null;
   gst?: string | null;

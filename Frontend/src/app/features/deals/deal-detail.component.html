@@ -510,6 +510,10 @@
               <input type="text" class="deal-detail__input" formControlName="annualRevenue" placeholder="0.00" />
             </label>
             <label class="deal-detail__field">
+              <span class="deal-detail__label">Deal amount</span>
+              <input type="text" class="deal-detail__input" formControlName="dealAmount" placeholder="0.00" />
+            </label>
+            <label class="deal-detail__field">
               <span class="deal-detail__label">Pipeline status<span class="deal-detail__req" aria-hidden="true">*</span></span>
               <select class="deal-detail__select" formControlName="status" [disabled]="isStatusLocked()">
                 @for (opt of dealStatuses(); track opt.id + opt.name) {

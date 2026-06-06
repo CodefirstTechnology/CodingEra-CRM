@@ -667,6 +667,7 @@ export class CreateEntityFormModalComponent {
       employees: empPick.label.trim() || '1-10',
       employeeCountId: empPick.masterId,
       annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
+      dealAmount: 0,
       website: raw.website.trim(),
       territory: terrPick.label.trim(),
       territoryId: terrPick.masterId,

@@ -402,6 +402,14 @@
               <input type="text" class="lead-detail__input" formControlName="website" />
             </label>
             <label class="lead-detail__field">
+              <span class="lead-detail__label">Location</span>
+              <input type="text" class="lead-detail__input" formControlName="location" />
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Lead date</span>
+              <input type="date" class="lead-detail__input" formControlName="leadDate" />
+            </label>
+            <label class="lead-detail__field">
               <span class="lead-detail__label">Territory</span>
               <select class="lead-detail__select" formControlName="territory">
                 <option value="">— Select —</option>
@@ -726,6 +734,23 @@
                 [placeholder]="sidebarAddLabel('Website')"
                 inputmode="url"
                 autocomplete="url"
+              />
+            </dd>
+            <dt>Location</dt>
+            <dd class="lead-detail__kv-dd">
+              <input
+                type="text"
+                class="lead-detail__side-field"
+                [formControl]="dataForm.controls.location"
+                [placeholder]="sidebarAddLabel('Location')"
+              />
+            </dd>
+            <dt>Lead date</dt>
+            <dd class="lead-detail__kv-dd">
+              <input
+                type="date"
+                class="lead-detail__side-field"
+                [formControl]="dataForm.controls.leadDate"
               />
             </dd>
             <dt>Territory</dt>

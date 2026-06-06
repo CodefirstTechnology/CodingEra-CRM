@@ -57,6 +57,9 @@ export interface LeadRow {
   requestTypeId?: number | null;
   requirement?: string;
   notes?: string;
+  location?: string;
+  /** ISO date (`YYYY-MM-DD`) for forms and API round-trip. */
+  leadDate?: string;
   /** Human-readable created time when known (API/manual); aligns with Updates tab “created” line. */
   created?: string;
   leadOwnerName: string;

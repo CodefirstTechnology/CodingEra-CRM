@@ -123,6 +123,10 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
   let territory = readMasterName(r['territory']);
   let employees = String(r['employees'] ?? readMasterName(r['employeeCount'])).trim();
   let annualRevenue = readOptionalInt(r['annualRevenue']);
+  let dealAmount =
+    readOptionalInt(r['dealAmount']) ??
+    readOptionalInt(r['DealAmount']) ??
+    readOptionalInt(r['deal_amount']);
   let website = String(r['website'] ?? '').trim();
   let gst = normalizeGstin(String(r['gst'] ?? r['Gst'] ?? ''));
 
@@ -192,6 +196,7 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
     mobile: String(r['mobile'] ?? '').trim(),
     gender: String(r['gender'] ?? '').trim(),
     annualRevenue,
+    dealAmount,
     employees: employees || '1-10',
     website,
     gst,
@@ -246,6 +251,8 @@ export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
     employees: dto.employees?.trim() ? dto.employees : '1-10',
     annualRevenue:
       dto.annualRevenue != null && Number.isFinite(dto.annualRevenue) ? dto.annualRevenue : 0,
+    dealAmount:
+      dto.dealAmount != null && Number.isFinite(dto.dealAmount) ? dto.dealAmount : 0,
     website: dto.website ?? '',
     gst: normalizeGstin(dto.gst),
     territory: dto.territory ?? '',
@@ -355,6 +362,7 @@ function normalizedToUpsertDto(n: DealNormalized, idOverride?: number): DealUpse
     mobile: n.mobile || null,
     gender: n.gender || null,
     annualRevenue: n.annualRevenue,
+    dealAmount: n.dealAmount,
     employees: n.employees || null,
     website: n.website || null,
     gst: normalizeGstin(n.gst) || null,
@@ -394,6 +402,10 @@ function rowToNormalized(row: DealRow, previous?: DealNormalized): DealNormalize
     mobile: row.mobile === '—' ? '' : (row.mobile ?? ''),
     gender: row.gender ?? '',
     annualRevenue: annual ?? previous?.annualRevenue ?? null,
+    dealAmount:
+      row.dealAmount != null && Number.isFinite(row.dealAmount) && row.dealAmount !== 0
+        ? row.dealAmount
+        : previous?.dealAmount ?? null,
     employees: row.employees ?? previous?.employees ?? '1-10',
     website: row.website ?? previous?.website ?? '',
     gst: normalizeGstin(row.gst ?? previous?.gst),

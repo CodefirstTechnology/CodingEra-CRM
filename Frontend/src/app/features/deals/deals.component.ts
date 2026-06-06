@@ -67,6 +67,8 @@ export interface DealRow {
   employeeCountId?: number | null;
   /** Stored as a plain number (no currency formatting). */
   annualRevenue: number;
+  /** Deal value from API (`dealAmount`). */
+  dealAmount: number;
   website: string;
   gst?: string;
   territory: string;
@@ -248,6 +250,7 @@ export class DealsComponent {
     'organizationName',
     'assignedTo',
     'annualRevenue',
+    'dealAmount',
     'status',
   ]);
   private readonly ignoredColumnIds = new Set([
@@ -264,6 +267,7 @@ export class DealsComponent {
     'contactName',
     'organizationName',
     'annualRevenue',
+    'dealAmount',
     'status',
     'email',
     'mobile',
@@ -284,6 +288,7 @@ export class DealsComponent {
     email: 'Email',
     mobile: 'Mobile',
     annualRevenue: 'Annual revenue',
+    dealAmount: 'Deal amount',
     assignedTo: 'Assigned to',
     lastModified: 'Last modified',
     probabilityPercent: 'Probability',
@@ -373,6 +378,7 @@ export class DealsComponent {
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
     employees: ['1-10'],
     annualRevenue: ['', Validators.maxLength(40)],
+    dealAmount: ['', Validators.maxLength(40)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
     gst: ['', gstFormValidators()],
     territory: [''],
@@ -594,6 +600,7 @@ export class DealsComponent {
       organizationName: '',
       employees: defaultEmployees ? masterOptionFormValue(defaultEmployees) : '1-10',
       annualRevenue: '',
+      dealAmount: '',
       website: '',
       gst: '',
       territory: '',
@@ -627,6 +634,8 @@ export class DealsComponent {
         const ownerId = this.ownerOpts.resolveDealSelectValue(row);
         const revInput =
           row.annualRevenue != null && row.annualRevenue !== 0 ? String(row.annualRevenue) : '';
+        const dealAmountInput =
+          row.dealAmount != null && row.dealAmount !== 0 ? String(row.dealAmount) : '';
         const emailFromRow = row.email.trim() ? row.email : '';
         this.createForm.patchValue({
           organizationName: row.organizationName,
@@ -636,6 +645,7 @@ export class DealsComponent {
             this.dealMaster.employeeSelectOptions(),
           ),
           annualRevenue: revInput,
+          dealAmount: dealAmountInput,
           website: row.website,
           gst: normalizeGstin(row.gst),
           territory: masterSelectControlValue(
@@ -809,6 +819,7 @@ export class DealsComponent {
       employees: empPick.label.trim() || '1-10',
       employeeCountId: empPick.masterId,
       annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
+      dealAmount: parseRevenueInputToNumber(raw.dealAmount),
       website: raw.website.trim(),
       gst: normalizeGstin(raw.gst),
       territory: terrPick.label.trim(),

@@ -40,6 +40,10 @@ export function stripDealUpsertForPost(dto: DealUpsertDto): Record<string, unkno
     body['annualRevenue'] = dto.annualRevenue;
   }
 
+  if (dto.dealAmount != null && Number.isFinite(dto.dealAmount)) {
+    body['dealAmount'] = dto.dealAmount;
+  }
+
   const prob = dto.probabilityPercent;
   if (prob != null && Number.isFinite(prob)) {
     body['probabilityPercent'] = Math.trunc(Math.round(prob));
@@ -104,6 +108,11 @@ export function buildDealPutJson(dto: DealUpsertDto, previous: DealNormalized): 
   const annual = dto.annualRevenue ?? previous.annualRevenue;
   if (annual != null && Number.isFinite(annual)) {
     body['annualRevenue'] = annual;
+  }
+
+  const dealAmount = dto.dealAmount ?? previous.dealAmount;
+  if (dealAmount != null && Number.isFinite(dealAmount)) {
+    body['dealAmount'] = dealAmount;
   }
 
   const prob = dto.probabilityPercent ?? previous.probabilityPercent;

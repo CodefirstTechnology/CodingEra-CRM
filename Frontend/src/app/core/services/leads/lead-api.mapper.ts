@@ -134,6 +134,32 @@ function readOptionalTimestamp(r: Record<string, unknown>, keys: readonly string
 }
 
 /** Human-friendly “last updated” label for the leads table and detail UI. */
+/** Local calendar date as `YYYY-MM-DD` (create form default). */
+export function todayIsoDateLocal(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Display label for {@link LeadRow.leadDate} in tables and detail. */
+export function formatLeadDateDisplay(iso: string | undefined | null): string {
+  const raw = iso?.trim();
+  if (!raw || /^null$/i.test(raw) || /^undefined$/i.test(raw)) return '—';
+  const datePart = raw.slice(0, 10);
+  const t = Date.parse(datePart);
+  if (Number.isNaN(t)) return raw;
+  try {
+    return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(t);
+  } catch {
+    return datePart;
+  }
+}
+
+export function leadDateToFormInput(iso: string | undefined | null): string {
+  const raw = iso?.trim();
+  if (!raw || /^null$/i.test(raw)) return '';
+  return raw.slice(0, 10);
+}
+
 export function formatLeadUpdatedLabel(iso: string | undefined | null): string {
   if (iso == null) return '—';
   const raw = String(iso).trim();
@@ -308,6 +334,12 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
 
   const createdAt = createdIso !== '' ? createdIso : null;
 
+  const location = String(
+    r['location'] ?? r['Location'] ?? r['address'] ?? r['Address'] ?? '',
+  ).trim();
+  const leadDateRaw = readOptionalTimestamp(r, ['leadDate', 'LeadDate', 'lead_date']);
+  const leadDate = leadDateRaw ? leadDateRaw.slice(0, 10) : '';
+
   const notesTrim = String(r['notes'] ?? r['Notes'] ?? '').trim();
   const marketplaceExt = extractMarketplaceExternalRef(notesTrim);
   const isIndiaMartMarketplaceLead = marketplaceExt?.source === 'IndiaMART';
@@ -355,6 +387,8 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
     territoryId,
     employeeCountId,
     industryId,
+    location,
+    leadDate,
   };
 }
 
@@ -421,6 +455,8 @@ export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
     leadOwnerId,
     leadSource: resolveLeadSourceForRow(dto),
     sortTimestamp: !Number.isNaN(parsedSort) ? parsedSort : undefined,
+    location: dto.location || undefined,
+    leadDate: dto.leadDate || undefined,
   };
 
   return applyMarketplaceNotesToLeadRow(row, dto.notes);
@@ -523,6 +559,8 @@ function normalizedToUpsertDto(n: LeadNormalized, idOverride?: number): LeadUpse
     requirement: n.requirement || null,
     leadOwnerId: n.leadOwnerId,
     leadSource: n.leadSource || null,
+    location: n.location?.trim() || null,
+    leadDate: n.leadDate?.trim() || null,
     createdAt: n.createdAt,
   };
 }
@@ -582,6 +620,8 @@ function rowToNormalized(row: LeadRow, previous?: LeadNormalized): LeadNormalize
     leadOwnerId: ownerId,
     leadOwnerName: row.leadOwnerName ?? previous?.leadOwnerName ?? '',
     leadSource: row.source ?? row.leadSource ?? previous?.leadSource ?? 'Manual',
+    location: row.location?.trim() || previous?.location?.trim() || '',
+    leadDate: row.leadDate?.trim() || previous?.leadDate?.trim() || '',
     updatedAt: previous?.updatedAt ?? new Date().toISOString(),
     createdAt: previous?.createdAt ?? null,
   };

@@ -21,6 +21,10 @@ import {
 } from '../../core/services/leads/lead-master-data.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import {
+  leadDateToFormInput,
+  todayIsoDateLocal,
+} from '../../core/services/leads/lead-api.mapper';
+import {
   buildLeadDisplayName,
   fullNameFromLeadParts,
   splitFullName,
@@ -257,6 +261,8 @@ export class LeadDetailComponent {
     industry: [''],
     source: [''],
     owner: [''],
+    location: [''],
+    leadDate: [todayIsoDateLocal()],
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
     email: [''],
     mobile: [''],
@@ -795,6 +801,8 @@ export class LeadDetailComponent {
         industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
         source: row.source?.trim() || row.leadSource || '',
         owner: row.leadOwnerId ?? '',
+        location: row.location ?? '',
+        leadDate: leadDateToFormInput(row.leadDate) || todayIsoDateLocal(),
         fullName: fullNameFromLeadParts(row),
         email: row.email ?? '',
         mobile: row.mobile ?? '',
@@ -916,6 +924,8 @@ export class LeadDetailComponent {
       industry: indPick.label.trim() || undefined,
       industryId: indPick.masterId,
       source: v.source.trim() || undefined,
+      location: v.location.trim() || undefined,
+      leadDate: v.leadDate.trim() || todayIsoDateLocal(),
       leadOwnerId: ownerId || undefined,
       owner: opt?.initials ?? row.owner,
       leadOwnerName,
@@ -939,7 +949,9 @@ export class LeadDetailComponent {
           this.dataForm.controls.website.dirty ||
           this.dataForm.controls.territory.dirty ||
           this.dataForm.controls.industry.dirty ||
-          this.dataForm.controls.source.dirty;
+          this.dataForm.controls.source.dirty ||
+          this.dataForm.controls.location.dirty ||
+          this.dataForm.controls.leadDate.dirty;
         if (ownerDirty && !otherDirty) {
           const name = enriched.leadOwnerName?.trim() || '—';
           this.toast.success(

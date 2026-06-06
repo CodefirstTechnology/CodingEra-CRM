@@ -159,6 +159,15 @@
                 />
               </label>
               <label class="deals__field">
+                <span class="deals__label">Deal amount</span>
+                <input
+                  class="deals__control deals__control--soft"
+                  type="text"
+                  formControlName="dealAmount"
+                  placeholder="₹ 0.00"
+                />
+              </label>
+              <label class="deals__field">
                 <span class="deals__label">Website</span>
                 <input class="deals__control deals__control--soft" type="text" formControlName="website" placeholder="https://" />
                 @if (fieldInvalid('website') && createForm.get('website')?.errors?.['url']) {
@@ -433,6 +442,9 @@
                     }
                     @case ('annualRevenue') {
                       {{ formatDealRevenue(row.annualRevenue) }}
+                    }
+                    @case ('dealAmount') {
+                      {{ formatDealRevenue(row.dealAmount) }}
                     }
                     @case ('status') {
                       <span [class]="statusClass(row.status)">{{ row.status }}</span>

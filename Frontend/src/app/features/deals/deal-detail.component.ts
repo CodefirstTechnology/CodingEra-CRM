@@ -254,6 +254,7 @@ export class DealDetailComponent {
   protected readonly dataForm = this.fb.nonNullable.group({
     organization: ['', Validators.required],
     annualRevenue: [''],
+    dealAmount: [''],
     status: this.fb.nonNullable.control<string>(DEFAULT_DEAL_PIPELINE_STATUS, Validators.required),
     stageComment: [''],
     email: ['', [Validators.email]],
@@ -853,6 +854,7 @@ export class DealDetailComponent {
       {
         organization: row.organizationName ?? '',
         annualRevenue: this.revenueNumberToInputString(row.annualRevenue),
+        dealAmount: this.revenueNumberToInputString(row.dealAmount),
         status: resolveDealStatusSelectValue(
           row.dealStatusId,
           row.status,
@@ -1112,6 +1114,7 @@ export class DealDetailComponent {
             const otherDirty =
               this.dataForm.controls.organization.dirty ||
               this.dataForm.controls.annualRevenue.dirty ||
+              this.dataForm.controls.dealAmount.dirty ||
               this.dataForm.controls.status.dirty ||
               this.dataForm.controls.email.dirty ||
               this.dataForm.controls.mobile.dirty ||
@@ -1147,6 +1150,9 @@ export class DealDetailComponent {
     }
     if (this.dataForm.controls.annualRevenue.dirty) {
       patch.annualRevenue = parseRevenueInputToNumber(v.annualRevenue);
+    }
+    if (this.dataForm.controls.dealAmount.dirty) {
+      patch.dealAmount = parseRevenueInputToNumber(v.dealAmount);
     }
     if (this.dataForm.controls.status.dirty) {
       const statPick = resolveOrgMasterPick(v.status, this.dealMaster.statusSelectOptions());

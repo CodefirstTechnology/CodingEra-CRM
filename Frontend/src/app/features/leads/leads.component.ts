@@ -16,7 +16,12 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { concat, defaultIfEmpty, forkJoin, last, take, tap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
-import { coerceLeadStatus } from '../../core/services/leads/lead-api.mapper';
+import {
+  coerceLeadStatus,
+  formatLeadDateDisplay,
+  leadDateToFormInput,
+  todayIsoDateLocal,
+} from '../../core/services/leads/lead-api.mapper';
 import {
   ensureConvertedInLeadStatusOptions,
   FALLBACK_LEAD_STATUS_OPTIONS,
@@ -304,6 +309,8 @@ export class LeadsComponent {
     'annualRevenue',
     'website',
     'territory',
+    'location',
+    'leadDate',
     'requestType',
     'notes',
   ];
@@ -313,6 +320,8 @@ export class LeadsComponent {
     owner: 'Lead owner',
     leadOwnerName: 'Lead owner',
     annualRevenue: 'Annual revenue',
+    location: 'Location',
+    leadDate: 'Lead date',
     requestType: 'Request type',
   };
 
@@ -671,6 +680,8 @@ export class LeadsComponent {
     requestType: [''],
     requirement: ['', [Validators.required, Validators.maxLength(240)]],
     customField: ['', Validators.maxLength(240)],
+    location: ['', Validators.maxLength(240)],
+    leadDate: [todayIsoDateLocal()],
   });
 
   private clearEditQuery(): void {
@@ -763,6 +774,8 @@ export class LeadsComponent {
       requestType: '',
       requirement: '',
       customField: '',
+      location: '',
+      leadDate: todayIsoDateLocal(),
     });
     this.createForm.markAsUntouched();
     this.formOpen.set(true);
@@ -790,6 +803,8 @@ export class LeadsComponent {
       requestType: '',
       requirement: '',
       customField: '',
+      location: '',
+      leadDate: todayIsoDateLocal(),
     });
     this.createForm.markAsUntouched();
   }
@@ -845,6 +860,8 @@ export class LeadsComponent {
             ),
             requirement: resolveLeadRequirementForDisplay(row.requirement, row.notes),
             customField: resolveManualLeadCustomFieldForForm(row.requirement, row.notes),
+            location: row.location ?? '',
+            leadDate: leadDateToFormInput(row.leadDate) || todayIsoDateLocal(),
           });
           this.formOpen.set(true);
         },
@@ -1268,6 +1285,9 @@ export class LeadsComponent {
       if (!t || /^null$/i.test(t) || /^undefined$/i.test(t)) return '—';
       return t;
     }
+    if (id === 'leadDate') {
+      return formatLeadDateDisplay(String(value));
+    }
     if (typeof value === 'number' || typeof value === 'boolean') return String(value);
     return '—';
   }
@@ -1388,6 +1408,8 @@ export class LeadsComponent {
       requestTypeId: rtPick.masterId,
       requirement: raw.requirement.trim(),
       notes: composeLeadNotesForApi(raw.requirement, raw.customField) || undefined,
+      location: raw.location.trim() || undefined,
+      leadDate: raw.leadDate.trim() || todayIsoDateLocal(),
       leadOwnerName,
       owner: initials,
       updated: 'Just now',
