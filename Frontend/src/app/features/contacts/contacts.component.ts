@@ -7,6 +7,7 @@ import { CreateRowBusService } from '../../core/create-flow/create-row-bus.servi
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { ContactsService } from '../../core/services/contacts.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
+import { PermissionService } from '../../core/services/permission.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
@@ -41,8 +42,13 @@ export class ContactsComponent {
   private readonly userScope = inject(UserDataScopeService);
   private readonly contactsService = inject(ContactsService);
   private readonly toast = inject(ToastService);
+  private readonly permissions = inject(PermissionService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+
+  protected canDeleteContacts(): boolean {
+    return this.permissions.has('contacts.delete');
+  }
 
   protected readonly sel = createIdSelection();
   protected readonly editingNumericId = signal<number | null>(null);
@@ -71,6 +77,16 @@ export class ContactsComponent {
       this.refreshContacts();
     });
     this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
+      if (q['create'] === '1') {
+        this.openForm();
+        void this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { create: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
+        return;
+      }
       const edit = q['edit'];
       if (edit != null && edit !== '') {
         this.beginEditFromRoute(String(edit));
@@ -291,6 +307,10 @@ export class ContactsComponent {
 
   protected deleteContact(row: ContactRow, ev: Event): void {
     ev.stopPropagation();
+    if (!this.canDeleteContacts()) {
+      this.toast.error('You do not have permission to perform this action.');
+      return;
+    }
     const id = Number(row.id);
     if (!Number.isFinite(id)) return;
     this.contactsService

@@ -349,6 +349,16 @@ export class LeadsComponent {
       this.refreshLeads();
     });
     this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
+      if (q['create'] === '1') {
+        this.openForm();
+        void this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { create: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
+        return;
+      }
       const edit = q['edit'];
       if (edit != null && edit !== '') {
         this.beginEditFromRoute(String(edit));
