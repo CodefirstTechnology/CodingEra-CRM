@@ -19,6 +19,8 @@ export interface DealNormalized {
   status: string;
   dealOwnerId: number | null;
   assignedToUserId: number | null;
+  /** Resolved from nested `assignedToUser` / `dealOwner` on GET when user directory is unavailable. */
+  assignedToName?: string;
   assignedInitials: string;
   relatedContactId: number | null;
   relatedOrganizationId: number | null;

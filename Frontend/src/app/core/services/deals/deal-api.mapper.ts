@@ -45,6 +45,27 @@ function readDealOwnerFk(r: Record<string, unknown>): number | null {
   return null;
 }
 
+function readUserFullName(v: unknown): string {
+  if (v == null || typeof v !== 'object') return '';
+  const o = v as Record<string, unknown>;
+  return String(o['fullName'] ?? o['FullName'] ?? '').trim();
+}
+
+function readDealAssigneeDisplayName(r: Record<string, unknown>): string {
+  for (const key of ['assignedToUser', 'AssignedToUser', 'dealOwner', 'DealOwner']) {
+    const name = readUserFullName(r[key]);
+    if (name) return name;
+  }
+  return '';
+}
+
+function initialsFromDisplayName(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function readAssignedToUserFk(r: Record<string, unknown>): number | null {
   for (const key of [
     'assignedToUserId',
@@ -179,6 +200,7 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
     status,
     dealOwnerId: readDealOwnerFk(r),
     assignedToUserId: readAssignedToUserFk(r),
+    assignedToName: readDealAssigneeDisplayName(r),
     assignedInitials: String(r['assignedInitials'] ?? '').trim(),
     relatedContactId: readOptionalInt(r['relatedContactId']),
     relatedOrganizationId: readOptionalInt(r['relatedOrganizationId']),
@@ -211,14 +233,12 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
 export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
   const id = String(dto.id);
   const probabilityPercent = dto.probabilityPercent ?? 10;
-  const assignedInitials = dto.assignedInitials ?? '';
   const assignedToUserId = dto.assignedToUserId ?? 0;
+  const ownerName = dto.assignedToName?.trim() ?? '';
+  const assignedInitials =
+    dto.assignedInitials?.trim() || (ownerName ? initialsFromDisplayName(ownerName) : '');
   const assignedTo =
-    assignedToUserId > 0 && assignedInitials
-      ? assignedInitials
-      : assignedToUserId > 0
-        ? `User #${assignedToUserId}`
-        : assignedInitials;
+    ownerName || (assignedToUserId > 0 ? `User #${assignedToUserId}` : assignedInitials);
 
   const out: DealRow = {
     id,

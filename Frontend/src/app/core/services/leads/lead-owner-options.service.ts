@@ -149,8 +149,12 @@ export class LeadOwnerOptionsService {
         owner: opt.initials,
       };
     }
-    if (row.leadOwnerId && row.leadOwnerName.startsWith('User #')) {
-      return { ...row, leadOwnerName: '', owner: '' };
+    const name = row.leadOwnerName?.trim() ?? '';
+    if (name && !name.startsWith('User #')) {
+      return {
+        ...row,
+        owner: row.owner?.trim() || initialsFromDisplayName(name),
+      };
     }
     return row;
   }
@@ -164,7 +168,6 @@ export class LeadOwnerOptionsService {
   }
 
   enrichRows(rows: readonly LeadRow[]): LeadRow[] {
-    if (this.optionsSignal().length === 0) return [...rows];
     return rows.map((r) => this.applyOwnerToRow(r));
   }
 
@@ -184,8 +187,12 @@ export class LeadOwnerOptionsService {
         assignedInitials: opt.initials,
       };
     }
-    if (row.dealOwnerId && row.assignedTo.startsWith('User #')) {
-      return { ...row, assignedTo: '', assignedInitials: '' };
+    const name = row.assignedTo?.trim() ?? '';
+    if (name && !name.startsWith('User #')) {
+      return {
+        ...row,
+        assignedInitials: row.assignedInitials?.trim() || initialsFromDisplayName(name),
+      };
     }
     return row;
   }
@@ -198,7 +205,6 @@ export class LeadOwnerOptionsService {
   }
 
   enrichDealRows(rows: readonly DealRow[]): DealRow[] {
-    if (this.optionsSignal().length === 0) return [...rows];
     return rows.map((r) => this.applyOwnerToDealRow(r));
   }
 }
