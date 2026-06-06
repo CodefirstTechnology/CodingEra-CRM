@@ -2,8 +2,8 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin } from 'rxjs';
-import { take } from 'rxjs/operators';
+import { forkJoin, of } from 'rxjs';
+import { catchError, take } from 'rxjs/operators';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
@@ -484,8 +484,10 @@ export class LeadDetailComponent {
       return;
     }
     const next = [...this.leadAttachments()];
+    const addedNames: string[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      addedNames.push(file.name);
       const id =
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? crypto.randomUUID()
@@ -502,6 +504,23 @@ export class LeadDetailComponent {
     input.value = '';
     const n = files.length;
     this.toast.success(n === 1 ? 'Attachment added.' : `${n} attachments added.`);
+    this.logAttachmentActivities('lead', addedNames);
+  }
+
+  private logAttachmentActivities(entityType: 'lead', fileNames: string[]): void {
+    const id = this.numericId();
+    if (id == null || !fileNames.length) return;
+
+    const actor = this.auth.user()?.name?.trim() || 'User';
+    const requests = fileNames.map((name) =>
+      this.activitiesService
+        .logAttachmentAdded(entityType, id, `${actor} added attachment: ${name}`)
+        .pipe(catchError(() => of(null))),
+    );
+
+    forkJoin(requests)
+      .pipe(take(1))
+      .subscribe(() => this.refreshLeadActivities());
   }
 
   private refreshLeadActivities(): void {

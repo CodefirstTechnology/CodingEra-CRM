@@ -35,3 +35,13 @@ export interface ActivityListQuery {
   entityId?: number;
   userId?: number;
 }
+
+export interface CreateActivityBody {
+  actionType?: string;
+  message: string;
+  fieldName?: string | null;
+  oldValue?: string | null;
+  newValue?: string | null;
+  relatedRecordType?: string | null;
+  relatedRecordId?: number | null;
+}

@@ -2,8 +2,8 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { take } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
+import { forkJoin, of, take } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
@@ -475,8 +475,10 @@ export class DealDetailComponent {
       return;
     }
     const next = [...this.dealAttachments()];
+    const addedNames: string[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      addedNames.push(file.name);
       const id =
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? crypto.randomUUID()
@@ -491,6 +493,23 @@ export class DealDetailComponent {
     this.dealAttachments.set(next);
     this.persistAttachments(did);
     input.value = '';
+    this.logAttachmentActivities('deal', addedNames);
+  }
+
+  private logAttachmentActivities(entityType: 'deal', fileNames: string[]): void {
+    const id = this.numericId();
+    if (id == null || !fileNames.length) return;
+
+    const actor = this.auth.user()?.name?.trim() || 'User';
+    const requests = fileNames.map((name) =>
+      this.activitiesService
+        .logAttachmentAdded(entityType, id, `${actor} added attachment: ${name}`)
+        .pipe(catchError(() => of(null))),
+    );
+
+    forkJoin(requests)
+      .pipe(take(1))
+      .subscribe(() => this.refreshDealActivities());
   }
 
   private refreshDealComments(): void {
