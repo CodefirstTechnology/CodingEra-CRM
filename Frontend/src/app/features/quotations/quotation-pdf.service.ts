@@ -5,7 +5,9 @@ import autoTable, { type RowInput } from 'jspdf-autotable';
 import { firstValueFrom, timeout } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../core/auth/auth.service';
+import { mapCompanyProfile } from '../../core/services/company-profile/company-profile-api.mapper';
 import type { QuotationLineItemDto, QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
+import { mergeCompanyProfileForPdf, type QuotationPdfCompanyConfig } from './company-profile-pdf.mapper';
 import { QUOTATION_PDF_COMPANY, QUOTATION_PDF_LAYOUT } from './quotation-pdf.config';
 
 export interface QuotationPdfGeneratorInfo {
@@ -22,9 +24,28 @@ export class QuotationPdfService {
   private readonly auth = inject(AuthService);
 
   async download(quotation: QuotationUpsertDto): Promise<void> {
-    const generator = await this.resolveGeneratorInfo();
-    const doc = this.buildDocument(quotation, generator);
+    const [generator, company] = await Promise.all([
+      this.resolveGeneratorInfo(),
+      this.resolveCompanyProfile(),
+    ]);
+    const doc = this.buildDocument(quotation, generator, company);
     doc.save(this.pdfFilename(quotation.quotationNumber));
+  }
+
+  private async resolveCompanyProfile(): Promise<QuotationPdfCompanyConfig> {
+    const base = environment.apiUrl?.replace(/\/$/, '');
+    const token = this.auth.token();
+    if (!base || !token) return mergeCompanyProfileForPdf(null);
+
+    try {
+      const headers = new HttpHeaders({ Authorization: `Bearer ${token}` });
+      const body = await firstValueFrom(
+        this.http.get<unknown>(`${base}/company-profile`, { headers }).pipe(timeout(8000)),
+      );
+      return mergeCompanyProfileForPdf(mapCompanyProfile(body));
+    } catch {
+      return mergeCompanyProfileForPdf(null);
+    }
   }
 
   private async resolveGeneratorInfo(): Promise<QuotationPdfGeneratorInfo> {
@@ -59,9 +80,13 @@ export class QuotationPdfService {
     }
   }
 
-  private buildDocument(q: QuotationUpsertDto, generator: QuotationPdfGeneratorInfo): jsPDF {
+  private buildDocument(
+    q: QuotationUpsertDto,
+    generator: QuotationPdfGeneratorInfo,
+    company: QuotationPdfCompanyConfig,
+  ): jsPDF {
     const L = QUOTATION_PDF_LAYOUT;
-    const C = QUOTATION_PDF_COMPANY;
+    const C = company;
     const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
@@ -72,9 +97,6 @@ export class QuotationPdfService {
       contentW - L.metaLabelWidthMm - L.metaValueRightLabelWidthMm - L.metaValueRightWidthMm;
     const lineDescW =
       contentW - L.lineSrWidthMm - L.lineQtyWidthMm - L.lineRateWidthMm - L.lineAmountWidthMm;
-    const amountColRight = pageW - margin;
-    const totalsTableW = L.totalsLabelWidthMm + L.lineAmountWidthMm;
-    const totalsTableLeft = amountColRight - totalsTableW;
 
     const tableStyles = {
       fontSize: L.fontSize.body,
@@ -90,22 +112,50 @@ export class QuotationPdfService {
     const drawHeader = (): void => {
       const headerH = L.headerHeightMm;
       const brandW = L.brandBlockWidthMm;
-      const centerX = margin + brandW + 2;
+      const centerX = margin + brandW;
       const centerW = pageW - margin - centerX;
 
-      doc.setFillColor(...C.brandBlue);
+      doc.setFillColor(255, 255, 255);
       doc.rect(0, 0, pageW, headerH, 'F');
 
-      doc.setTextColor(255, 255, 255);
+      doc.setFillColor(...C.brandBlue);
+      doc.rect(centerX, 0, pageW - centerX, headerH, 'F');
+
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.15);
+      doc.rect(margin, 0, brandW, headerH, 'S');
+
+      const logoFormat = this.logoImageFormat(C.logoContentType);
+      const hasLogo = !!(C.logoBase64 && logoFormat);
+      let brandTextY = 10;
+
+      if (hasLogo) {
+        try {
+          doc.addImage(
+            `data:${C.logoContentType};base64,${C.logoBase64}`,
+            logoFormat,
+            margin + 3,
+            3,
+            14,
+            14,
+          );
+          brandTextY = 19;
+        } catch {
+          // Fall back to text-only brand block.
+        }
+      }
+
+      doc.setTextColor(0, 0, 0);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(L.fontSize.headerBrand);
-      doc.text(C.brandName, margin + 1, 11);
+      doc.text(C.brandName, margin + 3, brandTextY);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(L.fontSize.headerSub);
-      const tagLines = doc.splitTextToSize(C.brandTagline, brandW - 2);
-      doc.text(tagLines, margin + 1, 15);
+      const tagLines = doc.splitTextToSize(C.brandTagline, brandW - 6);
+      doc.text(tagLines, margin + 3, brandTextY + 4.5);
 
+      doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(L.fontSize.headerLegal);
       const nameLines = doc.splitTextToSize(C.legalName, centerW - 4);
@@ -119,7 +169,8 @@ export class QuotationPdfService {
 
       doc.setFontSize(L.fontSize.headerSub);
       const taxY = headerH - 5;
-      doc.text(`GSTIN : ${C.gstin}    CIN : ${C.cin}`, pageW / 2, taxY, { align: 'center' });
+      doc.text(`GSTIN : ${C.gstin}`, centerX + 2, taxY);
+      doc.text(`CIN : ${C.cin}`, pageW - margin - 2, taxY, { align: 'right' });
 
       doc.setTextColor(0, 0, 0);
       y = headerH + L.sectionGapMm;
@@ -161,7 +212,14 @@ export class QuotationPdfService {
           { content: 'M/s. :', styles: { fontStyle: 'bold' } },
           this.display(q.companyName || q.customerName),
           { content: 'Qtn No. :', styles: { fontStyle: 'bold' } },
-          this.display(q.quotationNumber),
+          {
+            content: this.display(q.quotationNumber),
+            styles: {
+              fillColor: L.qtnHighlightFill,
+              textColor: L.qtnHighlightText,
+              fontStyle: 'bold',
+            },
+          },
         ],
         [
           { content: 'Office Addr:', styles: { fontStyle: 'bold' } },
@@ -263,80 +321,101 @@ export class QuotationPdfService {
     }
 
     const termsW = contentW * L.termsWidthRatio;
+    const totalsW = contentW - termsW;
+    const termsDetailW = termsW - L.termsIndexWidthMm - L.termsTitleWidthMm;
     const termsStartY = y;
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(L.fontSize.intro);
-    doc.text('Terms & Conditions', margin, y);
-    y += 5;
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(L.fontSize.terms);
-    C.terms.forEach((term, i) => {
-      const prefix = `${i + 1}. ${term.title}: `;
-      const block = doc.splitTextToSize(prefix + term.body, termsW);
-      if (y > pageH - L.footerReserveMm - 8) {
-        doc.addPage();
-        y = margin;
-      }
-      doc.text(block, margin, y);
-      y += block.length * 3.1 + 1.2;
-    });
+    const termsRows: RowInput[] = [
+      [{ content: 'Terms & Conditions:', colSpan: 3, styles: { fontStyle: 'bold' } }],
+      ...C.terms.map((term, i) => [
+        String(i + 1),
+        term.title,
+        this.formatTermBody(term.body),
+      ]),
+    ];
 
     autoTable(doc, {
       startY: termsStartY,
-      margin: { left: totalsTableLeft, right: margin },
-      tableWidth: totalsTableW,
-      theme: 'plain',
+      margin: { left: margin, right: margin + totalsW },
+      tableWidth: termsW,
+      theme: 'grid',
       styles: {
         ...tableStyles,
-        fontSize: L.fontSize.body,
-        cellPadding: { top: 1.2, right: 1, bottom: 1.2, left: 1 },
+        fontSize: L.fontSize.terms,
+        cellPadding: { top: 1.2, right: 1.2, bottom: 1.2, left: 1.2 },
       },
-      body: [
-        ['Total', this.formatMoney(subtotal)],
-        ['Transportation', C.transportationLabel],
-        [`Add. : GST @ ${gstPercent}%`, this.formatMoney(taxTotal)],
-        [{ content: 'Total Amount (Rs):', styles: { fontStyle: 'bold' } }, { content: this.formatMoney(grandTotal), styles: { fontStyle: 'bold' } }],
-      ],
+      body: termsRows,
       columnStyles: {
-        0: { cellWidth: L.totalsLabelWidthMm, halign: 'left' },
-        1: { cellWidth: L.lineAmountWidthMm, halign: 'right' },
+        0: { cellWidth: L.termsIndexWidthMm, halign: 'center', valign: 'top' },
+        1: { cellWidth: L.termsTitleWidthMm, fontStyle: 'bold', valign: 'top' },
+        2: { cellWidth: termsDetailW, valign: 'top' },
       },
     });
 
-    const totalsEndY = (doc as DocWithTable).lastAutoTable?.finalY ?? termsStartY + 24;
-    y = Math.max(y, totalsEndY) + L.sectionGapMm + 2;
+    const termsEndY = (doc as DocWithTable).lastAutoTable?.finalY ?? termsStartY + 40;
 
-    if (y > pageH - L.footerReserveMm - 24) {
-      doc.addPage();
-      y = margin;
-    }
+    autoTable(doc, {
+      startY: termsStartY,
+      margin: { left: margin + termsW, right: margin },
+      tableWidth: totalsW,
+      theme: 'grid',
+      styles: {
+        ...tableStyles,
+        fontSize: L.fontSize.body,
+        cellPadding: { top: 1.2, right: 1.2, bottom: 1.2, left: 1.2 },
+      },
+      body: [
+        ['Total:', this.formatMoney(subtotal)],
+        [{ content: 'Transportation', styles: { fontStyle: 'bold' } }, C.transportationLabel],
+        ['Taxes', this.formatMoney(0)],
+        [`Add. : GST @ ${gstPercent}%`, this.formatMoney(taxTotal)],
+        [
+          { content: 'Total Amount (Rs):', styles: { fontStyle: 'bold' } },
+          { content: this.formatMoney(grandTotal), styles: { fontStyle: 'bold', halign: 'right' } },
+        ],
+      ],
+      columnStyles: {
+        0: { cellWidth: totalsW * 0.58, halign: 'left' },
+        1: { cellWidth: totalsW * 0.42, halign: 'right' },
+      },
+    });
 
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(L.fontSize.body);
-    doc.text(C.jurisdiction, pageW / 2, y, { align: 'center' });
-    y += 7;
+    const totalsEndY = (doc as DocWithTable).lastAutoTable?.finalY ?? termsStartY + 40;
+    y = Math.max(termsEndY, totalsEndY);
 
-    const sigX = amountColRight;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(L.fontSize.body);
-    doc.text(`For ${C.signatureEntity}`, sigX, y, { align: 'right' });
-    y += 4.5;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Authorized Signatory', sigX, y, { align: 'right' });
-    y += 7;
-    doc.text(generator.fullName, sigX, y, { align: 'right' });
-    y += 4;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(L.fontSize.terms);
-    if (generator.phone !== '—') {
-      doc.text(generator.phone, sigX, y, { align: 'right' });
-      y += 3.8;
-    }
-    if (generator.email !== '—') {
-      doc.text(generator.email, sigX, y, { align: 'right' });
-    }
+    const sigName = C.signatoryName?.trim() || generator.fullName;
+    const sigPhone = C.signatoryMobile?.trim() || (generator.phone !== '—' ? generator.phone : '');
+    const sigBlock = [`For ${C.signatureEntity}`, sigName, sigPhone].filter(Boolean).join('\n');
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      tableWidth: contentW,
+      theme: 'grid',
+      styles: {
+        ...tableStyles,
+        fontSize: L.fontSize.body,
+        cellPadding: { top: 2, right: 1.5, bottom: 2, left: 1.5 },
+      },
+      body: [
+        [
+          {
+            content: `" ${C.jurisdiction} "`,
+            styles: { halign: 'center', fontStyle: 'italic', valign: 'middle' },
+          },
+          {
+            content: sigBlock,
+            styles: { halign: 'center', fontStyle: 'bold', valign: 'middle' },
+          },
+        ],
+      ],
+      columnStyles: {
+        0: { cellWidth: termsW },
+        1: { cellWidth: totalsW },
+      },
+    });
+
+    y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 18;
 
     const totalPages = doc.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
@@ -431,6 +510,20 @@ export class QuotationPdfService {
   private formatQty(value: number): string {
     if (!Number.isFinite(value)) return '—';
     return value.toLocaleString('en-IN', { maximumFractionDigits: 4 });
+  }
+
+  private formatTermBody(body: string): string {
+    const text = body?.trim() ?? '';
+    if (!text) return '';
+    return text.startsWith(':') ? text : `: ${text}`;
+  }
+
+  private logoImageFormat(contentType: string | undefined): 'PNG' | 'JPEG' | 'WEBP' | '' {
+    const t = contentType?.trim().toLowerCase() ?? '';
+    if (t.includes('png')) return 'PNG';
+    if (t.includes('jpeg') || t.includes('jpg')) return 'JPEG';
+    if (t.includes('webp')) return 'WEBP';
+    return '';
   }
 
   private unwrapRecord(body: unknown): Record<string, unknown> {

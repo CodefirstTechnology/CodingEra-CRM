@@ -102,34 +102,32 @@
           </tr>
         }
       </tbody>
-      <div class="no-parent-style">
-        <button type="button" class="qt-form__btn qt-form__btn--outline qt-form__btn--sm" (click)="addRow()">
-           Add
-        </button>
-      </div>
-      <tfoot>
-        <tr>
-          <td [attr.colspan]="visibleColumns().length + 2" class="qt-form__lines-total-label">Total quantity</td>
-          <td class="qt-form__lines-td qt-form__lines-td--num">{{ totals().totalQuantity | number: '1.2-4' }}</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td [attr.colspan]="visibleColumns().length + 2" class="qt-form__lines-total-label">Total weight</td>
-          <td class="qt-form__lines-td qt-form__lines-td--num">{{ totals().totalWeight | number: '1.2-4' }}</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td [attr.colspan]="visibleColumns().length + 2" class="qt-form__lines-total-label">Tax total</td>
-          <td class="qt-form__lines-total-value">₹ {{ totals().taxTotal | number: '1.2-2' }}</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td [attr.colspan]="visibleColumns().length + 2" class="qt-form__lines-total-label">Grand total</td>
-          <td class="qt-form__lines-total-value qt-grid__grand">₹ {{ totals().grandTotal | number: '1.2-2' }}</td>
-          <td></td>
-        </tr>
-      </tfoot>
     </table>
+  </div>
+
+  <div class="qt-grid__lines-foot">
+    <button type="button" class="qt-form__btn qt-form__btn--outline qt-form__btn--sm" (click)="addRow()">
+      Add
+    </button>
+
+    <dl class="qt-grid__totals" aria-label="Line item totals">
+      <div class="qt-grid__totals-row">
+        <dt class="qt-grid__totals-label">Total quantity</dt>
+        <dd class="qt-grid__totals-value">{{ totals().totalQuantity | number: '1.2-4' }}</dd>
+      </div>
+      <div class="qt-grid__totals-row">
+        <dt class="qt-grid__totals-label">Total weight</dt>
+        <dd class="qt-grid__totals-value">{{ totals().totalWeight | number: '1.2-4' }}</dd>
+      </div>
+      <div class="qt-grid__totals-row">
+        <dt class="qt-grid__totals-label">Tax total</dt>
+        <dd class="qt-grid__totals-value">₹ {{ totals().taxTotal | number: '1.2-2' }}</dd>
+      </div>
+      <div class="qt-grid__totals-row">
+        <dt class="qt-grid__totals-label">Grand total</dt>
+        <dd class="qt-grid__totals-value qt-grid__grand">₹ {{ totals().grandTotal | number: '1.2-2' }}</dd>
+      </div>
+    </dl>
   </div>
 
   @if (configOpen()) {

@@ -12,6 +12,7 @@ import { optionalPhoneValidator } from '../../shared/validators/crm-validators';
 import { MasterFormsComponent } from '../settings/master-forms/master-forms.component';
 import { RoleManagementComponent } from '../settings/role-management/role-management.component';
 import { passwordsMatchValidator } from '../auth/passwords-match.validator';
+import { CompanyProfileSettingsComponent } from './company-profile-settings/company-profile-settings.component';
 import { DeleteUserModalComponent } from './delete-user-modal.component';
 import { EditUserModalComponent } from './edit-user-modal.component';
 
@@ -23,12 +24,14 @@ const PERMISSION_GATED_ITEMS: Record<string, readonly string[]> = {
   Roles: ['roles.view', 'roles.manage', 'settings.manage'],
   Permissions: ['roles.view', 'roles.manage', 'settings.manage'],
   'Master Forms': ['settings.manage'],
+  'Company Profile': ['settings.manage'],
 };
 
 @Component({
   selector: 'app-advanced-settings',
   imports: [
     ReactiveFormsModule,
+    CompanyProfileSettingsComponent,
     DeleteUserModalComponent,
     EditUserModalComponent,
     MasterFormsComponent,
@@ -82,7 +85,7 @@ export class AdvancedSettingsComponent implements OnInit {
     { title: 'Profile', items: ['Profile'] },
     {
       title: 'System Configuration',
-      items: ['Forecasting', 'Currency & Exchange', 'Brand Settings', 'Master Forms'],
+      items: ['Forecasting', 'Currency & Exchange', 'Brand Settings', 'Master Forms', 'Company Profile'],
     },
     {
       title: 'Access Control',

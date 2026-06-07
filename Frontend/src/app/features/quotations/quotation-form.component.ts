@@ -37,6 +37,8 @@ import {
 import { gstFormValidators } from '../../shared/validators/crm-validators';
 import { QuotationItemGridComponent } from './quotation-item-grid/quotation-item-grid.component';
 import { createQuotationLineGroup, type QuotationLineFormValue } from './quotation-line-form.util';
+import { splitFullName } from '../leads/lead-full-name.util';
+import { formatQuotationNumber } from '../../core/services/quotations/quotation-next-number.util';
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -77,9 +79,7 @@ export class QuotationFormComponent {
 
   protected readonly form = this.fb.nonNullable.group({
     dealId: [null as number | null],
-    salutation: [''],
-    firstName: ['', [Validators.required, Validators.maxLength(128)]],
-    lastName: ['', [Validators.required, Validators.maxLength(128)]],
+    fullName: ['', [Validators.required, Validators.maxLength(200)]],
     gender: [''],
     mobileNumber: ['', Validators.maxLength(64)],
     emailAddress: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
@@ -93,10 +93,10 @@ export class QuotationFormComponent {
     contactPerson: ['', Validators.maxLength(256)],
     officeAddress: [''],
     siteAddress: [''],
-    referenceNumber: ['', Validators.maxLength(128)],
+    referenceNumber: [''],
     referenceDate: [''],
     companyCode: ['', Validators.maxLength(32)],
-    documentTypeCode: ['QTN', Validators.maxLength(32)],
+    documentTypeCode: ['QTN'],
     fiscalYearLabel: ['', Validators.maxLength(16)],
     sequenceNumber: [0],
     quotationNumber: ['', Validators.maxLength(64)],
@@ -189,13 +189,13 @@ export class QuotationFormComponent {
       .subscribe({
         next: (n) => {
           this.form.patchValue({
-            companyCode: n.companyCode,
+            companyCode: n.companyCode || 'BCEPL',
             documentTypeCode: n.documentTypeCode,
             fiscalYearLabel: n.fiscalYearLabel,
             sequenceNumber: n.sequenceNumber,
-            quotationNumber: n.quotationNumber,
             quotationDate: n.quotationDate?.slice(0, 10) || todayIsoDate(),
           });
+          this.syncQuotationNumberDisplay();
         },
         error: (err) =>
           this.toast.error(quotationHttpErrorMessage(err, 'Could not generate quotation number.')),
@@ -245,13 +245,9 @@ export class QuotationFormComponent {
 
   private buildDto(statusOverride?: string): QuotationUpsertDto {
     const v = this.form.getRawValue();
-    const firstName = v.firstName.trim();
-    const lastName = v.lastName.trim();
-    const customerName = [firstName, lastName].filter(Boolean).join(' ').trim() || v.companyName.trim();
-    const contactPerson =
-      v.contactPerson.trim() ||
-      [v.salutation.trim(), firstName, lastName].filter(Boolean).join(' ').trim() ||
-      customerName;
+    const { firstName, lastName } = splitFullName(v.fullName);
+    const customerName = v.fullName.trim() || v.companyName.trim();
+    const contactPerson = v.contactPerson.trim() || customerName;
 
     const lineRows = (v.lineItems as QuotationLineFormValue[]).map((l, i) => {
       const calc = recalcLineGroupValues(l);
@@ -279,7 +275,7 @@ export class QuotationFormComponent {
     return {
       id: this.editId() ?? undefined,
       dealId: v.dealId,
-      salutation: v.salutation.trim(),
+      salutation: '',
       firstName,
       lastName,
       gender: v.gender.trim(),
@@ -334,9 +330,7 @@ export class QuotationFormComponent {
         next: ({ settings, next, dealPatch }) => {
           const base: Record<string, unknown> = {
             dealId: dealIdFromQuery,
-            salutation: '',
-            firstName: '',
-            lastName: '',
+            fullName: '',
             gender: '',
             mobileNumber: '',
             emailAddress: '',
@@ -352,16 +346,16 @@ export class QuotationFormComponent {
             siteAddress: '',
             referenceNumber: '',
             referenceDate: '',
-            companyCode: next.companyCode || settings.companyCode || '',
+            companyCode: next.companyCode || settings.companyCode || 'BCEPL',
             documentTypeCode: next.documentTypeCode || settings.documentTypeCode || 'QTN',
             fiscalYearLabel: next.fiscalYearLabel,
             sequenceNumber: next.sequenceNumber,
-            quotationNumber: next.quotationNumber,
             quotationDate: next.quotationDate?.slice(0, 10) || todayIsoDate(),
             status: 'Draft',
             remarks: '',
           };
           this.applyNewFormPatch({ ...base, ...(dealPatch ?? {}) });
+          this.syncQuotationNumberDisplay();
           this.loading.set(false);
         },
         error: () => {
@@ -374,11 +368,15 @@ export class QuotationFormComponent {
   }
 
   private applyNewFormPatch(patch: Record<string, unknown>): void {
+    const firstName = String(patch['firstName'] ?? '');
+    const lastName = String(patch['lastName'] ?? '');
+    const fullName =
+      String(patch['fullName'] ?? '').trim() ||
+      [firstName, lastName].filter(Boolean).join(' ').trim();
+
     this.form.patchValue({
       dealId: (patch['dealId'] as number | null) ?? null,
-      salutation: String(patch['salutation'] ?? ''),
-      firstName: String(patch['firstName'] ?? ''),
-      lastName: String(patch['lastName'] ?? ''),
+      fullName,
       gender: String(patch['gender'] ?? ''),
       mobileNumber: String(patch['mobileNumber'] ?? ''),
       emailAddress: String(patch['emailAddress'] ?? ''),
@@ -394,17 +392,34 @@ export class QuotationFormComponent {
       siteAddress: String(patch['siteAddress'] ?? ''),
       referenceNumber: String(patch['referenceNumber'] ?? ''),
       referenceDate: String(patch['referenceDate'] ?? ''),
-      companyCode: String(patch['companyCode'] ?? ''),
+      companyCode: String(patch['companyCode'] ?? 'BCEPL'),
       documentTypeCode: String(patch['documentTypeCode'] ?? 'QTN'),
       fiscalYearLabel: String(patch['fiscalYearLabel'] ?? ''),
       sequenceNumber: Number(patch['sequenceNumber']) || 0,
-      quotationNumber: String(patch['quotationNumber'] ?? ''),
       quotationDate: String(patch['quotationDate'] ?? todayIsoDate()),
       status: String(patch['status'] ?? 'Draft'),
       remarks: String(patch['remarks'] ?? ''),
     });
     this.lineItems.clear();
     this.lineItems.push(this.createLineGroup());
+    this.syncQuotationNumberDisplay();
+  }
+
+  /** Display e.g. BCEPL/QTN/2025-26/601 from hidden numbering parts. */
+  private syncQuotationNumberDisplay(): void {
+    const cc = this.form.controls.companyCode.value.trim() || 'BCEPL';
+    const doc = this.form.controls.documentTypeCode.value.trim() || 'QTN';
+    const fy = this.form.controls.fiscalYearLabel.value.trim();
+    const seq = this.form.controls.sequenceNumber.value;
+    if (!fy || seq <= 0) return;
+
+    if (!this.form.controls.companyCode.value.trim()) {
+      this.form.controls.companyCode.setValue(cc, { emitEvent: false });
+    }
+
+    this.form.controls.quotationNumber.setValue(formatQuotationNumber(cc, doc, fy, seq), {
+      emitEvent: false,
+    });
   }
 
   private loadQuotation(id: number): void {
@@ -448,9 +463,7 @@ export class QuotationFormComponent {
 
     this.form.patchValue({
       dealId: q.dealId ?? null,
-      salutation: q.salutation ?? '',
-      firstName: q.firstName ?? '',
-      lastName: q.lastName ?? '',
+      fullName: [q.firstName, q.lastName].filter(Boolean).join(' ').trim() || q.customerName?.trim() || '',
       gender: q.gender ?? '',
       mobileNumber: q.mobileNumber,
       emailAddress: q.emailAddress,
@@ -515,5 +528,6 @@ export class QuotationFormComponent {
       });
       this.lineItems.push(g);
     }
+    this.syncQuotationNumberDisplay();
   }
 }

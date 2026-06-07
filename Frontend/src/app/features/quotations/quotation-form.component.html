@@ -27,26 +27,10 @@
         <h2 class="qt-form__section-title">Personal information</h2>
         <div class="qt-form__grid qt-form__grid--3">
           <label class="qt-form__field">
-            <span class="qt-form__label">Salutation</span>
-            <select class="qt-form__control" formControlName="salutation">
-              <option value="">— Select —</option>
-              @for (opt of dealMaster.salutationSelectOptions(); track opt.id + opt.name) {
-                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-              }
-            </select>
-          </label>
-          <label class="qt-form__field">
-            <span class="qt-form__label">First name <span class="qt-form__req">*</span></span>
-            <input class="qt-form__control" formControlName="firstName" autocomplete="given-name" />
-            @if (fieldInvalid('firstName')) {
-              <span class="qt-form__err">First name is required.</span>
-            }
-          </label>
-          <label class="qt-form__field">
-            <span class="qt-form__label">Last name <span class="qt-form__req">*</span></span>
-            <input class="qt-form__control" formControlName="lastName" autocomplete="family-name" />
-            @if (fieldInvalid('lastName')) {
-              <span class="qt-form__err">Last name is required.</span>
+            <span class="qt-form__label">Full name <span class="qt-form__req">*</span></span>
+            <input class="qt-form__control" formControlName="fullName" autocomplete="name" />
+            @if (fieldInvalid('fullName')) {
+              <span class="qt-form__err">Full name is required.</span>
             }
           </label>
           <label class="qt-form__field">
@@ -155,14 +139,6 @@
             <input class="qt-form__control" formControlName="contactPerson" autocomplete="off" />
           </label>
           <label class="qt-form__field">
-            <span class="qt-form__label">Reference number</span>
-            <input class="qt-form__control" formControlName="referenceNumber" autocomplete="off" />
-          </label>
-          <label class="qt-form__field">
-            <span class="qt-form__label">Reference date</span>
-            <input type="date" class="qt-form__control" formControlName="referenceDate" />
-          </label>
-          <label class="qt-form__field">
             <span class="qt-form__label">Status</span>
             <select class="qt-form__control" formControlName="status">
               @for (st of statusOptions; track st) {
@@ -175,20 +151,18 @@
             <input class="qt-form__control" formControlName="companyCode" placeholder="e.g. BCEPL" />
           </label> -->
           <label class="qt-form__field">
-            <span class="qt-form__label">Doc type</span>
-            <input class="qt-form__control" formControlName="documentTypeCode" />
-          </label>
-          <label class="qt-form__field">
             <span class="qt-form__label">Fiscal year</span>
             <input class="qt-form__control" formControlName="fiscalYearLabel" />
           </label>
           <label class="qt-form__field">
-            <span class="qt-form__label">Sequence</span>
-            <input type="number" class="qt-form__control" formControlName="sequenceNumber" />
-          </label>
-          <label class="qt-form__field">
             <span class="qt-form__label">Quotation number</span>
-            <input class="qt-form__control qt-form__control--mono" formControlName="quotationNumber" />
+            <input
+              class="qt-form__control qt-form__control--mono"
+              formControlName="quotationNumber"
+              readonly
+              aria-readonly="true"
+              tabindex="-1"
+            />
           </label>
           <label class="qt-form__field">
             <span class="qt-form__label">Quotation date <span class="qt-form__req">*</span></span>

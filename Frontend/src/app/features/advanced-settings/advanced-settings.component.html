@@ -203,6 +203,10 @@
     <article class="adv-settings__card">
       <app-master-forms />
     </article>
+    } @else if (activeItem() === 'Company Profile') {
+    <article class="adv-settings__card">
+      <app-company-profile-settings />
+    </article>
     } @else {
     <article class="adv-settings__card">
       <header class="adv-settings__profile-head">
