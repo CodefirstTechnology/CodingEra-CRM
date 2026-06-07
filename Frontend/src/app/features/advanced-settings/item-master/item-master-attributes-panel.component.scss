@@ -1,0 +1,37 @@
+@import './item-master-groups-panel.component.scss';
+
+.im-attr__values {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--card-border);
+}
+
+.im-attr__values-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  font-size: 0.88rem;
+}
+
+.im-attr__value-row {
+  display: grid;
+  grid-template-columns: 1fr 80px auto auto;
+  gap: 0.35rem;
+  align-items: center;
+  margin-bottom: 0.35rem;
+}
+
+.im-attr__value-row input {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+  font: inherit;
+  background: var(--surface);
+}
+
+@media (max-width: 640px) {
+  .im-attr__value-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,412 @@
+<header class="im__head">
+  <div>
+    <h2 class="im__title">Item Master</h2>
+    <p class="im__sub">
+      ERP-style item management — groups, attributes, variants, and specifications.
+    </p>
+  </div>
+  @if (activeTab() === 'items' && viewMode() === 'list' && canEdit()) {
+    <button type="button" class="im__primary-btn" (click)="openCreate()">+ New Item</button>
+  }
+</header>
+
+<nav class="im__tabs" aria-label="Item master sections">
+  <button type="button" class="im__tab" [class.im__tab--active]="activeTab() === 'items'" (click)="setTab('items')">
+    Items
+  </button>
+  <button type="button" class="im__tab" [class.im__tab--active]="activeTab() === 'groups'" (click)="setTab('groups')">
+    Item Groups
+  </button>
+  <button type="button" class="im__tab" [class.im__tab--active]="activeTab() === 'attributes'" (click)="setTab('attributes')">
+    Attributes
+  </button>
+</nav>
+
+@if (activeTab() === 'groups') {
+  <app-item-master-groups-panel [canEdit]="canEdit()" (changed)="onMetaChanged()" />
+}
+
+@if (activeTab() === 'attributes') {
+  <app-item-master-attributes-panel [canEdit]="canEdit()" (changed)="onMetaChanged()" />
+}
+
+@if (activeTab() === 'items') {
+  @if (viewMode() === 'list') {
+    <section class="im__toolbar">
+      <input
+        type="search"
+        class="im__search"
+        placeholder="Search by name or code…"
+        [value]="searchQuery()"
+        (input)="onSearchInput($event)"
+        (keyup.enter)="reloadItems()"
+      />
+      <select class="im__select" (change)="onGroupFilter($event)">
+        <option value="">All groups</option>
+        @for (g of groupOptions(); track g.id) {
+          <option [value]="g.id" [selected]="groupFilter() === g.id">{{ g.name }}</option>
+        }
+      </select>
+      <select class="im__select" (change)="onStatusFilter($event)">
+        <option value="">All statuses</option>
+        <option value="Active">Active</option>
+        <option value="Inactive">Inactive</option>
+      </select>
+      <select class="im__select" (change)="onAttributeFilterId($event)">
+        <option value="">Filter by attribute…</option>
+        @for (a of variantAttributes(); track a.id) {
+          <option [value]="a.id">{{ a.name }}</option>
+        }
+      </select>
+      <input
+        type="text"
+        class="im__search im__search--sm"
+        placeholder="Attribute value"
+        [value]="attributeFilterValue()"
+        (input)="attributeFilterValue.set(($any($event.target)).value)"
+        (keyup.enter)="applyAttributeFilter()"
+      />
+      <button type="button" class="im__ghost-btn" (click)="reloadItems()">Apply</button>
+    </section>
+
+    @if (loading()) {
+      <p class="im__hint">Loading items…</p>
+    }
+    @if (loadError(); as err) {
+      <p class="im__err" role="alert">{{ err }}</p>
+    }
+
+    <div class="im__table-wrap">
+      <table class="im__table">
+        <thead>
+          <tr>
+            <th><button type="button" class="im__sort" (click)="toggleSort('itemCode')">Code</button></th>
+            <th><button type="button" class="im__sort" (click)="toggleSort('itemName')">Item Name</button></th>
+            <th>Group</th>
+            <th>Status</th>
+            <th>Variants</th>
+            <th><button type="button" class="im__sort" (click)="toggleSort('updatedAt')">Updated</button></th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of items(); track item.id) {
+            <tr>
+              <td><code class="im__code">{{ item.itemCode }}</code></td>
+              <td>
+                <button type="button" class="im__link" (click)="openDetail(item)">{{ item.itemName }}</button>
+              </td>
+              <td>{{ item.itemGroupName || '—' }}</td>
+              <td>
+                <span class="im__badge" [class.im__badge--inactive]="item.status === 'Inactive'">
+                  {{ item.status }}
+                </span>
+              </td>
+              <td>
+                @if (item.hasVariants) {
+                  {{ item.variantCount }}
+                } @else {
+                  —
+                }
+              </td>
+              <td>{{ item.updatedAt | date: 'mediumDate' }}</td>
+              <td class="im__actions">
+                <button type="button" class="im__ghost-btn im__ghost-btn--sm" (click)="openQuickView(item)">Quick view</button>
+                @if (canEdit()) {
+                  <button type="button" class="im__ghost-btn im__ghost-btn--sm" (click)="openEdit(item)">Edit</button>
+                  <button type="button" class="im__danger-btn im__danger-btn--sm" (click)="deleteItem(item)">Delete</button>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="7" class="im__empty">No items found. Create item groups and attributes first, then add items.</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (totalPages() > 1) {
+      <footer class="im__pager">
+        <button type="button" class="im__ghost-btn" [disabled]="page() <= 1" (click)="goToPage(page() - 1)">Previous</button>
+        <span>Page {{ page() }} of {{ totalPages() }} ({{ totalCount() }} items)</span>
+        <button type="button" class="im__ghost-btn" [disabled]="page() >= totalPages()" (click)="goToPage(page() + 1)">Next</button>
+      </footer>
+    }
+  }
+
+  @if (viewMode() === 'create' || viewMode() === 'edit') {
+    <form class="im__form" [formGroup]="itemForm" (ngSubmit)="submitItem()">
+      <button type="button" class="im__back" (click)="backToList()">← Back to list</button>
+      <h3 class="im__section-title">{{ viewMode() === 'create' ? 'New Item' : 'Edit Item' }}</h3>
+
+      <div class="im__grid">
+        <label class="im__field">
+          <span>Item Code <span class="im__req">*</span></span>
+          <input type="text" formControlName="itemCode" />
+          @if (fieldInvalid('itemCode')) {
+            <small class="im__field-error">Item code is required.</small>
+          }
+        </label>
+        <label class="im__field">
+          <span>Item Name <span class="im__req">*</span></span>
+          <input type="text" formControlName="itemName" />
+          @if (fieldInvalid('itemName')) {
+            <small class="im__field-error">Item name is required.</small>
+          }
+        </label>
+        <label class="im__field">
+          <span>Item Group</span>
+          <select formControlName="itemGroupId">
+            <option [ngValue]="0">— None —</option>
+            @for (g of groupOptions(); track g.id) {
+              <option [ngValue]="g.id">{{ g.name }}</option>
+            }
+          </select>
+        </label>
+        <label class="im__field">
+          <span>Status</span>
+          <select formControlName="status">
+            <option value="Active">Active</option>
+            <option value="Inactive">Inactive</option>
+          </select>
+        </label>
+        <label class="im__field im__field--full">
+          <span>Description</span>
+          <textarea rows="3" formControlName="description"></textarea>
+        </label>
+        <label class="im__field im__field--check">
+          <input type="checkbox" formControlName="hasVariants" />
+          <span>Has Variants (template item)</span>
+        </label>
+      </div>
+
+      @if (itemForm.controls.hasVariants.value) {
+        <section class="im__section">
+          <h4 class="im__section-title">Variant Attributes</h4>
+          <p class="im__hint">Select which attributes define variants for this item (e.g. Size, Material Type, Thickness, Weight).</p>
+          <div class="im__chip-grid">
+            @for (attr of variantAttributes(); track attr.id) {
+              <label class="im__chip">
+                <input
+                  type="checkbox"
+                  [checked]="isVariantAttrSelected(attr.id)"
+                  [disabled]="!canEdit()"
+                  (change)="toggleVariantAttr(attr.id, $any($event.target).checked)"
+                />
+                {{ attr.name }}
+              </label>
+            } @empty {
+              <p class="im__hint">Create variant attributes under the Attributes tab first.</p>
+            }
+          </div>
+        </section>
+      }
+
+      <section class="im__section">
+        <div class="im__section-head">
+          <h4 class="im__section-title">Specifications</h4>
+          @if (canEdit()) {
+            <button type="button" class="im__ghost-btn im__ghost-btn--sm" (click)="addSpec()">+ Add specification</button>
+          }
+        </div>
+        <div class="im__spec-list" formArrayName="specifications">
+          @for (spec of specsArray().controls; track $index; let i = $index) {
+            <div class="im__spec-row" [formGroupName]="i">
+              <input type="text" formControlName="specName" placeholder="Name (e.g. Width)" />
+              <input type="text" formControlName="specValue" placeholder="Value" />
+              @if (canEdit()) {
+                <button type="button" class="im__danger-btn im__danger-btn--sm" (click)="removeSpec(i)">Remove</button>
+              }
+            </div>
+          } @empty {
+            <p class="im__hint">No specifications. Add custom fields for this product type.</p>
+          }
+        </div>
+      </section>
+
+      @if (canEdit()) {
+        <footer class="im__actions-bar">
+          <button type="submit" class="im__primary-btn" [disabled]="saving()">
+            {{ saving() ? 'Saving…' : (viewMode() === 'create' ? 'Create Item' : 'Save Changes') }}
+          </button>
+        </footer>
+      }
+    </form>
+  }
+
+  @if (viewMode() === 'detail' && selectedItem(); as item) {
+    <article class="im__detail">
+      <button type="button" class="im__back" (click)="backToList()">← Back to list</button>
+
+      <header class="im__detail-head">
+        <div>
+          <p class="im__detail-code">{{ item.itemCode }}</p>
+          <h3 class="im__detail-title">{{ item.itemName }}</h3>
+          <p class="im__detail-meta">
+            {{ item.itemGroupName || 'No group' }} ·
+            <span class="im__badge" [class.im__badge--inactive]="item.status === 'Inactive'">{{ item.status }}</span>
+          </p>
+        </div>
+        @if (canEdit()) {
+          <div class="im__detail-actions">
+            <button type="button" class="im__ghost-btn" (click)="openEdit(item)">Edit</button>
+            @if (item.hasVariants) {
+              <button type="button" class="im__primary-btn" (click)="openVariantGenerator()">Generate Variants</button>
+            }
+          </div>
+        }
+      </header>
+
+      @if (item.description) {
+        <section class="im__section">
+          <h4 class="im__section-title">Description</h4>
+          <p>{{ item.description }}</p>
+        </section>
+      }
+
+      @if (item.templateAttributes.length) {
+        <section class="im__section">
+          <h4 class="im__section-title">Variant Attributes</h4>
+          <div class="im__tag-list">
+            @for (a of item.templateAttributes; track a.attributeId) {
+              <span class="im__tag">{{ a.attributeName }}</span>
+            }
+          </div>
+        </section>
+      }
+
+      @if (item.specifications.length) {
+        <section class="im__section">
+          <h4 class="im__section-title">Specifications</h4>
+          <dl class="im__dl">
+            @for (s of item.specifications; track s.id) {
+              <div class="im__dl-row">
+                <dt>{{ s.specName }}</dt>
+                <dd>{{ s.specValue || '—' }}</dd>
+              </div>
+            }
+          </dl>
+        </section>
+      }
+
+      @if (item.hasVariants) {
+        <section class="im__section">
+          <h4 class="im__section-title">Variants ({{ item.variants.length }})</h4>
+          <div class="im__table-wrap">
+            <table class="im__table im__table--compact">
+              <thead>
+                <tr>
+                  <th>Code</th>
+                  <th>Name</th>
+                  <th>Attributes</th>
+                  <th>Status</th>
+                  @if (canEdit()) { <th></th> }
+                </tr>
+              </thead>
+              <tbody>
+                @for (v of item.variants; track v.id) {
+                  <tr>
+                    <td><code class="im__code">{{ v.itemCode }}</code></td>
+                    <td>{{ v.itemName }}</td>
+                    <td>
+                      @for (a of v.variantAttributes; track a.attributeId) {
+                        <span class="im__tag im__tag--sm">{{ a.attributeName }}: {{ a.value }}</span>
+                      }
+                    </td>
+                    <td>{{ v.status }}</td>
+                    @if (canEdit()) {
+                      <td>
+                        <button type="button" class="im__danger-btn im__danger-btn--sm" (click)="deleteVariant(v.id)">Delete</button>
+                      </td>
+                    }
+                  </tr>
+                } @empty {
+                  <tr><td colspan="5" class="im__empty">No variants yet. Use Generate Variants to create combinations.</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </section>
+      }
+
+      <footer class="im__detail-footer">
+        <span>Created {{ item.createdAt | date: 'medium' }}</span>
+        <span>Updated {{ item.updatedAt | date: 'medium' }}</span>
+      </footer>
+    </article>
+
+    @if (variantPanelOpen()) {
+      <div class="im__overlay" (click)="variantPanelOpen.set(false)"></div>
+      <aside class="im__drawer" role="dialog" aria-label="Generate variants">
+        <h4 class="im__section-title">Generate Variants</h4>
+        <p class="im__hint">Enter comma-separated values for each attribute. All combinations will be created.</p>
+        <form [formGroup]="variantGenerateForm" (ngSubmit)="submitGenerateVariants()">
+          <div formArrayName="attributeRows">
+            @for (row of generateRowsArray().controls; track $index; let i = $index) {
+              <div class="im__gen-row" [formGroupName]="i">
+                <select formControlName="attributeId">
+                  <option [ngValue]="0">Select attribute</option>
+                  @for (a of variantAttributes(); track a.id) {
+                    <option [ngValue]="a.id">{{ a.name }}</option>
+                  }
+                </select>
+                <input type="text" formControlName="valuesText" placeholder="Values: Coil, Semicoil, Mix" />
+                <button type="button" class="im__danger-btn im__danger-btn--sm" (click)="removeGenerateRow(i)">×</button>
+              </div>
+            }
+          </div>
+          <button type="button" class="im__ghost-btn im__ghost-btn--sm" (click)="addGenerateRow()">+ Add attribute row</button>
+          <label class="im__field">
+            <span>Variant status</span>
+            <select formControlName="status">
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </label>
+          <label class="im__field im__field--check">
+            <input type="checkbox" formControlName="skipExisting" />
+            <span>Skip existing combinations</span>
+          </label>
+          <footer class="im__actions-bar">
+            <button type="button" class="im__ghost-btn" (click)="variantPanelOpen.set(false)">Cancel</button>
+            <button type="submit" class="im__primary-btn" [disabled]="saving()">Generate</button>
+          </footer>
+        </form>
+      </aside>
+    }
+  }
+}
+
+@if (quickViewItem(); as qv) {
+  <div class="im__overlay" (click)="closeQuickView()"></div>
+  <aside class="im__drawer im__drawer--quick" role="dialog" aria-label="Item quick view">
+    <header class="im__detail-head">
+      <div>
+        <p class="im__detail-code">{{ qv.itemCode }}</p>
+        <h3 class="im__detail-title">{{ qv.itemName }}</h3>
+      </div>
+      <button type="button" class="im__ghost-btn" (click)="closeQuickView()">Close</button>
+    </header>
+    <p>{{ qv.itemGroupName || 'No group' }} · {{ qv.status }}</p>
+    @if (qv.variantAttributes.length) {
+      <div class="im__tag-list">
+        @for (a of qv.variantAttributes; track a.attributeId) {
+          <span class="im__tag im__tag--sm">{{ a.attributeName }}: {{ a.value }}</span>
+        }
+      </div>
+    }
+    @if (qv.specifications.length) {
+      <dl class="im__dl">
+        @for (s of qv.specifications; track s.id) {
+          <div class="im__dl-row">
+            <dt>{{ s.specName }}</dt>
+            <dd>{{ s.specValue || '—' }}</dd>
+          </div>
+        }
+      </dl>
+    }
+    <button type="button" class="im__link" (click)="closeQuickView(); openDetail(qv)">View full details →</button>
+  </aside>
+}

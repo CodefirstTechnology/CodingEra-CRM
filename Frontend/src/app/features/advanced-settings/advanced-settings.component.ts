@@ -13,6 +13,7 @@ import { MasterFormsComponent } from '../settings/master-forms/master-forms.comp
 import { RoleManagementComponent } from '../settings/role-management/role-management.component';
 import { passwordsMatchValidator } from '../auth/passwords-match.validator';
 import { CompanyProfileSettingsComponent } from './company-profile-settings/company-profile-settings.component';
+import { ItemMasterSettingsComponent } from './item-master/item-master-settings.component';
 import { DeleteUserModalComponent } from './delete-user-modal.component';
 import { EditUserModalComponent } from './edit-user-modal.component';
 
@@ -25,6 +26,7 @@ const PERMISSION_GATED_ITEMS: Record<string, readonly string[]> = {
   Permissions: ['roles.view', 'roles.manage', 'settings.manage'],
   'Master Forms': ['settings.manage'],
   'Company Profile': ['settings.manage'],
+  'Item Master': ['items.view', 'items.manage', 'settings.manage'],
 };
 
 @Component({
@@ -32,6 +34,7 @@ const PERMISSION_GATED_ITEMS: Record<string, readonly string[]> = {
   imports: [
     ReactiveFormsModule,
     CompanyProfileSettingsComponent,
+    ItemMasterSettingsComponent,
     DeleteUserModalComponent,
     EditUserModalComponent,
     MasterFormsComponent,
@@ -85,7 +88,7 @@ export class AdvancedSettingsComponent implements OnInit {
     { title: 'Profile', items: ['Profile'] },
     {
       title: 'System Configuration',
-      items: ['Forecasting', 'Currency & Exchange', 'Brand Settings', 'Master Forms', 'Company Profile'],
+      items: ['Forecasting', 'Currency & Exchange', 'Brand Settings', 'Master Forms', 'Company Profile', 'Item Master'],
     },
     {
       title: 'Access Control',
