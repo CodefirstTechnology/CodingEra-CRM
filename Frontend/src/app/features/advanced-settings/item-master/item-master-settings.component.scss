@@ -177,6 +177,45 @@
   gap: 0.25rem;
 }
 
+.im__th--num,
+.im__td--num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.im__pricing-strip {
+  margin-bottom: 0.5rem;
+}
+
+.im__pricing-card {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.65rem 1rem;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: color-mix(in srgb, var(--tertiary-color) 6%, var(--surface));
+}
+
+.im__pricing-label {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.im__pricing-value {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+
+  small {
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-muted);
+  }
+}
+
 .im__empty {
   text-align: center;
   color: var(--text-muted);

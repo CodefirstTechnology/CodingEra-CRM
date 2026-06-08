@@ -139,6 +139,7 @@ export function mapItemListItem(raw: unknown): ItemListItem {
     parentItemName: readStr(o, ['parentItemName', 'ParentItemName']),
     variantCount: readNum(o, ['variantCount', 'VariantCount']),
     variantAttributes,
+    steelRate: readNum(o, ['steelRate', 'SteelRate']),
     createdAt: readStr(o, ['createdAt', 'CreatedAt']),
     updatedAt: readStr(o, ['updatedAt', 'UpdatedAt']),
   };
@@ -217,6 +218,7 @@ export function toItemUpsertBody(dto: {
   itemName: string;
   itemGroupId: number | null;
   description: string;
+  steelRate: number;
   status: string;
   hasVariants: boolean;
   variantAttributeIds: number[];
@@ -227,6 +229,7 @@ export function toItemUpsertBody(dto: {
     itemName: dto.itemName,
     itemGroupId: dto.itemGroupId,
     description: dto.description,
+    steelRate: dto.steelRate,
     status: dto.status,
     hasVariants: dto.hasVariants,
     variantAttributeIds: dto.variantAttributeIds,

@@ -1,4 +1,4 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { canManageSettings } from '../../../core/auth/permission.util';
@@ -25,6 +25,7 @@ type ViewMode = 'list' | 'create' | 'edit' | 'detail';
   imports: [
     ReactiveFormsModule,
     DatePipe,
+    DecimalPipe,
     ItemMasterGroupsPanelComponent,
     ItemMasterAttributesPanelComponent,
   ],
@@ -80,6 +81,7 @@ export class ItemMasterSettingsComponent implements OnInit {
     itemName: ['', [Validators.required, Validators.maxLength(512)]],
     itemGroupId: [0],
     description: [''],
+    steelRate: [0, [Validators.min(0)]],
     status: ['Active' as ItemStatus, Validators.required],
     hasVariants: [false],
     variantAttributeIds: this.fb.nonNullable.control<number[]>([]),
@@ -159,6 +161,7 @@ export class ItemMasterSettingsComponent implements OnInit {
       itemName: '',
       itemGroupId: 0,
       description: '',
+      steelRate: 0,
       status: 'Active',
       hasVariants: false,
       variantAttributeIds: [],
@@ -229,6 +232,7 @@ export class ItemMasterSettingsComponent implements OnInit {
       itemName: v.itemName.trim(),
       itemGroupId: v.itemGroupId > 0 ? v.itemGroupId : null,
       description: v.description.trim(),
+      steelRate: Number(v.steelRate) || 0,
       status: v.status,
       hasVariants: v.hasVariants,
       variantAttributeIds: v.hasVariants ? v.variantAttributeIds : [],
@@ -446,6 +450,7 @@ export class ItemMasterSettingsComponent implements OnInit {
       itemName: detail.itemName,
       itemGroupId: detail.itemGroupId ?? 0,
       description: detail.description,
+      steelRate: detail.steelRate,
       status: detail.status,
       hasVariants: detail.hasVariants,
       variantAttributeIds: detail.templateAttributes.map((t) => t.attributeId),

@@ -101,6 +101,7 @@ export interface ItemListItem {
   parentItemName: string;
   variantCount: number;
   variantAttributes: ItemVariantAttribute[];
+  steelRate: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -117,6 +118,7 @@ export interface ItemUpsert {
   itemName: string;
   itemGroupId: number | null;
   description: string;
+  steelRate: number;
   status: ItemStatus;
   hasVariants: boolean;
   variantAttributeIds: number[];
