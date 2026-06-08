@@ -1301,9 +1301,23 @@ export class DealDetailComponent {
         next: (items) => {
           const latest = items.length > 0 ? items[0] : null;
           this.dealQuotationId.set(latest?.id ?? null);
+          if (latest?.grandTotal != null && Number.isFinite(latest.grandTotal) && latest.grandTotal > 0) {
+            this.applyQuotationGrandTotalToDealAmount(latest.grandTotal);
+          }
         },
         error: () => this.dealQuotationId.set(null),
       });
+  }
+
+  /** Populates Deal amount from the linked quotation grand total. */
+  private applyQuotationGrandTotalToDealAmount(grandTotal: number): void {
+    const amountStr = this.revenueNumberToInputString(grandTotal);
+    this.dataForm.patchValue({ dealAmount: amountStr }, { emitEvent: false });
+
+    const current = this.deal();
+    if (current) {
+      this.deal.set({ ...current, dealAmount: grandTotal });
+    }
   }
 
   protected sidebarAnnualRevenueLabel(): string {
