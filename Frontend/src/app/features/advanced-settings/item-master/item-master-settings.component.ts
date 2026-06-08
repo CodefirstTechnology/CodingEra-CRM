@@ -13,8 +13,10 @@ import type {
 } from '../../../core/services/item-master/item-master-api.models';
 import { ItemMasterHttpService } from '../../../core/services/item-master/item-master-http.service';
 import { ToastService } from '../../../core/toast/toast.service';
-import { ItemMasterAttributesPanelComponent } from './item-master-attributes-panel.component';
-import { ItemMasterGroupsPanelComponent } from './item-master-groups-panel.component';
+import {
+  ItemMasterAttributesPanelComponent,
+  ItemMasterGroupsPanelComponent,
+} from './item-master-panels';
 
 type ViewMode = 'list' | 'create' | 'edit' | 'detail';
 

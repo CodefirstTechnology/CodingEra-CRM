@@ -1,4 +1,4 @@
-@import './item-master-groups-panel.component.scss';
+@use './item-master-panel-shared' as *;
 
 .im-attr__values {
   margin-top: 0.75rem;
