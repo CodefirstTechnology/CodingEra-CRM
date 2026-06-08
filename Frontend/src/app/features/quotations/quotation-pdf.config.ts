@@ -13,9 +13,15 @@ export const QUOTATION_PDF_COMPANY = {
   website: '',
   jurisdiction: '',
   introText: '',
+  defaultIntroText:
+    'Dear Sir,\nWith reference to your requirements, we are pleased to submit our most reasonable offer for your approval and assuring you of our best services at all times.',
   transportationLabel: '',
   defaultGstPercent: 18,
   terms: [] as { title: string; body: string }[],
+  bankName: '',
+  accountNumber: '',
+  ifscCode: '',
+  branchName: '',
   /** Header/footer fill RGB */
   brandBlue: [30, 64, 120] as [number, number, number],
   /** Line-items table footer (total row) */
@@ -26,7 +32,7 @@ export const QUOTATION_PDF_COMPANY = {
 /** Page layout (A4 portrait, mm) — keeps tables and totals column-aligned. */
 export const QUOTATION_PDF_LAYOUT = {
   marginMm: 10,
-  headerHeightMm: 34,
+  headerHeightMm: 24,
   footerHeightMm: 15,
   footerReserveMm: 28,
   sectionGapMm: 3,
@@ -42,8 +48,8 @@ export const QUOTATION_PDF_LAYOUT = {
   lineQtyWidthMm: 26,
   lineRateWidthMm: 30,
   lineAmountWidthMm: 30,
-  /** Terms block uses this share of content width */
-  termsWidthRatio: 0.58,
+  /** Terms block (index + title + detail) uses this share of content width */
+  termsWidthRatio: 0.7,
   /** Totals mini-table (label + amount), right edge aligns with line amount column */
   totalsLabelWidthMm: 42,
   /** Terms table column widths (mm) */
@@ -52,7 +58,12 @@ export const QUOTATION_PDF_LAYOUT = {
   /** Quotation number highlight in meta grid */
   qtnHighlightFill: [220, 235, 250] as [number, number, number],
   qtnHighlightText: [30, 64, 120] as [number, number, number],
-  cellPaddingMm: 2,
+  cellPaddingMm: 1,
+  termsDetailCellPaddingMm: { top: 1, right: 1, bottom: 1, left: 1 },
+  transportCellPaddingMm: { top: 1.5, right: 1.2, bottom: 1.5, left: 1.2 },
+  totalsCellPaddingMm: { top: 1, right: 1, bottom: 1, left: 1 },
+  introCellPaddingMm: { top: 1, right: 1.2, bottom: 1, left: 1.2 },
+  signatureCellPaddingMm: { top: 1, right: 1, bottom: 1, left: 1 },
   fontSize: {
     headerBrand: 13,
     headerLegal: 10.5,

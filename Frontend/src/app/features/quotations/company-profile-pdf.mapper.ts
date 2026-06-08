@@ -58,5 +58,9 @@ export function mergeCompanyProfileForPdf(profile: CompanyProfile | null | undef
     logoBase64: p.logoBase64,
     signatoryName: p.signatoryName?.trim() || undefined,
     signatoryMobile: p.signatoryMobile?.trim() || undefined,
+    bankName: pickStr(p.bankName),
+    accountNumber: pickStr(p.accountNumber),
+    ifscCode: pickStr(p.ifscCode),
+    branchName: pickStr(p.branchName),
   };
 }

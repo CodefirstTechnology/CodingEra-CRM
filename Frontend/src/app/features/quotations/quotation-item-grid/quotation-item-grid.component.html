@@ -16,7 +16,7 @@
     </div>
   </div>
 
-  <div class="qt-form__lines-scroll">
+  <div class="qt-form__lines-scroll" (scroll)="repositionItemPicker()">
     <table class="qt-form__lines-table qt-grid__table">
       <thead>
         <tr>
@@ -60,9 +60,32 @@
                 [class.qt-form__lines-td--num]="isNumericColumn(col.key)"
                 [style.min-width]="columnWidth(col)"
               >
-                @if (formControlName(col); as ctrlName) {
+                @if (col.key === 'itemName') {
+                  <div
+                    class="qt-item-picker"
+                    [class.qt-item-picker--open]="isItemPickerOpen(rowIndex)"
+                  >
+                    <input
+                      type="search"
+                      class="qt-form__control qt-form__control--compact qt-item-picker__input"
+                      [value]="itemPickerInputValue(rowIndex)"
+                      placeholder="Search item…"
+                      autocomplete="off"
+                      role="combobox"
+                      aria-autocomplete="list"
+                      [attr.aria-expanded]="isItemPickerOpen(rowIndex)"
+                      (focus)="openItemPicker(rowIndex, $event)"
+                      (input)="onItemPickerInput(rowIndex, $event)"
+                      (blur)="onItemPickerBlur(rowIndex)"
+                    />
+                  </div>
+                } @else if (isDynamicColumn(col.key)) {
+                  <span class="qt-grid__readonly">{{ dynamicCellValue(rowIndex, col.key) || '—' }}</span>
+                } @else if (formControlName(col); as ctrlName) {
                   @if (col.key === 'amount') {
                     <span class="qt-grid__amount">{{ displayAmount(rowIndex) | number: '1.2-4' }}</span>
+                  } @else if (col.key === 'unitRate') {
+                    <span class="qt-grid__readonly">{{ displayRate(rowIndex) | number: '1.2-4' }}</span>
                   } @else if (isNumericColumn(col.key)) {
                     <input
                       type="number"
@@ -105,6 +128,29 @@
     </table>
   </div>
 
+  @if (itemPickerRow() !== null && itemPickerRect(); as rect) {
+    <ul
+      class="qt-item-picker__list qt-item-picker__list--fixed"
+      role="listbox"
+      [style.top.px]="rect.top"
+      [style.left.px]="rect.left"
+      [style.width.px]="rect.width"
+    >
+      @for (opt of filteredCatalogItems(); track opt.id) {
+        <li
+          class="qt-item-picker__option"
+          role="option"
+          [class.qt-item-picker__option--active]="selectedItemId(itemPickerRow()!) === opt.id"
+          (mousedown)="selectCatalogItem(itemPickerRow()!, opt, $event)"
+        >
+          {{ opt.itemName }}
+        </li>
+      } @empty {
+        <li class="qt-item-picker__empty">No items found</li>
+      }
+    </ul>
+  }
+
   <div class="qt-grid__lines-foot">
     <button type="button" class="qt-form__btn qt-form__btn--outline qt-form__btn--sm" (click)="addRow()">
       Add
@@ -120,7 +166,25 @@
         <dd class="qt-grid__totals-value">{{ totals().totalWeight | number: '1.2-4' }}</dd>
       </div>
       <div class="qt-grid__totals-row">
-        <dt class="qt-grid__totals-label">Tax total</dt>
+        <dt class="qt-grid__totals-label">Subtotal</dt>
+        <dd class="qt-grid__totals-value">₹ {{ totals().subtotal | number: '1.2-2' }}</dd>
+      </div>
+      <div class="qt-grid__totals-row qt-grid__totals-row--gst">
+        <dt class="qt-grid__totals-label">GST %</dt>
+        <dd class="qt-grid__totals-value">
+          <input
+            type="number"
+            class="qt-form__control qt-form__control--compact qt-grid__gst-input"
+            min="0"
+            step="0.01"
+            [value]="gstPercent()"
+            (input)="onGstInput($event)"
+            aria-label="GST percent on subtotal"
+          />
+        </dd>
+      </div>
+      <div class="qt-grid__totals-row">
+        <dt class="qt-grid__totals-label">GST amount</dt>
         <dd class="qt-grid__totals-value">₹ {{ totals().taxTotal | number: '1.2-2' }}</dd>
       </div>
       <div class="qt-grid__totals-row">

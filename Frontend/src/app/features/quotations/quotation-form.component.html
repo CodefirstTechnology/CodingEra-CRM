@@ -183,7 +183,11 @@
         </div>
       </section>
 
-      <app-quotation-item-grid [lineItems]="lineItems" />
+      <app-quotation-item-grid
+        [lineItems]="lineItems"
+        [gstPercent]="form.controls.gstPercent.value"
+        (gstPercentChange)="form.controls.gstPercent.setValue($event)"
+      />
     </form>
   }
 

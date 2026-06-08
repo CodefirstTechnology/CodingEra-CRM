@@ -3,24 +3,35 @@ import {
   Component,
   computed,
   effect,
+  HostListener,
   inject,
   input,
   OnDestroy,
+  output,
   signal,
 } from '@angular/core';
 import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
-import { Subscription, take } from 'rxjs';
+import { forkJoin, Subscription, take } from 'rxjs';
+import type { QuotationCatalogItem } from '../../../core/services/item-master/item-master-api.models';
+import { ItemMasterHttpService } from '../../../core/services/item-master/item-master-http.service';
+import { patchLineFromCatalogItem } from '../../../core/services/quotations/quotation-catalog-line.util';
 import {
-  DEFAULT_QUOTATION_GRID_COLUMNS,
+  catalogColumnsToGridColumns,
+  FIXED_QUOTATION_GRID_COLUMNS,
   gridColumnFormControl,
-  mergeGridColumns,
+  isDynamicColumnKey,
+  mergeQuotationGridColumns,
   NUMERIC_GRID_COLUMN_KEYS,
   type QuotationGridColumn,
-  type QuotationGridColumnKey,
 } from '../../../core/services/quotations/quotation-grid.constants';
+import {
+  parseItemSnapshot,
+  snapshotFieldValue,
+} from '../../../core/services/quotations/quotation-item-snapshot.util';
 import {
   aggregateQuotationLines,
   recalcLineGroupValues,
+  resolveUnitRate,
 } from '../../../core/services/quotations/quotation-line-calc.util';
 import { QuotationsService, quotationHttpErrorMessage } from '../../../core/services/quotations.service';
 import { UserDataScopeService } from '../../../core/services/user-data-scope.service';
@@ -36,13 +47,19 @@ import { createQuotationLineGroup } from '../quotation-line-form.util';
 })
 export class QuotationItemGridComponent implements OnDestroy {
   readonly lineItems = input.required<FormArray>();
+  readonly gstPercent = input(0);
+
+  readonly gstPercentChange = output<number>();
 
   private readonly fb = inject(FormBuilder);
   private readonly quotationsService = inject(QuotationsService);
+  private readonly itemMasterApi = inject(ItemMasterHttpService);
   private readonly userScope = inject(UserDataScopeService);
   private readonly toast = inject(ToastService);
 
-  protected readonly columns = signal<QuotationGridColumn[]>(DEFAULT_QUOTATION_GRID_COLUMNS);
+  protected readonly catalogItems = signal<QuotationCatalogItem[]>([]);
+  protected readonly dynamicGridCols = signal<QuotationGridColumn[]>([]);
+  protected readonly columns = signal<QuotationGridColumn[]>(FIXED_QUOTATION_GRID_COLUMNS);
   protected readonly searchQuery = signal('');
   protected readonly configOpen = signal(false);
   protected readonly savingConfig = signal(false);
@@ -51,6 +68,26 @@ export class QuotationItemGridComponent implements OnDestroy {
   protected readonly dragRowIndex = signal<number | null>(null);
   protected readonly dragColIndex = signal<number | null>(null);
   protected readonly recalcTick = signal(0);
+  protected readonly itemPickerRow = signal<number | null>(null);
+  protected readonly itemPickerQuery = signal('');
+  protected readonly itemPickerRect = signal<{ top: number; left: number; width: number } | null>(
+    null,
+  );
+
+  private itemPickerInputEl: HTMLInputElement | null = null;
+
+  protected readonly filteredCatalogItems = computed(() => {
+    const q = this.itemPickerQuery().trim().toLowerCase();
+    const items = this.catalogItems();
+    if (!q) return items.slice(0, 80);
+    return items
+      .filter(
+        (i) =>
+          i.itemName.toLowerCase().includes(q) ||
+          i.itemCode.toLowerCase().includes(q),
+      )
+      .slice(0, 80);
+  });
 
   protected readonly visibleColumns = computed(() =>
     this.columns()
@@ -81,6 +118,7 @@ export class QuotationItemGridComponent implements OnDestroy {
 
   protected readonly totals = computed(() => {
     this.recalcTick();
+    this.gstPercent();
     const fa = this.lineItems();
     const rows = fa.controls.map((ctrl) => {
       const g = ctrl as FormGroup;
@@ -88,14 +126,14 @@ export class QuotationItemGridComponent implements OnDestroy {
       const amounts = recalcLineGroupValues(raw);
       return { quantity: Number(raw.quantity) || 0, amounts };
     });
-    return aggregateQuotationLines(rows);
+    return aggregateQuotationLines(rows, Number(this.gstPercent()) || 0);
   });
 
   private lineSubs: Subscription[] = [];
   private faSub: Subscription | null = null;
 
   constructor() {
-    this.loadColumns();
+    this.loadCatalogAndColumns();
     effect(() => {
       const fa = this.lineItems();
       this.bindFormArray(fa);
@@ -131,13 +169,13 @@ export class QuotationItemGridComponent implements OnDestroy {
     return this.lineItems().at(index) as FormGroup;
   }
 
-  protected setColumnVisible(key: QuotationGridColumnKey, visible: boolean): void {
+  protected setColumnVisible(key: string, visible: boolean): void {
     this.draftColumns.update((cols) =>
       cols.map((c) => (c.key === key ? { ...c, visible } : c)),
     );
   }
 
-  protected updateColumnWidth(key: QuotationGridColumnKey, event: Event): void {
+  protected updateColumnWidth(key: string, event: Event): void {
     const w = Math.max(48, Math.min(480, Number((event.target as HTMLInputElement).value) || 100));
     this.draftColumns.update((cols) =>
       cols.map((c) => (c.key === key ? { ...c, width: w } : c)),
@@ -145,7 +183,7 @@ export class QuotationItemGridComponent implements OnDestroy {
   }
 
   protected applyColumnConfig(saveAsDefault = false): void {
-    const merged = mergeGridColumns(this.draftColumns());
+    const merged = mergeQuotationGridColumns(this.draftColumns(), this.dynamicGridCols());
     this.savingConfig.set(true);
     const req$ = saveAsDefault
       ? this.quotationsService.saveItemGridDefaults({ columns: merged })
@@ -153,7 +191,9 @@ export class QuotationItemGridComponent implements OnDestroy {
 
     req$.pipe(take(1)).subscribe({
       next: (res) => {
-        this.columns.set(mergeGridColumns(res.columns as QuotationGridColumn[]));
+        this.columns.set(
+          mergeQuotationGridColumns(res.columns as QuotationGridColumn[], this.dynamicGridCols()),
+        );
         this.savingConfig.set(false);
         this.configOpen.set(false);
         this.toast.success(saveAsDefault ? 'Default grid layout saved.' : 'Grid layout saved.');
@@ -206,7 +246,7 @@ export class QuotationItemGridComponent implements OnDestroy {
     return `${col.width}px`;
   }
 
-  protected isNumericColumn(key: QuotationGridColumnKey): boolean {
+  protected isNumericColumn(key: string): boolean {
     return NUMERIC_GRID_COLUMN_KEYS.has(key);
   }
 
@@ -214,14 +254,139 @@ export class QuotationItemGridComponent implements OnDestroy {
     return gridColumnFormControl(col.key);
   }
 
+  protected isDynamicColumn(key: string): boolean {
+    return isDynamicColumnKey(key);
+  }
+
+  protected dynamicCellValue(index: number, columnKey: string): string {
+    const g = this.lineItems().at(index) as FormGroup;
+    const snapshot = parseItemSnapshot(String(g.controls['itemSnapshotJson']?.value ?? ''));
+    return snapshotFieldValue(snapshot, columnKey);
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  protected onDocumentKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') this.closeItemPicker();
+  }
+
+  @HostListener('window:scroll')
+  @HostListener('window:resize')
+  protected repositionItemPicker(): void {
+    if (this.itemPickerInputEl) this.syncItemPickerRect(this.itemPickerInputEl);
+  }
+
+  protected isItemPickerOpen(index: number): boolean {
+    return this.itemPickerRow() === index;
+  }
+
+  protected itemPickerInputValue(index: number): string {
+    if (this.isItemPickerOpen(index)) return this.itemPickerQuery();
+    return this.selectedItemLabel(index);
+  }
+
+  protected selectedItemLabel(index: number): string {
+    const id = this.selectedItemId(index);
+    if (id != null) {
+      const hit = this.catalogItems().find((i) => i.id === id);
+      if (hit) return hit.itemName;
+    }
+    const g = this.lineItems().at(index) as FormGroup;
+    return String(g.controls['itemName']?.value ?? '').trim();
+  }
+
+  protected openItemPicker(index: number, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.itemPickerRow.set(index);
+    this.itemPickerQuery.set(this.selectedItemLabel(index));
+    this.itemPickerInputEl = input;
+    this.syncItemPickerRect(input);
+  }
+
+  protected closeItemPicker(): void {
+    this.itemPickerRow.set(null);
+    this.itemPickerQuery.set('');
+    this.itemPickerRect.set(null);
+    this.itemPickerInputEl = null;
+  }
+
+  protected onItemPickerInput(index: number, event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.itemPickerRow.set(index);
+    this.itemPickerQuery.set(input.value);
+    this.itemPickerInputEl = input;
+    this.syncItemPickerRect(input);
+  }
+
+  protected onItemPickerBlur(index: number): void {
+    window.setTimeout(() => {
+      if (this.itemPickerRow() !== index) return;
+      const query = this.itemPickerQuery().trim();
+      if (!query) {
+        this.clearCatalogSelection(index);
+      }
+      this.closeItemPicker();
+    }, 150);
+  }
+
+  protected selectCatalogItem(index: number, item: QuotationCatalogItem, event: Event): void {
+    event.preventDefault();
+    const g = this.lineItems().at(index) as FormGroup;
+    g.patchValue(patchLineFromCatalogItem(item));
+    this.recalcRow(index);
+    this.bumpRecalc();
+    this.closeItemPicker();
+  }
+
+  private syncItemPickerRect(input: HTMLInputElement | null): void {
+    if (!input) return;
+    const r = input.getBoundingClientRect();
+    const width = Math.max(r.width, 400);
+    const maxHeight = 320;
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+    let top = r.bottom + 4;
+    if (top + maxHeight > window.innerHeight - 8) {
+      top = Math.max(8, r.top - maxHeight - 4);
+    }
+    this.itemPickerRect.set({ top, left, width });
+  }
+
+  protected clearCatalogSelection(index: number): void {
+    const g = this.lineItems().at(index) as FormGroup;
+    g.patchValue({
+      itemId: null,
+      itemCode: '',
+      itemName: '',
+      steelRate: 0,
+      itemSnapshotJson: '',
+    });
+    this.onLineInput(index);
+  }
+
+  protected selectedItemId(index: number): number | null {
+    const g = this.lineItems().at(index) as FormGroup;
+    const v = g.controls['itemId']?.value;
+    return v != null && v !== '' ? Number(v) : null;
+  }
+
   protected onLineInput(index: number): void {
     this.recalcRow(index);
+    this.bumpRecalc();
+  }
+
+  protected onGstInput(event: Event): void {
+    const value = Math.max(0, Number((event.target as HTMLInputElement).value) || 0);
+    this.gstPercentChange.emit(value);
     this.bumpRecalc();
   }
 
   protected displayAmount(index: number): number {
     const g = this.lineItems().at(index) as FormGroup;
     return Number(g.controls['amount']?.value) || 0;
+  }
+
+  protected displayRate(index: number): number {
+    const g = this.lineItems().at(index) as FormGroup;
+    return Number(g.controls['rate']?.value) || 0;
   }
 
   protected sortedDraftColumns(): QuotationGridColumn[] {
@@ -241,9 +406,24 @@ export class QuotationItemGridComponent implements OnDestroy {
   private recalcRow(index: number): void {
     const g = this.lineItems().at(index) as FormGroup;
     const raw = g.getRawValue();
-    const calc = recalcLineGroupValues(raw);
+    const qty = Number(raw.quantity) || 0;
+    const unitWeight = Number(raw.unitWeight) || 0;
+    const steelRate = Number(raw.steelRate) || 0;
+    const legacyLineGst = Number(raw.gstPercent) || 0;
+    const rate =
+      legacyLineGst > 0
+        ? Number(raw.rate) || 0
+        : resolveUnitRate(unitWeight, steelRate, Number(raw.rate) || 0);
+    const weight = unitWeight > 0 ? qty * unitWeight : Number(raw.weight) || 0;
+    const calc = recalcLineGroupValues({ ...raw, rate, weight });
     g.patchValue(
-      { amount: calc.amount, taxAmount: calc.taxAmount, lineTotal: calc.lineTotal },
+      {
+        rate,
+        weight,
+        amount: calc.amount,
+        taxAmount: calc.taxAmount,
+        lineTotal: calc.lineTotal,
+      },
       { emitEvent: false },
     );
   }
@@ -252,14 +432,36 @@ export class QuotationItemGridComponent implements OnDestroy {
     this.recalcTick.update((n) => n + 1);
   }
 
-  private loadColumns(): void {
-    this.quotationsService
-      .getItemGridColumns()
-      .pipe(take(1))
-      .subscribe({
-        next: (res) => this.columns.set(mergeGridColumns(res.columns as QuotationGridColumn[])),
-        error: () => this.columns.set(DEFAULT_QUOTATION_GRID_COLUMNS),
-      });
+  private loadCatalogAndColumns(): void {
+    forkJoin({
+      catalog: this.itemMasterApi.getQuotationCatalog().pipe(take(1)),
+      columns: this.quotationsService.getItemGridColumns().pipe(take(1)),
+    }).subscribe({
+      next: ({ catalog, columns }) => {
+        this.catalogItems.set(catalog.items);
+        const dynamic = catalogColumnsToGridColumns(catalog.dynamicColumns);
+        this.dynamicGridCols.set(dynamic);
+        const saved = (columns.columns as QuotationGridColumn[]) ?? FIXED_QUOTATION_GRID_COLUMNS;
+        this.columns.set(mergeQuotationGridColumns(saved, dynamic));
+      },
+      error: () => {
+        this.itemMasterApi
+          .getQuotationCatalog()
+          .pipe(take(1))
+          .subscribe({
+            next: (catalog) => {
+              this.catalogItems.set(catalog.items);
+              const dynamic = catalogColumnsToGridColumns(catalog.dynamicColumns);
+              this.dynamicGridCols.set(dynamic);
+              this.columns.set(mergeQuotationGridColumns(FIXED_QUOTATION_GRID_COLUMNS, dynamic));
+            },
+            error: () => {
+              this.columns.set(FIXED_QUOTATION_GRID_COLUMNS);
+              this.toast.error('Could not load item catalog for quotation.');
+            },
+          });
+      },
+    });
   }
 
   private bindFormArray(fa: FormArray): void {

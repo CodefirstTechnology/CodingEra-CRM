@@ -1,9 +1,15 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { take } from 'rxjs';
 import type { QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
+import {
+  collectDynamicColumnsFromSnapshots,
+  parseItemSnapshot,
+  snapshotFieldValue,
+  type SnapshotColumnDef,
+} from '../../core/services/quotations/quotation-item-snapshot.util';
 import { QuotationsService, quotationHttpErrorMessage } from '../../core/services/quotations.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { QuotationPdfService } from './quotation-pdf.service';
@@ -24,6 +30,13 @@ export class QuotationViewComponent {
   protected readonly loading = signal(true);
   protected readonly pdfGenerating = signal(false);
   protected readonly quotation = signal<QuotationUpsertDto | null>(null);
+
+  protected readonly dynamicColumns = computed((): SnapshotColumnDef[] => {
+    const q = this.quotation();
+    return collectDynamicColumnsFromSnapshots(q?.lineItems ?? []);
+  });
+
+  protected readonly usesHeaderGst = computed(() => (this.quotation()?.gstPercent ?? 0) > 0);
 
   constructor() {
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
@@ -108,6 +121,21 @@ export class QuotationViewComponent {
     const q = this.quotation();
     if (q?.totalWeight != null) return q.totalWeight;
     return 0;
+  }
+
+  protected dynamicCell(lineSnapshotJson: string | undefined, columnKey: string): string {
+    const snapshot = parseItemSnapshot(lineSnapshotJson);
+    return snapshotFieldValue(snapshot, columnKey) || '—';
+  }
+
+  protected subtotal(): number {
+    const q = this.quotation();
+    if (q?.subtotal != null) return q.subtotal;
+    return (q?.lineItems ?? []).reduce((s, l) => s + (l.amount || 0), 0);
+  }
+
+  protected headerGstPercent(): number {
+    return this.quotation()?.gstPercent ?? 0;
   }
 
   protected statusClass(status: string): string {

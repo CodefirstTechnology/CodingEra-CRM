@@ -26,7 +26,7 @@
         >
           View Quotation
         </button>
-      } @else if (!isDealReadOnly()) {
+      } @else if (canCreateQuotation()) {
         <button type="button" class="deal-detail__btn deal-detail__btn--quotation" (click)="onCreateQuotation()">
           Create Quotation
         </button>

@@ -155,6 +155,7 @@ export class AuthService {
       if (!(normalized.permissions?.length)) {
         this.refreshSessionPermissions();
       }
+      this.refreshSessionProfile();
       writeLoginLog('session_restored', {
         maskedEmail: maskEmail(user.email),
         userId: user.id,
@@ -207,9 +208,12 @@ export class AuthService {
             return of({ ok: false as const, error: 'No token in response.' });
           }
 
+          const loginRoot = unwrapApiRecord(res);
           const u = res.user;
-          const rawUserId = u?.['id'] ?? res.userId;
-          const emailResolved = String(u?.['email'] ?? trimmed);
+          const rawUserId = u?.['id'] ?? res.userId ?? loginRoot['id'] ?? loginRoot['Id'];
+          const emailResolved = String(
+            u?.['email'] ?? loginRoot['email'] ?? loginRoot['Email'] ?? trimmed,
+          );
           const numericFromLogin = pickNumericFromLoginResponse(res);
           const serverUserId =
             pickNumericDbUserId(rawUserId) ??
@@ -236,9 +240,14 @@ export class AuthService {
                   ? profile['role']
                   : typeof profile?.['Role'] === 'string'
                     ? profile['Role']
-                    : null;
+                    : typeof loginRoot['role'] === 'string'
+                      ? loginRoot['role']
+                      : typeof loginRoot['Role'] === 'string'
+                        ? loginRoot['Role']
+                        : null;
 
               const loginPayload: Record<string, unknown> = {
+                ...loginRoot,
                 ...(u && typeof u === 'object' ? u : {}),
                 ...(profile ?? {}),
                 ...(numericUserId ? { id: numericUserId } : {}),
@@ -269,6 +278,7 @@ export class AuthService {
               session.role = sessionRoleLabel(roleId, roleName);
               if (perms.length) session.permissions = perms;
               this.setSession(token, session);
+              this.refreshSessionProfile();
 
               const redirectTo = homeUrlForRoleId(roleId);
               writeLoginLog('login_success', {
@@ -543,8 +553,9 @@ export class AuthService {
       return of({ roleId, profile: loginRes.user ?? null });
     }
 
+    const params = new HttpParams().set('userId', userId);
     return this.http
-      .get<unknown>(`${base}/auth/users/${encodeURIComponent(userId)}`, { headers })
+      .get<unknown>(`${base}/auth/users/${encodeURIComponent(userId)}`, { headers, params })
       .pipe(
         timeout(15000),
         switchMap((body) => {
@@ -622,6 +633,43 @@ export class AuthService {
       roleId,
       role: sessionRoleLabel(roleId),
     };
+  }
+
+  /** Syncs display name from GET /auth/users/{id} (fixes stale email-derived names in session). */
+  refreshSessionProfile(): void {
+    const token = this._token();
+    const user = this._user();
+    const base = environment.apiUrl?.replace(/\/$/, '');
+    const id = user?.id?.trim();
+    if (!token || !user || !base || !pickNumericDbUserId(id)) return;
+
+    const headers = new HttpHeaders({ Authorization: `Bearer ${token}` });
+    const params = new HttpParams().set('userId', id!);
+    this.http
+      .get<unknown>(`${base}/auth/users/${encodeURIComponent(id!)}`, { headers, params })
+      .subscribe({
+        next: (body) => {
+          const profile = unwrapApiRecord(body);
+          const rebuilt =
+            buildSessionFromApiRecord(
+              {
+                ...profile,
+                id,
+                email: user.email,
+                roleId: user.roleId,
+                permissions: user.permissions,
+              },
+              user.email,
+              user.roleId,
+            ) ?? null;
+          const name = rebuilt?.name?.trim();
+          if (!name || name === user.name?.trim()) return;
+          const updated: UserSession = { ...user, name };
+          this._user.set(updated);
+          localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
+        },
+        error: () => {},
+      });
   }
 
   /** Loads effective permissions from API and updates the stored session. */

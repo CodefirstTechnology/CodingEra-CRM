@@ -16,12 +16,14 @@ import type {
   ItemVariantGenerate,
   ItemVariantUpsert,
   PagedResult,
+  QuotationCatalog,
 } from './item-master-api.models';
 import {
   mapItemAttribute,
   mapItemDetail,
   mapItemGroup,
   mapPagedItems,
+  mapQuotationCatalog,
   toItemAttributeBody,
   toItemGroupBody,
   toItemUpsertBody,
@@ -92,6 +94,12 @@ export class ItemMasterHttpService {
 
   deleteAttribute(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/attributes/${id}`, { headers: this.jsonHeaders() });
+  }
+
+  getQuotationCatalog(): Observable<QuotationCatalog> {
+    return this.http
+      .get<unknown>(`${this.baseUrl}/quotation-catalog`, { headers: this.jsonHeaders() })
+      .pipe(map(mapQuotationCatalog));
   }
 
   listItems(query: ItemListQuery = {}): Observable<PagedResult<ItemListItem>> {

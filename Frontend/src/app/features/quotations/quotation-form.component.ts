@@ -8,8 +8,14 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
-import { combineLatest, forkJoin, take } from 'rxjs';
+import { catchError, combineLatest, forkJoin, of, take } from 'rxjs';
+import { toDealPipelineRows } from '../../core/services/deals/deal-pipeline-config.util';
 import { DealMasterSelectService } from '../../core/services/deals/deal-master-select.service';
+import {
+  isQuotationGenerationBlockedForDeal,
+  QUOTATION_GENERATION_BLOCKED_MESSAGE,
+} from '../../core/services/deals/deal-stage-validation.util';
+import { DealsService } from '../../core/services/deals.service';
 import {
   masterOptionFormValue,
 } from '../../core/services/organizations/organization-master-select.util';
@@ -63,6 +69,7 @@ export class QuotationFormComponent {
   private readonly fb = inject(FormBuilder);
   private readonly quotationsService = inject(QuotationsService);
   private readonly prefillService = inject(QuotationDealPrefillService);
+  private readonly dealsService = inject(DealsService);
   protected readonly dealMaster = inject(DealMasterSelectService);
   private readonly toast = inject(ToastService);
 
@@ -103,17 +110,17 @@ export class QuotationFormComponent {
     quotationDate: [todayIsoDate(), Validators.required],
     status: ['Draft', Validators.required],
     remarks: [''],
+    gstPercent: [0, [Validators.min(0)]],
     lineItems: this.fb.array([this.createLineGroup()]),
   });
 
   protected readonly grandTotal = computed(() => {
-    let sum = 0;
-    for (const ctrl of this.lineItems.controls) {
-      const g = ctrl as FormGroup;
-      const raw = g.getRawValue();
-      sum += recalcLineGroupValues(raw).lineTotal;
-    }
-    return sum;
+    const rows = this.lineItems.controls.map((ctrl) => {
+      const raw = (ctrl as FormGroup).getRawValue() as QuotationLineFormValue;
+      return { quantity: Number(raw.quantity) || 0, amounts: recalcLineGroupValues(raw) };
+    });
+    const gst = Number(this.form.controls.gstPercent.value) || 0;
+    return aggregateQuotationLines(rows, gst).grandTotal;
   });
 
   constructor() {
@@ -249,10 +256,12 @@ export class QuotationFormComponent {
     const customerName = v.fullName.trim() || v.companyName.trim();
     const contactPerson = v.contactPerson.trim() || customerName;
 
+    const headerGst = Number(v.gstPercent) || 0;
     const lineRows = (v.lineItems as QuotationLineFormValue[]).map((l, i) => {
       const calc = recalcLineGroupValues(l);
       return {
         lineIndex: i,
+        itemId: l.itemId ?? null,
         itemCode: l.itemCode.trim(),
         itemName: l.itemName.trim(),
         description: l.description.trim(),
@@ -260,16 +269,30 @@ export class QuotationFormComponent {
         uom: l.uom.trim(),
         weight: Number(l.weight) || 0,
         unitWeight: Number(l.unitWeight) || 0,
+        steelRate: Number(l.steelRate) || 0,
         rate: Number(l.rate) || 0,
+        itemSnapshotJson: l.itemSnapshotJson ?? '',
         discountPercent: Number(l.discountPercent) || 0,
-        gstPercent: Number(l.gstPercent) || 0,
+        gstPercent: headerGst > 0 ? 0 : Number(l.gstPercent) || 0,
         amount: calc.amount,
         taxAmount: calc.taxAmount,
         lineTotal: calc.lineTotal,
       };
     });
     const totals = aggregateQuotationLines(
-      lineRows.map((l) => ({ quantity: l.quantity, amounts: recalcLineGroupValues(l) })),
+      lineRows.map((l) => ({
+        quantity: l.quantity,
+        amounts: recalcLineGroupValues({
+          quantity: l.quantity,
+          rate: l.rate,
+          discountPercent: l.discountPercent,
+          gstPercent: l.gstPercent,
+          weight: l.weight,
+          unitWeight: l.unitWeight,
+          steelRate: l.steelRate,
+        }),
+      })),
+      headerGst,
     );
 
     return {
@@ -304,6 +327,7 @@ export class QuotationFormComponent {
       remarks: v.remarks.trim(),
       subtotal: totals.subtotal,
       taxTotal: totals.taxTotal,
+      gstPercent: headerGst,
       grandTotal: totals.grandTotal,
       totalQuantity: totals.totalQuantity,
       totalWeight: totals.totalWeight,
@@ -324,10 +348,24 @@ export class QuotationFormComponent {
       settings: this.quotationsService.getSettings(),
       next: this.quotationsService.getNextNumber(),
       dealPatch: this.prefillService.resolveFormPatch(cached, dealIdFromQuery),
+      dealRow:
+        dealIdFromQuery != null
+          ? this.dealsService.getById(dealIdFromQuery).pipe(catchError(() => of(null)))
+          : of(null),
+      statuses: this.dealMaster.ensureStatusesLoaded().pipe(take(1)),
     })
       .pipe(take(1))
       .subscribe({
-        next: ({ settings, next, dealPatch }) => {
+        next: ({ settings, next, dealPatch, dealRow }) => {
+          if (dealRow && dealIdFromQuery != null) {
+            const pipeline = toDealPipelineRows(this.dealMaster.statusSelectOptions());
+            if (isQuotationGenerationBlockedForDeal(dealRow.status, pipeline)) {
+              this.loading.set(false);
+              this.toast.error(QUOTATION_GENERATION_BLOCKED_MESSAGE);
+              void this.router.navigate(['/deals', dealIdFromQuery]);
+              return;
+            }
+          }
           const base: Record<string, unknown> = {
             dealId: dealIdFromQuery,
             fullName: '',
@@ -487,12 +525,14 @@ export class QuotationFormComponent {
       quotationDate: q.quotationDate?.slice(0, 10) ?? todayIsoDate(),
       status: q.status,
       remarks: q.remarks,
+      gstPercent: q.gstPercent ?? 0,
     });
     this.lineItems.clear();
     const lines = q.lineItems?.length
       ? q.lineItems
       : [
           {
+            itemId: null,
             itemName: '',
             description: '',
             quantity: 1,
@@ -503,6 +543,8 @@ export class QuotationFormComponent {
             uom: 'Nos',
             weight: 0,
             unitWeight: 0,
+            steelRate: 0,
+            itemSnapshotJson: '',
             discountPercent: 0,
             gstPercent: 0,
             taxAmount: 0,
@@ -512,6 +554,7 @@ export class QuotationFormComponent {
     for (const l of lines) {
       const g = this.createLineGroup();
       g.patchValue({
+        itemId: l.itemId ?? null,
         itemCode: l.itemCode,
         itemName: l.itemName ?? l.itemCode,
         description: l.description,
@@ -519,7 +562,9 @@ export class QuotationFormComponent {
         uom: l.uom || 'Nos',
         weight: l.weight ?? 0,
         unitWeight: l.unitWeight ?? 0,
+        steelRate: l.steelRate ?? 0,
         rate: l.rate,
+        itemSnapshotJson: l.itemSnapshotJson ?? '',
         discountPercent: l.discountPercent ?? 0,
         gstPercent: l.gstPercent ?? 0,
         amount: l.amount,

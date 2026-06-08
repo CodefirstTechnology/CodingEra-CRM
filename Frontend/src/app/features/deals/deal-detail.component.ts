@@ -41,6 +41,8 @@ import type { DealStageHistoryRecord } from '../../core/services/deals/deal-http
 import {
   canSelectDealStage,
   DEAL_STAGE_CLOSED_MESSAGE,
+  isQuotationGenerationBlockedForDeal,
+  QUOTATION_GENERATION_BLOCKED_MESSAGE,
   validateDealStageTransition,
 } from '../../core/services/deals/deal-stage-validation.util';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
@@ -203,6 +205,13 @@ export class DealDetailComponent {
   });
 
   protected readonly isStatusLocked = this.isDealReadOnly;
+
+  protected readonly canCreateQuotation = computed(() => {
+    const row = this.deal();
+    if (!row || this.dealQuotationId() != null || this.isDealReadOnly()) return false;
+    const pipeline = toDealPipelineRows(this.dealStatuses());
+    return !isQuotationGenerationBlockedForDeal(row.status, pipeline);
+  });
 
   protected readonly statusLockedMessage = computed(() => {
     const row = this.deal();
@@ -1239,6 +1248,11 @@ export class DealDetailComponent {
     const row = this.deal();
     if (idn == null || !row) {
       this.toast.error('Deal not loaded.');
+      return;
+    }
+    const pipeline = toDealPipelineRows(this.dealStatuses());
+    if (isQuotationGenerationBlockedForDeal(row.status, pipeline)) {
+      this.toast.error(QUOTATION_GENERATION_BLOCKED_MESSAGE);
       return;
     }
     const v = this.dataForm.getRawValue();

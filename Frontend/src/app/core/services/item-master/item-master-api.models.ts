@@ -165,3 +165,26 @@ export interface PagedResult<T> {
 }
 
 export type ItemMasterTab = 'items' | 'groups' | 'attributes';
+
+export interface QuotationCatalogColumn {
+  key: string;
+  label: string;
+  source: string;
+  sortOrder: number;
+}
+
+export interface QuotationCatalogItem {
+  id: number;
+  itemCode: string;
+  itemName: string;
+  description: string;
+  steelRate: number;
+  unitWeight: number;
+  attributes: ItemVariantAttribute[];
+  specifications: ItemSpecification[];
+}
+
+export interface QuotationCatalog {
+  dynamicColumns: QuotationCatalogColumn[];
+  items: QuotationCatalogItem[];
+}

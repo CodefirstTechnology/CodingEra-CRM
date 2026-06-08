@@ -9,6 +9,9 @@ import type {
   ItemAttributeValueType,
   ItemStatus,
   PagedResult,
+  QuotationCatalog,
+  QuotationCatalogColumn,
+  QuotationCatalogItem,
 } from './item-master-api.models';
 
 function readObj(raw: unknown): Record<string, unknown> {
@@ -255,6 +258,41 @@ export function toVariantGenerateBody(dto: {
     status: dto.status,
     skipExisting: dto.skipExisting,
   };
+}
+
+export function mapQuotationCatalog(raw: unknown): QuotationCatalog {
+  const o = readObj(raw);
+  const colsRaw = o['dynamicColumns'] ?? o['DynamicColumns'];
+  const itemsRaw = o['items'] ?? o['Items'];
+  const dynamicColumns: QuotationCatalogColumn[] = Array.isArray(colsRaw)
+    ? colsRaw.map((c) => {
+        const col = readObj(c);
+        return {
+          key: readStr(col, ['key', 'Key']),
+          label: readStr(col, ['label', 'Label']),
+          source: readStr(col, ['source', 'Source']),
+          sortOrder: readNum(col, ['sortOrder', 'SortOrder']),
+        };
+      })
+    : [];
+  const items: QuotationCatalogItem[] = Array.isArray(itemsRaw)
+    ? itemsRaw.map((item) => {
+        const row = readObj(item);
+        const attrsRaw = row['attributes'] ?? row['Attributes'];
+        const specsRaw = row['specifications'] ?? row['Specifications'];
+        return {
+          id: readNum(row, ['id', 'Id']),
+          itemCode: readStr(row, ['itemCode', 'ItemCode']),
+          itemName: readStr(row, ['itemName', 'ItemName']),
+          description: readStr(row, ['description', 'Description']),
+          steelRate: readNum(row, ['steelRate', 'SteelRate']),
+          unitWeight: readNum(row, ['unitWeight', 'UnitWeight']),
+          attributes: Array.isArray(attrsRaw) ? attrsRaw.map(mapVariantAttribute) : [],
+          specifications: Array.isArray(specsRaw) ? specsRaw.map(mapSpecification) : [],
+        };
+      })
+    : [];
+  return { dynamicColumns, items };
 }
 
 export function toVariantUpsertBody(dto: {
