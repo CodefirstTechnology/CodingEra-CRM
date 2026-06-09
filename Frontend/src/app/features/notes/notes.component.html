@@ -96,8 +96,70 @@
     </div>
   }
 
+  <div class="notes__toolbar card">
+    <label class="notes__search">
+      <span class="visually-hidden">Search notes</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+      <input
+        type="search"
+        class="notes__input"
+        placeholder="Search title, content, record, author…"
+        [value]="searchQuery()"
+        (input)="onSearchInput($event)"
+      />
+      @if (searchQuery()) {
+        <button type="button" class="notes__clear" (click)="clearSearch()" aria-label="Clear search">×</button>
+      }
+    </label>
+    <div class="notes__filter-selects">
+      <label class="notes__filter-field">
+        <select
+          class="notes__filter-select notes__filter-select--type"
+          [value]="relatedTypeFilter()"
+          (change)="onRelatedTypeFilterSelect($event)"
+        >
+          @for (opt of relatedTypeFilterOptions; track opt.id) {
+            <option [value]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+      <label class="notes__filter-field">
+        <select
+          class="notes__filter-select notes__filter-select--visibility"
+          [value]="visibilityFilter()"
+          (change)="onVisibilityFilterSelect($event)"
+        >
+          @for (opt of visibilityFilterOptions; track opt.id) {
+            <option [value]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+    </div>
+  </div>
+
   <div class="notes__card card">
+    <div class="notes__table-head">
+      <span class="notes__count">
+        <strong>{{ filtered().length }}</strong>
+        @if (hasActiveFilters() && filtered().length !== rows().length) {
+          <span class="notes__count-muted">of {{ rows().length }} notes</span>
+        } @else {
+          <span class="notes__count-muted">notes</span>
+        }
+      </span>
+    </div>
     <div class="notes__scroll">
+      @if (filtered().length === 0) {
+        <p class="notes__empty">
+          No notes match your filters.
+          @if (hasActiveFilters()) {
+            <button type="button" class="notes__linkish notes__linkish--inline" (click)="resetFilters()">Clear filters</button>
+          }
+        </p>
+      } @else {
       <table class="notes__table">
         <thead>
           <tr class="notes__thead-row">
@@ -110,7 +172,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (row of rows(); track row.id) {
+          @for (row of filtered(); track row.id) {
             <tr class="notes__row">
               <td class="notes__td notes__td--title">
                 <span class="notes__td-title-text">{{ row.title }}</span>
@@ -140,6 +202,7 @@
           }
         </tbody>
       </table>
+      }
     </div>
   </div>
 </div>

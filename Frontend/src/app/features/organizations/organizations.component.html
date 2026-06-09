@@ -111,8 +111,72 @@
     </div>
   }
 
+  <div class="org__toolbar card">
+    <label class="org__search">
+      <span class="visually-hidden">Search organizations</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+      <input
+        type="search"
+        class="org__input"
+        placeholder="Search name, website, industry, territory, revenue…"
+        [value]="searchQuery()"
+        (input)="onSearchInput($event)"
+      />
+      @if (searchQuery()) {
+        <button type="button" class="org__clear" (click)="clearSearch()" aria-label="Clear search">×</button>
+      }
+    </label>
+    <div class="org__filter-selects">
+      <label class="org__filter-field">
+        <select
+          class="org__filter-select org__filter-select--industry"
+          [value]="industryFilter()"
+          (change)="onIndustryFilterSelect($event)"
+        >
+          @for (opt of industryFilterOptions(); track opt.id) {
+            <option [value]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+      @if (territoryFilterOptions().length > 1) {
+        <label class="org__filter-field">
+          <select
+            class="org__filter-select org__filter-select--territory"
+            [value]="territoryFilter()"
+            (change)="onTerritoryFilterSelect($event)"
+          >
+            @for (opt of territoryFilterOptions(); track opt.id) {
+              <option [value]="opt.id">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+      }
+    </div>
+  </div>
+
   <div class="org__table-card card">
+    <div class="org__table-head">
+      <span class="org__count">
+        <strong>{{ filtered().length }}</strong>
+        @if (hasActiveFilters() && filtered().length !== rows().length) {
+          <span class="org__count-muted">of {{ rows().length }} organizations</span>
+        } @else {
+          <span class="org__count-muted">organizations</span>
+        }
+      </span>
+    </div>
     <div class="org__table-scroll">
+      @if (filtered().length === 0) {
+        <p class="org__empty">
+          No organizations match your filters.
+          @if (hasActiveFilters()) {
+            <button type="button" class="org__linkish org__linkish--inline" (click)="resetFilters()">Clear filters</button>
+          }
+        </p>
+      } @else {
       <table class="org__table">
         <thead>
           <tr class="org__thead-row">
@@ -123,7 +187,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (row of rows(); track row.id) {
+          @for (row of filtered(); track row.id) {
             <tr class="org__row">
               <td class="org__td org__td--strong">
                 <a class="org__name-link" [routerLink]="['/organizations', row.id]">{{ row.name }}</a>
@@ -135,6 +199,7 @@
           }
         </tbody>
       </table>
+      }
     </div>
   </div>
 </div>

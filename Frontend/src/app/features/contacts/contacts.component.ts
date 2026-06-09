@@ -72,6 +72,42 @@ export class ContactsComponent {
   ] as const;
 
   protected readonly rows = signal<ContactRow[]>([]);
+  protected readonly searchQuery = signal('');
+
+  protected readonly filtered = computed(() => {
+    const q = this.searchQuery().trim().toLowerCase();
+    return this.rows().filter((row) => {
+      if (!q) return true;
+      const label = this.contactLabel(row).toLowerCase();
+      return (
+        label.includes(q) ||
+        row.firstName.toLowerCase().includes(q) ||
+        row.lastName.toLowerCase().includes(q) ||
+        row.email.toLowerCase().includes(q) ||
+        (row.phone?.toLowerCase().includes(q) ?? false) ||
+        row.organization.toLowerCase().includes(q) ||
+        (row.designation?.toLowerCase().includes(q) ?? false) ||
+        (row.address?.toLowerCase().includes(q) ?? false) ||
+        (row.gender?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  });
+
+  protected hasActiveFilters(): boolean {
+    return this.searchQuery().trim().length > 0;
+  }
+
+  protected onSearchInput(ev: Event): void {
+    this.searchQuery.set((ev.target as HTMLInputElement).value);
+  }
+
+  protected clearSearch(): void {
+    this.searchQuery.set('');
+  }
+
+  protected resetFilters(): void {
+    this.searchQuery.set('');
+  }
 
   constructor() {
     this.refreshContacts();
@@ -105,7 +141,7 @@ export class ContactsComponent {
   }
 
   protected readonly allSelected = computed(() =>
-    this.sel.allSelectedIn(this.rows().map((r) => r.id)),
+    this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
   );
 
   protected readonly createForm = this.fb.nonNullable.group({
@@ -138,7 +174,7 @@ export class ContactsComponent {
   }
 
   protected toggleSelectAll(): void {
-    this.sel.toggleSelectAll(this.rows().map((r) => r.id));
+    this.sel.toggleSelectAll(this.filtered().map((r) => r.id));
   }
 
   protected openForm(): void {

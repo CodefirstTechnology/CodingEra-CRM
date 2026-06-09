@@ -138,8 +138,46 @@
     </div>
   }
 
+  <div class="contacts__toolbar card">
+    <label class="contacts__search">
+      <span class="visually-hidden">Search contacts</span>
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+      <input
+        type="search"
+        class="contacts__input"
+        placeholder="Search name, email, phone, organization, designation…"
+        [value]="searchQuery()"
+        (input)="onSearchInput($event)"
+      />
+      @if (searchQuery()) {
+        <button type="button" class="contacts__clear" (click)="clearSearch()" aria-label="Clear search">×</button>
+      }
+    </label>
+  </div>
+
   <div class="contacts__table-card card">
+    <div class="contacts__table-head">
+      <span class="contacts__count">
+        <strong>{{ filtered().length }}</strong>
+        @if (hasActiveFilters() && filtered().length !== rows().length) {
+          <span class="contacts__count-muted">of {{ rows().length }} contacts</span>
+        } @else {
+          <span class="contacts__count-muted">contacts</span>
+        }
+      </span>
+    </div>
     <div class="contacts__table-scroll">
+      @if (filtered().length === 0) {
+        <p class="contacts__empty">
+          No contacts match your filters.
+          @if (hasActiveFilters()) {
+            <button type="button" class="contacts__linkish contacts__linkish--inline" (click)="resetFilters()">Clear filters</button>
+          }
+        </p>
+      } @else {
       <table class="contacts__table">
         <thead>
           <tr class="contacts__thead-row">
@@ -152,7 +190,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (row of rows(); track row.id) {
+          @for (row of filtered(); track row.id) {
             <tr class="contacts__row">
               <td class="contacts__td contacts__td--strong">
                 <a class="contacts__name-link" [routerLink]="['/contacts', row.id]">{{ contactLabel(row) }}</a>
@@ -168,6 +206,7 @@
           }
         </tbody>
       </table>
+      }
     </div>
   </div>
 </div>

@@ -17,6 +17,10 @@ import { formatDealRecordLabel, formatLeadRecordLabel } from '../../shared/utils
 export type TaskStatus = 'Backlog' | 'Todo' | 'In Progress' | 'Done' | 'Canceled';
 export type TaskPriority = 'Low' | 'Medium' | 'High';
 
+export type TaskListStatusFilter = 'all' | TaskStatus;
+export type TaskListPriorityFilter = 'all' | TaskPriority;
+export type TaskListAssigneeFilter = 'all' | string;
+
 export interface AssigneeOption {
   id: string;
   label: string;
@@ -93,6 +97,105 @@ export class TasksComponent {
   protected readonly assigneeOptions = this.leadOwnerOpts.options;
 
   protected readonly rows = signal<TaskRow[]>([]);
+  protected readonly searchQuery = signal('');
+  protected readonly statusFilter = signal<TaskListStatusFilter>('all');
+  protected readonly priorityFilter = signal<TaskListPriorityFilter>('all');
+  protected readonly assigneeFilter = signal<TaskListAssigneeFilter>('all');
+
+  protected readonly statusFilterOptions: { id: TaskListStatusFilter; label: string }[] = [
+    { id: 'all', label: 'All statuses' },
+    ...this.taskStatusOptions.map((s) => ({ id: s.value, label: s.value })),
+  ];
+
+  protected readonly priorityFilterOptions: { id: TaskListPriorityFilter; label: string }[] = [
+    { id: 'all', label: 'All priorities' },
+    ...this.priorityOptions.map((p) => ({ id: p.value, label: p.value })),
+  ];
+
+  protected readonly assigneeFilterOptions = computed(() => {
+    const items: { id: TaskListAssigneeFilter; label: string }[] = [
+      { id: 'all', label: 'All assignees' },
+    ];
+    for (const opt of this.assigneeOptions()) {
+      items.push({ id: opt.id, label: opt.label });
+    }
+    return items;
+  });
+
+  protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
+
+  protected readonly filtered = computed(() => {
+    const q = this.searchQuery().trim().toLowerCase();
+    const st = this.statusFilter();
+    const pri = this.priorityFilter();
+    const assignee = this.assigneeFilter();
+    const filterByAssignee = this.isAdminViewer() && assignee !== 'all';
+    return this.rows().filter((row) => {
+      if (st !== 'all' && row.status !== st) return false;
+      if (pri !== 'all' && row.priority !== pri) return false;
+      if (filterByAssignee && !this.rowMatchesAssigneeFilter(row, assignee)) return false;
+      if (!q) return true;
+      const recordLabel = this.taskRecordLabel(row).toLowerCase();
+      return (
+        row.title.toLowerCase().includes(q) ||
+        (row.description?.toLowerCase().includes(q) ?? false) ||
+        row.status.toLowerCase().includes(q) ||
+        row.priority.toLowerCase().includes(q) ||
+        row.assignedTo.toLowerCase().includes(q) ||
+        row.dueDate.toLowerCase().includes(q) ||
+        (row.relatedLeadName?.toLowerCase().includes(q) ?? false) ||
+        (row.relatedDealName?.toLowerCase().includes(q) ?? false) ||
+        recordLabel.includes(q)
+      );
+    });
+  });
+
+  protected hasActiveFilters(): boolean {
+    return (
+      this.statusFilter() !== 'all' ||
+      this.priorityFilter() !== 'all' ||
+      (this.isAdminViewer() && this.assigneeFilter() !== 'all') ||
+      this.searchQuery().trim().length > 0
+    );
+  }
+
+  protected onSearchInput(ev: Event): void {
+    this.searchQuery.set((ev.target as HTMLInputElement).value);
+  }
+
+  protected clearSearch(): void {
+    this.searchQuery.set('');
+  }
+
+  protected resetFilters(): void {
+    this.searchQuery.set('');
+    this.statusFilter.set('all');
+    this.priorityFilter.set('all');
+    this.assigneeFilter.set('all');
+  }
+
+  protected onStatusFilterSelect(ev: Event): void {
+    this.statusFilter.set((ev.target as HTMLSelectElement).value as TaskListStatusFilter);
+  }
+
+  protected onPriorityFilterSelect(ev: Event): void {
+    this.priorityFilter.set((ev.target as HTMLSelectElement).value as TaskListPriorityFilter);
+  }
+
+  protected onAssigneeFilterSelect(ev: Event): void {
+    this.assigneeFilter.set((ev.target as HTMLSelectElement).value);
+  }
+
+  private rowMatchesAssigneeFilter(row: TaskRow, assigneeId: string): boolean {
+    const id = row.assignedToUserId?.trim();
+    if (id && id === assigneeId) return true;
+    const person = this.leadOwnerOpts.findById(assigneeId);
+    if (!person) return false;
+    return (
+      row.assignedTo === person.label ||
+      row.assignedInitials === person.initials
+    );
+  }
 
   constructor() {
     this.leadOwnerOpts.load();
@@ -127,7 +230,7 @@ export class TasksComponent {
   }
 
   protected readonly allSelected = computed(() =>
-    this.sel.allSelectedIn(this.rows().map((r) => r.id)),
+    this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
   );
 
   protected readonly createForm = this.fb.nonNullable.group({
@@ -158,7 +261,7 @@ export class TasksComponent {
   }
 
   protected toggleSelectAll(): void {
-    this.sel.toggleSelectAll(this.rows().map((r) => r.id));
+    this.sel.toggleSelectAll(this.filtered().map((r) => r.id));
   }
 
   private defaultAssigneeId(): string {
