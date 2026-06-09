@@ -7,16 +7,6 @@
     <button type="button" class="notes__btn" (click)="openForm()">+ New note</button>
   </header>
 
-  <app-crm-selection-bar
-    [selectionCount]="sel.selectedCount()"
-    [canEdit]="sel.selectedCount() === 1"
-    [showAssignActions]="false"
-    [showConvertLead]="false"
-    (edit)="onBulkEdit()"
-    (delete)="onBulkDelete()"
-    (dismiss)="onBulkDismiss()"
-  />
-
   @if (formOpen()) {
     <div class="notes__modal-root" aria-modal="true" role="dialog" aria-labelledby="notes-modal-title">
       <div class="notes__modal-backdrop" (click)="closeForm()"></div>
@@ -111,15 +101,6 @@
       <table class="notes__table">
         <thead>
           <tr class="notes__thead-row">
-            <th class="notes__th notes__th--check">
-              <input
-                type="checkbox"
-                class="notes__checkbox"
-                [checked]="allSelected()"
-                (change)="toggleSelectAll()"
-                aria-label="Select all notes"
-              />
-            </th>
             <th class="notes__th">Note</th>
             <th class="notes__th notes__th--narrow">Record</th>
             <th class="notes__th notes__th--narrow">Author</th>
@@ -131,15 +112,6 @@
         <tbody>
           @for (row of rows(); track row.id) {
             <tr class="notes__row">
-              <td class="notes__td notes__td--check">
-                <input
-                  type="checkbox"
-                  class="notes__checkbox"
-                  [checked]="isRowSelected(row.id)"
-                  (change)="toggleRow(row.id, $event)"
-                  [attr.aria-label]="'Select ' + row.title"
-                />
-              </td>
               <td class="notes__td notes__td--title">
                 <span class="notes__td-title-text">{{ row.title }}</span>
                 @if (row.bodyPreview) {

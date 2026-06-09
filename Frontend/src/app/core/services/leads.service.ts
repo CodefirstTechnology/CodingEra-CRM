@@ -3,16 +3,14 @@ import { inject, Injectable } from '@angular/core';
 import { firstValueFrom, Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, tap } from 'rxjs/operators';
 import { AuthService } from '../auth/auth.service';
+import { isAdmin } from '../auth/auth-role.util';
 import { DealsService } from './deals.service';
 import { LeadConversionStorageService } from './leads/lead-conversion-storage.service';
 import type { ConvertLeadOptions, ConvertLeadResult } from './leads/lead-conversion.types';
 import { normalizeGstin } from '../../shared/utils/gstin.util';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
 import { isLeadConverted, validateLeadForConversion } from '../../shared/utils/lead-conversion.util';
-import {
-  filterLeadsByLeadOwnerId,
-  parseSessionUserId,
-} from '../../features/user-dashboard/utils/user-ownership.util';
+import { filterLeadsForUser } from '../../features/user-dashboard/utils/user-ownership.util';
 import { LeadRoundRobinService } from './leads/lead-round-robin.service';
 import { OrganizationResolveService } from './organizations/organization-resolve.service';
 import type { LeadRow } from '../../features/leads/lead-row.model';
@@ -87,34 +85,20 @@ export class LeadsService {
   }
 
   /**
-   * Leads where `users.id` = `leads.lead_owner_id`.
-   * Tries `GET /api/leads?leadOwnerId=` first; if empty or the request fails, loads all leads and filters client-side.
+   * Leads scoped by backend RBAC (`lead_owner_id`) for the logged-in user.
+   * Client-side owner filter is a safety net for merged marketplace rows.
    */
   getAssignedToUser(
     userId: string,
-    _userName = '',
-    _userEmail = '',
+    userName = '',
+    userEmail = '',
   ): Observable<LeadRow[]> {
-    const ownerId = parseSessionUserId(userId);
-    if (ownerId == null) return of([]);
-
-    const toOwnedRows = (normalized: LeadNormalized[]) =>
-      filterLeadsByLeadOwnerId(normalized.map(mapLeadNormalizedToRow), String(ownerId));
-
-    const query = { leadOwnerId: ownerId };
-
-    return this.leadHttp.list(query).pipe(
-      switchMap((filtered) => {
-        const rows = this.conversionStorage.enrichLeadRows(toOwnedRows(filtered));
-        if (rows.length > 0) return of(rows);
-        return this.leadHttp
-          .list()
-          .pipe(map((all) => this.conversionStorage.enrichLeadRows(toOwnedRows(all))));
-      }),
-      catchError(() =>
-        this.leadHttp
-          .list()
-          .pipe(map((all) => this.conversionStorage.enrichLeadRows(toOwnedRows(all)))),
+    return this.leadHttp.list().pipe(
+      map((normalized) => normalized.map(mapLeadNormalizedToRow)),
+      map((rows) =>
+        this.conversionStorage.enrichLeadRows(
+          filterLeadsForUser(rows, userId, userName, userEmail),
+        ),
       ),
     );
   }
@@ -205,8 +189,7 @@ export class LeadsService {
   }
 
   create(data: Omit<LeadRow, 'id'>): Observable<LeadRow> {
-    const canPickOwner =
-      this.permissions.canAssignLeads() && this.permissions.canViewAllRecords();
+    const canPickOwner = this.permissions.canAssignLeads() && isAdmin(this.auth.user());
     const ownerProvided = !!data.leadOwnerId?.trim();
     let withOwner = data;
     if (!ownerProvided) {

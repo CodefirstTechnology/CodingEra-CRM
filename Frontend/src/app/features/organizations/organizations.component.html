@@ -7,16 +7,6 @@
     <button type="button" class="org__btn org__btn--solid" (click)="openForm()">+ New organization</button>
   </header>
 
-  <app-crm-selection-bar
-    [selectionCount]="sel.selectedCount()"
-    [canEdit]="sel.selectedCount() === 1"
-    [showAssignActions]="false"
-    [showConvertLead]="false"
-    (edit)="onBulkEdit()"
-    (delete)="onBulkDelete()"
-    (dismiss)="onBulkDismiss()"
-  />
-
   @if (formOpen()) {
     <div class="org__modal-root" aria-modal="true" role="dialog" aria-labelledby="create-org-title">
       <div class="org__modal-backdrop" (click)="closeForm()"></div>
@@ -126,15 +116,6 @@
       <table class="org__table">
         <thead>
           <tr class="org__thead-row">
-            <th class="org__th org__th--check">
-              <input
-                type="checkbox"
-                class="org__checkbox"
-                [checked]="allSelected()"
-                (change)="toggleSelectAll()"
-                aria-label="Select all organizations"
-              />
-            </th>
             <th class="org__th">Organization</th>
             <th class="org__th">Website</th>
             <th class="org__th">Industry</th>
@@ -144,15 +125,6 @@
         <tbody>
           @for (row of rows(); track row.id) {
             <tr class="org__row">
-              <td class="org__td org__td--check">
-                <input
-                  type="checkbox"
-                  class="org__checkbox"
-                  [checked]="isRowSelected(row.id)"
-                  (change)="toggleRow(row.id, $event)"
-                  [attr.aria-label]="'Select ' + row.name"
-                />
-              </td>
               <td class="org__td org__td--strong">
                 <a class="org__name-link" [routerLink]="['/organizations', row.id]">{{ row.name }}</a>
               </td>

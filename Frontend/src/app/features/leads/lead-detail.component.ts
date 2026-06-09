@@ -131,6 +131,11 @@ export class LeadDetailComponent {
     if (!row || isLeadConverted(row)) return false;
     return isLeadQualifiedForConversion(row);
   });
+
+  protected readonly isLeadDataReadOnly = computed(() => {
+    const row = this.lead();
+    return row != null && isLeadConverted(row);
+  });
   protected readonly commentComposerOpen = signal(false);
   protected readonly commentDraft = signal('');
   protected readonly commentPosting = signal(false);
@@ -829,6 +834,11 @@ export class LeadDetailComponent {
       { emitEvent: false },
     );
     this.dataForm.markAsPristine();
+    if (isLeadConverted(row)) {
+      this.dataForm.disable({ emitEvent: false });
+    } else {
+      this.dataForm.enable({ emitEvent: false });
+    }
   }
 
   protected noteRelatedLabel(note: NoteRow): string {
@@ -902,6 +912,11 @@ export class LeadDetailComponent {
     const row = this.lead();
     const idn = this.numericId();
     if (!row || idn == null) return;
+
+    if (this.isLeadDataReadOnly()) {
+      this.toast.error('Converted leads cannot be edited.');
+      return;
+    }
 
     if (this.dataForm.invalid) {
       this.dataForm.markAllAsTouched();
@@ -1028,18 +1043,5 @@ export class LeadDetailComponent {
 
   protected openCreatePicker(): void {
     this.createFlow.openPicker();
-  }
-
-  protected async confirmDeleteLead(): Promise<void> {
-    const idn = this.numericId();
-    if (idn == null) return;
-    if (!confirm('Delete this lead?')) return;
-    try {
-      await this.leadsService.deleteAsync(idn);
-      this.toast.success('Lead deleted.');
-      void this.router.navigateByUrl('/leads');
-    } catch (e) {
-      this.toast.error(leadsHttpErrorMessage(e));
-    }
   }
 }

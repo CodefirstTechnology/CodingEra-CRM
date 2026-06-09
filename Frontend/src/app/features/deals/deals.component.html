@@ -27,18 +27,6 @@
     </div>
   </header>
 
-  <app-crm-selection-bar
-    [selectionCount]="sel.selectedCount()"
-    [canEdit]="sel.selectedCount() === 1"
-    [showAssignActions]="canManageDealAssignment()"
-    [showConvertLead]="false"
-    [showDelete]="false"
-    (edit)="onBulkEdit()"
-    (assignTo)="onAssignToMenu()"
-    (clearAssignment)="onClearAssignmentBulk()"
-    (dismiss)="onBulkDismiss()"
-  />
-
   <app-crm-assign-picker
     [open]="assignPickerOpen()"
     title="Assign deals"
@@ -377,15 +365,6 @@
       <table class="deals__table">
         <thead>
           <tr class="deals__thead-row">
-            <th class="deals__th deals__th--check">
-              <input
-                type="checkbox"
-                class="deals__checkbox"
-                [checked]="allSelected()"
-                (change)="toggleSelectAll()"
-                aria-label="Select all deals"
-              />
-            </th>
             @for (column of visibleColumns(); track column.id) {
               <th class="deals__th">{{ column.label }}</th>
             }
@@ -394,15 +373,6 @@
         <tbody>
           @for (row of filtered(); track row.id) {
             <tr class="deals__row">
-              <td class="deals__td deals__td--check">
-                <input
-                  type="checkbox"
-                  class="deals__checkbox"
-                  [checked]="isRowSelected(row.id)"
-                  (change)="toggleRow(row.id, $event)"
-                  [attr.aria-label]="'Select ' + row.organizationName"
-                />
-              </td>
               @for (column of visibleColumns(); track column.id) {
                 <td
                   class="deals__td"

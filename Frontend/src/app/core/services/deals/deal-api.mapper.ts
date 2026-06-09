@@ -31,6 +31,12 @@ function readOptionalInt(v: unknown): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
+function readOptionalNumber(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'number' ? v : Number(String(v).trim());
+  return Number.isFinite(n) ? n : null;
+}
+
 function readDealOwnerFk(r: Record<string, unknown>): number | null {
   for (const key of ['dealOwnerId', 'DealOwnerId', 'deal_owner_id', 'Deal_Owner_Id']) {
     const n = readOptionalInt(r[key]);
@@ -122,11 +128,11 @@ export function normalizeDealApiRecord(raw: unknown): DealNormalized {
   let industry = readMasterName(r['industry']);
   let territory = readMasterName(r['territory']);
   let employees = String(r['employees'] ?? readMasterName(r['employeeCount'])).trim();
-  let annualRevenue = readOptionalInt(r['annualRevenue']);
+  let annualRevenue = readOptionalNumber(r['annualRevenue']);
   let dealAmount =
-    readOptionalInt(r['dealAmount']) ??
-    readOptionalInt(r['DealAmount']) ??
-    readOptionalInt(r['deal_amount']);
+    readOptionalNumber(r['dealAmount']) ??
+    readOptionalNumber(r['DealAmount']) ??
+    readOptionalNumber(r['deal_amount']);
   let website = String(r['website'] ?? '').trim();
   let gst = normalizeGstin(String(r['gst'] ?? r['Gst'] ?? ''));
 

@@ -7,16 +7,6 @@
     <button type="button" class="contacts__btn contacts__btn--solid" (click)="openForm()">+ New contact</button>
   </header>
 
-  <app-crm-selection-bar
-    [selectionCount]="sel.selectedCount()"
-    [canEdit]="sel.selectedCount() === 1"
-    [showAssignActions]="false"
-    [showConvertLead]="false"
-    (edit)="onBulkEdit()"
-    (delete)="onBulkDelete()"
-    (dismiss)="onBulkDismiss()"
-  />
-
   @if (formOpen()) {
     <div class="contacts__modal-root" aria-modal="true" role="dialog" aria-labelledby="new-contact-title">
       <div class="contacts__modal-backdrop" (click)="closeForm()"></div>
@@ -149,15 +139,6 @@
       <table class="contacts__table">
         <thead>
           <tr class="contacts__thead-row">
-            <th class="contacts__th contacts__th--check">
-              <input
-                type="checkbox"
-                class="contacts__checkbox"
-                [checked]="allSelected()"
-                (change)="toggleSelectAll()"
-                aria-label="Select all contacts"
-              />
-            </th>
             <th class="contacts__th">Name</th>
             <th class="contacts__th">Email</th>
             <th class="contacts__th">Phone</th>
@@ -169,15 +150,6 @@
         <tbody>
           @for (row of rows(); track row.id) {
             <tr class="contacts__row">
-              <td class="contacts__td contacts__td--check">
-                <input
-                  type="checkbox"
-                  class="contacts__checkbox"
-                  [checked]="isRowSelected(row.id)"
-                  (change)="toggleRow(row.id, $event)"
-                  [attr.aria-label]="'Select ' + contactLabel(row)"
-                />
-              </td>
               <td class="contacts__td contacts__td--strong">
                 <a class="contacts__name-link" [routerLink]="['/contacts', row.id]">{{ contactLabel(row) }}</a>
               </td>

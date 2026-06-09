@@ -211,6 +211,10 @@
     <article class="adv-settings__card">
       <app-item-master-settings />
     </article>
+    } @else if (activeItem() === 'User Targets') {
+    <article class="adv-settings__card">
+      <app-user-target-settings />
+    </article>
     } @else {
     <article class="adv-settings__card">
       <header class="adv-settings__profile-head">

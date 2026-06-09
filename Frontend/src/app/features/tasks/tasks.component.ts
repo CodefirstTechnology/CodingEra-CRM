@@ -10,7 +10,6 @@ import { TasksService } from '../../core/services/tasks.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
-import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { resolveTaskRecordActivityLink } from '../../shared/utils/entity-record-nav.util';
 import { formatDealRecordLabel, formatLeadRecordLabel } from '../../shared/utils/activity-entity-display.util';
@@ -49,7 +48,7 @@ export interface TaskRow {
 
 @Component({
   selector: 'app-tasks',
-  imports: [ReactiveFormsModule, FormsModule, CrmSelectionBarComponent, RouterLink],
+  imports: [ReactiveFormsModule, FormsModule, RouterLink],
   templateUrl: './tasks.component.html',
   styleUrl: './tasks.component.scss',
 })

@@ -14,7 +14,6 @@ import {
   masterSelectControlValue,
   resolveOrgMasterPick,
 } from '../../core/services/organizations/organization-master-select.util';
-import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { createIdSelection } from '../../shared/utils/selection-manager';
@@ -40,7 +39,7 @@ export interface OrganizationRow {
 
 @Component({
   selector: 'app-organizations',
-  imports: [ReactiveFormsModule, RouterLink, CrmSelectionBarComponent],
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './organizations.component.html',
   styleUrl: './organizations.component.scss',
 })

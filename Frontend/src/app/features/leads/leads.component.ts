@@ -49,7 +49,6 @@ import { PermissionService } from '../../core/services/permission.service';
 import { resolveRecordOwnerIdForSubmit, showOwnerPickerOnCreate, showSelfAssignedOwnerOnCreate } from '../../shared/utils/record-owner-assignment.util';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
-import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { isLeadConverted, isLeadQualifiedForConversion } from '../../shared/utils/lead-conversion.util';
 import type { ConvertLeadOptions } from '../../core/services/leads/lead-conversion.types';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
@@ -129,7 +128,6 @@ interface LeadColumnOption {
     ReactiveFormsModule,
     FormsModule,
     RouterLink,
-    CrmSelectionBarComponent,
     CrmAssignPickerComponent,
     CrmPaginationFooterComponent,
     ConvertLeadModalComponent,
@@ -518,9 +516,8 @@ export class LeadsComponent {
       if (src !== 'all' && (row.leadSource ?? 'Manual') !== src) return false;
       if (st === 'Converted') {
         if (!isLeadConverted(row)) return false;
-      } else {
-        if (st === 'all' && isLeadConverted(row)) return false;
-        if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) return false;
+      } else if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) {
+        return false;
       }
       if (!q) return true;
       const srcLabel = (row.leadSource ?? 'Manual').toLowerCase();
@@ -645,22 +642,25 @@ export class LeadsComponent {
       .concat(targets.length > 3 ? ` +${targets.length - 3} more` : '');
   });
 
-  /** User-only: persisted CRM leads (not local marketplace-only rows). */
+  /** User-only: persisted CRM leads that are not converted. */
   protected canEditLead(row: LeadRow): boolean {
-    return !this.isAdminViewer() && isPersistedApiLeadRow(row.id);
+    return (
+      !this.isAdminViewer() &&
+      isPersistedApiLeadRow(row.id) &&
+      !isLeadConverted(row)
+    );
   }
 
   protected canConvertLead(row: LeadRow): boolean {
     return (
       this.canEditLead(row) &&
-      !isLeadConverted(row) &&
       isLeadQualifiedForConversion(row, this.resolvedLeadStatusLabel(row))
     );
   }
 
   /** User may see Convert in the menu but it stays disabled until status is Qualified. */
   protected showConvertLeadDisabled(row: LeadRow): boolean {
-    return this.canEditLead(row) && !isLeadConverted(row) && !this.canConvertLead(row);
+    return this.canEditLead(row) && !this.canConvertLead(row);
   }
 
   protected readonly createForm = this.fb.nonNullable.group({
@@ -824,6 +824,11 @@ export class LeadsComponent {
         next: (row) => {
           if (!row) {
             this.toast.error('Lead not found.');
+            return;
+          }
+          if (isLeadConverted(row)) {
+            this.toast.error('Converted leads cannot be edited.');
+            this.clearEditQuery();
             return;
           }
           this.editingNumericId.set(id);
@@ -1448,7 +1453,12 @@ export class LeadsComponent {
   }
 
   protected canEditLeadStatusInTable(row: LeadRow): boolean {
-    return !this.isAdminViewer() && isPersistedApiLeadRow(row.id);
+    return !this.isAdminViewer() && isPersistedApiLeadRow(row.id) && !isLeadConverted(row);
+  }
+
+  /** Master-data status label for table display (admin read-only and filters). */
+  protected leadStatusLabel(row: LeadRow): LeadStatus {
+    return coerceLeadStatus(this.resolvedLeadStatusLabel(row));
   }
 
   /** Select value (master id string) — prefers {@link LeadRow.status} so it matches admin read-only text. */

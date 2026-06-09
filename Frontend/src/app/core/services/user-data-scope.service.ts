@@ -1,6 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
-import { canViewAllQuotations } from '../auth/auth-role.util';
+import { canViewAllQuotations, isAdmin } from '../auth/auth-role.util';
 import { getModuleAccessScope } from '../auth/permission.util';
 import { AuthService } from '../auth/auth.service';
 import { PermissionService } from './permission.service';
@@ -12,7 +12,7 @@ import type { TaskRow } from '../../features/tasks/tasks.component';
 import {
   filterContactsByCreatedBy,
   filterDealsForUser,
-  filterLeadsByLeadOwnerId,
+  filterLeadsForUser,
   filterNotesForUser,
   filterTasksForUser,
 } from '../../features/user-dashboard/utils/user-ownership.util';
@@ -40,8 +40,17 @@ export class UserDataScopeService {
   private readonly notesService = inject(NotesService);
   private readonly quotationsService = inject(QuotationsService);
 
+  /** True for Admin dashboard / assignment UI — not broad “any permission with All scope”. */
   isAdminSession(): boolean {
-    return this.permissions.canViewAllRecords();
+    const user = this.auth.user();
+    if (!user) return false;
+    return isAdmin(user) || this.permissions.canManageSettings();
+  }
+
+  /** Whether list endpoints for a module should skip owner scoping. */
+  canViewUnscopedModule(module: string): boolean {
+    if (this.isAdminSession()) return true;
+    return this.moduleScope(module) === 'all';
   }
 
   moduleScope(module: string): 'own' | 'team' | 'all' {
@@ -65,21 +74,21 @@ export class UserDataScopeService {
   listLeads(): Observable<LeadRow[]> {
     const session = this.sessionIds();
     if (!session) return this.leadsService.getAll();
-    if (this.isAdminSession()) return this.leadsService.getAll();
+    if (this.canViewUnscopedModule('leads')) return this.leadsService.getAll();
     return this.leadsService.getAssignedToUser(session.userId, session.name, session.email);
   }
 
   listDeals(): Observable<DealRow[]> {
     const session = this.sessionIds();
     if (!session) return this.dealsService.getAll();
-    if (this.isAdminSession()) return this.dealsService.getAll();
+    if (this.canViewUnscopedModule('deals')) return this.dealsService.getAll();
     return this.dealsService.getAssignedToUser(session.userId, session.name, session.email);
   }
 
   listTasks(): Observable<TaskRow[]> {
     const session = this.sessionIds();
     if (!session) return this.tasksService.getAll();
-    if (this.isAdminSession()) return this.tasksService.getAll();
+    if (this.canViewUnscopedModule('tasks')) return this.tasksService.getAll();
     return this.tasksService.getAssignedToUser(session.userId, session.name, session.email);
   }
 
@@ -105,7 +114,7 @@ export class UserDataScopeService {
   listNotes(leadIds: ReadonlySet<string> = new Set(), dealIds: ReadonlySet<string> = new Set()): Observable<NoteRow[]> {
     const session = this.sessionIds();
     if (!session) return this.notesService.getAll();
-    if (this.isAdminSession()) return this.notesService.getAll();
+    if (this.canViewUnscopedModule('notes')) return this.notesService.getAll();
     return this.notesService.getAssignedToUser(
       session.userId,
       session.name,
@@ -117,7 +126,7 @@ export class UserDataScopeService {
 
   /** Client-side filter for merged lead lists (e.g. marketplace rows in local storage). */
   filterContacts(rows: ContactRow[]): ContactRow[] {
-    if (this.isAdminSession()) return rows;
+    if (this.canViewUnscopedModule('contacts')) return rows;
     const session = this.sessionIds();
     if (!session) return rows;
     const scope = this.moduleScope('contacts');
@@ -128,19 +137,19 @@ export class UserDataScopeService {
 
   filterLeads(rows: LeadRow[]): LeadRow[] {
     const session = this.sessionIds();
-    if (!session || this.isAdminSession()) return rows;
-    return filterLeadsByLeadOwnerId(rows, session.userId);
+    if (!session || this.canViewUnscopedModule('leads')) return rows;
+    return filterLeadsForUser(rows, session.userId, session.name, session.email);
   }
 
   filterDeals(rows: DealRow[]): DealRow[] {
     const session = this.sessionIds();
-    if (!session || this.isAdminSession()) return rows;
+    if (!session || this.canViewUnscopedModule('deals')) return rows;
     return filterDealsForUser(rows, session.userId, session.name, session.email);
   }
 
   filterTasks(rows: TaskRow[]): TaskRow[] {
     const session = this.sessionIds();
-    if (!session || this.isAdminSession()) return rows;
+    if (!session || this.canViewUnscopedModule('tasks')) return rows;
     return filterTasksForUser(rows, session.userId, session.name, session.email);
   }
 
@@ -150,7 +159,7 @@ export class UserDataScopeService {
     dealIds: ReadonlySet<string> = new Set(),
   ): NoteRow[] {
     const session = this.sessionIds();
-    if (!session || this.isAdminSession()) return rows;
+    if (!session || this.canViewUnscopedModule('notes')) return rows;
     return filterNotesForUser(rows, session.userId, session.name, session.email, leadIds, dealIds);
   }
 }

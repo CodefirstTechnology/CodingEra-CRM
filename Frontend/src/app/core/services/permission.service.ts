@@ -1,4 +1,5 @@
 import { computed, inject, Injectable } from '@angular/core';
+import { isAdmin } from '../auth/auth-role.util';
 import { AuthService } from '../auth/auth.service';
 import {
   canManageSettings,
@@ -38,8 +39,14 @@ export class PermissionService {
   canViewAllRecords(): boolean {
     const user = this.auth.user();
     if (!user) return false;
-    if (hasPermission(user, 'settings.manage')) return true;
-    return (user.permissions ?? []).some((p) => p.accessScope === 'all');
+    if (canManageSettings(user)) return true;
+    return isAdmin(user);
+  }
+
+  /** True when the user’s `{module}.view` permission has All scope (or is Admin). */
+  canViewAllForModule(module: string): boolean {
+    if (this.canViewAllRecords()) return true;
+    return this.moduleScope(module) === 'all';
   }
 
   canAssignLeads(): boolean {

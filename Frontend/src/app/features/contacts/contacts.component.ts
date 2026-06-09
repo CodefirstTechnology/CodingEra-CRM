@@ -9,7 +9,6 @@ import { ContactsService } from '../../core/services/contacts.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { ToastService } from '../../core/toast/toast.service';
-import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 
 export interface ContactRow {
@@ -32,7 +31,7 @@ export interface ContactRow {
 
 @Component({
   selector: 'app-contacts',
-  imports: [ReactiveFormsModule, RouterLink, CrmSelectionBarComponent],
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './contacts.component.html',
   styleUrl: './contacts.component.scss',
 })

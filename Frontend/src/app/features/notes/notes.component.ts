@@ -8,7 +8,6 @@ import { NotesService } from '../../core/services/notes.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
-import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { resolveNoteRecordActivityLink } from '../../shared/utils/entity-record-nav.util';
 import { formatDealRecordLabel, formatLeadRecordLabel } from '../../shared/utils/activity-entity-display.util';
@@ -48,7 +47,7 @@ export interface NoteRow {
 
 @Component({
   selector: 'app-notes',
-  imports: [ReactiveFormsModule, CrmSelectionBarComponent, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink],
   templateUrl: './notes.component.html',
   styleUrl: './notes.component.scss',
 })

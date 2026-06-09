@@ -7,16 +7,6 @@
     <button type="button" class="tasks__btn tasks__btn--solid" (click)="openForm()">+ New task</button>
   </header>
 
-  <app-crm-selection-bar
-    [selectionCount]="sel.selectedCount()"
-    [canEdit]="sel.selectedCount() === 1"
-    [showAssignActions]="false"
-    [showConvertLead]="false"
-    (edit)="onBulkEdit()"
-    (delete)="onBulkDelete()"
-    (dismiss)="onBulkDismiss()"
-  />
-
   @if (formOpen()) {
     <div class="tasks__modal-root" aria-modal="true" role="dialog" aria-labelledby="create-task-title">
       <div class="tasks__modal-backdrop" (click)="closeForm()"></div>
@@ -105,15 +95,6 @@
       <table class="tasks__table">
         <thead>
           <tr class="tasks__thead-row">
-            <th class="tasks__th tasks__th--check">
-              <input
-                type="checkbox"
-                class="tasks__checkbox"
-                [checked]="allSelected()"
-                (change)="toggleSelectAll()"
-                aria-label="Select all tasks"
-              />
-            </th>
             <th class="tasks__th">Title</th>
             <th class="tasks__th tasks__th--record">Record</th>
             <th class="tasks__th">Status</th>
@@ -126,15 +107,6 @@
         <tbody>
           @for (row of rows(); track row.id) {
             <tr class="tasks__row">
-              <td class="tasks__td tasks__td--check">
-                <input
-                  type="checkbox"
-                  class="tasks__checkbox"
-                  [checked]="isRowSelected(row.id)"
-                  (change)="toggleRow(row.id, $event)"
-                  [attr.aria-label]="'Select ' + row.title"
-                />
-              </td>
               <td class="tasks__td tasks__td--strong">
                 <button type="button" class="tasks__title-link" (click)="openTaskForEdit(row, $event)">
                   {{ row.title }}

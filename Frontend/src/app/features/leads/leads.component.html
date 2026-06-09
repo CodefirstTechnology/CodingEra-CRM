@@ -59,22 +59,6 @@
     <p class="leads__config-warn" role="status">{{ imErr }}</p>
   }
 
-  <app-crm-selection-bar
-    [selectionCount]="sel.selectedCount()"
-    [canEdit]="bulkCanEditSingle()"
-    [assignActionsEnabled]="bulkAssignEnabled()"
-    [convertLeadEnabled]="bulkConvertEnabled()"
-    [showEdit]="!isAdminViewer()"
-    [showAssignActions]="canManageLeadAssignment()"
-    [showConvertLead]="!isAdminViewer()"
-    [showDelete]="false"
-    (edit)="onBulkEdit()"
-    (assignTo)="onAssignToMenu()"
-    (clearAssignment)="onClearAssignmentBulk()"
-    (convertToDeal)="convertToDeal()"
-    (dismiss)="onBulkDismiss()"
-  />
-
   @if (importModalOpen() && importModalLazyComponent(); as importCmp) {
     <ng-container
       *ngComponentOutlet="
@@ -479,7 +463,7 @@
                         @if (isLeadConverted(row)) {
                           <span class="leads__tag leads__tag--converted">Converted</span>
                         } @else if (isAdminViewer()) {
-                          <span [class]="statusClass(row.status)">{{ row.status }}</span>
+                          <span [class]="statusClass(leadStatusLabel(row))">{{ leadStatusLabel(row) }}</span>
                         } @else if (canEditLeadStatusInTable(row)) {
                           <select
                             class="leads__status-select"
@@ -499,7 +483,7 @@
                             }
                           </select>
                         } @else {
-                          <span [class]="statusClass(row.status)">{{ row.status }}</span>
+                          <span [class]="statusClass(leadStatusLabel(row))">{{ leadStatusLabel(row) }}</span>
                         }
                       }
                       @case ('owner') {

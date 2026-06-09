@@ -26,7 +26,6 @@ import {
 import type { DealPipelineStatus } from '../../core/services/deals/deal-pipeline.constants';
 import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
-import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { DealPipelineBoardComponent } from './deal-pipeline-board.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import {
@@ -137,7 +136,6 @@ interface DealColumnOption {
   imports: [
     ReactiveFormsModule,
     RouterLink,
-    CrmSelectionBarComponent,
     CrmAssignPickerComponent,
     DealPipelineBoardComponent,
   ],
@@ -879,7 +877,11 @@ export class DealsComponent {
   /** Table display only (not persisted). */
   protected formatDealRevenue(value: number): string {
     if (value == null || !Number.isFinite(value) || value === 0) return '₹ 0';
-    return `₹ ${value.toLocaleString('en-IN')}`;
+    const hasFraction = Math.abs(value % 1) > 0.0001;
+    return `₹ ${value.toLocaleString('en-IN', {
+      minimumFractionDigits: hasFraction ? 2 : 0,
+      maximumFractionDigits: hasFraction ? 3 : 0,
+    })}`;
   }
 
   protected statusClass(status: DealPipelineStatus): string {
