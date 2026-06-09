@@ -1,0 +1,200 @@
+.lsync__head {
+  margin-bottom: 1rem;
+}
+
+.lsync__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.lsync__sub {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.lsync__tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.lsync__tab {
+  border: 1px solid var(--card-border);
+  background: var(--surface);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.lsync__tab--active {
+  background: var(--tertiary-color);
+  border-color: var(--tertiary-color);
+  color: #fff;
+}
+
+.lsync__card {
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+  background: var(--surface);
+}
+
+.lsync__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.lsync__card-title {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.lsync__badge {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+}
+
+.lsync__badge--ready {
+  background: color-mix(in srgb, var(--tertiary-color) 15%, transparent);
+  border-color: var(--tertiary-color);
+}
+
+.lsync__badge--pending {
+  color: var(--text-muted);
+}
+
+.lsync__section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--card-border);
+}
+
+.lsync__section-title {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+}
+
+.lsync__section-sub {
+  margin: 0 0 0.65rem;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.lsync__user-list {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.lsync__user-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.lsync__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.lsync__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-bottom: 0.65rem;
+  max-width: 16rem;
+}
+
+.lsync__field select {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.lsync__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin: 0.5rem 0 0.75rem;
+  font-size: 0.88rem;
+}
+
+.lsync__meta dt {
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.lsync__meta dd {
+  margin: 0.15rem 0 0;
+  font-weight: 600;
+}
+
+.lsync__btn {
+  border-radius: 8px;
+  padding: 0.45rem 0.85rem;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--card-border);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.lsync__btn--solid {
+  background: var(--tertiary-color);
+  border-color: var(--tertiary-color);
+  color: #fff;
+}
+
+.lsync__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.lsync__table-wrap {
+  overflow-x: auto;
+}
+
+.lsync__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.lsync__table th,
+.lsync__table td {
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid var(--card-border);
+  text-align: left;
+}
+
+.lsync__empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 1.5rem;
+}
+
+.lsync__err {
+  color: var(--danger, #c0392b);
+}
+
+.lsync__hint {
+  color: var(--text-muted);
+}

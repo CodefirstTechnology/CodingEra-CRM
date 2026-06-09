@@ -5,46 +5,18 @@
       <p class="leads__sub">Capture and qualify prospects before they become deals.</p>
     </div>
     <div class="leads__actions">
-      @if (enableIndiamartLead) {
+      @for (src of visibleSyncSources(); track src.sourceId) {
         <button
           type="button"
           class="leads__btn leads__btn--ghost"
-          [disabled]="indiamartPullLoading() || !!indiamartConfigError()"
-          [title]="indiamartConfigError() ?? ''"
-          (click)="syncIndiaMartFromApi()"
+          [disabled]="syncSourceLoading(src.code) || !!syncSourceConfigError(src.code)"
+          [title]="syncSourceConfigError(src.code) ?? ''"
+          (click)="syncMarketplaceSource(src)"
         >
-          @if (indiamartPullLoading()) {
-            Syncing IndiaMART…
+          @if (syncSourceLoading(src.code)) {
+            Syncing {{ src.displayName }}…
           } @else {
-            Sync IndiaMART
-          }
-        </button>
-      }
-      @if (justdialEnabled) {
-        <button
-          type="button"
-          class="leads__btn leads__btn--ghost"
-          [disabled]="justdialLoading()"
-          (click)="syncJustdialFromApi()"
-        >
-          @if (justdialLoading()) {
-            Syncing Justdial...
-          } @else {
-            Sync Justdial
-          }
-        </button>
-      }
-      @if (tradeindiaEnabled) {
-        <button
-          type="button"
-          class="leads__btn leads__btn--ghost"
-          [disabled]="tradeindiaLoading()"
-          (click)="syncTradeIndiaFromApi()"
-        >
-          @if (tradeindiaLoading()) {
-            Syncing TradeIndia...
-          } @else {
-            Sync TradeIndia
+            {{ src.syncButtonLabel }}
           }
         </button>
       }
@@ -55,8 +27,25 @@
     </div>
   </header>
 
-  @if (enableIndiamartLead && indiamartConfigError(); as imErr) {
-    <p class="leads__config-warn" role="status">{{ imErr }}</p>
+  @if (leadSyncAccess().length > 0) {
+    <aside class="leads__sync-status" aria-label="Lead sync status">
+      @for (src of leadSyncAccess(); track src.sourceId) {
+        <div class="leads__sync-status-row">
+          <strong>{{ src.displayName }}</strong>
+          <span>
+            Auto sync: {{ src.autoSyncEnabled ? 'On' : 'Off' }}
+            · Last: {{ src.lastSyncAt ? (src.lastSyncAt | date: 'short') : '—' }}
+            · Next: {{ src.autoSyncEnabled && src.nextSyncAt ? (src.nextSyncAt | date: 'short') : '—' }}
+          </span>
+        </div>
+      }
+    </aside>
+  }
+
+  @for (src of visibleSyncSources(); track src.sourceId) {
+    @if (syncSourceConfigError(src.code); as cfgErr) {
+      <p class="leads__config-warn" role="status">{{ cfgErr }}</p>
+    }
   }
 
   @if (importModalOpen() && importModalLazyComponent(); as importCmp) {

@@ -234,22 +234,6 @@ export class ContactDetailComponent {
     c.setErrors(Object.keys(next).length ? next : null);
   }
 
-  protected confirmDeleteContact(): void {
-    const idn = this.numericId();
-    if (idn == null) return;
-    if (!confirm('Delete this contact?')) return;
-    this.contactsService
-      .delete(idn)
-      .pipe(take(1))
-      .subscribe({
-        next: () => {
-          this.toast.success('Contact deleted.');
-          void this.router.navigateByUrl('/contacts');
-        },
-        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
-      });
-  }
-
   protected dealStatusDotClass(status: DealPipelineStatus): string {
     const kind = dealStatusCssKind(status);
     return kind === 'demo' ? 'contact-detail__status-dot contact-detail__status-dot--demo' : 'contact-detail__status-dot';

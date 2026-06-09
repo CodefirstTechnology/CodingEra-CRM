@@ -15,6 +15,7 @@ import { passwordsMatchValidator } from '../auth/passwords-match.validator';
 import { CompanyProfileSettingsComponent } from './company-profile-settings/company-profile-settings.component';
 import { ItemMasterSettingsComponent } from './item-master/item-master-settings.component';
 import { UserTargetSettingsComponent } from './user-targets/user-target-settings.component';
+import { LeadSyncManagementSettingsComponent } from './lead-sync-management/lead-sync-management-settings.component';
 import { DeleteUserModalComponent } from './delete-user-modal.component';
 import { EditUserModalComponent } from './edit-user-modal.component';
 
@@ -29,6 +30,7 @@ const PERMISSION_GATED_ITEMS: Record<string, readonly string[]> = {
   'Company Profile': ['settings.manage'],
   'Item Master': ['items.view', 'items.manage', 'settings.manage'],
   'User Targets': ['user_targets.view', 'user_targets.manage', 'settings.manage'],
+  'Lead Sync Management': ['settings.manage'],
 };
 
 @Component({
@@ -38,6 +40,7 @@ const PERMISSION_GATED_ITEMS: Record<string, readonly string[]> = {
     CompanyProfileSettingsComponent,
     ItemMasterSettingsComponent,
     UserTargetSettingsComponent,
+    LeadSyncManagementSettingsComponent,
     DeleteUserModalComponent,
     EditUserModalComponent,
     MasterFormsComponent,
@@ -91,7 +94,7 @@ export class AdvancedSettingsComponent implements OnInit {
     { title: 'Profile', items: ['Profile'] },
     {
       title: 'System Configuration',
-      items: ['Forecasting', 'Currency & Exchange', 'Brand Settings', 'Master Forms', 'Company Profile', 'Item Master', 'User Targets'],
+      items: ['Forecasting', 'Currency & Exchange', 'Brand Settings', 'Master Forms', 'Company Profile', 'Item Master', 'User Targets', 'Lead Sync Management'],
     },
     {
       title: 'Access Control',
@@ -134,6 +137,9 @@ export class AdvancedSettingsComponent implements OnInit {
   }
 
   private canAccessNavItem(user: ReturnType<typeof this.auth.user>, item: string): boolean {
+    if (item === 'Lead Sync Management') {
+      return isAdmin(user) || this.permissions.has('settings.manage');
+    }
     const required = PERMISSION_GATED_ITEMS[item];
     if (!required) return true;
     return this.permissions.hasAny([...required]) || isAdmin(user);
@@ -186,8 +192,7 @@ export class AdvancedSettingsComponent implements OnInit {
   }
 
   protected setActiveItem(item: string): void {
-    const required = PERMISSION_GATED_ITEMS[item];
-    if (required && !this.permissions.hasAny([...required])) {
+    if (!this.canAccessNavItem(this.auth.user(), item)) {
       this.toast.error('You do not have permission to access this section.');
       this.activeItem.set('Profile');
       return;

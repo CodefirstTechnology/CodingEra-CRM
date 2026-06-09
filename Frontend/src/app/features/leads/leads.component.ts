@@ -1,4 +1,4 @@
-import { NgComponentOutlet } from '@angular/common';
+import { NgComponentOutlet, DatePipe } from '@angular/common';
 import {
   afterNextRender,
   Component,
@@ -13,7 +13,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { concat, defaultIfEmpty, forkJoin, last, take, tap } from 'rxjs';
+import { concat, defaultIfEmpty, forkJoin, last, Observable, take, tap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import {
@@ -78,6 +78,9 @@ import {
   splitFullName,
 } from './lead-full-name.util';
 import { environment } from '../../../environments/environment';
+import { LeadSyncHttpService } from '../../core/services/lead-sync/lead-sync-http.service';
+import type { LeadSyncMyAccess } from '../../core/services/lead-sync/lead-sync-api.models';
+import { isLeadSyncClientPullEnabled } from '../../core/services/lead-sync/lead-sync-client.util';
 import {
   isIndiamartLeadRowId,
   isJustdialLeadRowId,
@@ -135,16 +138,12 @@ interface LeadColumnOption {
     ConvertLeadModalComponent,
     NgComponentOutlet,
     IntlTelInputComponent,
+    DatePipe,
   ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
 })
 export class LeadsComponent {
-  /** Exposes feature flag for template (merged IndiaMART list). */
-  protected readonly enableIndiamartLead = environment.enableIndiamartLead;
-  protected readonly justdialEnabled = environment.justdial.enabled;
-  protected readonly tradeindiaEnabled = environment.tradeindia.enabled;
-
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly createRowBus = inject(CreateRowBusService);
@@ -154,7 +153,18 @@ export class LeadsComponent {
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly leadRoundRobin = inject(LeadRoundRobinService);
+  private readonly leadSyncApi = inject(LeadSyncHttpService);
   private readonly injector = inject(Injector);
+
+  /** Assigned lead sync sources for the current user (from API). */
+  protected readonly leadSyncAccess = signal<LeadSyncMyAccess[]>([]);
+
+  /** Sources the user may sync manually (assigned + client integration available). */
+  protected readonly visibleSyncSources = computed(() =>
+    this.leadSyncAccess().filter(
+      (s) => isLeadSyncClientPullEnabled(s.code) || s.apiIntegrationReady,
+    ),
+  );
 
   private readonly marketplaceRuntime = signal<LeadsMarketplaceRuntime | null>(null);
   private readonly marketplaceLocalRows = signal<LeadRow[]>([]);
@@ -332,6 +342,7 @@ export class LeadsComponent {
   constructor() {
     this.selectedColumnIds.set(this.loadStoredOptionalColumnIds());
     this.leadOwnerOpts.load();
+    this.loadLeadSyncAccess();
     effect(() => {
       const max = this.tableTotalPages() - 1;
       if (this.tablePage() > max) this.tablePage.set(Math.max(0, max));
@@ -1567,67 +1578,85 @@ export class LeadsComponent {
     return msg;
   }
 
-  /** Pulls IndiaMART leads from `environment.indiamart.pullApiUrl`. */
-  protected syncIndiaMartFromApi(): void {
-    void this.ensureMarketplaceRuntime().then((rt) => {
-      const im = rt?.indiamart;
-      if (!im) return;
-      im.fetchFromApi()
-        .pipe(take(1))
-        .subscribe({
-          next: (r) => {
-            this.refreshMarketplaceLocalRows();
-            this.refreshLeads();
-            this.toast.success(
-              `IndiaMART sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
-            );
-          },
-          error: (e: unknown) =>
-            this.toast.error(e instanceof Error ? e.message : 'IndiaMART sync failed.'),
-        });
+  protected syncSourceLoading(code: string): boolean {
+    const rt = this.marketplaceRuntime();
+    const c = code.trim().toLowerCase();
+    if (c === 'indiamart') return rt?.indiamart?.pullInProgress() ?? false;
+    if (c === 'justdial') return rt?.justdial?.loading() ?? false;
+    if (c === 'tradeindia') return rt?.tradeindia?.loading() ?? false;
+    return false;
+  }
+
+  protected syncSourceConfigError(code: string): string | null {
+    const c = code.trim().toLowerCase();
+    if (c === 'indiamart') {
+      return this.marketplaceRuntime()?.indiamart?.getConfigError() ?? null;
+    }
+    return null;
+  }
+
+  private loadLeadSyncAccess(): void {
+    this.leadSyncApi.listMyAccess().pipe(take(1)).subscribe({
+      next: (rows) => this.leadSyncAccess.set(rows),
+      error: () => this.leadSyncAccess.set([]),
     });
   }
 
-  /** Pulls Justdial leads from `environment.justdial.pullApiUrl`. */
-  protected syncJustdialFromApi(): void {
+  protected syncMarketplaceSource(access: LeadSyncMyAccess): void {
+    const startedAt = new Date().toISOString();
     void this.ensureMarketplaceRuntime().then((rt) => {
-      const jd = rt?.justdial;
-      if (!jd) return;
-      jd.fetchFromApi()
-        .pipe(take(1))
-        .subscribe({
-          next: (r) => {
-            this.refreshMarketplaceLocalRows();
-            this.refreshLeads();
-            this.toast.success(
-              `Justdial sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
-            );
-          },
-          error: (e: unknown) =>
-            this.toast.error(e instanceof Error ? e.message : 'Justdial sync failed.'),
-        });
+      const fetch$ = this.fetchMarketplaceByCode(rt, access.code);
+      if (!fetch$) {
+        this.toast.error(`Sync is not available for ${access.displayName}.`);
+        return;
+      }
+      fetch$.pipe(take(1)).subscribe({
+        next: (r) => {
+          this.refreshMarketplaceLocalRows();
+          this.refreshLeads();
+          this.loadLeadSyncAccess();
+          this.toast.success(
+            `${access.displayName} sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
+          );
+          this.leadSyncApi
+            .recordManualLog({
+              sourceId: access.sourceId,
+              startedAt,
+              endedAt: new Date().toISOString(),
+              totalReceived: r.added + r.skippedDuplicates,
+              totalCreated: r.dbSaved ?? 0,
+              failedCount: r.dbFailed ?? 0,
+              errorMessage: r.lastError ?? null,
+            })
+            .pipe(take(1))
+            .subscribe({ error: () => {} });
+        },
+        error: (e: unknown) => {
+          const msg = e instanceof Error ? e.message : `${access.displayName} sync failed.`;
+          this.toast.error(msg);
+          this.leadSyncApi
+            .recordManualLog({
+              sourceId: access.sourceId,
+              startedAt,
+              endedAt: new Date().toISOString(),
+              totalReceived: 0,
+              totalCreated: 0,
+              failedCount: 1,
+              errorMessage: msg,
+            })
+            .pipe(take(1))
+            .subscribe({ error: () => {} });
+        },
+      });
     });
   }
 
-  /** Pulls TradeIndia leads from `environment.tradeindia.pullApiUrl`. */
-  protected syncTradeIndiaFromApi(): void {
-    void this.ensureMarketplaceRuntime().then((rt) => {
-      const ti = rt?.tradeindia;
-      if (!ti) return;
-      ti.fetchFromApi()
-        .pipe(take(1))
-        .subscribe({
-          next: (r) => {
-            this.refreshMarketplaceLocalRows();
-            this.refreshLeads();
-            this.toast.success(
-              `TradeIndia sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
-            );
-          },
-          error: (e: unknown) =>
-            this.toast.error(e instanceof Error ? e.message : 'TradeIndia sync failed.'),
-        });
-    });
+  private fetchMarketplaceByCode(rt: LeadsMarketplaceRuntime | null, code: string) {
+    const c = code.trim().toLowerCase();
+    if (c === 'indiamart') return rt?.indiamart?.fetchFromApi();
+    if (c === 'justdial') return rt?.justdial?.fetchFromApi();
+    if (c === 'tradeindia') return rt?.tradeindia?.fetchFromApi();
+    return undefined;
   }
 
   protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;

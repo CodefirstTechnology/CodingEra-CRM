@@ -10,7 +10,6 @@ import { OrganizationResolveService } from '../organizations/organization-resolv
 import { LeadHttpService } from './lead-http.service';
 import { LeadMasterDataService } from './lead-master-data.service';
 import { LeadOwnerOptionsService } from './lead-owner-options.service';
-import { LeadRoundRobinService } from './lead-round-robin.service';
 import type { LeadNormalized, LeadUpsertDto } from './lead-api.models';
 import {
   extractMarketplaceExternalRef,
@@ -37,7 +36,6 @@ export class MarketplaceLeadDbSyncService {
   private readonly masterData = inject(LeadMasterDataService);
   private readonly orgResolve = inject(OrganizationResolveService);
   private readonly ownerOpts = inject(LeadOwnerOptionsService);
-  private readonly roundRobin = inject(LeadRoundRobinService);
 
   enabled(): boolean {
     const flag = (environment as { persistMarketplaceLeadsToDb?: boolean }).persistMarketplaceLeadsToDb;
@@ -87,7 +85,6 @@ export class MarketplaceLeadDbSyncService {
         }),
       ),
       switchMap(({ statusMap, existing }) => {
-        this.roundRobin.seedIndexFromExistingLeadCount(existing.length);
         const existingKeys = this.buildExistingKeySet(source, existing);
         const toCreate: LeadUpsertDto[] = [];
         let skipped = 0;
@@ -124,20 +121,16 @@ export class MarketplaceLeadDbSyncService {
         return from(toCreate).pipe(
           concatMap((body) =>
             this.prepareBodyForCreate(source, body).pipe(
-              switchMap((prepared) => {
-                const withOwner = this.roundRobin.applyToUpsertDto(prepared);
-                return this.leadHttp.create(withOwner).pipe(
-                  map(() => {
-                    this.roundRobin.advanceAfterLeadCreated();
-                    return { ok: true as const };
-                  }),
+              switchMap((prepared) =>
+                this.leadHttp.create(prepared).pipe(
+                  map(() => ({ ok: true as const })),
                   catchError((err: unknown) => {
                     lastError = this.formatPersistError(err);
-                    console.warn(`[${source}] failed to save lead to API`, lastError, withOwner);
+                    console.warn(`[${source}] failed to save lead to API`, lastError, prepared);
                     return of({ ok: false as const });
                   }),
-                );
-              }),
+                ),
+              ),
             ),
           ),
           toArray(),
