@@ -40,7 +40,7 @@ import {
   normalizeGstin,
   syncGstinInputFromEvent,
 } from '../../shared/utils/gstin.util';
-import { gstFormValidators } from '../../shared/validators/crm-validators';
+import { gstFormValidators, optionalEmailValidator } from '../../shared/validators/crm-validators';
 import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
 import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
 import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
@@ -92,7 +92,7 @@ export class QuotationFormComponent {
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
     gender: [''],
     mobileNumber: [''],
-    emailAddress: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
+    emailAddress: ['', [Validators.maxLength(256), optionalEmailValidator()]],
     companyName: ['', [Validators.required, Validators.maxLength(512)]],
     employees: [''],
     annualRevenue: [''],

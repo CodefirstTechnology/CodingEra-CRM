@@ -32,7 +32,7 @@ import {
 import { ToastService } from '../../core/toast/toast.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
-import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
+import { LeadOwnerOptionsService, isPersistedApiLeadRow } from '../../core/services/leads/lead-owner-options.service';
 import {
   buildLeadConversionActivityGroup,
   isLeadConverted,
@@ -334,6 +334,13 @@ export class LeadDetailComponent {
       if (e.kind === 'note') {
         this.refreshLeadNotes();
         this.refreshLeadActivities();
+      }
+      if (e.kind === 'lead') {
+        const id = this.numericId();
+        const row = e.row as LeadRow;
+        if (id != null && String(row?.id ?? '') === String(id)) {
+          void this.hydrateLeadFromRoute(id);
+        }
       }
     });
   }
@@ -888,6 +895,25 @@ export class LeadDetailComponent {
   protected discardDataEdits(): void {
     const row = this.lead();
     if (row) this.patchDataForm(row);
+  }
+
+  /** Same as Leads table action menu → Edit (`onRowEdit`). */
+  protected openLeadEditForm(): void {
+    const row = this.lead();
+    if (!row || !this.canEditLead(row)) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: row.id },
+      queryParamsHandling: 'merge',
+    });
+  }
+
+  protected canEditLead(row: LeadRow): boolean {
+    return (
+      !this.isAdminViewer() &&
+      isPersistedApiLeadRow(row.id) &&
+      !isLeadConverted(row)
+    );
   }
 
   /** Sidebar name line — mirrors `saveDataTab` name computation. */

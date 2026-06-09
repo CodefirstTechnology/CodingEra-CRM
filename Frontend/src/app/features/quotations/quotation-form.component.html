@@ -47,10 +47,10 @@
             }
           </div>
           <label class="qt-form__field">
-            <span class="qt-form__label">Email <span class="qt-form__req">*</span></span>
+            <span class="qt-form__label">Email</span>
             <input type="email" class="qt-form__control" formControlName="emailAddress" autocomplete="email" />
-            @if (fieldInvalid('emailAddress')) {
-              <span class="qt-form__err">A valid email address is required.</span>
+            @if (fieldInvalid('emailAddress') && form.get('emailAddress')?.errors?.['email']) {
+              <span class="qt-form__err">Use a valid email address.</span>
             }
           </label>
           <label class="qt-form__field">

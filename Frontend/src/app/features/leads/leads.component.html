@@ -1,53 +1,4 @@
 <div class="leads">
-  <header class="leads__head">
-    <div>
-      <h1 class="leads__title">Leads</h1>
-      <p class="leads__sub">Capture and qualify prospects before they become deals.</p>
-    </div>
-    <div class="leads__actions">
-      @for (src of visibleSyncSources(); track src.sourceId) {
-        <button
-          type="button"
-          class="leads__btn leads__btn--ghost"
-          [disabled]="syncSourceLoading(src.code) || !!syncSourceConfigError(src.code)"
-          [title]="syncSourceConfigError(src.code) ?? ''"
-          (click)="syncMarketplaceSource(src)"
-        >
-          @if (syncSourceLoading(src.code)) {
-            Syncing {{ src.displayName }}…
-          } @else {
-            {{ src.syncButtonLabel }}
-          }
-        </button>
-      }
-      <button type="button" class="leads__btn leads__btn--ghost" (click)="openImportModal()">
-        Import leads
-      </button>
-      <button type="button" class="leads__btn leads__btn--solid" (click)="openForm()">+ New lead</button>
-    </div>
-  </header>
-
-  @if (leadSyncAccess().length > 0) {
-    <aside class="leads__sync-status" aria-label="Lead sync status">
-      @for (src of leadSyncAccess(); track src.sourceId) {
-        <div class="leads__sync-status-row">
-          <strong>{{ src.displayName }}</strong>
-          <span>
-            Auto sync: {{ src.autoSyncEnabled ? 'On' : 'Off' }}
-            · Last: {{ src.lastSyncAt ? (src.lastSyncAt | date: 'short') : '—' }}
-            · Next: {{ src.autoSyncEnabled && src.nextSyncAt ? (src.nextSyncAt | date: 'short') : '—' }}
-          </span>
-        </div>
-      }
-    </aside>
-  }
-
-  @for (src of visibleSyncSources(); track src.sourceId) {
-    @if (syncSourceConfigError(src.code); as cfgErr) {
-      <p class="leads__config-warn" role="status">{{ cfgErr }}</p>
-    }
-  }
-
   @if (importModalOpen() && importModalLazyComponent(); as importCmp) {
     <ng-container
       *ngComponentOutlet="
@@ -324,6 +275,59 @@
     </div>
   }
 
+
+  @if (detailChildActive()) {
+    <router-outlet />
+  } @else {
+  <header class="leads__head">
+    <div>
+      <h1 class="leads__title">Leads</h1>
+      <p class="leads__sub">Capture and qualify prospects before they become deals.</p>
+    </div>
+    <div class="leads__actions">
+      @for (src of visibleSyncSources(); track src.sourceId) {
+        <button
+          type="button"
+          class="leads__btn leads__btn--ghost"
+          [disabled]="syncSourceLoading(src.code) || !!syncSourceConfigError(src.code)"
+          [title]="syncSourceConfigError(src.code) ?? ''"
+          (click)="syncMarketplaceSource(src)"
+        >
+          @if (syncSourceLoading(src.code)) {
+            Syncing {{ src.displayName }}…
+          } @else {
+            {{ src.syncButtonLabel }}
+          }
+        </button>
+      }
+      <button type="button" class="leads__btn leads__btn--ghost" (click)="openImportModal()">
+        Import leads
+      </button>
+      <button type="button" class="leads__btn leads__btn--solid" (click)="openForm()">+ New lead</button>
+    </div>
+  </header>
+
+  @if (leadSyncAccess().length > 0) {
+    <aside class="leads__sync-status" aria-label="Lead sync status">
+      @for (src of leadSyncAccess(); track src.sourceId) {
+        <div class="leads__sync-status-row">
+          <strong>{{ src.displayName }}</strong>
+          <span>
+            Auto sync: {{ src.autoSyncEnabled ? 'On' : 'Off' }}
+            · Last: {{ src.lastSyncAt ? (src.lastSyncAt | date: 'short') : '—' }}
+            · Next: {{ src.autoSyncEnabled && src.nextSyncAt ? (src.nextSyncAt | date: 'short') : '—' }}
+          </span>
+        </div>
+      }
+    </aside>
+  }
+
+  @for (src of visibleSyncSources(); track src.sourceId) {
+    @if (syncSourceConfigError(src.code); as cfgErr) {
+      <p class="leads__config-warn" role="status">{{ cfgErr }}</p>
+    }
+  }
+
   <div class="leads__toolbar card">
     <label class="leads__search">
       <span class="visually-hidden">Search leads</span>
@@ -585,4 +589,5 @@
       />
     }
   </div>
+  }
 </div>

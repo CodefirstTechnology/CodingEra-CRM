@@ -378,10 +378,18 @@
         <h2>Data</h2>
         @if (!isLeadDataReadOnly()) {
         <div class="lead-detail__data-actions">
-          <button type="button" class="lead-detail__icon-btn" aria-label="Discard unsaved edits" title="Revert" (click)="discardDataEdits()">
+          @if (canEditLead(row)) {
+          <button type="button" class="lead-detail__icon-btn" aria-label="Edit lead" title="Edit" (click)="openLeadEditForm()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
               <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+          }
+          <button type="button" class="lead-detail__icon-btn" aria-label="Discard unsaved edits" title="Revert" (click)="discardDataEdits()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
             </svg>
           </button>
           <button type="button" class="lead-detail__btn lead-detail__btn--solid" [disabled]="dataSaving()" (click)="saveDataTab()">
@@ -706,8 +714,8 @@
             </svg>
             <span class="lead-detail__side-toggle-text">Details</span>
           </button>
-          @if (!isLeadDataReadOnly()) {
-          <button type="button" class="lead-detail__side-edit" aria-label="Edit details on Data tab" title="Edit" (click)="setTab('Data')">
+          @if (!isLeadDataReadOnly() && canEditLead(row)) {
+          <button type="button" class="lead-detail__side-edit" aria-label="Edit lead" title="Edit" (click)="openLeadEditForm()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />

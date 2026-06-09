@@ -12,8 +12,8 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { concat, defaultIfEmpty, forkJoin, last, Observable, take, tap } from 'rxjs';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { concat, defaultIfEmpty, filter, forkJoin, last, map, Observable, startWith, take, tap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import {
@@ -133,6 +133,7 @@ interface LeadColumnOption {
     ReactiveFormsModule,
     FormsModule,
     RouterLink,
+    RouterOutlet,
     CrmAssignPickerComponent,
     CrmPaginationFooterComponent,
     ConvertLeadModalComponent,
@@ -197,6 +198,8 @@ export class LeadsComponent {
   private lastRouteEdit = '';
 
   protected readonly formOpen = signal(false);
+  /** True when `/leads/:id` detail child route is active. */
+  protected readonly detailChildActive = signal(false);
   /** Shown read-only in the lead modal (manual CRM flows only; IndiaMART rows never open this form). */
   protected readonly modalLeadSource = signal<LeadSource>('Manual');
   protected readonly searchQuery = signal('');
@@ -343,6 +346,15 @@ export class LeadsComponent {
     this.selectedColumnIds.set(this.loadStoredOptionalColumnIds());
     this.leadOwnerOpts.load();
     this.loadLeadSyncAccess();
+    this.detailChildActive.set(!!this.route.firstChild);
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        map(() => !!this.route.firstChild),
+        startWith(!!this.route.firstChild),
+        takeUntilDestroyed(),
+      )
+      .subscribe((active) => this.detailChildActive.set(active));
     effect(() => {
       const max = this.tableTotalPages() - 1;
       if (this.tablePage() > max) this.tablePage.set(Math.max(0, max));
@@ -1446,6 +1458,7 @@ export class LeadsComponent {
         .subscribe({
           next: () => {
             this.toast.success('Lead updated.');
+            this.createRowBus.publish('lead', { ...payload, id: String(editId) });
             done();
           },
           error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
