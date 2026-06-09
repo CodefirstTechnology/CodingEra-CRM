@@ -66,7 +66,8 @@
 
 .co-profile__field input,
 .co-profile__field textarea,
-.co-profile__field select {
+.co-profile__field select,
+.co-profile__field .iti__tel-input {
   width: 100%;
   border: 1px solid var(--card-border);
   border-radius: 8px;
@@ -75,6 +76,10 @@
   background: var(--surface);
   color: var(--text-primary);
   box-sizing: border-box;
+}
+
+.co-profile__field .iti {
+  width: 100%;
 }
 
 .co-profile__field--wide {

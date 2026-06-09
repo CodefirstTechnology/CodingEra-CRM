@@ -26,6 +26,9 @@ import {
 import type { DealPipelineStatus } from '../../core/services/deals/deal-pipeline.constants';
 import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { DealPipelineBoardComponent } from './deal-pipeline-board.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import {
@@ -38,7 +41,6 @@ import {
 import {
   gstFormValidators,
   optionalEmailValidator,
-  optionalPhoneValidator,
   optionalUrlValidator,
 } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
@@ -138,6 +140,7 @@ interface DealColumnOption {
     RouterLink,
     CrmAssignPickerComponent,
     DealPipelineBoardComponent,
+    IntlTelInputComponent,
   ],
   templateUrl: './deals.component.html',
   styleUrl: './deals.component.scss',
@@ -382,7 +385,7 @@ export class DealsComponent {
     territory: [''],
     industry: ['Technology', Validators.required],
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
-    primaryMobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
+    primaryMobile: [''],
     primaryEmail: ['', [Validators.maxLength(160), optionalEmailValidator()]],
     gender: [''],
     status: this.fb.nonNullable.control<string>(DEFAULT_DEAL_PIPELINE_STATUS, Validators.required),
@@ -523,11 +526,18 @@ export class DealsComponent {
     this.patchDealInline(row, { email: raw || '—' });
   }
 
-  protected onDealMobileBlur(row: DealRow, ev: Event): void {
-    const input = ev.target as HTMLInputElement;
-    const raw = input.value.trim();
+  protected onDealMobileBlur(row: DealRow, tel: IntlTelInputComponent): void {
+    const iti = tel.getInstance();
+    const raw = iti?.getNumber()?.trim() ?? '';
     const previous = this.dealMobileInputValue(row);
     if (raw === previous) return;
+
+    if (raw && iti && !iti.isValidNumber()) {
+      this.toast.error(intlTelMobileErrorMessage({ invalidPhone: { errorMessage: 'invalid' } }));
+      iti.setNumber(previous);
+      return;
+    }
+
     this.patchDealInline(row, { mobile: raw || '—' });
   }
 
@@ -769,6 +779,10 @@ export class DealsComponent {
 
   protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
   protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps('deals__control deals__control--soft');
+  protected readonly intlTelInlineInputProps = crmIntlTelInputProps('deals__inline-input');
+  protected intlTelMobileError = intlTelMobileErrorMessage;
 
   protected fieldInvalid(name: string): boolean {
     const c = this.createForm.get(name);

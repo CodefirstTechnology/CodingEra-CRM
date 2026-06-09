@@ -1,165 +1,165 @@
-<div class="qt-view">
-  @if (loading()) {
-    <p class="qt-view__loading">Loading…</p>
-  } @else if (quotation(); as q) {
-    <header class="qt-view__head">
-      <nav class="qt-view__crumb" aria-label="Breadcrumb">
-        <a routerLink="/quotations" class="qt-view__crumb-link">Quotations</a>
-        <span class="qt-view__crumb-sep" aria-hidden="true">/</span>
-        <span class="qt-view__crumb-current">{{ q.quotationNumber }}</span>
-      </nav>
-      <div class="qt-view__head-row">
-        <div>
-          <h1 class="qt-view__title">{{ q.quotationNumber }}</h1>
-          <div class="qt-view__meta">
-            <span class="quotations-pill quotations-pill--{{ statusClass(q.status) }}">{{ q.status }}</span>
-            <span class="qt-view__date">{{ q.quotationDate | date: 'mediumDate' }}</span>
-          </div>
-        </div>
-        <div class="qt-view__actions">
-          @if (!q.dealClosed) {
-            <button type="button" class="qt-view__btn qt-view__btn--primary" (click)="edit()">Edit</button>
-          }
-          <button
-            type="button"
-            class="qt-view__btn qt-view__btn--ghost"
-            [disabled]="pdfGenerating()"
-            (click)="downloadPdf()"
-          >
-            @if (pdfGenerating()) {
-              <span class="qt-view__btn-spinner" aria-hidden="true"></span>
-              Generating…
-            } @else {
-              Download PDF
-            }
-          </button>
-          <button type="button" class="qt-view__btn qt-view__btn--ghost" (click)="duplicate()">Duplicate</button>
-          @if (!q.dealClosed) {
-            <button type="button" class="qt-view__btn qt-view__btn--danger" (click)="deleteDoc()">Delete</button>
-          }
-        </div>
-      </div>
-    </header>
-
-    <div class="qt-view__layout">
-      <div class="qt-view__main">
-        <section class="qt-view__section quotations-card">
-          <h2 class="qt-view__section-title">Customer information</h2>
-          <dl class="qt-view__dl">
-            <dt>Customer name</dt>
-            <dd>{{ q.customerName }}</dd>
-            <dt>Company name</dt>
-            <dd>{{ q.companyName }}</dd>
-            <dt>Contact person</dt>
-            <dd>{{ q.contactPerson || '—' }}</dd>
-            <dt>Mobile</dt>
-            <dd>{{ q.mobileNumber || '—' }}</dd>
-            <dt>Email</dt>
-            <dd>{{ q.emailAddress }}</dd>
-            <dt>Reference</dt>
-            <dd>
-              {{ q.referenceNumber || '—' }}
-              @if (q.referenceDate) {
-                <span class="qt-view__muted">({{ q.referenceDate | date: 'mediumDate' }})</span>
-              }
-            </dd>
-            <dt>Office address</dt>
-            <dd>{{ q.officeAddress || '—' }}</dd>
-            <dt>Site address</dt>
-            <dd>{{ q.siteAddress || '—' }}</dd>
-          </dl>
-        </section>
-
-        <section class="qt-view__section quotations-card">
-          <h2 class="qt-view__section-title">Line items</h2>
-          <div class="qt-view__scroll">
-            <table class="qt-view__table">
-              <thead>
-                <tr>
-                  <th class="qt-view__th">#</th>
-                  <th class="qt-view__th">Item name</th>
-                  <th class="qt-view__th">Description</th>
-                  <th class="qt-view__th qt-view__th--num">Qty</th>
-                  <th class="qt-view__th qt-view__th--num">Rate</th>
-                  @for (col of dynamicColumns(); track col.key) {
-                    <th class="qt-view__th">{{ col.label }}</th>
-                  }
-                  <th class="qt-view__th qt-view__th--num">Weight</th>
-                  <th class="qt-view__th qt-view__th--num">Total</th>
-                  @if (!usesHeaderGst()) {
-                    <th class="qt-view__th qt-view__th--num">GST %</th>
-                  }
-                </tr>
-              </thead>
-              <tbody>
-                @for (line of q.lineItems; track $index; let i = $index) {
-                  <tr>
-                    <td class="qt-view__td qt-view__td--muted">{{ i + 1 }}</td>
-                    <td class="qt-view__td">{{ line.itemName || line.itemCode || '—' }}</td>
-                    <td class="qt-view__td">{{ line.description || '—' }}</td>
-                    <td class="qt-view__td qt-view__td--num">{{ line.quantity | number: '1.2-4' }}</td>
-                    <td class="qt-view__td qt-view__td--num">₹ {{ line.rate | number: '1.2-4' }}</td>
-                    @for (col of dynamicColumns(); track col.key) {
-                      <td class="qt-view__td">{{ dynamicCell(line.itemSnapshotJson, col.key) }}</td>
-                    }
-                    <td class="qt-view__td qt-view__td--num">{{ line.weight | number: '1.2-4' }}</td>
-                    <td class="qt-view__td qt-view__td--num">₹ {{ (line.lineTotal || line.amount) | number: '1.2-2' }}</td>
-                    @if (!usesHeaderGst()) {
-                      <td class="qt-view__td qt-view__td--num">{{ line.gstPercent | number: '1.2-2' }}</td>
-                    }
-                  </tr>
-                }
-              </tbody>
-              <tfoot>
-                <tr>
-                  <td [attr.colspan]="5 + dynamicColumns().length" class="qt-view__total-label">Subtotal</td>
-                  <td class="qt-view__td qt-view__td--num">{{ totalWeight() | number: '1.2-4' }}</td>
-                  <td class="qt-view__total-value">₹ {{ subtotal() | number: '1.2-2' }}</td>
-                  @if (!usesHeaderGst()) {
-                    <td></td>
-                  }
-                </tr>
-                @if (usesHeaderGst()) {
-                  <tr>
-                    <td [attr.colspan]="6 + dynamicColumns().length" class="qt-view__total-label">
-                      GST @ {{ headerGstPercent() | number: '1.2-2' }}%
-                    </td>
-                    <td class="qt-view__total-value">₹ {{ taxTotal() | number: '1.2-2' }}</td>
-                  </tr>
-                } @else if (taxTotal() > 0) {
-                  <tr>
-                    <td [attr.colspan]="6 + dynamicColumns().length" class="qt-view__total-label">Tax</td>
-                    <td class="qt-view__total-value">₹ {{ taxTotal() | number: '1.2-2' }}</td>
-                  </tr>
-                }
-                <tr>
-                  <td [attr.colspan]="6 + dynamicColumns().length" class="qt-view__total-label">Grand total</td>
-                  <td class="qt-view__total-value">₹ {{ grandTotal() | number: '1.2-2' }}</td>
-                  @if (!usesHeaderGst()) {
-                    <td></td>
-                  }
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </section>
-      </div>
-
-      <aside class="qt-view__side">
-        <section class="qt-view__section quotations-card">
-          <h2 class="qt-view__section-title">Document</h2>
-          <p class="qt-view__doc-line">
-            <span class="qt-view__doc-label">Format</span>
-            <span class="qt-view__doc-mono">{{ q.companyCode }}/{{ q.documentTypeCode }}/{{ q.fiscalYearLabel }}/{{ q.sequenceNumber | number: '3.0-0' }}</span>
-          </p>
-          @if (q.remarks) {
-            <p class="qt-view__remarks">
-              <span class="qt-view__doc-label">Remarks</span>
-              {{ q.remarks }}
-            </p>
-          }
-        </section>
-      </aside>
-    </div>
-  }
-</div>
+<div class="qt-view">
+  @if (loading()) {
+    <p class="qt-view__loading">Loading…</p>
+  } @else if (quotation(); as q) {
+    <header class="qt-view__head">
+      <nav class="qt-view__crumb" aria-label="Breadcrumb">
+        <a routerLink="/quotations" class="qt-view__crumb-link">Quotations</a>
+        <span class="qt-view__crumb-sep" aria-hidden="true">/</span>
+        <span class="qt-view__crumb-current">{{ q.quotationNumber }}</span>
+      </nav>
+      <div class="qt-view__head-row">
+        <div>
+          <h1 class="qt-view__title">{{ q.quotationNumber }}</h1>
+          <div class="qt-view__meta">
+            <span class="quotations-pill quotations-pill--{{ statusClass(q.status) }}">{{ q.status }}</span>
+            <span class="qt-view__date">{{ q.quotationDate | date: 'mediumDate' }}</span>
+          </div>
+        </div>
+        <div class="qt-view__actions">
+          @if (!q.dealClosed) {
+            <button type="button" class="qt-view__btn qt-view__btn--primary" (click)="edit()">Edit</button>
+          }
+          <button
+            type="button"
+            class="qt-view__btn qt-view__btn--ghost"
+            [disabled]="pdfGenerating()"
+            (click)="downloadPdf()"
+          >
+            @if (pdfGenerating()) {
+              <span class="qt-view__btn-spinner" aria-hidden="true"></span>
+              Generating…
+            } @else {
+              Download PDF
+            }
+          </button>
+          <button type="button" class="qt-view__btn qt-view__btn--ghost" (click)="duplicate()">Duplicate</button>
+          @if (!q.dealClosed) {
+            <button type="button" class="qt-view__btn qt-view__btn--danger" (click)="deleteDoc()">Delete</button>
+          }
+        </div>
+      </div>
+    </header>
+
+    <div class="qt-view__layout">
+      <div class="qt-view__main">
+        <section class="qt-view__section quotations-card">
+          <h2 class="qt-view__section-title">Customer information</h2>
+          <dl class="qt-view__dl">
+            <dt>Customer name</dt>
+            <dd>{{ q.customerName }}</dd>
+            <dt>Company name</dt>
+            <dd>{{ q.companyName }}</dd>
+            <dt>Contact person</dt>
+            <dd>{{ q.contactPerson || '—' }}</dd>
+            <dt>Mobile</dt>
+            <dd>{{ (q.mobileNumber | intlTelDisplay) || '—' }}</dd>
+            <dt>Email</dt>
+            <dd>{{ q.emailAddress }}</dd>
+            <dt>Reference</dt>
+            <dd>
+              {{ q.referenceNumber || '—' }}
+              @if (q.referenceDate) {
+                <span class="qt-view__muted">({{ q.referenceDate | date: 'mediumDate' }})</span>
+              }
+            </dd>
+            <dt>Office address</dt>
+            <dd>{{ q.officeAddress || '—' }}</dd>
+            <dt>Site address</dt>
+            <dd>{{ q.siteAddress || '—' }}</dd>
+          </dl>
+        </section>
+
+        <section class="qt-view__section quotations-card">
+          <h2 class="qt-view__section-title">Line items</h2>
+          <div class="qt-view__scroll">
+            <table class="qt-view__table">
+              <thead>
+                <tr>
+                  <th class="qt-view__th">#</th>
+                  <th class="qt-view__th">Item name</th>
+                  <th class="qt-view__th">Description</th>
+                  <th class="qt-view__th qt-view__th--num">Qty</th>
+                  <th class="qt-view__th qt-view__th--num">Rate</th>
+                  @for (col of dynamicColumns(); track col.key) {
+                    <th class="qt-view__th">{{ col.label }}</th>
+                  }
+                  <th class="qt-view__th qt-view__th--num">Weight</th>
+                  <th class="qt-view__th qt-view__th--num">Total</th>
+                  @if (!usesHeaderGst()) {
+                    <th class="qt-view__th qt-view__th--num">GST %</th>
+                  }
+                </tr>
+              </thead>
+              <tbody>
+                @for (line of q.lineItems; track $index; let i = $index) {
+                  <tr>
+                    <td class="qt-view__td qt-view__td--muted">{{ i + 1 }}</td>
+                    <td class="qt-view__td">{{ line.itemName || line.itemCode || '—' }}</td>
+                    <td class="qt-view__td">{{ line.description || '—' }}</td>
+                    <td class="qt-view__td qt-view__td--num">{{ line.quantity | number: '1.2-4' }}</td>
+                    <td class="qt-view__td qt-view__td--num">₹ {{ line.rate | number: '1.2-4' }}</td>
+                    @for (col of dynamicColumns(); track col.key) {
+                      <td class="qt-view__td">{{ dynamicCell(line.itemSnapshotJson, col.key) }}</td>
+                    }
+                    <td class="qt-view__td qt-view__td--num">{{ line.weight | number: '1.2-4' }}</td>
+                    <td class="qt-view__td qt-view__td--num">₹ {{ (line.lineTotal || line.amount) | number: '1.2-2' }}</td>
+                    @if (!usesHeaderGst()) {
+                      <td class="qt-view__td qt-view__td--num">{{ line.gstPercent | number: '1.2-2' }}</td>
+                    }
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td [attr.colspan]="5 + dynamicColumns().length" class="qt-view__total-label">Subtotal</td>
+                  <td class="qt-view__td qt-view__td--num">{{ totalWeight() | number: '1.2-4' }}</td>
+                  <td class="qt-view__total-value">₹ {{ subtotal() | number: '1.2-2' }}</td>
+                  @if (!usesHeaderGst()) {
+                    <td></td>
+                  }
+                </tr>
+                @if (usesHeaderGst()) {
+                  <tr>
+                    <td [attr.colspan]="6 + dynamicColumns().length" class="qt-view__total-label">
+                      GST @ {{ headerGstPercent() | number: '1.2-2' }}%
+                    </td>
+                    <td class="qt-view__total-value">₹ {{ taxTotal() | number: '1.2-2' }}</td>
+                  </tr>
+                } @else if (taxTotal() > 0) {
+                  <tr>
+                    <td [attr.colspan]="6 + dynamicColumns().length" class="qt-view__total-label">Tax</td>
+                    <td class="qt-view__total-value">₹ {{ taxTotal() | number: '1.2-2' }}</td>
+                  </tr>
+                }
+                <tr>
+                  <td [attr.colspan]="6 + dynamicColumns().length" class="qt-view__total-label">Grand total</td>
+                  <td class="qt-view__total-value">₹ {{ grandTotal() | number: '1.2-2' }}</td>
+                  @if (!usesHeaderGst()) {
+                    <td></td>
+                  }
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <aside class="qt-view__side">
+        <section class="qt-view__section quotations-card">
+          <h2 class="qt-view__section-title">Document</h2>
+          <p class="qt-view__doc-line">
+            <span class="qt-view__doc-label">Format</span>
+            <span class="qt-view__doc-mono">{{ q.companyCode }}/{{ q.documentTypeCode }}/{{ q.fiscalYearLabel }}/{{ q.sequenceNumber | number: '3.0-0' }}</span>
+          </p>
+          @if (q.remarks) {
+            <p class="qt-view__remarks">
+              <span class="qt-view__doc-label">Remarks</span>
+              {{ q.remarks }}
+            </p>
+          }
+        </section>
+      </aside>
+    </div>
+  }
+</div>

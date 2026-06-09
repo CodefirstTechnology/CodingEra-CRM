@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { ThemeService } from './core/theme/theme.service';
 import { ToastComponent } from './core/toast/toast.component';
+import { CrmIntlTelDropdownService } from './shared/services/crm-intl-tel-dropdown.service';
 
 @Component({
   selector: 'app-root',
@@ -14,5 +15,6 @@ export class App {
 
   constructor() {
     this.themeService.initFromStorage();
+    inject(CrmIntlTelDropdownService).init();
   }
 }

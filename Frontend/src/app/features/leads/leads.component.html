@@ -131,13 +131,19 @@
                   <span class="leads__err">Full name is required.</span>
                 }
               </label>
-              <label class="leads__field">
+              <div class="leads__field">
                 <span class="leads__label">Mobile no.</span>
-                <input class="leads__control leads__control--soft" type="tel" formControlName="mobile" autocomplete="tel" inputmode="numeric" />
-                @if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['pattern']) {
-                  <span class="leads__err">Enter exactly 10 digits.</span>
+                <div class="crm-intl-tel-field">
+                  <intl-tel-input
+                    formControlName="mobile"
+                    [initOptions]="intlTelInitOptions"
+                    [inputProps]="intlTelMobileInputProps"
+                  />
+                </div>
+                @if (fieldInvalid('mobile')) {
+                  <span class="leads__err">{{ intlTelMobileError(createForm.get('mobile')?.errors) }}</span>
                 }
-              </label>
+              </div>
               <label class="leads__field">
                 <span class="leads__label">Email</span>
                 <input

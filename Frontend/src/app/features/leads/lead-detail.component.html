@@ -479,10 +479,19 @@
               <span class="lead-detail__label">Email</span>
               <input type="email" class="lead-detail__input" formControlName="email" />
             </label>
-            <label class="lead-detail__field">
+            <div class="lead-detail__field">
               <span class="lead-detail__label">Mobile No</span>
-              <input type="text" class="lead-detail__input" formControlName="mobile" autocomplete="tel" />
-            </label>
+              <div class="crm-intl-tel-field">
+                <intl-tel-input
+                  formControlName="mobile"
+                  [initOptions]="intlTelInitOptions"
+                  [inputProps]="intlTelDetailInputProps"
+                />
+              </div>
+              @if (intlTelFieldInvalid(dataForm.controls.mobile)) {
+                <span class="lead-detail__field-error">{{ intlTelMobileError(dataForm.controls.mobile.errors) }}</span>
+              }
+            </div>
           </div>
         </fieldset>
       </form>
@@ -830,13 +839,16 @@
             </dd>
             <dt>Mobile No</dt>
             <dd class="lead-detail__kv-dd">
-              <input
-                type="tel"
-                class="lead-detail__side-field"
-                [formControl]="dataForm.controls.mobile"
-                [placeholder]="sidebarAddLabel('Mobile No')"
-                autocomplete="tel"
-              />
+              <div class="crm-intl-tel-field">
+                <intl-tel-input
+                  [formControl]="dataForm.controls.mobile"
+                  [initOptions]="intlTelInitOptions"
+                  [inputProps]="intlTelSideInputProps"
+                />
+              </div>
+              @if (intlTelFieldInvalid(dataForm.controls.mobile)) {
+                <span class="lead-detail__field-error">{{ intlTelMobileError(dataForm.controls.mobile.errors) }}</span>
+              }
             </dd>
           </dl>
         </div>

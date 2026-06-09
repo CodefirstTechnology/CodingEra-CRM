@@ -217,18 +217,19 @@
                   <span class="deals__err">Full name is required.</span>
                 }
               </label>
-              <label class="deals__field">
+              <div class="deals__field">
                 <span class="deals__label">Primary mobile no.</span>
-                <input
-                  class="deals__control deals__control--soft"
-                  type="tel"
-                  formControlName="primaryMobile"
-                  autocomplete="tel"
-                />
-                @if (fieldInvalid('primaryMobile') && createForm.get('primaryMobile')?.errors?.['phone']) {
-                  <span class="deals__err">Enter a valid phone number.</span>
+                <div class="crm-intl-tel-field">
+                  <intl-tel-input
+                    formControlName="primaryMobile"
+                    [initOptions]="intlTelInitOptions"
+                    [inputProps]="intlTelMobileInputProps"
+                  />
+                </div>
+                @if (fieldInvalid('primaryMobile')) {
+                  <span class="deals__err">{{ intlTelMobileError(createForm.get('primaryMobile')?.errors) }}</span>
                 }
-              </label>
+              </div>
               <label class="deals__field">
                 <span class="deals__label">Primary email</span>
                 <input
@@ -400,15 +401,15 @@
                       />
                     }
                     @case ('mobile') {
-                      <input
-                        type="tel"
-                        class="deals__inline-input"
-                        [value]="dealMobileInputValue(row)"
-                        (blur)="onDealMobileBlur(row, $event)"
-                        (click)="$event.stopPropagation()"
-                        [attr.aria-label]="'Mobile for ' + dealContactName(row)"
-                        autocomplete="tel"
-                      />
+                      <div class="crm-intl-tel-field crm-intl-tel-field--inline" (click)="$event.stopPropagation()">
+                        <intl-tel-input
+                          #dealMobileTel
+                          [initialValue]="dealMobileInputValue(row)"
+                          [initOptions]="intlTelInitOptions"
+                          [inputProps]="intlTelInlineInputProps"
+                          (blur)="onDealMobileBlur(row, dealMobileTel)"
+                        />
+                      </div>
                     }
                     @case ('annualRevenue') {
                       {{ formatDealRevenue(row.annualRevenue) }}

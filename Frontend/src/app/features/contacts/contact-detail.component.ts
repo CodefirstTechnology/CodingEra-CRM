@@ -11,10 +11,14 @@ import { DealsService } from '../../core/services/deals.service';
 import type { ContactRow } from './contacts.component';
 import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
 import { dealStatusCssKind } from '../../core/services/deals/deal-status.constants';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelFieldInvalid, intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { IntlTelDisplayPipe } from '../../shared/pipes/intl-tel-display.pipe';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 
 @Component({
   selector: 'app-contact-detail',
-  imports: [RouterLink, ReactiveFormsModule],
+  imports: [RouterLink, ReactiveFormsModule, IntlTelInputComponent, IntlTelDisplayPipe],
   templateUrl: './contact-detail.component.html',
   styleUrl: './contact-detail.component.scss',
 })
@@ -56,6 +60,11 @@ export class ContactDetailComponent {
     designation: ['', Validators.maxLength(120)],
     address: [''],
   });
+
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelDetailInputProps = crmIntlTelInputProps('contact-detail__input');
+  protected intlTelMobileError = intlTelMobileErrorMessage;
+  protected intlTelFieldInvalid = intlTelFieldInvalid;
 
   protected readonly dealCount = computed(() => this.relatedDeals().length);
 

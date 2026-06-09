@@ -10,6 +10,10 @@ import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { createIdSelection } from '../../shared/utils/selection-manager';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { IntlTelDisplayPipe } from '../../shared/pipes/intl-tel-display.pipe';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 
 export interface ContactRow {
   id: string;
@@ -31,7 +35,7 @@ export interface ContactRow {
 
 @Component({
   selector: 'app-contacts',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, IntlTelInputComponent, IntlTelDisplayPipe],
   templateUrl: './contacts.component.html',
   styleUrl: './contacts.component.scss',
 })
@@ -108,7 +112,7 @@ export class ContactsComponent {
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
-    mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
+    mobile: ['', Validators.required],
     gender: [''],
     companyName: ['', Validators.maxLength(200)],
     designation: ['', Validators.maxLength(120)],
@@ -239,6 +243,10 @@ export class ContactsComponent {
     const ctrl = this.createForm.get(name);
     return !!ctrl && ctrl.invalid && (ctrl.dirty || ctrl.touched);
   }
+
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps('contacts__control contacts__control--soft');
+  protected intlTelMobileError = intlTelMobileErrorMessage;
 
   protected submitContact(): void {
     this.createForm.markAllAsTouched();

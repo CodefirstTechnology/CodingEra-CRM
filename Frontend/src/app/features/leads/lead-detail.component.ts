@@ -45,6 +45,9 @@ import { resolveRecordOwnerIdForSubmit } from '../../shared/utils/record-owner-a
 import { CrmPaginatedSelectComponent } from '../../shared/components/crm-paginated-select/crm-paginated-select.component';
 import { masterDataToPaginatedOptions } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelFieldInvalid, intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
 import { leadRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
@@ -81,6 +84,7 @@ interface LeadCommentItem extends EntityCommentItem {}
     EntityActivityTimelineComponent,
     CrmPaginatedSelectComponent,
     ConvertLeadModalComponent,
+    IntlTelInputComponent,
   ],
   templateUrl: './lead-detail.component.html',
   styleUrl: './lead-detail.component.scss',
@@ -272,6 +276,12 @@ export class LeadDetailComponent {
     email: [''],
     mobile: [''],
   });
+
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelDetailInputProps = crmIntlTelInputProps('lead-detail__input');
+  protected readonly intlTelSideInputProps = crmIntlTelInputProps('lead-detail__side-field');
+  protected intlTelMobileError = intlTelMobileErrorMessage;
+  protected intlTelFieldInvalid = intlTelFieldInvalid;
 
   constructor() {
     this.leadOwnerOpts.load();

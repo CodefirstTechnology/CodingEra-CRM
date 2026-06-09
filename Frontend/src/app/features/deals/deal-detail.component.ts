@@ -55,6 +55,9 @@ import type { EntityEmailItem } from '../../core/services/emails/email-api.model
 import { ToastService } from '../../core/toast/toast.service';
 import { QuotationsService } from '../../core/services/quotations.service';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelFieldInvalid, intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
 import { dealRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from './deals.component';
@@ -87,7 +90,7 @@ interface DealCommentItem extends EntityCommentItem {}
 
 @Component({
   selector: 'app-deal-detail',
-  imports: [RouterLink, ReactiveFormsModule, EntityActivityTimelineComponent],
+  imports: [RouterLink, ReactiveFormsModule, EntityActivityTimelineComponent, IntlTelInputComponent],
   templateUrl: './deal-detail.component.html',
   styleUrl: './deal-detail.component.scss',
 })
@@ -275,6 +278,11 @@ export class DealDetailComponent {
     probabilityPercent: ['10'],
     nextStep: [''],
   });
+
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelDetailInputProps = crmIntlTelInputProps('deal-detail__input');
+  protected intlTelMobileError = intlTelMobileErrorMessage;
+  protected intlTelFieldInvalid = intlTelFieldInvalid;
 
   constructor() {
     this.ownerOpts.load();

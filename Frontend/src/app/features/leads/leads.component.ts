@@ -64,12 +64,14 @@ import {
   normalizeGstin,
   syncGstinInputFromEvent,
 } from '../../shared/utils/gstin.util';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelMobileErrorMessage, formatIntlTelDisplay } from '../../shared/utils/intl-tel.util';
 import {
   gstFormValidators,
   optionalEmailValidator,
-  optionalMobile10Validator,
   optionalUrlValidator,
 } from '../../shared/validators/crm-validators';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import {
   buildLeadDisplayName,
   fullNameFromLeadParts,
@@ -132,6 +134,7 @@ interface LeadColumnOption {
     CrmPaginationFooterComponent,
     ConvertLeadModalComponent,
     NgComponentOutlet,
+    IntlTelInputComponent,
   ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
@@ -665,7 +668,7 @@ export class LeadsComponent {
 
   protected readonly createForm = this.fb.nonNullable.group({
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
-    mobile: ['', [optionalMobile10Validator()]],
+    mobile: [''],
     email: ['', [Validators.maxLength(160), optionalEmailValidator()]],
     gender: [''],
     organization: ['', [Validators.required, Validators.maxLength(160)]],
@@ -842,7 +845,7 @@ export class LeadsComponent {
           const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
           this.createForm.patchValue({
             fullName: fullNameFromLeadParts(row),
-            mobile: (row.mobile ?? '').replace(/\D/g, '').slice(-10) || row.mobile || '',
+            mobile: row.mobile ?? '',
             email: row.email ?? '',
             gender: row.gender ?? '',
             organization: row.organization ?? '',
@@ -1264,11 +1267,9 @@ export class LeadsComponent {
     return this.requiredColumnIds.has(id) || this.selectedColumnIds().includes(id);
   }
 
-  /** Keeps +91-XXXXXXXXXX on one line in the table (no break after hyphen). */
+  /** Keeps international mobile on one line with a space after the country code. */
   protected formatMobileCell(mobile: string | undefined): string {
-    const t = mobile?.trim();
-    if (!t || /^null$/i.test(t) || /^undefined$/i.test(t)) return '—';
-    return t.replace(/\s+/g, ' ');
+    return formatIntlTelDisplay(mobile);
   }
 
   protected displayColumnValue(row: LeadRow, id: string): string {
@@ -1631,6 +1632,9 @@ export class LeadsComponent {
 
   protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
   protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps('leads__control leads__control--soft');
+  protected intlTelMobileError = intlTelMobileErrorMessage;
 
   protected fieldInvalid(name: string): boolean {
     const c = this.createForm.get(name);

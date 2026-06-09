@@ -41,6 +41,9 @@ import {
   syncGstinInputFromEvent,
 } from '../../shared/utils/gstin.util';
 import { gstFormValidators } from '../../shared/validators/crm-validators';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { QuotationItemGridComponent } from './quotation-item-grid/quotation-item-grid.component';
 import { createQuotationLineGroup, type QuotationLineFormValue } from './quotation-line-form.util';
 import { splitFullName } from '../leads/lead-full-name.util';
@@ -59,7 +62,7 @@ function parseDealIdFromQuery(qpm: ParamMap): number | null {
 
 @Component({
   selector: 'app-quotation-form',
-  imports: [ReactiveFormsModule, RouterLink, QuotationItemGridComponent],
+  imports: [ReactiveFormsModule, RouterLink, QuotationItemGridComponent, IntlTelInputComponent],
   templateUrl: './quotation-form.component.html',
   styleUrl: './quotation-form.component.scss',
 })
@@ -88,7 +91,7 @@ export class QuotationFormComponent {
     dealId: [null as number | null],
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
     gender: [''],
-    mobileNumber: ['', Validators.maxLength(64)],
+    mobileNumber: [''],
     emailAddress: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
     companyName: ['', [Validators.required, Validators.maxLength(512)]],
     employees: [''],
@@ -168,6 +171,9 @@ export class QuotationFormComponent {
 
   protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
   protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps('qt-form__control');
+  protected intlTelMobileError = intlTelMobileErrorMessage;
 
   protected fieldInvalid(name: keyof typeof this.form.controls): boolean {
     const c = this.form.controls[name];

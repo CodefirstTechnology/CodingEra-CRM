@@ -17,6 +17,7 @@ import {
   resolveOrgMasterPick,
 } from '../../core/services/organizations/organization-master-select.util';
 import { dealStatusCssKind } from '../../core/services/deals/deal-status.constants';
+import { IntlTelDisplayPipe } from '../../shared/pipes/intl-tel-display.pipe';
 import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { OrganizationRow } from './organizations.component';
@@ -25,7 +26,7 @@ export type OrganizationMainTab = 'deals' | 'contacts';
 
 @Component({
   selector: 'app-organization-detail',
-  imports: [RouterLink, ReactiveFormsModule],
+  imports: [RouterLink, ReactiveFormsModule, IntlTelDisplayPipe],
   templateUrl: './organization-detail.component.html',
   styleUrl: './organization-detail.component.scss',
 })

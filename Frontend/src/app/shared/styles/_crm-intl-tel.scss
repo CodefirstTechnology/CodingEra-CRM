@@ -1,0 +1,40 @@
+.crm-intl-tel-field {
+  width: 100%;
+
+  .iti {
+    display: block;
+    width: 100%;
+  }
+
+  .iti__country-container {
+    border-radius: 10px 0 0 10px;
+  }
+
+  .iti__selected-country {
+    border-radius: 10px 0 0 10px;
+  }
+
+  .iti__tel-input,
+  .iti input[type='tel'] {
+    width: 100%;
+    min-height: 2.35rem;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    font-family: inherit;
+  }
+
+  &.crm-intl-tel-field--inline {
+    .iti__tel-input,
+    .iti input[type='tel'] {
+      min-height: 1.85rem;
+      font-size: 0.8125rem;
+      padding-top: 0.25rem;
+      padding-bottom: 0.25rem;
+    }
+  }
+}
+
+/* Country list rendered on document.body inside modals (z-index above CRM modals). */
+.iti--container {
+  z-index: 10000 !important;
+}

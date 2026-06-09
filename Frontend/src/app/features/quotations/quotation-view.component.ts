@@ -13,10 +13,11 @@ import {
 import { QuotationsService, quotationHttpErrorMessage } from '../../core/services/quotations.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { QuotationPdfService } from './quotation-pdf.service';
+import { IntlTelDisplayPipe } from '../../shared/pipes/intl-tel-display.pipe';
 
 @Component({
   selector: 'app-quotation-view',
-  imports: [RouterLink, DatePipe, DecimalPipe],
+  imports: [RouterLink, DatePipe, DecimalPipe, IntlTelDisplayPipe],
   templateUrl: './quotation-view.component.html',
   styleUrl: './quotation-view.component.scss',
 })

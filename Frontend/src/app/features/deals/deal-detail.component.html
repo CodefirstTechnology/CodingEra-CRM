@@ -577,10 +577,19 @@
               <span class="deal-detail__label">Email</span>
               <input type="email" class="deal-detail__input" formControlName="email" />
             </label>
-            <label class="deal-detail__field">
+            <div class="deal-detail__field">
               <span class="deal-detail__label">Mobile No</span>
-              <input type="text" class="deal-detail__input" formControlName="mobile" autocomplete="tel" />
-            </label>
+              <div class="crm-intl-tel-field">
+                <intl-tel-input
+                  formControlName="mobile"
+                  [initOptions]="intlTelInitOptions"
+                  [inputProps]="intlTelDetailInputProps"
+                />
+              </div>
+              @if (intlTelFieldInvalid(dataForm.controls.mobile)) {
+                <span class="deal-detail__field-error">{{ intlTelMobileError(dataForm.controls.mobile.errors) }}</span>
+              }
+            </div>
           </div>
         </fieldset>
       </form>

@@ -9,6 +9,7 @@ import { mapCompanyProfile } from '../../core/services/company-profile/company-p
 import type { QuotationLineItemDto, QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
 import { mergeCompanyProfileForPdf, type QuotationPdfCompanyConfig } from './company-profile-pdf.mapper';
 import { QUOTATION_PDF_COMPANY, QUOTATION_PDF_LAYOUT } from './quotation-pdf.config';
+import { formatIntlTelDisplay } from '../../shared/utils/intl-tel.util';
 
 export interface QuotationPdfGeneratorInfo {
   fullName: string;
@@ -482,7 +483,7 @@ export class QuotationPdfService {
 
   private contactLine(q: QuotationUpsertDto): string {
     const email = q.emailAddress?.trim();
-    const phone = q.mobileNumber?.trim();
+    const phone = formatIntlTelDisplay(q.mobileNumber?.trim());
     if (email && phone) return `${email} / ${phone}`;
     return email || phone || '—';
   }

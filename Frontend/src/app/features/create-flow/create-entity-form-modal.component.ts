@@ -47,8 +47,6 @@ import type { NoteRelatedType, NoteRow, NoteVisibility } from '../notes/notes.co
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import {
   optionalEmailValidator,
-  optionalMobile10Validator,
-  optionalPhoneValidator,
   optionalUrlValidator,
 } from '../../shared/validators/crm-validators';
 import type { AssigneeOption, TaskPriority, TaskRow, TaskStatus } from '../tasks/tasks.component';
@@ -171,7 +169,7 @@ export class CreateEntityFormModalComponent {
   protected readonly leadForm = this.fb.nonNullable.group({
     salutation: [''],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
-    mobile: ['', [optionalMobile10Validator()]],
+    mobile: [''],
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
     gender: [''],
@@ -197,7 +195,7 @@ export class CreateEntityFormModalComponent {
     industry: ['Technology', Validators.required],
     salutation: [''],
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
-    primaryMobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
+    primaryMobile: [''],
     primaryEmail: ['', [Validators.maxLength(160), optionalEmailValidator()]],
     gender: [''],
     status: this.fb.nonNullable.control<string>(DEFAULT_DEAL_PIPELINE_STATUS, Validators.required),
@@ -210,7 +208,7 @@ export class CreateEntityFormModalComponent {
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
-    mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
+    mobile: ['', Validators.required],
     gender: [''],
     companyName: ['', [Validators.required, Validators.maxLength(200)]],
     designation: ['', Validators.maxLength(120)],

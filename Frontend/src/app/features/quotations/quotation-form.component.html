@@ -33,10 +33,19 @@
               <span class="qt-form__err">Full name is required.</span>
             }
           </label>
-          <label class="qt-form__field">
+          <div class="qt-form__field">
             <span class="qt-form__label">Mobile no.</span>
-            <input class="qt-form__control" type="tel" formControlName="mobileNumber" autocomplete="tel" />
-          </label>
+            <div class="crm-intl-tel-field">
+              <intl-tel-input
+                formControlName="mobileNumber"
+                [initOptions]="intlTelInitOptions"
+                [inputProps]="intlTelMobileInputProps"
+              />
+            </div>
+            @if (fieldInvalid('mobileNumber')) {
+              <span class="qt-form__err">{{ intlTelMobileError(form.get('mobileNumber')?.errors) }}</span>
+            }
+          </div>
           <label class="qt-form__field">
             <span class="qt-form__label">Email <span class="qt-form__req">*</span></span>
             <input type="email" class="qt-form__control" formControlName="emailAddress" autocomplete="email" />

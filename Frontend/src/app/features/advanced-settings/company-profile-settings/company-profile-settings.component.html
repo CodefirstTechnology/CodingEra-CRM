@@ -126,10 +126,20 @@
         <span>Signatory name</span>
         <input type="text" formControlName="signatoryName" [readonly]="!canEdit()" />
       </label>
-      <label class="co-profile__field">
+      <div class="co-profile__field">
         <span>Signatory mobile</span>
-        <input type="tel" formControlName="signatoryMobile" [readonly]="!canEdit()" />
-      </label>
+        <div class="crm-intl-tel-field">
+          <intl-tel-input
+            formControlName="signatoryMobile"
+            [initOptions]="intlTelInitOptions"
+            [inputProps]="intlTelMobileInputProps"
+            [disabled]="!canEdit()"
+          />
+        </div>
+        @if (intlTelFieldInvalid(form.controls.signatoryMobile)) {
+          <small class="co-profile__field-error">{{ intlTelMobileError(form.controls.signatoryMobile.errors) }}</small>
+        }
+      </div>
     </div>
   </section>
 

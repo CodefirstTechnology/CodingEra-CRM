@@ -100,6 +100,14 @@
   background: color-mix(in srgb, var(--text-muted) 8%, transparent);
 }
 
+.lead-detail__field-error {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #b91c1c;
+}
+
 .lead-detail__top-actions {
   display: flex;
   gap: 0.5rem;
