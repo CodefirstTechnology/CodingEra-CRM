@@ -371,7 +371,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (row of filtered(); track row.id) {
+          @for (row of tablePagination.paginatedItems(); track row.id) {
             <tr class="deals__row">
               @for (column of visibleColumns(); track column.id) {
                 <td
@@ -440,6 +440,16 @@
       </table>
       }
     </div>
+    @if (filtered().length > 0) {
+      <app-crm-pagination-footer
+        ariaLabel="Deals table pages"
+        [page]="tablePagination.page()"
+        [pageSize]="tablePagination.pageSize()"
+        [totalItems]="tablePagination.totalItems()"
+        (pageChange)="tablePagination.setPage($event)"
+        (pageSizeChange)="tablePagination.setPageSize($event)"
+      />
+    }
   </div>
   }
 </div>

@@ -8,6 +8,8 @@ import { NotesService } from '../../core/services/notes.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { resolveNoteRecordActivityLink } from '../../shared/utils/entity-record-nav.util';
 import { formatDealRecordLabel, formatLeadRecordLabel } from '../../shared/utils/activity-entity-display.util';
@@ -50,7 +52,7 @@ export interface NoteRow {
 
 @Component({
   selector: 'app-notes',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, CrmPaginationFooterComponent],
   templateUrl: './notes.component.html',
   styleUrl: './notes.component.scss',
 })
@@ -110,6 +112,8 @@ export class NotesComponent {
     });
   });
 
+  protected readonly tablePagination = createClientTablePagination(this.filtered);
+
   protected hasActiveFilters(): boolean {
     return (
       this.relatedTypeFilter() !== 'all' ||
@@ -120,24 +124,29 @@ export class NotesComponent {
 
   protected onSearchInput(ev: Event): void {
     this.searchQuery.set((ev.target as HTMLInputElement).value);
+    this.tablePagination.resetPage();
   }
 
   protected clearSearch(): void {
     this.searchQuery.set('');
+    this.tablePagination.resetPage();
   }
 
   protected resetFilters(): void {
     this.searchQuery.set('');
     this.relatedTypeFilter.set('all');
     this.visibilityFilter.set('all');
+    this.tablePagination.resetPage();
   }
 
   protected onRelatedTypeFilterSelect(ev: Event): void {
     this.relatedTypeFilter.set((ev.target as HTMLSelectElement).value as NoteRelatedTypeFilter);
+    this.tablePagination.resetPage();
   }
 
   protected onVisibilityFilterSelect(ev: Event): void {
     this.visibilityFilter.set((ev.target as HTMLSelectElement).value as NoteVisibilityFilter);
+    this.tablePagination.resetPage();
   }
 
   protected readonly relatedTypeOptions = [

@@ -10,6 +10,8 @@ import { TasksService } from '../../core/services/tasks.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { resolveTaskRecordActivityLink } from '../../shared/utils/entity-record-nav.util';
 import { formatDealRecordLabel, formatLeadRecordLabel } from '../../shared/utils/activity-entity-display.util';
@@ -52,7 +54,7 @@ export interface TaskRow {
 
 @Component({
   selector: 'app-tasks',
-  imports: [ReactiveFormsModule, FormsModule, RouterLink],
+  imports: [ReactiveFormsModule, FormsModule, RouterLink, CrmPaginationFooterComponent],
   templateUrl: './tasks.component.html',
   styleUrl: './tasks.component.scss',
 })
@@ -150,6 +152,8 @@ export class TasksComponent {
     });
   });
 
+  protected readonly tablePagination = createClientTablePagination(this.filtered);
+
   protected hasActiveFilters(): boolean {
     return (
       this.statusFilter() !== 'all' ||
@@ -161,10 +165,12 @@ export class TasksComponent {
 
   protected onSearchInput(ev: Event): void {
     this.searchQuery.set((ev.target as HTMLInputElement).value);
+    this.tablePagination.resetPage();
   }
 
   protected clearSearch(): void {
     this.searchQuery.set('');
+    this.tablePagination.resetPage();
   }
 
   protected resetFilters(): void {
@@ -172,18 +178,22 @@ export class TasksComponent {
     this.statusFilter.set('all');
     this.priorityFilter.set('all');
     this.assigneeFilter.set('all');
+    this.tablePagination.resetPage();
   }
 
   protected onStatusFilterSelect(ev: Event): void {
     this.statusFilter.set((ev.target as HTMLSelectElement).value as TaskListStatusFilter);
+    this.tablePagination.resetPage();
   }
 
   protected onPriorityFilterSelect(ev: Event): void {
     this.priorityFilter.set((ev.target as HTMLSelectElement).value as TaskListPriorityFilter);
+    this.tablePagination.resetPage();
   }
 
   protected onAssigneeFilterSelect(ev: Event): void {
     this.assigneeFilter.set((ev.target as HTMLSelectElement).value);
+    this.tablePagination.resetPage();
   }
 
   private rowMatchesAssigneeFilter(row: TaskRow, assigneeId: string): boolean {

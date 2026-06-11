@@ -16,6 +16,8 @@ import {
 } from '../../core/services/organizations/organization-master-select.util';
 import { optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
+import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 
 export type OrganizationIndustryFilter = 'all' | string;
@@ -42,7 +44,7 @@ export interface OrganizationRow {
 
 @Component({
   selector: 'app-organizations',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, CrmPaginationFooterComponent],
   templateUrl: './organizations.component.html',
   styleUrl: './organizations.component.scss',
 })
@@ -116,6 +118,8 @@ export class OrganizationsComponent {
     });
   });
 
+  protected readonly tablePagination = createClientTablePagination(this.filtered);
+
   protected hasActiveFilters(): boolean {
     return (
       this.industryFilter() !== 'all' ||
@@ -126,24 +130,29 @@ export class OrganizationsComponent {
 
   protected onSearchInput(ev: Event): void {
     this.searchQuery.set((ev.target as HTMLInputElement).value);
+    this.tablePagination.resetPage();
   }
 
   protected clearSearch(): void {
     this.searchQuery.set('');
+    this.tablePagination.resetPage();
   }
 
   protected resetFilters(): void {
     this.searchQuery.set('');
     this.industryFilter.set('all');
     this.territoryFilter.set('all');
+    this.tablePagination.resetPage();
   }
 
   protected onIndustryFilterSelect(ev: Event): void {
     this.industryFilter.set((ev.target as HTMLSelectElement).value);
+    this.tablePagination.resetPage();
   }
 
   protected onTerritoryFilterSelect(ev: Event): void {
     this.territoryFilter.set((ev.target as HTMLSelectElement).value);
+    this.tablePagination.resetPage();
   }
 
   protected masterOptValue(opt: MasterDataOption): string {

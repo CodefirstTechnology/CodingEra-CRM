@@ -444,7 +444,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (row of paginatedFiltered(); track row.id) {
+            @for (row of tablePagination.paginatedItems(); track row.id) {
               <tr>
                 @for (column of visibleColumns(); track column.id) {
                   <td
@@ -578,12 +578,14 @@
         </table>
       }
     </div>
-    @if (filtered().length > tablePageSize) {
+    @if (filtered().length > 0) {
       <app-crm-pagination-footer
         ariaLabel="Leads table pages"
-        [page]="tablePage()"
-        [totalPages]="tableTotalPages()"
-        (pageChange)="setTablePage($event)"
+        [page]="tablePagination.page()"
+        [pageSize]="tablePagination.pageSize()"
+        [totalItems]="tablePagination.totalItems()"
+        (pageChange)="tablePagination.setPage($event)"
+        (pageSizeChange)="tablePagination.setPageSize($event)"
       />
     }
   </div>

@@ -12,10 +12,12 @@ import {
 import { QuotationsService, quotationHttpErrorMessage } from '../../core/services/quotations.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { ToastService } from '../../core/toast/toast.service';
+import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 
 @Component({
   selector: 'app-quotations-list',
-  imports: [ReactiveFormsModule, RouterLink, DatePipe, DecimalPipe],
+  imports: [ReactiveFormsModule, RouterLink, DatePipe, DecimalPipe, CrmPaginationFooterComponent],
   templateUrl: './quotations-list.component.html',
   styleUrl: './quotations-list.component.scss',
 })
@@ -31,6 +33,7 @@ export class QuotationsListComponent {
   protected readonly statusOptions = QUOTATION_STATUSES;
   protected readonly showCreatedByColumn = computed(() => this.userScope.canViewAllQuotations());
   protected readonly tableColSpan = computed(() => (this.showCreatedByColumn() ? 8 : 7));
+  protected readonly tablePagination = createClientTablePagination(this.rows);
 
   protected readonly filterForm = this.fb.nonNullable.group({
     status: [''],
@@ -41,10 +44,16 @@ export class QuotationsListComponent {
     this.refresh();
     this.filterForm.controls.status.valueChanges
       .pipe(takeUntilDestroyed())
-      .subscribe(() => this.refresh());
+      .subscribe(() => {
+        this.tablePagination.resetPage();
+        this.refresh();
+      });
     this.filterForm.controls.search.valueChanges
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
-      .subscribe(() => this.refresh());
+      .subscribe(() => {
+        this.tablePagination.resetPage();
+        this.refresh();
+      });
   }
 
   protected refresh(): void {

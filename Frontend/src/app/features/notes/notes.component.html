@@ -171,7 +171,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (row of filtered(); track row.id) {
+          @for (row of tablePagination.paginatedItems(); track row.id) {
             <tr class="notes__row">
               <td class="notes__td notes__td--title">
                 <span class="notes__td-title-text">{{ row.title }}</span>
@@ -203,5 +203,15 @@
       </table>
       }
     </div>
+    @if (filtered().length > 0) {
+      <app-crm-pagination-footer
+        ariaLabel="Notes table pages"
+        [page]="tablePagination.page()"
+        [pageSize]="tablePagination.pageSize()"
+        [totalItems]="tablePagination.totalItems()"
+        (pageChange)="tablePagination.setPage($event)"
+        (pageSizeChange)="tablePagination.setPageSize($event)"
+      />
+    }
   </div>
 </div>

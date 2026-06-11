@@ -180,7 +180,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (row of filtered(); track row.id) {
+          @for (row of tablePagination.paginatedItems(); track row.id) {
             <tr class="tasks__row">
               <td class="tasks__td tasks__td--strong">
                 <button type="button" class="tasks__title-link" (click)="openTaskForEdit(row, $event)">
@@ -229,5 +229,15 @@
       </table>
       }
     </div>
+    @if (filtered().length > 0) {
+      <app-crm-pagination-footer
+        ariaLabel="Tasks table pages"
+        [page]="tablePagination.page()"
+        [pageSize]="tablePagination.pageSize()"
+        [totalItems]="tablePagination.totalItems()"
+        (pageChange)="tablePagination.setPage($event)"
+        (pageSizeChange)="tablePagination.setPageSize($event)"
+      />
+    }
   </div>
 </div>

@@ -189,7 +189,7 @@
           </tr>
         </thead>
         <tbody>
-          @for (row of filtered(); track row.id) {
+          @for (row of tablePagination.paginatedItems(); track row.id) {
             <tr class="contacts__row">
               <td class="contacts__td contacts__td--strong">
                 <a class="contacts__name-link" [routerLink]="['/contacts', row.id]">{{ contactLabel(row) }}</a>
@@ -207,5 +207,15 @@
       </table>
       }
     </div>
+    @if (filtered().length > 0) {
+      <app-crm-pagination-footer
+        ariaLabel="Contacts table pages"
+        [page]="tablePagination.page()"
+        [pageSize]="tablePagination.pageSize()"
+        [totalItems]="tablePagination.totalItems()"
+        (pageChange)="tablePagination.setPage($event)"
+        (pageSizeChange)="tablePagination.setPageSize($event)"
+      />
+    }
   </div>
 </div>

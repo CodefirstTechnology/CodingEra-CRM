@@ -61,8 +61,8 @@ import {
 import type { ConvertLeadOptions } from '../../core/services/leads/lead-conversion.types';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import type { LeadImportCommitResult } from './import/lead-import-api.models';
-import { CRM_PAGINATED_SELECT_PAGE_SIZE } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import {
@@ -217,8 +217,6 @@ export class LeadsComponent {
   protected readonly sourceFilter = signal<LeadListSourceFilter>('all');
   protected readonly ownerFilter = signal<LeadListOwnerFilter>('all');
   protected readonly columnMenuOpen = signal(false);
-  protected readonly tablePage = signal(0);
-  protected readonly tablePageSize = CRM_PAGINATED_SELECT_PAGE_SIZE;
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
 
@@ -367,10 +365,6 @@ export class LeadsComponent {
         takeUntilDestroyed(),
       )
       .subscribe((active) => this.detailChildActive.set(active));
-    effect(() => {
-      const max = this.tableTotalPages() - 1;
-      if (this.tablePage() > max) this.tablePage.set(Math.max(0, max));
-    });
     this.refreshLeads();
     this.refreshDealConversionIndex();
     forkJoin({
@@ -593,25 +587,7 @@ export class LeadsComponent {
     });
   });
 
-  protected readonly tableTotalPages = computed(() => {
-    const n = this.filtered().length;
-    return Math.max(1, Math.ceil(n / this.tablePageSize));
-  });
-
-  protected readonly paginatedFiltered = computed(() => {
-    const all = this.filtered();
-    const start = this.tablePage() * this.tablePageSize;
-    return all.slice(start, start + this.tablePageSize);
-  });
-
-  protected setTablePage(page: number): void {
-    const max = this.tableTotalPages() - 1;
-    this.tablePage.set(Math.min(Math.max(0, page), max));
-  }
-
-  private resetTablePage(): void {
-    this.tablePage.set(0);
-  }
+  protected readonly tablePagination = createClientTablePagination(this.filtered);
 
   protected readonly allSelectedFiltered = computed(() =>
     this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
@@ -1211,27 +1187,27 @@ export class LeadsComponent {
     this.statusFilter.set('all');
     this.sourceFilter.set('all');
     this.ownerFilter.set('all');
-    this.resetTablePage();
+    this.tablePagination.resetPage();
   }
 
   protected onSearchInput(ev: Event): void {
     this.searchQuery.set((ev.target as HTMLInputElement).value);
-    this.resetTablePage();
+    this.tablePagination.resetPage();
   }
 
   protected clearSearch(): void {
     this.searchQuery.set('');
-    this.resetTablePage();
+    this.tablePagination.resetPage();
   }
 
   protected setStatusFilter(id: LeadListStatusFilter): void {
     this.statusFilter.set(id);
-    this.resetTablePage();
+    this.tablePagination.resetPage();
   }
 
   protected setSourceFilter(id: LeadListSourceFilter): void {
     this.sourceFilter.set(id);
-    this.resetTablePage();
+    this.tablePagination.resetPage();
   }
 
   protected onStatusFilterSelect(ev: Event): void {
@@ -1244,7 +1220,7 @@ export class LeadsComponent {
 
   protected setOwnerFilter(id: LeadListOwnerFilter): void {
     this.ownerFilter.set(id);
-    this.resetTablePage();
+    this.tablePagination.resetPage();
   }
 
   protected onOwnerFilterSelect(ev: Event): void {

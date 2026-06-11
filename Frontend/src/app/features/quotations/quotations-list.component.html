@@ -61,7 +61,7 @@
               <td class="quotations__td quotations__td--empty" [attr.colspan]="tableColSpan()">No quotations found.</td>
             </tr>
           } @else {
-            @for (row of rows(); track row.id) {
+            @for (row of tablePagination.paginatedItems(); track row.id) {
               <tr class="quotations__row">
                 <td class="quotations__td quotations__td--number">
                   <a class="quotations__link" [routerLink]="['/quotations', row.id]">{{ row.quotationNumber || '—' }}</a>
@@ -140,5 +140,15 @@
         </tbody>
       </table>
     </div>
+    @if (!loading() && rows().length > 0) {
+      <app-crm-pagination-footer
+        ariaLabel="Quotations table pages"
+        [page]="tablePagination.page()"
+        [pageSize]="tablePagination.pageSize()"
+        [totalItems]="tablePagination.totalItems()"
+        (pageChange)="tablePagination.setPage($event)"
+        (pageSizeChange)="tablePagination.setPageSize($event)"
+      />
+    }
   </div>
 </div>

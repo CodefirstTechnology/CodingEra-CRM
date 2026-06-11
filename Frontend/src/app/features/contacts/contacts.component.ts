@@ -9,6 +9,8 @@ import { ContactsService } from '../../core/services/contacts.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { ToastService } from '../../core/toast/toast.service';
+import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
 import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
@@ -35,7 +37,7 @@ export interface ContactRow {
 
 @Component({
   selector: 'app-contacts',
-  imports: [ReactiveFormsModule, RouterLink, IntlTelInputComponent, IntlTelDisplayPipe],
+  imports: [ReactiveFormsModule, RouterLink, IntlTelInputComponent, IntlTelDisplayPipe, CrmPaginationFooterComponent],
   templateUrl: './contacts.component.html',
   styleUrl: './contacts.component.scss',
 })
@@ -93,20 +95,25 @@ export class ContactsComponent {
     });
   });
 
+  protected readonly tablePagination = createClientTablePagination(this.filtered);
+
   protected hasActiveFilters(): boolean {
     return this.searchQuery().trim().length > 0;
   }
 
   protected onSearchInput(ev: Event): void {
     this.searchQuery.set((ev.target as HTMLInputElement).value);
+    this.tablePagination.resetPage();
   }
 
   protected clearSearch(): void {
     this.searchQuery.set('');
+    this.tablePagination.resetPage();
   }
 
   protected resetFilters(): void {
     this.searchQuery.set('');
+    this.tablePagination.resetPage();
   }
 
   constructor() {

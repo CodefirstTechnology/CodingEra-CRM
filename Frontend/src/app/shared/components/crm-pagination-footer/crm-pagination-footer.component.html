@@ -1,21 +1,113 @@
 <footer class="crm-pagination-footer" [attr.aria-label]="ariaLabel()">
-  <button
-    type="button"
-    class="crm-pagination-footer__btn"
-    [disabled]="page() === 0"
-    (click)="prev()"
-    aria-label="Previous page"
-  >
-    ‹
-  </button>
-  <span class="crm-pagination-footer__meta">Page {{ page() + 1 }} of {{ totalPages() }}</span>
-  <button
-    type="button"
-    class="crm-pagination-footer__btn"
-    [disabled]="page() >= totalPages() - 1"
-    (click)="next()"
-    aria-label="Next page"
-  >
-    ›
-  </button>
+  <div class="crm-pagination-footer__summary">
+    <span class="crm-pagination-footer__total">
+      <strong>{{ resolvedTotalItems() }}</strong> records
+    </span>
+    @if (resolvedTotalItems() > 0) {
+      <span class="crm-pagination-footer__range">
+        Showing {{ rangeStart() }}–{{ rangeEnd() }}
+      </span>
+    }
+  </div>
+
+  <div class="crm-pagination-footer__controls">
+    <label class="crm-pagination-footer__page-size">
+      <span class="crm-pagination-footer__page-size-label">Rows</span>
+      <select
+        class="crm-pagination-footer__page-size-select"
+        [ngModel]="pageSize()"
+        (ngModelChange)="onPageSizeChange($event)"
+        aria-label="Rows per page"
+      >
+        @for (size of pageSizeChoices(); track size) {
+          <option [value]="size">{{ size }}</option>
+        }
+      </select>
+    </label>
+
+    <div class="crm-pagination-footer__nav" role="navigation" aria-label="Table pages">
+      <button
+        type="button"
+        class="crm-pagination-footer__btn crm-pagination-footer__btn--text"
+        [disabled]="page() === 0"
+        (click)="first()"
+        aria-label="First page"
+        title="First page"
+      >
+        «
+      </button>
+      <button
+        type="button"
+        class="crm-pagination-footer__btn"
+        [disabled]="page() === 0"
+        (click)="prev()"
+        aria-label="Previous page"
+        title="Previous page"
+      >
+        ‹
+      </button>
+
+      <div class="crm-pagination-footer__pages" aria-label="Page numbers">
+        @for (token of visiblePages(); track $index) {
+          @if (token === 'ellipsis') {
+            <span class="crm-pagination-footer__ellipsis" aria-hidden="true">…</span>
+          } @else {
+            <button
+              type="button"
+              class="crm-pagination-footer__btn crm-pagination-footer__btn--page"
+              [class.is-active]="isCurrentPage(token)"
+              [attr.aria-current]="isCurrentPage(token) ? 'page' : null"
+              [attr.aria-label]="'Page ' + pageTokenLabel(token)"
+              (click)="goToPage(token)"
+            >
+              {{ pageTokenLabel(token) }}
+            </button>
+          }
+        }
+      </div>
+
+      <button
+        type="button"
+        class="crm-pagination-footer__btn"
+        [disabled]="page() >= resolvedTotalPages() - 1"
+        (click)="next()"
+        aria-label="Next page"
+        title="Next page"
+      >
+        ›
+      </button>
+      <button
+        type="button"
+        class="crm-pagination-footer__btn crm-pagination-footer__btn--text"
+        [disabled]="page() >= resolvedTotalPages() - 1"
+        (click)="last()"
+        aria-label="Last page"
+        title="Last page"
+      >
+        »
+      </button>
+    </div>
+
+    <form class="crm-pagination-footer__jump" (submit)="submitPageJump($event)">
+      <label class="crm-pagination-footer__jump-label">
+        <span class="crm-pagination-footer__jump-text">Go to</span>
+        <input
+          type="number"
+          class="crm-pagination-footer__jump-input"
+          min="1"
+          [max]="resolvedTotalPages()"
+          inputmode="numeric"
+          [value]="pageJumpInput()"
+          (input)="onPageJumpInput($event)"
+          aria-label="Go to page number"
+          placeholder="{{ page() + 1 }}"
+        />
+      </label>
+      <button type="submit" class="crm-pagination-footer__btn crm-pagination-footer__btn--text">Go</button>
+    </form>
+
+    <span class="crm-pagination-footer__meta">
+      Page {{ page() + 1 }} of {{ resolvedTotalPages() }}
+    </span>
+  </div>
 </footer>

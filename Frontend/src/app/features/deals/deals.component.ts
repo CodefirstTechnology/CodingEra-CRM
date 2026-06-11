@@ -26,6 +26,8 @@ import {
 import type { DealPipelineStatus } from '../../core/services/deals/deal-pipeline.constants';
 import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
+import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
 import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
 import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
@@ -139,6 +141,7 @@ interface DealColumnOption {
     ReactiveFormsModule,
     RouterLink,
     CrmAssignPickerComponent,
+    CrmPaginationFooterComponent,
     DealPipelineBoardComponent,
     IntlTelInputComponent,
   ],
@@ -245,6 +248,9 @@ export class DealsComponent {
       );
     });
   });
+
+  protected readonly tablePagination = createClientTablePagination(this.filtered);
+
   private readonly requiredColumnIds = new Set(['contactName', 'organizationName', 'assignedTo']);
   private readonly selectedColumnIds = signal<string[]>([
     'contactName',
@@ -419,18 +425,22 @@ export class DealsComponent {
     this.searchQuery.set('');
     this.statusFilter.set('all');
     this.ownerFilter.set('all');
+    this.tablePagination.resetPage();
   }
 
   protected onSearchInput(ev: Event): void {
     this.searchQuery.set((ev.target as HTMLInputElement).value);
+    this.tablePagination.resetPage();
   }
 
   protected clearSearch(): void {
     this.searchQuery.set('');
+    this.tablePagination.resetPage();
   }
 
   protected setStatusFilter(id: DealListStatusFilter): void {
     this.statusFilter.set(id);
+    this.tablePagination.resetPage();
   }
 
   protected onStatusFilterSelect(ev: Event): void {
@@ -439,6 +449,7 @@ export class DealsComponent {
 
   protected setOwnerFilter(id: DealListOwnerFilter): void {
     this.ownerFilter.set(id);
+    this.tablePagination.resetPage();
   }
 
   protected onOwnerFilterSelect(ev: Event): void {
