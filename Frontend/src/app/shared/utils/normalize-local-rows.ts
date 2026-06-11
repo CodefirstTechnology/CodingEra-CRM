@@ -53,6 +53,7 @@ export function normalizeDealRow(row: Record<string, unknown>): DealRow {
   const id = String(row['id'] ?? '');
   const orgName = String(row['organizationName'] ?? row['organization'] ?? '');
   const annualRevenue = parseRevenueInputToNumber(row['annualRevenue'] as string | number);
+  const dealAmount = parseRevenueInputToNumber(row['dealAmount'] as string | number);
   const status = resolveDealStatusLabel(String(row['status'] ?? DEFAULT_DEAL_PIPELINE_STATUS));
   const probRaw = row['probabilityPercent'];
   const probabilityPercent =
@@ -62,6 +63,7 @@ export function normalizeDealRow(row: Record<string, unknown>): DealRow {
     organizationName: orgName,
     employees: String(row['employees'] ?? '1-10'),
     annualRevenue,
+    dealAmount,
     website: String(row['website'] ?? ''),
     ...(row['gst'] != null && normalizeGstin(String(row['gst'])) !== ''
       ? { gst: normalizeGstin(String(row['gst'])) }

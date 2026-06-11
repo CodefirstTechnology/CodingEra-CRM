@@ -38,7 +38,7 @@ import {
   leadRecordDate,
   ownerKeyFromDeal,
   ownerKeyFromLead,
-  STUCK_DEAL_INACTIVE_DAYS,
+  STUCK_DEAL_INACTIVE_HOURS,
   STUCK_DEAL_LIMIT,
   startOfDay,
   startOfMonth,
@@ -301,32 +301,31 @@ export class AdminDashboardService {
   }
 
   private buildStuckDeals(deals: DealRow[], now: Date): AdminStuckDealRow[] {
-    const today = startOfDay(now);
-    const msPerDay = 86_400_000;
+    const msPerHour = 3_600_000;
 
     return deals
       .filter((d) => isActiveDealStatus(d.status))
       .map((d) => {
-        const modified = dealLastModifiedDate(d) ?? today;
-        const inactiveDays = Math.max(
+        const modified = dealLastModifiedDate(d) ?? now;
+        const inactiveHours = Math.max(
           0,
-          Math.floor((today.getTime() - startOfDay(modified).getTime()) / msPerDay),
+          Math.floor((now.getTime() - modified.getTime()) / msPerHour),
         );
         return {
           deal: d,
-          inactiveDays,
+          inactiveHours,
         };
       })
-      .filter((x) => x.inactiveDays >= STUCK_DEAL_INACTIVE_DAYS)
-      .sort((a, b) => b.inactiveDays - a.inactiveDays)
+      .filter((x) => x.inactiveHours >= STUCK_DEAL_INACTIVE_HOURS)
+      .sort((a, b) => b.inactiveHours - a.inactiveHours)
       .slice(0, STUCK_DEAL_LIMIT)
-      .map(({ deal, inactiveDays }) => ({
+      .map(({ deal, inactiveHours }) => ({
         id: deal.id,
         dealName: dealDisplayName(deal),
         company: deal.organizationName?.trim() || '—',
         owner: dealOwnerLabel(deal),
         stage: deal.status,
-        inactiveDays,
+        inactiveHours,
         revenue: Number.isFinite(deal.annualRevenue) ? deal.annualRevenue : 0,
       }));
   }

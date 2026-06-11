@@ -6,15 +6,19 @@ export interface LeadImportRowDto {
   lastName?: string;
   mobile?: string;
   email?: string;
+  gender?: string;
   organization?: string;
   industry?: string;
   noOfEmployees?: string;
   annualRevenue?: string;
   website?: string;
+  gst?: string;
   territory?: string;
+  location?: string;
   status?: string;
   leadOwner?: string;
   requestType?: string;
+  leadDate?: string;
   requirement?: string;
   additionalDetails?: string;
 }

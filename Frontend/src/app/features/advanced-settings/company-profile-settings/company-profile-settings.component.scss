@@ -1,0 +1,231 @@
+.co-profile__head {
+  margin-bottom: 1rem;
+}
+
+.co-profile__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.co-profile__sub {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.co-profile__hint,
+.co-profile__err {
+  margin: 0 0 1rem;
+  font-size: 0.92rem;
+}
+
+.co-profile__err {
+  color: var(--danger, #c0392b);
+}
+
+.co-profile__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.co-profile__section {
+  padding-top: 0.25rem;
+  border-top: 1px solid var(--card-border);
+}
+
+.co-profile__section:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.co-profile__section-title {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.co-profile__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.co-profile__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.co-profile__field span {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.co-profile__field input,
+.co-profile__field textarea,
+.co-profile__field select,
+.co-profile__field .iti__tel-input {
+  width: 100%;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  background: var(--surface);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
+
+.co-profile__field .iti {
+  width: 100%;
+}
+
+.co-profile__field--wide {
+  grid-column: span 2;
+}
+
+.co-profile__field--full {
+  grid-column: 1 / -1;
+}
+
+.co-profile__req {
+  color: var(--danger, #c0392b);
+}
+
+.co-profile__field-error {
+  color: var(--danger, #c0392b);
+  font-size: 0.8rem;
+}
+
+.co-profile__logo-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.co-profile__logo-preview {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.co-profile__logo-placeholder {
+  width: 72px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--card-border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.co-profile__logo-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.co-profile__upload-btn,
+.co-profile__clear-btn,
+.co-profile__add-term,
+.co-profile__remove-term,
+.co-profile__save-btn {
+  border-radius: 8px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.co-profile__upload-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.45rem 0.75rem;
+  background: color-mix(in srgb, var(--tertiary-color) 12%, transparent);
+  color: var(--tertiary-color);
+  border: 1px solid color-mix(in srgb, var(--tertiary-color) 35%, transparent);
+  font-weight: 600;
+}
+
+.co-profile__clear-btn,
+.co-profile__remove-term {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.co-profile__terms {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.co-profile__terms-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.co-profile__terms-head h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.co-profile__add-term {
+  padding: 0.35rem 0.65rem;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--tertiary-color);
+  font-weight: 600;
+}
+
+.co-profile__term-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+  padding: 0.75rem;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+}
+
+.co-profile__actions {
+  padding-top: 0.5rem;
+}
+
+.co-profile__save-btn {
+  padding: 0.55rem 1rem;
+  border: none;
+  background: var(--tertiary-color);
+  color: #fff;
+  font-weight: 700;
+}
+
+.co-profile__save-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .co-profile__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .co-profile__field--wide,
+  .co-profile__field--full {
+    grid-column: auto;
+  }
+
+  .co-profile__term-row {
+    grid-template-columns: 1fr;
+  }
+}

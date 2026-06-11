@@ -52,6 +52,7 @@ function activityIconKind(actionType: string): ActivityGroup['iconKind'] {
   if (s.includes('comment')) return 'comment';
   if (s.includes('note')) return 'edit';
   if (s.includes('task')) return 'edit';
+  if (s.includes('attachment')) return 'edit';
   if (s.includes('creat')) return 'people';
   if (s.includes('convert')) return 'bolt';
   return 'edit';

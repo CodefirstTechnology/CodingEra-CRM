@@ -5,7 +5,7 @@ import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import { mapActivityList } from './activity-api.mapper';
-import type { ActivityEntityType, ActivityListQuery, ActivityRow } from './activity-api.models';
+import type { ActivityEntityType, ActivityListQuery, ActivityRow, CreateActivityBody } from './activity-api.models';
 
 @Injectable({ providedIn: 'root' })
 export class ActivityHttpService {
@@ -92,5 +92,39 @@ export class ActivityHttpService {
       default:
         return this.list({ entityType, entityId });
     }
+  }
+
+  createForDeal(dealId: number, body: CreateActivityBody): Observable<ActivityRow> {
+    return this.createForEntityPath('deals', dealId, body);
+  }
+
+  createForLead(leadId: number, body: CreateActivityBody): Observable<ActivityRow> {
+    return this.createForEntityPath('leads', leadId, body);
+  }
+
+  private createForEntityPath(
+    segment: 'leads' | 'deals',
+    id: number,
+    body: CreateActivityBody,
+  ): Observable<ActivityRow> {
+    const session = this.auth.user();
+    const userId = session?.id;
+    let params = new HttpParams();
+    if (userId != null && Number(userId) > 0) {
+      params = params.set('userId', String(userId));
+    }
+
+    return this.http
+      .post<unknown>(`${this.baseUrl}/${segment}/${id}`, body, {
+        headers: this.jsonHeaders(),
+        params,
+      })
+      .pipe(
+        map((raw) => {
+          const row = mapActivityList([raw])[0];
+          if (!row) throw new Error('Invalid activity response from server.');
+          return row;
+        }),
+      );
   }
 }

@@ -53,7 +53,7 @@
             <dt>Contact person</dt>
             <dd>{{ q.contactPerson || '—' }}</dd>
             <dt>Mobile</dt>
-            <dd>{{ q.mobileNumber || '—' }}</dd>
+            <dd>{{ (q.mobileNumber | intlTelDisplay) || '—' }}</dd>
             <dt>Email</dt>
             <dd>{{ q.emailAddress }}</dd>
             <dt>Reference</dt>
@@ -80,13 +80,15 @@
                   <th class="qt-view__th">Item name</th>
                   <th class="qt-view__th">Description</th>
                   <th class="qt-view__th qt-view__th--num">Qty</th>
-                  <th class="qt-view__th">Unit</th>
+                  <th class="qt-view__th qt-view__th--num">Rate</th>
+                  @for (col of dynamicColumns(); track col.key) {
+                    <th class="qt-view__th">{{ col.label }}</th>
+                  }
                   <th class="qt-view__th qt-view__th--num">Weight</th>
-                  <th class="qt-view__th qt-view__th--num">Unit rate</th>
-                  <th class="qt-view__th qt-view__th--num">Disc %</th>
-                  <th class="qt-view__th qt-view__th--num">GST %</th>
-                  <th class="qt-view__th qt-view__th--num">Amount</th>
-                  <th class="qt-view__th qt-view__th--num">Line total</th>
+                  <th class="qt-view__th qt-view__th--num">Total</th>
+                  @if (!usesHeaderGst()) {
+                    <th class="qt-view__th qt-view__th--num">GST %</th>
+                  }
                 </tr>
               </thead>
               <tbody>
@@ -96,29 +98,46 @@
                     <td class="qt-view__td">{{ line.itemName || line.itemCode || '—' }}</td>
                     <td class="qt-view__td">{{ line.description || '—' }}</td>
                     <td class="qt-view__td qt-view__td--num">{{ line.quantity | number: '1.2-4' }}</td>
-                    <td class="qt-view__td">{{ line.uom || '—' }}</td>
-                    <td class="qt-view__td qt-view__td--num">{{ line.weight | number: '1.2-4' }}</td>
                     <td class="qt-view__td qt-view__td--num">₹ {{ line.rate | number: '1.2-4' }}</td>
-                    <td class="qt-view__td qt-view__td--num">{{ line.discountPercent | number: '1.2-2' }}</td>
-                    <td class="qt-view__td qt-view__td--num">{{ line.gstPercent | number: '1.2-2' }}</td>
-                    <td class="qt-view__td qt-view__td--num">₹ {{ line.amount | number: '1.2-2' }}</td>
+                    @for (col of dynamicColumns(); track col.key) {
+                      <td class="qt-view__td">{{ dynamicCell(line.itemSnapshotJson, col.key) }}</td>
+                    }
+                    <td class="qt-view__td qt-view__td--num">{{ line.weight | number: '1.2-4' }}</td>
                     <td class="qt-view__td qt-view__td--num">₹ {{ (line.lineTotal || line.amount) | number: '1.2-2' }}</td>
+                    @if (!usesHeaderGst()) {
+                      <td class="qt-view__td qt-view__td--num">{{ line.gstPercent | number: '1.2-2' }}</td>
+                    }
                   </tr>
                 }
               </tbody>
               <tfoot>
                 <tr>
-                  <td colspan="3" class="qt-view__total-label">Totals</td>
-                  <td class="qt-view__td qt-view__td--num">{{ totalQuantity() | number: '1.2-4' }}</td>
-                  <td></td>
+                  <td [attr.colspan]="5 + dynamicColumns().length" class="qt-view__total-label">Subtotal</td>
                   <td class="qt-view__td qt-view__td--num">{{ totalWeight() | number: '1.2-4' }}</td>
-                  <td colspan="3"></td>
-                  <td class="qt-view__total-label">Tax</td>
-                  <td class="qt-view__total-value">₹ {{ taxTotal() | number: '1.2-2' }}</td>
+                  <td class="qt-view__total-value">₹ {{ subtotal() | number: '1.2-2' }}</td>
+                  @if (!usesHeaderGst()) {
+                    <td></td>
+                  }
                 </tr>
+                @if (usesHeaderGst()) {
+                  <tr>
+                    <td [attr.colspan]="6 + dynamicColumns().length" class="qt-view__total-label">
+                      GST @ {{ headerGstPercent() | number: '1.2-2' }}%
+                    </td>
+                    <td class="qt-view__total-value">₹ {{ taxTotal() | number: '1.2-2' }}</td>
+                  </tr>
+                } @else if (taxTotal() > 0) {
+                  <tr>
+                    <td [attr.colspan]="6 + dynamicColumns().length" class="qt-view__total-label">Tax</td>
+                    <td class="qt-view__total-value">₹ {{ taxTotal() | number: '1.2-2' }}</td>
+                  </tr>
+                }
                 <tr>
-                  <td colspan="9" class="qt-view__total-label">Grand total</td>
-                  <td colspan="2" class="qt-view__total-value">₹ {{ grandTotal() | number: '1.2-2' }}</td>
+                  <td [attr.colspan]="6 + dynamicColumns().length" class="qt-view__total-label">Grand total</td>
+                  <td class="qt-view__total-value">₹ {{ grandTotal() | number: '1.2-2' }}</td>
+                  @if (!usesHeaderGst()) {
+                    <td></td>
+                  }
                 </tr>
               </tfoot>
             </table>

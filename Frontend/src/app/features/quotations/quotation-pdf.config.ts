@@ -1,34 +1,27 @@
-/** Company quotation PDF template (Buildrich). */
+/** Quotation PDF styling defaults; company content comes from Company Profile settings. */
 export const QUOTATION_PDF_COMPANY = {
-  brandName: 'BUILDRICH',
-  brandTagline: 'Empowering Construction Excellence',
-  legalName: 'Buildrich Construction Equipment Pvt. Ltd',
-  businessLine:
-    'Manufacturing, Hiring & Supplier of : Construction Machinery, Equipment & Scaffolding Materials',
-  gstin: '27AAJCB6955B1ZM',
-  cin: 'U29100PN2021PTC199255',
-  signatureEntity: 'BUILDRICH CONSTRUCTION EQUIPMENT PVT LTD',
-  address:
-    'Sr. No. 31/5/1, Besides Akemi Business School, Marunji Road, Marunji (Wakad), Tal - Mulshi, Dist- Pune - 411057.',
-  contactPhone: '+91 97656 57138',
-  emails: ['info@buildrich.in', 'scaffolding@buildrich.in'],
-  website: 'www.buildrich.in',
-  jurisdiction: 'Subject to Pune Jurisdiction',
-  introText:
-    'Dear Sir, With reference to your requirements, we are pleased to submit our most reasonable offer for your approval and assuring you of our best services at all times.',
-  transportationLabel: 'Extra At Actual',
+  brandName: '',
+  brandTagline: '',
+  legalName: '',
+  businessLine: '',
+  gstin: '',
+  cin: '',
+  signatureEntity: '',
+  address: '',
+  contactPhone: '',
+  emails: [] as string[],
+  website: '',
+  jurisdiction: '',
+  introText: '',
+  defaultIntroText:
+    'Dear Sir,\nWith reference to your requirements, we are pleased to submit our most reasonable offer for your approval and assuring you of our best services at all times.',
+  transportationLabel: '',
   defaultGstPercent: 18,
-  terms: [
-    {
-      title: 'Order & Payment',
-      body: 'Order to be placed on BUILDRICH CONSTRUCTION EQUIPMENT PVT LTD. Bank: ICICI Bank, A/c No. 777705691133, IFSC: ICIC0000986, Branch: Hinjawadi, Pune 411057.',
-    },
-    { title: 'Delivery Period', body: 'within 5-6 days from the date of PO.' },
-    { title: 'Taxes', body: 'Extra at actual.' },
-    { title: 'Payment Terms', body: '70% Advance.' },
-    { title: 'Transportation', body: 'Transport from Ex Factory Pune.' },
-    { title: 'Validity', body: '7 days from the mentioned date of Quotation.' },
-  ],
+  terms: [] as { title: string; body: string }[],
+  bankName: '',
+  accountNumber: '',
+  ifscCode: '',
+  branchName: '',
   /** Header/footer fill RGB */
   brandBlue: [30, 64, 120] as [number, number, number],
   /** Line-items table footer (total row) */
@@ -39,7 +32,7 @@ export const QUOTATION_PDF_COMPANY = {
 /** Page layout (A4 portrait, mm) — keeps tables and totals column-aligned. */
 export const QUOTATION_PDF_LAYOUT = {
   marginMm: 10,
-  headerHeightMm: 34,
+  headerHeightMm: 24,
   footerHeightMm: 15,
   footerReserveMm: 28,
   sectionGapMm: 3,
@@ -55,11 +48,22 @@ export const QUOTATION_PDF_LAYOUT = {
   lineQtyWidthMm: 26,
   lineRateWidthMm: 30,
   lineAmountWidthMm: 30,
-  /** Terms block uses this share of content width */
-  termsWidthRatio: 0.54,
+  /** Terms block (index + title + detail) uses this share of content width */
+  termsWidthRatio: 0.7,
   /** Totals mini-table (label + amount), right edge aligns with line amount column */
   totalsLabelWidthMm: 42,
-  cellPaddingMm: 2,
+  /** Terms table column widths (mm) */
+  termsIndexWidthMm: 8,
+  termsTitleWidthMm: 28,
+  /** Quotation number highlight in meta grid */
+  qtnHighlightFill: [220, 235, 250] as [number, number, number],
+  qtnHighlightText: [30, 64, 120] as [number, number, number],
+  cellPaddingMm: 1,
+  termsDetailCellPaddingMm: { top: 1, right: 1, bottom: 1, left: 1 },
+  transportCellPaddingMm: { top: 1.5, right: 1.2, bottom: 1.5, left: 1.2 },
+  totalsCellPaddingMm: { top: 1, right: 1, bottom: 1, left: 1 },
+  introCellPaddingMm: { top: 1, right: 1.2, bottom: 1, left: 1.2 },
+  signatureCellPaddingMm: { top: 1, right: 1, bottom: 1, left: 1 },
   fontSize: {
     headerBrand: 13,
     headerLegal: 10.5,

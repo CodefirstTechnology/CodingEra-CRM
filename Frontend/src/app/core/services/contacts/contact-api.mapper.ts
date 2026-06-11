@@ -113,6 +113,10 @@ export function mapContactApiRecord(raw: unknown): ContactRow {
     organization: organization || '—',
     organizationId:
       organizationId != null && organizationId > 0 ? String(organizationId) : undefined,
+    createdBy: (() => {
+      const n = readOptionalInt(r['createdBy'] ?? r['CreatedBy']);
+      return n != null && n > 0 ? String(n) : undefined;
+    })(),
     designation: String(r['designation'] ?? r['Designation'] ?? '').trim(),
     address: String(r['address'] ?? r['Address'] ?? '').trim(),
     lastModified: formatLastModified(

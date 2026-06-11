@@ -1,0 +1,85 @@
+<section class="im-panel">
+  <header class="im-panel__head">
+    <div>
+      <h3 class="im-panel__title">Item Groups</h3>
+      <p class="im-panel__sub">Organize items into categories. Parent groups can contain child groups.</p>
+    </div>
+    @if (canEdit()) {
+      <button type="button" class="im-panel__btn" (click)="startCreate()">+ New Group</button>
+    }
+  </header>
+
+  @if (canEdit() && formOpen()) {
+    <form class="im-panel__form" [formGroup]="form" (ngSubmit)="submit()">
+      <div class="im-panel__grid">
+        <label>
+          <span>Name</span>
+          <input type="text" formControlName="name" />
+        </label>
+        <label>
+          <span>Parent group</span>
+          <select formControlName="parentId">
+            <option [ngValue]="0">— None (root) —</option>
+            @for (g of parentOptions(editingId()); track g.id) {
+              <option [ngValue]="g.id">{{ g.name }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          <span>Sort order</span>
+          <input type="number" formControlName="sortOrder" />
+        </label>
+        <label class="im-panel__check">
+          <input type="checkbox" formControlName="isActive" />
+          <span>Active</span>
+        </label>
+        <label class="im-panel__wide">
+          <span>Description</span>
+          <textarea rows="2" formControlName="description"></textarea>
+        </label>
+      </div>
+      <footer class="im-panel__actions">
+        <button type="button" class="im-panel__ghost" (click)="cancelEdit()">Cancel</button>
+        <button type="submit" class="im-panel__btn" [disabled]="saving()">
+          {{ editingId() ? 'Update' : 'Create' }}
+        </button>
+      </footer>
+    </form>
+  }
+
+  @if (loading()) {
+    <p class="im-panel__hint">Loading…</p>
+  }
+
+  <div class="im-panel__table-wrap">
+    <table class="im-panel__table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Parent</th>
+          <th>Items</th>
+          <th>Status</th>
+          @if (canEdit()) { <th></th> }
+        </tr>
+      </thead>
+      <tbody>
+        @for (g of groups(); track g.id) {
+          <tr>
+            <td>{{ g.name }}</td>
+            <td>{{ g.parentName || '—' }}</td>
+            <td>{{ g.itemCount }}</td>
+            <td>{{ g.isActive ? 'Active' : 'Inactive' }}</td>
+            @if (canEdit()) {
+              <td class="im-panel__row-actions">
+                <button type="button" class="im-panel__ghost im-panel__ghost--sm" (click)="startEdit(g)">Edit</button>
+                <button type="button" class="im-panel__danger im-panel__danger--sm" (click)="deleteGroup(g)">Delete</button>
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr><td colspan="5" class="im-panel__empty">No item groups yet.</td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

@@ -1,0 +1,145 @@
+<div class="rbac">
+  @if (mode() === 'list') {
+    <header class="rbac__head">
+      <div>
+        <h2 class="rbac__title">Roles</h2>
+        <p class="rbac__sub">Create and manage roles. Assign permissions per module with Own, Team, or All scope.</p>
+      </div>
+      <button type="button" class="rbac__primary-btn" (click)="openCreate()">+ Create Role</button>
+    </header>
+
+    <div class="rbac__toolbar">
+      <input
+        type="search"
+        placeholder="Search roles…"
+        [value]="searchQuery()"
+        (input)="onSearch($event)"
+      />
+    </div>
+
+    @if (loading()) {
+      <p class="rbac__hint">Loading roles…</p>
+    }
+
+    <table class="rbac__table">
+      <thead>
+        <tr>
+          <th>Role</th>
+          <th>Users</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (role of filteredRoles(); track role.id) {
+          <tr>
+            <td>
+              <strong>{{ role.name }}</strong>
+              @if (role.description) {
+                <div class="rbac__desc">{{ role.description }}</div>
+              }
+            </td>
+            <td>{{ role.assignedUserCount }}</td>
+            <td>
+              <span class="rbac__badge" [class.rbac__badge--inactive]="!role.isActive">
+                {{ role.isActive ? 'Active' : 'Inactive' }}
+              </span>
+            </td>
+            <td class="rbac__actions">
+              <button type="button" (click)="openEdit(role)">Edit</button>
+              <button type="button" (click)="openPermissions(role)">Permissions</button>
+              <button type="button" (click)="toggleActive(role)">
+                {{ role.isActive ? 'Deactivate' : 'Activate' }}
+              </button>
+              <button type="button" (click)="cloneRole(role)">Clone</button>
+              <button
+                type="button"
+                class="rbac__danger"
+                [disabled]="role.assignedUserCount > 0"
+                (click)="deleteRole(role)"
+              >
+                Delete
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  } @else if (mode() === 'create' || mode() === 'edit') {
+    <header class="rbac__head">
+      <h2 class="rbac__title">{{ mode() === 'create' ? 'Create Role' : 'Edit Role' }}</h2>
+      <button type="button" class="rbac__link-btn" (click)="backToList()">← Back to list</button>
+    </header>
+
+    <form class="rbac__form" [formGroup]="roleForm" (ngSubmit)="saveRole()">
+      <label class="rbac__field">
+        <span>Role name <span class="rbac__req">*</span></span>
+        <input type="text" formControlName="name" />
+      </label>
+      <label class="rbac__field">
+        <span>Description</span>
+        <textarea formControlName="description" rows="3"></textarea>
+      </label>
+      <label class="rbac__check">
+        <input type="checkbox" formControlName="isActive" />
+        Active
+      </label>
+      <footer class="rbac__footer">
+        <button type="submit" class="rbac__primary-btn" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : 'Save Role' }}
+        </button>
+      </footer>
+    </form>
+  } @else if (mode() === 'permissions') {
+    <header class="rbac__head">
+      <div>
+        <h2 class="rbac__title">Permissions — {{ selectedRole()?.name }}</h2>
+        <p class="rbac__sub">Enable permissions and set access scope per module.</p>
+      </div>
+      <button type="button" class="rbac__link-btn" (click)="backToList()">← Back to list</button>
+    </header>
+
+    @if (loading()) {
+      <p class="rbac__hint">Loading…</p>
+    } @else {
+      @for (group of permissionGroups(); track group.module) {
+        <section class="rbac__module">
+          <h3 class="rbac__module-title">{{ group.module | titlecase }}</h3>
+          <ul class="rbac__perm-list">
+            @for (perm of group.permissions; track perm.id) {
+              <li class="rbac__perm-row">
+                <label class="rbac__perm-check">
+                  <input
+                    type="checkbox"
+                    [checked]="isPermissionEnabled(perm.id)"
+                    (change)="togglePermission(perm.id, $any($event.target).checked)"
+                  />
+                  <span>
+                    <strong>{{ perm.action }}</strong>
+                    <small>{{ perm.description }}</small>
+                  </span>
+                </label>
+                @if (isPermissionEnabled(perm.id)) {
+                  <select
+                    [value]="permissionScope(perm.id)"
+                    (change)="setPermissionScope(perm.id, $any($event.target).value)"
+                  >
+                    <option value="own">Own Records</option>
+                    <option value="team">Team Records</option>
+                    <option value="all">All Records</option>
+                  </select>
+                }
+              </li>
+            }
+          </ul>
+        </section>
+      }
+
+      <footer class="rbac__footer">
+        <button type="button" class="rbac__primary-btn" [disabled]="saving()" (click)="savePermissions()">
+          {{ saving() ? 'Saving…' : 'Save Permissions' }}
+        </button>
+      </footer>
+    }
+  }
+</div>

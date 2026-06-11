@@ -19,17 +19,6 @@
         </div>
         <div class="org-detail__profile-body">
           <h1 class="org-detail__name">{{ organizationHeadline() }}</h1>
-          <div class="org-detail__profile-actions">
-            <button type="button" class="org-detail__btn-delete" (click)="confirmDeleteOrganization()">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <path d="M3 6h18" />
-                <path d="M8 6V4h8v2" />
-                <path d="M19 6l-1 14H6L5 6" />
-                <path d="M10 11v6M14 11v6" />
-              </svg>
-              Delete
-            </button>
-          </div>
         </div>
       </div>
 
@@ -211,7 +200,7 @@
               <td>{{ d.email }}</td>
               <td>
                 @if (d.mobile && d.mobile !== '—') {
-                <span class="org-detail__mobile">{{ d.mobile }}</span>
+                <span class="org-detail__mobile">{{ d.mobile | intlTelDisplay }}</span>
                 } @else {
                 <span class="org-detail__mobile-ico" title="—" aria-label="No mobile">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -264,7 +253,7 @@
               <td>{{ c.email }}</td>
               <td>
                 @if (c.phone && c.phone !== '—') {
-                <span class="org-detail__mobile">{{ c.phone }}</span>
+                <span class="org-detail__mobile">{{ c.phone | intlTelDisplay }}</span>
                 } @else {
                 <span class="org-detail__mobile-ico" title="—" aria-label="No mobile">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">

@@ -2,8 +2,8 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin } from 'rxjs';
-import { take } from 'rxjs/operators';
+import { forkJoin, of } from 'rxjs';
+import { catchError, take } from 'rxjs/operators';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
@@ -21,6 +21,10 @@ import {
 } from '../../core/services/leads/lead-master-data.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import {
+  leadDateToFormInput,
+  todayIsoDateLocal,
+} from '../../core/services/leads/lead-api.mapper';
+import {
   buildLeadDisplayName,
   fullNameFromLeadParts,
   splitFullName,
@@ -28,7 +32,7 @@ import {
 import { ToastService } from '../../core/toast/toast.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { NotesService } from '../../core/services/notes.service';
-import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
+import { LeadOwnerOptionsService, isPersistedApiLeadRow } from '../../core/services/leads/lead-owner-options.service';
 import {
   buildLeadConversionActivityGroup,
   isLeadConverted,
@@ -36,9 +40,14 @@ import {
 } from '../../shared/utils/lead-conversion.util';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { resolveRecordOwnerIdForSubmit } from '../../shared/utils/record-owner-assignment.util';
 import { CrmPaginatedSelectComponent } from '../../shared/components/crm-paginated-select/crm-paginated-select.component';
 import { masterDataToPaginatedOptions } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelFieldInvalid, intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
 import { leadRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
@@ -75,6 +84,7 @@ interface LeadCommentItem extends EntityCommentItem {}
     EntityActivityTimelineComponent,
     CrmPaginatedSelectComponent,
     ConvertLeadModalComponent,
+    IntlTelInputComponent,
   ],
   templateUrl: './lead-detail.component.html',
   styleUrl: './lead-detail.component.scss',
@@ -124,6 +134,11 @@ export class LeadDetailComponent {
     const row = this.lead();
     if (!row || isLeadConverted(row)) return false;
     return isLeadQualifiedForConversion(row);
+  });
+
+  protected readonly isLeadDataReadOnly = computed(() => {
+    const row = this.lead();
+    return row != null && isLeadConverted(row);
   });
   protected readonly commentComposerOpen = signal(false);
   protected readonly commentDraft = signal('');
@@ -236,8 +251,9 @@ export class LeadDetailComponent {
   );
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly userScope = inject(UserDataScopeService);
+  private readonly permissions = inject(PermissionService);
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
-  /** Only admins may change lead owner; users see read-only owner text. */
+  protected readonly canAssignLeads = computed(() => this.permissions.canAssignLeads());
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
 
   private readonly noteRelatedTypeLabels: Record<NoteRelatedType, string> = {
@@ -254,10 +270,18 @@ export class LeadDetailComponent {
     industry: [''],
     source: [''],
     owner: [''],
+    location: [''],
+    leadDate: [todayIsoDateLocal()],
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
     email: [''],
     mobile: [''],
   });
+
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelDetailInputProps = crmIntlTelInputProps('lead-detail__input');
+  protected readonly intlTelSideInputProps = crmIntlTelInputProps('lead-detail__side-field');
+  protected intlTelMobileError = intlTelMobileErrorMessage;
+  protected intlTelFieldInvalid = intlTelFieldInvalid;
 
   constructor() {
     this.leadOwnerOpts.load();
@@ -310,6 +334,13 @@ export class LeadDetailComponent {
       if (e.kind === 'note') {
         this.refreshLeadNotes();
         this.refreshLeadActivities();
+      }
+      if (e.kind === 'lead') {
+        const id = this.numericId();
+        const row = e.row as LeadRow;
+        if (id != null && String(row?.id ?? '') === String(id)) {
+          void this.hydrateLeadFromRoute(id);
+        }
       }
     });
   }
@@ -475,8 +506,10 @@ export class LeadDetailComponent {
       return;
     }
     const next = [...this.leadAttachments()];
+    const addedNames: string[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      addedNames.push(file.name);
       const id =
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? crypto.randomUUID()
@@ -493,6 +526,23 @@ export class LeadDetailComponent {
     input.value = '';
     const n = files.length;
     this.toast.success(n === 1 ? 'Attachment added.' : `${n} attachments added.`);
+    this.logAttachmentActivities('lead', addedNames);
+  }
+
+  private logAttachmentActivities(entityType: 'lead', fileNames: string[]): void {
+    const id = this.numericId();
+    if (id == null || !fileNames.length) return;
+
+    const actor = this.auth.user()?.name?.trim() || 'User';
+    const requests = fileNames.map((name) =>
+      this.activitiesService
+        .logAttachmentAdded(entityType, id, `${actor} added attachment: ${name}`)
+        .pipe(catchError(() => of(null))),
+    );
+
+    forkJoin(requests)
+      .pipe(take(1))
+      .subscribe(() => this.refreshLeadActivities());
   }
 
   private refreshLeadActivities(): void {
@@ -792,6 +842,8 @@ export class LeadDetailComponent {
         industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
         source: row.source?.trim() || row.leadSource || '',
         owner: row.leadOwnerId ?? '',
+        location: row.location ?? '',
+        leadDate: leadDateToFormInput(row.leadDate) || todayIsoDateLocal(),
         fullName: fullNameFromLeadParts(row),
         email: row.email ?? '',
         mobile: row.mobile ?? '',
@@ -799,6 +851,11 @@ export class LeadDetailComponent {
       { emitEvent: false },
     );
     this.dataForm.markAsPristine();
+    if (isLeadConverted(row)) {
+      this.dataForm.disable({ emitEvent: false });
+    } else {
+      this.dataForm.enable({ emitEvent: false });
+    }
   }
 
   protected noteRelatedLabel(note: NoteRow): string {
@@ -840,6 +897,25 @@ export class LeadDetailComponent {
     if (row) this.patchDataForm(row);
   }
 
+  /** Same as Leads table action menu → Edit (`onRowEdit`). */
+  protected openLeadEditForm(): void {
+    const row = this.lead();
+    if (!row || !this.canEditLead(row)) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: row.id },
+      queryParamsHandling: 'merge',
+    });
+  }
+
+  protected canEditLead(row: LeadRow): boolean {
+    return (
+      !this.isAdminViewer() &&
+      isPersistedApiLeadRow(row.id) &&
+      !isLeadConverted(row)
+    );
+  }
+
   /** Sidebar name line — mirrors `saveDataTab` name computation. */
   protected sidebarLeadHeadline(row: LeadRow): string {
     const v = this.dataForm.getRawValue();
@@ -873,6 +949,11 @@ export class LeadDetailComponent {
     const idn = this.numericId();
     if (!row || idn == null) return;
 
+    if (this.isLeadDataReadOnly()) {
+      this.toast.error('Converted leads cannot be edited.');
+      return;
+    }
+
     if (this.dataForm.invalid) {
       this.dataForm.markAllAsTouched();
       return;
@@ -884,8 +965,16 @@ export class LeadDetailComponent {
     const { firstName, lastName } = splitFullName(v.fullName);
     const name = buildLeadDisplayName('', firstName, lastName) || v.fullName.trim() || row.name;
 
-    const ownerId = this.isAdminViewer() ? v.owner.trim() : (row.leadOwnerId ?? '').trim();
-    const opt = this.isAdminViewer() ? this.leadOwnerOpts.findById(ownerId) : null;
+    const ownerId = resolveRecordOwnerIdForSubmit({
+      canAssign: this.canAssignLeads(),
+      isAdminSession: this.isAdminViewer(),
+      rawOwnerId: v.owner.trim(),
+      existingOwnerId: row.leadOwnerId,
+      sessionOwnerId: this.leadOwnerOpts.sessionOwnerId(),
+      fallbackOwnerId: this.leadOwnerOpts.defaultOwnerId(),
+    });
+    const opt =
+      this.canAssignLeads() && this.isAdminViewer() ? this.leadOwnerOpts.findById(ownerId) : null;
     const leadOwnerName = opt?.label ?? row.leadOwnerName;
 
     this.dataSaving.set(true);
@@ -905,6 +994,8 @@ export class LeadDetailComponent {
       industry: indPick.label.trim() || undefined,
       industryId: indPick.masterId,
       source: v.source.trim() || undefined,
+      location: v.location.trim() || undefined,
+      leadDate: v.leadDate.trim() || todayIsoDateLocal(),
       leadOwnerId: ownerId || undefined,
       owner: opt?.initials ?? row.owner,
       leadOwnerName,
@@ -918,7 +1009,8 @@ export class LeadDetailComponent {
         this.lead.set(enriched);
         this.patchDataForm(enriched);
         this.emailSubjectText.set(`Mr ${updated.name} (${this.leadCode()})`);
-        const ownerDirty = this.isAdminViewer() && this.dataForm.controls.owner.dirty;
+        const ownerDirty =
+          this.canAssignLeads() && this.isAdminViewer() && this.dataForm.controls.owner.dirty;
         const otherDirty =
           this.dataForm.controls.fullName.dirty ||
           this.dataForm.controls.email.dirty ||
@@ -927,7 +1019,9 @@ export class LeadDetailComponent {
           this.dataForm.controls.website.dirty ||
           this.dataForm.controls.territory.dirty ||
           this.dataForm.controls.industry.dirty ||
-          this.dataForm.controls.source.dirty;
+          this.dataForm.controls.source.dirty ||
+          this.dataForm.controls.location.dirty ||
+          this.dataForm.controls.leadDate.dirty;
         if (ownerDirty && !otherDirty) {
           const name = enriched.leadOwnerName?.trim() || '—';
           this.toast.success(
@@ -985,18 +1079,5 @@ export class LeadDetailComponent {
 
   protected openCreatePicker(): void {
     this.createFlow.openPicker();
-  }
-
-  protected async confirmDeleteLead(): Promise<void> {
-    const idn = this.numericId();
-    if (idn == null) return;
-    if (!confirm('Delete this lead?')) return;
-    try {
-      await this.leadsService.deleteAsync(idn);
-      this.toast.success('Lead deleted.');
-      void this.router.navigateByUrl('/leads');
-    } catch (e) {
-      this.toast.error(leadsHttpErrorMessage(e));
-    }
   }
 }

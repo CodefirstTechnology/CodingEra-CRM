@@ -1,6 +1,14 @@
 import { Injectable } from '@angular/core';
 import type { DealRow } from '../../../features/deals/deals.component';
 import type { LeadRow } from '../../../features/leads/lead-row.model';
+import { CONVERTED_LEAD_STATUS_NAME } from './lead-status.constants';
+import { LEAD_CONVERSION_DEAL_SOURCE } from './lead-conversion.types';
+import {
+  applyDealConversionInference,
+  buildLeadDealConversionIndex,
+  normalizeLeadRecordId,
+  type LeadDealConversionIndex,
+} from '../../../shared/utils/lead-conversion.util';
 
 const STORAGE_KEY = 'crm.leadConversions.v1';
 
@@ -12,7 +20,7 @@ interface LeadConversionLink {
 
 interface DealConversionLink {
   sourceLeadId: string;
-  source: 'lead_conversion';
+  source: typeof LEAD_CONVERSION_DEAL_SOURCE;
 }
 
 interface ConversionStore {
@@ -46,20 +54,22 @@ export class LeadConversionStorageService {
 
   recordConversion(args: { leadId: string; dealId: string; convertedAt: string }): void {
     const store = this.readStore();
-    store.leads[args.leadId] = {
+    const leadId = normalizeLeadRecordId(args.leadId);
+    const dealId = normalizeLeadRecordId(args.dealId);
+    store.leads[leadId] = {
       isConverted: true,
-      convertedDealId: args.dealId,
+      convertedDealId: dealId,
       convertedAt: args.convertedAt,
     };
-    store.deals[args.dealId] = {
-      sourceLeadId: args.leadId,
-      source: 'lead_conversion',
+    store.deals[dealId] = {
+      sourceLeadId: leadId,
+      source: LEAD_CONVERSION_DEAL_SOURCE,
     };
     this.writeStore(store);
   }
 
   getLeadLink(leadId: string): LeadConversionLink | null {
-    return this.readStore().leads[leadId] ?? null;
+    return this.readStore().leads[normalizeLeadRecordId(leadId)] ?? null;
   }
 
   getDealLink(dealId: string): DealConversionLink | null {
@@ -68,19 +78,60 @@ export class LeadConversionStorageService {
 
   enrichLeadRow(row: LeadRow): LeadRow {
     const link = this.getLeadLink(row.id);
-    if (!link) {
-      if (row.status === 'Converted') {
-        return { ...row, isConverted: true };
-      }
-      return row;
+    if (link) {
+      return {
+        ...row,
+        isConverted: true,
+        convertedDealId: link.convertedDealId,
+        convertedAt: link.convertedAt,
+        status:
+          row.status === CONVERTED_LEAD_STATUS_NAME ? row.status : CONVERTED_LEAD_STATUS_NAME,
+      };
     }
-    return {
-      ...row,
-      isConverted: true,
-      convertedDealId: link.convertedDealId,
-      convertedAt: link.convertedAt,
-      status: row.status === 'Converted' ? row.status : 'Converted',
-    };
+
+    const dealLink = this.findDealLinkForLead(row.id);
+    if (dealLink) {
+      return {
+        ...row,
+        isConverted: true,
+        convertedDealId: dealLink.dealId,
+        convertedAt: dealLink.convertedAt,
+        status:
+          row.status === CONVERTED_LEAD_STATUS_NAME ? row.status : CONVERTED_LEAD_STATUS_NAME,
+      };
+    }
+
+    if (row.status === CONVERTED_LEAD_STATUS_NAME) {
+      return { ...row, isConverted: true };
+    }
+    return row;
+  }
+
+  private findDealLinkForLead(leadId: string): { dealId: string; convertedAt: string } | null {
+    const store = this.readStore();
+    const key = normalizeLeadRecordId(leadId);
+    const leadLink = store.leads[key];
+    for (const [dealId, link] of Object.entries(store.deals)) {
+      if (normalizeLeadRecordId(link.sourceLeadId) === key) {
+        return {
+          dealId,
+          convertedAt: leadLink?.convertedAt ?? '',
+        };
+      }
+    }
+    return null;
+  }
+
+  enrichLeadRowWithDeals(
+    row: LeadRow,
+    index: LeadDealConversionIndex | null | undefined,
+  ): LeadRow {
+    return applyDealConversionInference(this.enrichLeadRow(row), index);
+  }
+
+  enrichLeadRowsWithDeals(rows: LeadRow[], deals: readonly DealRow[]): LeadRow[] {
+    const index = buildLeadDealConversionIndex(deals);
+    return rows.map((row) => this.enrichLeadRowWithDeals(row, index));
   }
 
   enrichDealRow(row: DealRow): DealRow {

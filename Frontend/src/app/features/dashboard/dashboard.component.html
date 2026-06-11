@@ -358,7 +358,7 @@
               </svg>
             </span>
             <h2 id="stuck-heading" class="sales-dash__card-title">Stuck Deals</h2>
-            <span class="sales-dash__badge-auto">14+ days idle</span>
+            <span class="sales-dash__badge-auto">24+ hours idle</span>
           </div>
           <ul class="sales-dash__stuck-list">
             @for (deal of data.stuckDeals; track deal.id) {
@@ -369,7 +369,7 @@
                 </div>
                 <p class="sales-dash__stuck-stage">{{ deal.company }} · {{ deal.stage }} · {{ deal.owner }}</p>
                 <div class="sales-dash__stuck-meta">
-                  <span class="sales-dash__inactive">{{ deal.inactiveDays }} days inactive</span>
+                  <span class="sales-dash__inactive">{{ deal.inactiveHours }} hours inactive</span>
                   <a class="sales-dash__stuck-action" [routerLink]="['/deals', deal.id]">Open deal</a>
                 </div>
               </li>

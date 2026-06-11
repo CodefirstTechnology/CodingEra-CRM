@@ -1,0 +1,49 @@
+@if (open()) {
+  <div class="edit-user-modal" role="dialog" aria-modal="true" aria-labelledby="edit-user-title">
+    <div class="edit-user-modal__backdrop" (click)="close()"></div>
+    <div class="edit-user-modal__panel">
+      <header class="edit-user-modal__head">
+        <h2 id="edit-user-title">Edit User</h2>
+        <button type="button" class="edit-user-modal__close" (click)="close()" aria-label="Close">×</button>
+      </header>
+
+      @if (target(); as user) {
+        <p class="edit-user-modal__email">{{ user.email }}</p>
+
+        <form [formGroup]="form" (ngSubmit)="submit()">
+          <label class="edit-user-modal__field">
+            <span>Full name</span>
+            <input type="text" formControlName="fullName" />
+          </label>
+
+          <label class="edit-user-modal__field">
+            <span>Phone</span>
+            <input type="tel" formControlName="phone" />
+          </label>
+
+          <label class="edit-user-modal__field">
+            <span>Role</span>
+            <select formControlName="roleId">
+              <option [value]="0" disabled>Select role</option>
+              @for (role of roles(); track role.id) {
+                <option [value]="role.id">{{ role.name }}</option>
+              }
+            </select>
+          </label>
+
+          <label class="edit-user-modal__check">
+            <input type="checkbox" formControlName="isActive" />
+            Active
+          </label>
+
+          <footer class="edit-user-modal__actions">
+            <button type="button" (click)="close()">Cancel</button>
+            <button type="submit" class="edit-user-modal__save" [disabled]="submitting()">
+              {{ submitting() ? 'Saving…' : 'Save Changes' }}
+            </button>
+          </footer>
+        </form>
+      }
+    </div>
+  </div>
+}

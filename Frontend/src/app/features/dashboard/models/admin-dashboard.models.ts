@@ -53,7 +53,7 @@ export interface AdminStuckDealRow {
   company: string;
   owner: string;
   stage: string;
-  inactiveDays: number;
+  inactiveHours: number;
   revenue: number;
 }
 

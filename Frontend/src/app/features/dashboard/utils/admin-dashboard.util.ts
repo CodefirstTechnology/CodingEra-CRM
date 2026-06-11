@@ -4,7 +4,7 @@ import { isDealClosed } from '../../../core/services/deals/deal-pipeline.constan
 import type { AdminTeamMemberStats, AdminTeamSortKey } from '../models/admin-dashboard.models';
 
 export const ADMIN_MONTHLY_TARGET_INR = 1_000_000;
-export const STUCK_DEAL_INACTIVE_DAYS = 14;
+export const STUCK_DEAL_INACTIVE_HOURS = 24;
 export const STUCK_DEAL_LIMIT = 5;
 
 export function parseDashboardDate(

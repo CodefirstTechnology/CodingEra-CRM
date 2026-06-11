@@ -1,6 +1,9 @@
 import type { DealRow } from '../../../features/deals/deals.component';
 import type { LeadRow } from '../../../features/leads/lead-row.model';
 
+/** Deal `source` value recorded when a deal is created from lead conversion. */
+export const LEAD_CONVERSION_DEAL_SOURCE = 'lead_conversion' as const;
+
 /** Options for {@link LeadsService.convertToDeal}. */
 export interface ConvertLeadOptions {
   /** When true (default), sets lead status to Converted and stores conversion metadata. */

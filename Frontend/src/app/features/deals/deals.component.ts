@@ -8,6 +8,9 @@ import { DealsService } from '../../core/services/deals.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { AuthService } from '../../core/auth/auth.service';
+import { resolveRecordOwnerIdForSubmit, showOwnerPickerOnCreate, showSelfAssignedOwnerOnCreate } from '../../shared/utils/record-owner-assignment.util';
 import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
 import { DealMasterSelectService } from '../../core/services/deals/deal-master-select.service';
 import {
@@ -23,7 +26,9 @@ import {
 import type { DealPipelineStatus } from '../../core/services/deals/deal-pipeline.constants';
 import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
-import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { DealPipelineBoardComponent } from './deal-pipeline-board.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import {
@@ -36,7 +41,6 @@ import {
 import {
   gstFormValidators,
   optionalEmailValidator,
-  optionalPhoneValidator,
   optionalUrlValidator,
 } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
@@ -64,6 +68,8 @@ export interface DealRow {
   employeeCountId?: number | null;
   /** Stored as a plain number (no currency formatting). */
   annualRevenue: number;
+  /** Deal value from API (`dealAmount`). */
+  dealAmount: number;
   website: string;
   gst?: string;
   territory: string;
@@ -132,19 +138,21 @@ interface DealColumnOption {
   imports: [
     ReactiveFormsModule,
     RouterLink,
-    CrmSelectionBarComponent,
     CrmAssignPickerComponent,
     DealPipelineBoardComponent,
+    IntlTelInputComponent,
   ],
   templateUrl: './deals.component.html',
   styleUrl: './deals.component.scss',
 })
 export class DealsComponent {
   private readonly fb = inject(FormBuilder);
+  private readonly auth = inject(AuthService);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly dealsService = inject(DealsService);
   private readonly toast = inject(ToastService);
   private readonly userScope = inject(UserDataScopeService);
+  private readonly permissions = inject(PermissionService);
   private readonly ownerOpts = inject(LeadOwnerOptionsService);
   protected readonly dealMaster = inject(DealMasterSelectService);
   private readonly router = inject(Router);
@@ -170,6 +178,16 @@ export class DealsComponent {
   protected readonly dealOwnerOptions = this.ownerOpts.options;
   protected readonly masterOptionFormValue = masterOptionFormValue;
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
+  protected readonly canAssignDeals = computed(() => this.permissions.canAssignDeals());
+  protected readonly canManageDealAssignment = computed(
+    () => this.canAssignDeals() && this.isAdminViewer(),
+  );
+  protected readonly showDealOwnerPicker = computed(() =>
+    showOwnerPickerOnCreate(this.canAssignDeals(), this.isAdminViewer()),
+  );
+  protected readonly showSelfAssignedDealOwner = computed(() =>
+    showSelfAssignedOwnerOnCreate(this.canAssignDeals(), this.isAdminViewer()),
+  );
 
   protected readonly statusFilterOptions = computed(() => {
     const items: { id: DealListStatusFilter; label: string }[] = [
@@ -233,6 +251,7 @@ export class DealsComponent {
     'organizationName',
     'assignedTo',
     'annualRevenue',
+    'dealAmount',
     'status',
   ]);
   private readonly ignoredColumnIds = new Set([
@@ -249,6 +268,7 @@ export class DealsComponent {
     'contactName',
     'organizationName',
     'annualRevenue',
+    'dealAmount',
     'status',
     'email',
     'mobile',
@@ -269,6 +289,7 @@ export class DealsComponent {
     email: 'Email',
     mobile: 'Mobile',
     annualRevenue: 'Annual revenue',
+    dealAmount: 'Deal amount',
     assignedTo: 'Assigned to',
     lastModified: 'Last modified',
     probabilityPercent: 'Probability',
@@ -292,6 +313,16 @@ export class DealsComponent {
       }
     });
     this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
+      if (q['create'] === '1') {
+        this.openForm();
+        void this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { create: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
+        return;
+      }
       const edit = q['edit'];
       if (edit != null && edit !== '') {
         this.beginEditFromRoute(String(edit));
@@ -348,12 +379,13 @@ export class DealsComponent {
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
     employees: ['1-10'],
     annualRevenue: ['', Validators.maxLength(40)],
+    dealAmount: ['', Validators.maxLength(40)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
     gst: ['', gstFormValidators()],
     territory: [''],
     industry: ['Technology', Validators.required],
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
-    primaryMobile: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
+    primaryMobile: [''],
     primaryEmail: ['', [Validators.maxLength(160), optionalEmailValidator()]],
     gender: [''],
     status: this.fb.nonNullable.control<string>(DEFAULT_DEAL_PIPELINE_STATUS, Validators.required),
@@ -494,11 +526,18 @@ export class DealsComponent {
     this.patchDealInline(row, { email: raw || '—' });
   }
 
-  protected onDealMobileBlur(row: DealRow, ev: Event): void {
-    const input = ev.target as HTMLInputElement;
-    const raw = input.value.trim();
+  protected onDealMobileBlur(row: DealRow, tel: IntlTelInputComponent): void {
+    const iti = tel.getInstance();
+    const raw = iti?.getNumber()?.trim() ?? '';
     const previous = this.dealMobileInputValue(row);
     if (raw === previous) return;
+
+    if (raw && iti && !iti.isValidNumber()) {
+      this.toast.error(intlTelMobileErrorMessage({ invalidPhone: { errorMessage: 'invalid' } }));
+      iti.setNumber(previous);
+      return;
+    }
+
     this.patchDealInline(row, { mobile: raw || '—' });
   }
 
@@ -538,6 +577,28 @@ export class DealsComponent {
     this.resetCreateForm();
   }
 
+  private defaultDealOwnerForForm(): string {
+    return this.ownerOpts.defaultOwnerId();
+  }
+
+  protected dealOwnerDisplayLabel(): string {
+    return this.ownerOpts.sessionOwnerDisplay().label;
+  }
+
+  private resolveDealOwnerIdForSubmit(rawOwnerId: string, editId: number | null): string {
+    const row =
+      editId != null ? this.rows().find((r) => Number(r.id) === editId) : undefined;
+    const existing = row?.dealOwnerId ?? row?.assignedToUserId;
+    return resolveRecordOwnerIdForSubmit({
+      canAssign: this.canAssignDeals(),
+      isAdminSession: this.isAdminViewer(),
+      rawOwnerId,
+      existingOwnerId: existing,
+      sessionOwnerId: this.ownerOpts.sessionOwnerId(),
+      fallbackOwnerId: this.ownerOpts.defaultOwnerId(),
+    });
+  }
+
   private resetCreateForm(): void {
     const defaultIndustry = this.dealMaster.industrySelectOptions()[0];
     const defaultEmployees = this.dealMaster.employeeSelectOptions()[0];
@@ -547,6 +608,7 @@ export class DealsComponent {
       organizationName: '',
       employees: defaultEmployees ? masterOptionFormValue(defaultEmployees) : '1-10',
       annualRevenue: '',
+      dealAmount: '',
       website: '',
       gst: '',
       territory: '',
@@ -560,7 +622,7 @@ export class DealsComponent {
         DEFAULT_DEAL_PIPELINE_STATUS,
         this.dealMaster.statusSelectOptions(),
       ),
-      dealOwner: this.ownerOpts.defaultOwnerId(),
+      dealOwner: this.defaultDealOwnerForForm(),
       requirement: '',
     });
     this.createForm.markAsUntouched();
@@ -580,6 +642,8 @@ export class DealsComponent {
         const ownerId = this.ownerOpts.resolveDealSelectValue(row);
         const revInput =
           row.annualRevenue != null && row.annualRevenue !== 0 ? String(row.annualRevenue) : '';
+        const dealAmountInput =
+          row.dealAmount != null && row.dealAmount !== 0 ? String(row.dealAmount) : '';
         const emailFromRow = row.email.trim() ? row.email : '';
         this.createForm.patchValue({
           organizationName: row.organizationName,
@@ -589,6 +653,7 @@ export class DealsComponent {
             this.dealMaster.employeeSelectOptions(),
           ),
           annualRevenue: revInput,
+          dealAmount: dealAmountInput,
           website: row.website,
           gst: normalizeGstin(row.gst),
           territory: masterSelectControlValue(
@@ -633,7 +698,7 @@ export class DealsComponent {
   }
 
   protected onAssignToMenu(): void {
-    if (!this.isAdminViewer()) return;
+    if (!this.canManageDealAssignment()) return;
     this.assignPickerOpen.set(true);
   }
 
@@ -642,7 +707,7 @@ export class DealsComponent {
   }
 
   protected onAssignPicked(ownerKey: string): void {
-    if (!this.isAdminViewer()) return;
+    if (!this.canManageDealAssignment()) return;
     const opt = this.dealOwnerOptions().find((o) => o.id === ownerKey);
     if (!opt) {
       this.assignPickerOpen.set(false);
@@ -676,7 +741,7 @@ export class DealsComponent {
   }
 
   protected onClearAssignmentBulk(): void {
-    if (!this.isAdminViewer()) return;
+    if (!this.canManageDealAssignment()) return;
     const ids = this.sel.selectedItems();
     if (ids.length === 0) return;
     const streams = ids.map((sid) =>
@@ -714,6 +779,10 @@ export class DealsComponent {
 
   protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
   protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps('deals__control deals__control--soft');
+  protected readonly intlTelInlineInputProps = crmIntlTelInputProps('deals__inline-input');
+  protected intlTelMobileError = intlTelMobileErrorMessage;
 
   protected fieldInvalid(name: string): boolean {
     const c = this.createForm.get(name);
@@ -749,7 +818,9 @@ export class DealsComponent {
       return;
     }
 
-    const owner = this.dealOwnerOptions().find((o) => o.id === raw.dealOwner);
+    const ownerId = this.resolveDealOwnerIdForSubmit(raw.dealOwner, editId);
+    const owner = this.dealOwnerOptions().find((o) => o.id === ownerId);
+    const display = this.ownerOpts.sessionOwnerDisplay();
     const empPick = resolveOrgMasterPick(raw.employees, this.dealMaster.employeeSelectOptions());
     const terrPick = resolveOrgMasterPick(raw.territory, this.dealMaster.territorySelectOptions());
     const indPick = resolveOrgMasterPick(raw.industry, this.dealMaster.industrySelectOptions());
@@ -760,6 +831,7 @@ export class DealsComponent {
       employees: empPick.label.trim() || '1-10',
       employeeCountId: empPick.masterId,
       annualRevenue: parseRevenueInputToNumber(raw.annualRevenue),
+      dealAmount: parseRevenueInputToNumber(raw.dealAmount),
       website: raw.website.trim(),
       gst: normalizeGstin(raw.gst),
       territory: terrPick.label.trim(),
@@ -775,10 +847,10 @@ export class DealsComponent {
       gender: raw.gender,
       status: resolveDealStatusLabel(statPick.label || raw.status),
       dealStatusId: statPick.masterId,
-      dealOwnerId: raw.dealOwner,
-      assignedToUserId: raw.dealOwner,
-      assignedTo: owner?.label ?? '',
-      assignedInitials: owner?.initials ?? '',
+      dealOwnerId: ownerId,
+      assignedToUserId: ownerId,
+      assignedTo: owner?.label ?? display.label,
+      assignedInitials: owner?.initials ?? display.initials,
       lastModified: 'Just now',
       probabilityPercent: 10,
       nextStep: '',
@@ -819,7 +891,11 @@ export class DealsComponent {
   /** Table display only (not persisted). */
   protected formatDealRevenue(value: number): string {
     if (value == null || !Number.isFinite(value) || value === 0) return '₹ 0';
-    return `₹ ${value.toLocaleString('en-IN')}`;
+    const hasFraction = Math.abs(value % 1) > 0.0001;
+    return `₹ ${value.toLocaleString('en-IN', {
+      minimumFractionDigits: hasFraction ? 2 : 0,
+      maximumFractionDigits: hasFraction ? 3 : 0,
+    })}`;
   }
 
   protected statusClass(status: DealPipelineStatus): string {

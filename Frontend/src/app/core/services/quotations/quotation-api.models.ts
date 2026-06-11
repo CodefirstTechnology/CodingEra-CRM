@@ -11,6 +11,7 @@ export const QUOTATION_STATUSES: QuotationStatus[] = [
 export interface QuotationLineItemDto {
   id?: number;
   lineIndex: number;
+  itemId?: number | null;
   itemCode: string;
   itemName: string;
   description: string;
@@ -18,7 +19,9 @@ export interface QuotationLineItemDto {
   uom: string;
   weight: number;
   unitWeight: number;
+  steelRate: number;
   rate: number;
+  itemSnapshotJson: string;
   discountPercent: number;
   gstPercent: number;
   amount: number;
@@ -81,6 +84,7 @@ export interface QuotationUpsertDto {
   remarks: string;
   subtotal?: number;
   taxTotal?: number;
+  gstPercent?: number;
   grandTotal?: number;
   totalQuantity?: number;
   totalWeight?: number;

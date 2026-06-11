@@ -1,42 +1,81 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { isAdmin } from '../../core/auth/auth-role.util';
 import { AuthService } from '../../core/auth/auth.service';
+import { canManageSettings, hasPermission } from '../../core/auth/permission.util';
+import type { RoleListItem } from '../../core/auth/permission.models';
 import { AdminUsersService, type AdminUserRow } from '../../core/services/admin-users.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { RbacService } from '../../core/services/rbac.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { optionalPhoneValidator } from '../../shared/validators/crm-validators';
 import { MasterFormsComponent } from '../settings/master-forms/master-forms.component';
+import { RoleManagementComponent } from '../settings/role-management/role-management.component';
 import { passwordsMatchValidator } from '../auth/passwords-match.validator';
+import { CompanyProfileSettingsComponent } from './company-profile-settings/company-profile-settings.component';
+import { ItemMasterSettingsComponent } from './item-master/item-master-settings.component';
+import { UserTargetSettingsComponent } from './user-targets/user-target-settings.component';
+import { LeadSyncManagementSettingsComponent } from './lead-sync-management/lead-sync-management-settings.component';
 import { DeleteUserModalComponent } from './delete-user-modal.component';
+import { EditUserModalComponent } from './edit-user-modal.component';
 
 type SettingsNavGroup = { title: string; items: readonly string[] };
 
-const ADMIN_ONLY_ITEMS = new Set(['Users', 'Invite User', 'Master Forms']);
+const PERMISSION_GATED_ITEMS: Record<string, readonly string[]> = {
+  Users: ['users.view', 'settings.manage'],
+  'Invite User': ['users.create', 'settings.manage'],
+  Roles: ['roles.view', 'roles.manage', 'settings.manage'],
+  Permissions: ['roles.view', 'roles.manage', 'settings.manage'],
+  'Master Forms': ['settings.manage'],
+  'Company Profile': ['settings.manage'],
+  'Item Master': ['items.view', 'items.manage', 'settings.manage'],
+  'User Targets': ['user_targets.view', 'user_targets.manage', 'settings.manage'],
+  'Lead Sync Management': ['settings.manage'],
+};
 
 @Component({
   selector: 'app-advanced-settings',
-  imports: [ReactiveFormsModule, DeleteUserModalComponent, MasterFormsComponent],
+  imports: [
+    ReactiveFormsModule,
+    CompanyProfileSettingsComponent,
+    ItemMasterSettingsComponent,
+    UserTargetSettingsComponent,
+    LeadSyncManagementSettingsComponent,
+    DeleteUserModalComponent,
+    EditUserModalComponent,
+    MasterFormsComponent,
+    RoleManagementComponent,
+  ],
   templateUrl: './advanced-settings.component.html',
   styleUrl: './advanced-settings.component.scss',
 })
-export class AdvancedSettingsComponent {
+export class AdvancedSettingsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly adminUsers = inject(AdminUsersService);
+  private readonly rbac = inject(RbacService);
+  private readonly permissions = inject(PermissionService);
   private readonly toast = inject(ToastService);
 
-  protected readonly isAdminViewer = computed(() => isAdmin(this.auth.user()));
+  protected readonly isAdminViewer = computed(() => canManageSettings(this.auth.user()) || isAdmin(this.auth.user()));
   protected readonly activeItem = signal('Profile');
   protected readonly selectedRoleFilter = signal('All');
   protected readonly usersSearchQuery = signal('');
   protected readonly usersFromApi = signal<AdminUserRow[]>([]);
+  protected readonly rolesFromApi = signal<RoleListItem[]>([]);
   protected readonly usersLoading = signal(false);
   protected readonly usersError = signal<string | null>(null);
   protected readonly inviteSubmitting = signal(false);
   protected readonly inviteFormError = signal<string | null>(null);
   protected readonly deleteModalOpen = signal(false);
   protected readonly deleteTarget = signal<AdminUserRow | null>(null);
-  protected readonly roleFilters = ['All', 'Admin', 'User'] as const;
+  protected readonly editModalOpen = signal(false);
+  protected readonly editTarget = signal<AdminUserRow | null>(null);
+
+  protected readonly roleFilters = computed(() => {
+    const roles = this.rolesFromApi().map((r) => r.name);
+    return ['All', ...roles];
+  });
 
   protected readonly inviteUserForm = this.fb.nonNullable.group(
     {
@@ -46,6 +85,7 @@ export class AdvancedSettingsComponent {
       password: ['', [Validators.required, Validators.minLength(6), Validators.maxLength(200)]],
       confirmPassword: ['', Validators.required],
       phone: ['', [Validators.maxLength(40), optionalPhoneValidator()]],
+      roleId: [0, [Validators.required, Validators.min(1)]],
     },
     { validators: [passwordsMatchValidator()] },
   );
@@ -54,7 +94,11 @@ export class AdvancedSettingsComponent {
     { title: 'Profile', items: ['Profile'] },
     {
       title: 'System Configuration',
-      items: ['Forecasting', 'Currency & Exchange', 'Brand Settings', 'Master Forms'],
+      items: ['Forecasting', 'Currency & Exchange', 'Brand Settings', 'Master Forms', 'Company Profile', 'Item Master', 'User Targets', 'Lead Sync Management'],
+    },
+    {
+      title: 'Access Control',
+      items: ['Roles', 'Permissions'],
     },
     { title: 'User Management', items: ['Users', 'Invite User'] },
     { title: 'Email Settings', items: ['Email Accounts', 'Email Templates'] },
@@ -64,20 +108,54 @@ export class AdvancedSettingsComponent {
   ];
 
   protected readonly leftNav = computed(() => {
-    const groups = this.isAdminViewer()
-      ? this.allNavGroups
-      : this.allNavGroups
-          .map((group) =>
-            group.title === 'System Configuration'
-              ? { ...group, items: group.items.filter((item) => item !== 'Master Forms') }
-              : group,
-          )
-          .filter((group) => group.title !== 'User Management');
-    return groups;
+    const user = this.auth.user();
+    return this.allNavGroups
+      .map((group) => ({
+        ...group,
+        items: group.items.filter((item) => this.canAccessNavItem(user, item)),
+      }))
+      .filter((group) => group.items.length > 0);
   });
 
+  ngOnInit(): void {
+    if (this.canLoadRoles()) {
+      this.loadRoles();
+    }
+  }
+
+  private canLoadRoles(): boolean {
+    return (
+      isAdmin(this.auth.user()) ||
+      this.permissions.hasAny([
+        'roles.view',
+        'roles.manage',
+        'settings.manage',
+        'users.view',
+        'users.create',
+      ])
+    );
+  }
+
+  private canAccessNavItem(user: ReturnType<typeof this.auth.user>, item: string): boolean {
+    if (item === 'Lead Sync Management') {
+      return isAdmin(user) || this.permissions.has('settings.manage');
+    }
+    const required = PERMISSION_GATED_ITEMS[item];
+    if (!required) return true;
+    return this.permissions.hasAny([...required]) || isAdmin(user);
+  }
+
+  protected loadRoles(): void {
+    if (!this.canLoadRoles()) return;
+
+    this.rbac.listRoles(this.auth.token(), { activeOnly: true }).subscribe({
+      next: (rows) => this.rolesFromApi.set(rows),
+      error: () => {},
+    });
+  }
+
   protected reloadUsersFromApi(): void {
-    if (!this.isAdminViewer()) return;
+    if (!this.permissions.hasAny(['users.view', 'settings.manage'])) return;
 
     this.usersLoading.set(true);
     this.usersError.set(null);
@@ -114,10 +192,8 @@ export class AdvancedSettingsComponent {
   }
 
   protected setActiveItem(item: string): void {
-    if (ADMIN_ONLY_ITEMS.has(item) && !this.isAdminViewer()) {
-      this.toast.error(
-        item === 'Master Forms' ? 'Only admins can manage master forms.' : 'Only admins can manage users.',
-      );
+    if (!this.canAccessNavItem(this.auth.user(), item)) {
+      this.toast.error('You do not have permission to access this section.');
       this.activeItem.set('Profile');
       return;
     }
@@ -128,6 +204,10 @@ export class AdvancedSettingsComponent {
     }
     if (item === 'Invite User') {
       this.inviteFormError.set(null);
+      this.loadRoles();
+    }
+    if (item === 'Roles' || item === 'Permissions') {
+      this.loadRoles();
     }
   }
 
@@ -140,8 +220,8 @@ export class AdvancedSettingsComponent {
   }
 
   protected submitInviteUser(): void {
-    if (!this.isAdminViewer()) {
-      this.toast.error('Only admins can invite users.');
+    if (!this.permissions.hasAny(['users.create', 'settings.manage'])) {
+      this.toast.error('You do not have permission to invite users.');
       return;
     }
 
@@ -161,13 +241,14 @@ export class AdvancedSettingsComponent {
         email: v.email.trim(),
         password: v.password,
         phone: v.phone.trim() || undefined,
+        roleId: v.roleId,
       })
       .subscribe({
         next: (res) => {
           this.inviteSubmitting.set(false);
           if (res.ok) {
             this.toast.success('User created successfully.');
-            this.inviteUserForm.reset();
+            this.inviteUserForm.reset({ roleId: 0 });
             this.reloadUsersFromApi();
             return;
           }
@@ -185,7 +266,7 @@ export class AdvancedSettingsComponent {
   }
 
   protected inviteFieldInvalid(
-    name: 'firstName' | 'lastName' | 'email' | 'password' | 'confirmPassword' | 'phone',
+    name: 'firstName' | 'lastName' | 'email' | 'password' | 'confirmPassword' | 'phone' | 'roleId',
   ): boolean {
     const c = this.inviteUserForm.get(name);
     return !!c && c.invalid && (c.dirty || c.touched);
@@ -222,9 +303,14 @@ export class AdvancedSettingsComponent {
   }
 
   protected canDeleteUser(user: AdminUserRow): boolean {
+    if (!this.permissions.hasAny(['users.delete', 'settings.manage'])) return false;
     const sessionId = this.auth.user()?.id?.trim();
     if (!sessionId) return true;
     return sessionId !== user.id.trim();
+  }
+
+  protected canEditUser(): boolean {
+    return this.permissions.hasAny(['users.edit', 'settings.manage']);
   }
 
   protected openDeleteUser(user: AdminUserRow): void {
@@ -236,13 +322,28 @@ export class AdvancedSettingsComponent {
     this.deleteModalOpen.set(true);
   }
 
+  protected openEditUser(user: AdminUserRow): void {
+    this.editTarget.set(user);
+    this.editModalOpen.set(true);
+  }
+
   protected closeDeleteUserModal(): void {
     this.deleteModalOpen.set(false);
     this.deleteTarget.set(null);
   }
 
+  protected closeEditUserModal(): void {
+    this.editModalOpen.set(false);
+    this.editTarget.set(null);
+  }
+
   protected onUserDeleted(): void {
     this.closeDeleteUserModal();
+    this.reloadUsersFromApi();
+  }
+
+  protected onUserSaved(): void {
+    this.closeEditUserModal();
     this.reloadUsersFromApi();
   }
 }
