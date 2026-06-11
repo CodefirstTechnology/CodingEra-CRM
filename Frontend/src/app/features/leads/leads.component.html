@@ -1,11 +1,9 @@
 <div class="leads">
   @if (importModalOpen() && importModalLazyComponent(); as importCmp) {
+    <!-- Angular 20 NgComponentOutlet has inputs only — callbacks wired via importModalOutletInputs(). -->
     <ng-container
-      *ngComponentOutlet="
-        importCmp;
-        inputs: importModalOutletInputs();
-        outputs: importModalOutletOutputs
-      "
+      [ngComponentOutlet]="importCmp"
+      [ngComponentOutletInputs]="importModalOutletInputs()"
     />
   }
 

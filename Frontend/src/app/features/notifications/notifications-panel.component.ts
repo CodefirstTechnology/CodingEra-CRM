@@ -1,4 +1,4 @@
-import { Component, HostListener, inject } from '@angular/core';
+import { Component, effect, ElementRef, HostListener, inject, viewChild } from '@angular/core';
 import { NotificationsPanelService } from '../../core/notifications/notifications-panel.service';
 
 @Component({
@@ -9,16 +9,24 @@ import { NotificationsPanelService } from '../../core/notifications/notification
 })
 export class NotificationsPanelComponent {
   protected readonly panel = inject(NotificationsPanelService);
+  private readonly closeBtn = viewChild<ElementRef<HTMLButtonElement>>('closeBtn');
+
+  constructor() {
+    effect(() => {
+      if (!this.panel.open()) return;
+      queueMicrotask(() => this.closeBtn()?.nativeElement.focus());
+    });
+  }
 
   @HostListener('document:keydown.escape')
   onEscape(): void {
     if (this.panel.open()) {
-      this.panel.close();
+      this.panel.close({ restoreFocus: true });
     }
   }
 
   protected close(): void {
-    this.panel.close();
+    this.panel.close({ restoreFocus: true });
   }
 
   protected onBackdropClick(): void {

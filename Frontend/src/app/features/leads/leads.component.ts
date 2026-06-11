@@ -753,12 +753,6 @@ export class LeadsComponent {
   private readonly importModalRequestImportCompleted = (value: unknown): void =>
     this.onLeadsImportCompleted(value as LeadImportCommitResult);
 
-  /** Stable output map for {@link NgComponentOutlet}. */
-  protected readonly importModalOutletOutputs: Record<string, (value: unknown) => void> = {
-    dismiss: () => this.closeImportModal(),
-    importCompleted: (value) => this.onLeadsImportCompleted(value as LeadImportCommitResult),
-  };
-
   protected openImportModal(): void {
     this.importModalOpen.set(true);
     if (!this.importModalLazyComponent()) {

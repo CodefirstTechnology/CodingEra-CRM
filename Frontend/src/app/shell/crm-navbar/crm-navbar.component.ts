@@ -18,20 +18,20 @@ export class CrmNavbarComponent {
 
   protected openTheme(): void {
     this.profilePanel.close();
-    this.notificationsPanel.close();
+    this.notificationsPanel.close({ restoreFocus: false });
     this.themePanel.toggle();
   }
 
   protected openProfile(): void {
     this.themePanel.close();
-    this.notificationsPanel.close();
+    this.notificationsPanel.close({ restoreFocus: false });
     this.profilePanel.toggle();
   }
 
-  protected openNotifications(): void {
+  protected openNotifications(trigger: HTMLButtonElement): void {
     this.themePanel.close();
     this.profilePanel.close();
-    this.notificationsPanel.toggle();
+    this.notificationsPanel.toggle(trigger);
   }
 
   protected notificationBadgeText(): string {

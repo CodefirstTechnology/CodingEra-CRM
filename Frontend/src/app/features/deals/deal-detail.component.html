@@ -59,7 +59,6 @@
           class="deal-detail__hdr-status-select"
           [formControl]="dataForm.controls.status"
           aria-label="Pipeline status"
-          [disabled]="isStatusLocked() || dataSaving() || progressUpdating()"
           (change)="onHeaderPipelineStatusChange()"
         >
           @for (opt of dealStatuses(); track opt.id + opt.name) {
@@ -515,7 +514,7 @@
             </label>
             <label class="deal-detail__field">
               <span class="deal-detail__label">Pipeline status<span class="deal-detail__req" aria-hidden="true">*</span></span>
-              <select class="deal-detail__select" formControlName="status" [disabled]="isStatusLocked()">
+              <select class="deal-detail__select" formControlName="status">
                 @for (opt of dealStatuses(); track opt.id + opt.name) {
                 <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }

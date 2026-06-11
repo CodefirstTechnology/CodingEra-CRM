@@ -107,7 +107,7 @@ export class LeadsService {
   ): Observable<LeadRow[]> {
     return forkJoin({
       leads: this.leadHttp.list(),
-      deals: this.dealsService.getAll(),
+      deals: this.dealsService.getAll().pipe(catchError(() => of([]))),
     }).pipe(
       map(({ leads, deals }) =>
         this.conversionStorage.enrichLeadRowsWithDeals(mapLeads(leads), deals),

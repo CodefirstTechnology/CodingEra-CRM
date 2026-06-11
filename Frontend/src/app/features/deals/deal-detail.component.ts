@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -285,6 +285,14 @@ export class DealDetailComponent {
   protected intlTelFieldInvalid = intlTelFieldInvalid;
 
   constructor() {
+    effect(() => {
+      this.deal();
+      this.isDealReadOnly();
+      this.dataSaving();
+      this.progressUpdating();
+      this.syncDataFormEditability();
+    });
+
     this.ownerOpts.load();
     this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
@@ -914,10 +922,24 @@ export class DealDetailComponent {
       { emitEvent: false },
     );
     this.dataForm.markAsPristine();
-    if (isDealClosed(row.status)) {
+    this.syncDataFormEditability();
+  }
+
+  /** Keeps reactive-form disabled state in sync — do not use `[disabled]` on form controls in the template. */
+  private syncDataFormEditability(): void {
+    const row = this.deal();
+    if (!row || this.isDealReadOnly()) {
       this.dataForm.disable({ emitEvent: false });
+      return;
+    }
+
+    this.dataForm.enable({ emitEvent: false });
+
+    const statusCtrl = this.dataForm.controls.status;
+    if (this.dataSaving() || this.progressUpdating()) {
+      statusCtrl.disable({ emitEvent: false });
     } else {
-      this.dataForm.enable({ emitEvent: false });
+      statusCtrl.enable({ emitEvent: false });
     }
   }
 

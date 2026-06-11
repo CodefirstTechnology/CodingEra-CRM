@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
@@ -32,7 +32,6 @@ export type OrganizationMainTab = 'deals' | 'contacts';
 })
 export class OrganizationDetailComponent {
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly organizationsService = inject(OrganizationsService);
   private readonly toast = inject(ToastService);
@@ -316,22 +315,6 @@ export class OrganizationDetailComponent {
     const next = { ...errs };
     delete next['duplicate'];
     c.setErrors(Object.keys(next).length ? next : null);
-  }
-
-  protected confirmDeleteOrganization(): void {
-    const idn = this.numericId();
-    if (idn == null) return;
-    if (!confirm('Delete this organization?')) return;
-    this.organizationsService
-      .delete(idn)
-      .pipe(take(1))
-      .subscribe({
-        next: () => {
-          this.toast.success('Organization deleted.');
-          void this.router.navigateByUrl('/organizations');
-        },
-        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
-      });
   }
 
   protected dealStatusDotClass(status: DealPipelineStatus): string {

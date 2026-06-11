@@ -13,9 +13,10 @@
       </svg>
     </button>
     <button
+      #notificationsTrigger
       type="button"
       class="navbar__icon-btn navbar__notify"
-      (click)="openNotifications()"
+      (click)="openNotifications(notificationsTrigger)"
       aria-label="Notifications"
       aria-haspopup="dialog"
       [attr.aria-expanded]="notificationsPanel.open()"
