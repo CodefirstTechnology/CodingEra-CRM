@@ -23,6 +23,7 @@ import {
   todayIsoDateLocal,
 } from '../../core/services/leads/lead-api.mapper';
 import {
+  CONVERTED_LEAD_STATUS_NAME,
   ensureConvertedInLeadStatusOptions,
   FALLBACK_LEAD_STATUS_OPTIONS,
   isConvertedLeadStatusName,
@@ -43,13 +44,20 @@ import {
   resolveLeadRequirementForDisplay,
   resolveManualLeadCustomFieldForForm,
 } from '../../core/services/leads/lead-notes-requirement.util';
+import { LeadConversionStorageService } from '../../core/services/leads/lead-conversion-storage.service';
+import { DealsService } from '../../core/services/deals.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { resolveRecordOwnerIdForSubmit, showOwnerPickerOnCreate, showSelfAssignedOwnerOnCreate } from '../../shared/utils/record-owner-assignment.util';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
-import { isLeadConverted, isLeadQualifiedForConversion } from '../../shared/utils/lead-conversion.util';
+import {
+  buildLeadDealConversionIndex,
+  isLeadConverted,
+  isLeadQualifiedForConversion,
+  type LeadDealConversionIndex,
+} from '../../shared/utils/lead-conversion.util';
 import type { ConvertLeadOptions } from '../../core/services/leads/lead-conversion.types';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import type { LeadImportCommitResult } from './import/lead-import-api.models';
@@ -149,6 +157,8 @@ export class LeadsComponent {
   private readonly auth = inject(AuthService);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly leadsService = inject(LeadsService);
+  private readonly dealsService = inject(DealsService);
+  private readonly conversionStorage = inject(LeadConversionStorageService);
   private readonly userScope = inject(UserDataScopeService);
   private readonly permissions = inject(PermissionService);
   private readonly leadMasterData = inject(LeadMasterDataService);
@@ -341,6 +351,8 @@ export class LeadsComponent {
 
   /** Manual / API-backed rows only; merged with marketplace lead sources in {@link rows}. */
   protected readonly manualRows = signal<LeadRow[]>([]);
+  /** Deal index for inferring converted leads without per-browser localStorage. */
+  private readonly dealConversionIndex = signal<LeadDealConversionIndex | null>(null);
 
   constructor() {
     this.selectedColumnIds.set(this.loadStoredOptionalColumnIds());
@@ -360,6 +372,7 @@ export class LeadsComponent {
       if (this.tablePage() > max) this.tablePage.set(Math.max(0, max));
     });
     this.refreshLeads();
+    this.refreshDealConversionIndex();
     forkJoin({
       employeeCounts: this.leadMasterData.loadEmployeeCounts(),
       territories: this.leadMasterData.loadTerritories(),
@@ -449,9 +462,16 @@ export class LeadsComponent {
   }
 
   /** Unified list: manual CRM leads + marketplace sources, sorted by recency (scoped for User role). */
-  protected readonly rows = computed(() =>
-    this.userScope.filterLeads(this.leadOwnerOpts.enrichRows(this.buildMergedRows())),
-  );
+  protected readonly rows = computed(() => {
+    const index = this.dealConversionIndex();
+    const enriched = this.conversionStorage.enrichLeadRows(
+      this.leadOwnerOpts.enrichRows(this.buildMergedRows()),
+    );
+    const withDealConversion = index
+      ? enriched.map((row) => this.conversionStorage.enrichLeadRowWithDeals(row, index))
+      : enriched;
+    return this.userScope.filterLeads(withDealConversion);
+  });
 
   /** Admins see lead status as read-only text in the table; users get dropdowns. */
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
@@ -531,6 +551,16 @@ export class LeadsComponent {
       });
   }
 
+  private refreshDealConversionIndex(): void {
+    this.dealsService
+      .getAll()
+      .pipe(take(1))
+      .subscribe({
+        next: (deals) => this.dealConversionIndex.set(buildLeadDealConversionIndex(deals)),
+        error: () => this.dealConversionIndex.set(null),
+      });
+  }
+
   protected readonly filtered = computed(() => {
     const q = this.searchQuery().trim().toLowerCase();
     const st = this.statusFilter();
@@ -540,9 +570,7 @@ export class LeadsComponent {
     return this.rows().filter((row) => {
       if (filterByOwner && !this.rowMatchesOwnerFilter(row, owner)) return false;
       if (src !== 'all' && (row.leadSource ?? 'Manual') !== src) return false;
-      if (st === 'Converted') {
-        if (!isLeadConverted(row)) return false;
-      } else if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) {
+      if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) {
         return false;
       }
       if (!q) return true;
@@ -1141,6 +1169,7 @@ export class LeadsComponent {
       .pipe(last(), defaultIfEmpty(null))
       .subscribe({
         next: () => {
+          this.refreshDealConversionIndex();
           this.sel.clear();
           this.toast.success(
             targets.length === 1
@@ -1478,7 +1507,20 @@ export class LeadsComponent {
   }
 
   protected canEditLeadStatusInTable(row: LeadRow): boolean {
-    return !this.isAdminViewer() && isPersistedApiLeadRow(row.id) && !isLeadConverted(row);
+    return (
+      !this.isAdminViewer() &&
+      isPersistedApiLeadRow(row.id) &&
+      !this.isLeadConvertedInTable(row)
+    );
+  }
+
+  /** Applies conversion metadata before status is rendered in the table. */
+  protected leadRowForTableStatus(row: LeadRow): LeadRow {
+    return this.conversionStorage.enrichLeadRowWithDeals(row, this.dealConversionIndex());
+  }
+
+  protected isLeadConvertedInTable(row: LeadRow): boolean {
+    return isLeadConverted(this.leadRowForTableStatus(row));
   }
 
   /** Master-data status label for table display (admin read-only and filters). */
@@ -1486,10 +1528,17 @@ export class LeadsComponent {
     return coerceLeadStatus(this.resolvedLeadStatusLabel(row));
   }
 
+  /** Status label shown in the table — matches user dropdown / converted badge rules. */
+  protected leadTableStatusLabel(row: LeadRow): LeadStatus {
+    const enriched = this.leadRowForTableStatus(row);
+    if (isLeadConverted(enriched)) return CONVERTED_LEAD_STATUS_NAME;
+    return this.leadStatusLabel(enriched);
+  }
+
   /** Select value (master id string) — prefers {@link LeadRow.status} so it matches admin read-only text. */
   protected statusSelectValueForRow(row: LeadRow): string {
     const options = this.statusSelectOptions();
-    const label = this.resolvedLeadStatusLabel(row);
+    const label = this.resolvedLeadStatusLabel(this.leadRowForTableStatus(row));
     const norm = (s: string) => s.trim().toLowerCase();
     const key = norm(label);
     const byName = options.find((o) => o.id > 0 && norm(o.name) === key);
@@ -1521,11 +1570,13 @@ export class LeadsComponent {
   /** Filter by `lead_status_id` when present; falls back to label match (incl. legacy Converted → Qualified). */
   private rowMatchesStatusFilter(row: LeadRow, filter: LeadListStatusFilter): boolean {
     if (filter === 'all') return true;
+    const enriched = this.leadRowForTableStatus(row);
+    if (filter === 'Converted') return isLeadConverted(enriched);
     const filterId = resolveLeadStatusIdFromName(filter);
-    if (row.leadStatusId != null && row.leadStatusId > 0 && filterId != null) {
-      return row.leadStatusId === filterId;
+    if (enriched.leadStatusId != null && enriched.leadStatusId > 0 && filterId != null) {
+      return enriched.leadStatusId === filterId;
     }
-    const display = this.resolvedLeadStatusLabel(row);
+    const display = this.resolvedLeadStatusLabel(enriched);
     return display === filter || coerceLeadStatus(display) === filter;
   }
 

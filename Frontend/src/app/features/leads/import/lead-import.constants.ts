@@ -1,37 +1,43 @@
-/** Column headers for the lead import Excel template (row 1). */
+/** Column headers for the lead import Excel template (row 1) — aligned with the create-lead form. */
 export const LEAD_IMPORT_TEMPLATE_COLUMNS = [
-  'First Name',
-  'Last Name',
+  'Full Name',
   'Mobile',
   'Email',
+  'Gender',
   'Organization',
-  'Industry',
   'No Of Employees',
   'Annual Revenue',
   'Website',
+  'GSTIN',
   'Territory',
+  'Industry',
+  'Location',
   'Status',
   'Lead Owner',
   'Request Type',
+  'Lead Date',
   'Requirement',
   'Additional Details',
 ] as const;
 
 export type LeadImportTemplateColumn = (typeof LEAD_IMPORT_TEMPLATE_COLUMNS)[number];
 
-/** Row 2 in downloadable templates — Required/Optional hints aligned with columns. */
+/** Row 2 in downloadable templates — Required/Optional hints aligned with the create-lead form. */
 export const LEAD_IMPORT_TEMPLATE_HINT_ROW = [
   'Required',
+  'Optional',
+  'Optional',
+  'Optional',
+  'Required',
+  'Optional',
+  'Optional',
+  'Optional',
+  'Optional',
+  'Optional',
+  'Required',
+  'Optional',
   'Required',
   'Required',
-  'Required',
-  'Optional',
-  'Optional',
-  'Optional',
-  'Optional',
-  'Optional',
-  'Optional',
-  'Optional',
   'Optional',
   'Optional',
   'Required',

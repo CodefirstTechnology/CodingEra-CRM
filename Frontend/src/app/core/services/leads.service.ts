@@ -1,11 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { firstValueFrom, Observable, of, throwError } from 'rxjs';
+import { firstValueFrom, forkJoin, Observable, of, throwError } from 'rxjs';
 import { catchError, map, switchMap, tap } from 'rxjs/operators';
 import { AuthService } from '../auth/auth.service';
 import { isAdmin } from '../auth/auth-role.util';
 import { DealsService } from './deals.service';
 import { LeadConversionStorageService } from './leads/lead-conversion-storage.service';
+import { CONVERTED_LEAD_STATUS_NAME } from './leads/lead-status.constants';
 import type { ConvertLeadOptions, ConvertLeadResult } from './leads/lead-conversion.types';
 import { normalizeGstin } from '../../shared/utils/gstin.util';
 import { mapLeadToDealRow } from '../../shared/utils/mappers';
@@ -79,9 +80,7 @@ export class LeadsService {
   private readonly auth = inject(AuthService);
 
   getAll(): Observable<LeadRow[]> {
-    return this.leadHttp
-      .list()
-      .pipe(map((rows) => this.conversionStorage.enrichLeadRows(rows.map(mapLeadNormalizedToRow))));
+    return this.listLeadsWithDealConversion((leads) => leads.map(mapLeadNormalizedToRow));
   }
 
   /**
@@ -93,12 +92,25 @@ export class LeadsService {
     userName = '',
     userEmail = '',
   ): Observable<LeadRow[]> {
-    return this.leadHttp.list().pipe(
-      map((normalized) => normalized.map(mapLeadNormalizedToRow)),
-      map((rows) =>
-        this.conversionStorage.enrichLeadRows(
-          filterLeadsForUser(rows, userId, userName, userEmail),
-        ),
+    return this.listLeadsWithDealConversion((leads) =>
+      filterLeadsForUser(
+        leads.map(mapLeadNormalizedToRow),
+        userId,
+        userName,
+        userEmail,
+      ),
+    );
+  }
+
+  private listLeadsWithDealConversion(
+    mapLeads: (normalized: LeadNormalized[]) => LeadRow[],
+  ): Observable<LeadRow[]> {
+    return forkJoin({
+      leads: this.leadHttp.list(),
+      deals: this.dealsService.getAll(),
+    }).pipe(
+      map(({ leads, deals }) =>
+        this.conversionStorage.enrichLeadRowsWithDeals(mapLeads(leads), deals),
       ),
     );
   }
@@ -155,7 +167,7 @@ export class LeadsService {
             }
 
             return this.update(idn, {
-              status: 'Converted',
+              status: CONVERTED_LEAD_STATUS_NAME,
               updated: 'Just now',
               isConverted: true,
               convertedDealId: deal.id,
@@ -168,7 +180,7 @@ export class LeadsService {
                     deal,
                     lead: updated ?? {
                       ...lead,
-                      status: 'Converted',
+                      status: CONVERTED_LEAD_STATUS_NAME,
                       isConverted: true,
                       convertedDealId: deal.id,
                       convertedAt,

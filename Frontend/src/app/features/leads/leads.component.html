@@ -459,10 +459,10 @@
                         <a [routerLink]="['/leads', row.id]" class="leads__name-link">{{ row.name }}</a>
                       }
                       @case ('status') {
-                        @if (isLeadConverted(row)) {
+                        @if (isLeadConvertedInTable(row)) {
                           <span class="leads__tag leads__tag--converted">Converted</span>
                         } @else if (isAdminViewer()) {
-                          <span [class]="statusClass(leadStatusLabel(row))">{{ leadStatusLabel(row) }}</span>
+                          <span [class]="statusClass(leadTableStatusLabel(row))">{{ leadTableStatusLabel(row) }}</span>
                         } @else if (canEditLeadStatusInTable(row)) {
                           <select
                             class="leads__status-select"
@@ -557,13 +557,13 @@
                           >
                             Convert to deal
                           </button>
-                        } @else if (isLeadConverted(row)) {
+                        } @else if (isLeadConvertedInTable(row)) {
                           <span class="leads__row-menu-muted" role="menuitem">Already converted</span>
-                          @if (row.convertedDealId) {
+                          @if (leadRowForTableStatus(row).convertedDealId; as dealId) {
                             <a
                               role="menuitem"
                               class="leads__row-menu-link"
-                              [routerLink]="['/deals', row.convertedDealId]"
+                              [routerLink]="['/deals', dealId]"
                               (click)="closeRowMenus()"
                             >
                               View deal
