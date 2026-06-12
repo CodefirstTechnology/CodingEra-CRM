@@ -25,6 +25,80 @@
   min-width: 0;
 }
 
+.sales-dash__briefing {
+  margin: 0.75rem 0 0;
+  max-width: 100%;
+  padding: 0.65rem 0.85rem;
+  white-space: normal;
+  overflow: visible;
+  word-break: break-word;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--text-primary);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--tertiary-color) 18%, var(--card-border));
+
+  &--live {
+    border-color: color-mix(in srgb, var(--tertiary-color) 42%, var(--card-border));
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--tertiary-color) 12%, transparent);
+  }
+
+  &--loading {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  &--error {
+    border-color: color-mix(in srgb, #ef4444 35%, var(--card-border));
+    background: color-mix(in srgb, #ef4444 8%, var(--surface));
+  }
+}
+
+.sales-dash__briefing-hint {
+  margin: 0.35rem 0 0;
+  max-width: 100%;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.sales-dash__btn--play {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--tertiary-color) 35%, var(--card-border));
+  background: color-mix(in srgb, var(--tertiary-color) 12%, var(--surface));
+  color: var(--text-primary);
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--tertiary-color) 20%, var(--surface));
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+.sales-dash__speaker-icon--active {
+  animation: sales-dash-speaker-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes sales-dash-speaker-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+
 .sales-dash__eyebrow {
   margin: 0 0 0.35rem;
   font-size: 0.6875rem;
