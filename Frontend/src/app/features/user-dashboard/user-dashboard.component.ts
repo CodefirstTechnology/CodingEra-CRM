@@ -24,6 +24,7 @@ export class UserDashboardComponent {
   private readonly createFlow = inject(CreateFlowService);
   private readonly permissions = inject(PermissionService);
   private readonly userTargets = inject(UserTargetHttpService);
+
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly snapshot = signal<UserDashboardSnapshot | null>(null);

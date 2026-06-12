@@ -1,14 +1,12 @@
-import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { take } from 'rxjs';
 import { formatUsdAsInr } from '../../shared/utils/format-inr.util';
-import { MorningBriefingVoiceService } from '../user-dashboard/services/morning-briefing-voice.service';
 import type {
   AdminActivityStreamItem,
   AdminDashboardSnapshot,
   AdminTeamSortKey,
 } from './models/admin-dashboard.models';
-import { AuthService } from '../../core/auth/auth.service';
 import { CrmEntityCacheService } from '../../core/services/crm-entity-cache.service';
 import { AdminDashboardService } from './services/admin-dashboard.service';
 import { sortTeamMembers } from './utils/admin-dashboard.util';
@@ -21,11 +19,9 @@ type StreamTab = 'all' | 'calls' | 'meetings';
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })
-export class DashboardComponent implements OnDestroy {
-  private readonly auth = inject(AuthService);
+export class DashboardComponent {
   private readonly dashboardService = inject(AdminDashboardService);
   private readonly entityCache = inject(CrmEntityCacheService);
-  protected readonly briefing = inject(MorningBriefingVoiceService);
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -41,17 +37,8 @@ export class DashboardComponent implements OnDestroy {
   protected readonly gaugeCircumference = 2 * Math.PI * 46;
   protected readonly formatMoney = formatUsdAsInr;
 
-  protected readonly briefingBusy = computed(
-    () => this.briefing.state() === 'loading' || this.briefing.state() === 'speaking',
-  );
-
   constructor() {
-    this.briefing.loadPreferences();
     this.refreshDashboard();
-  }
-
-  ngOnDestroy(): void {
-    this.briefing.stop();
   }
 
   protected refreshDashboard(): void {
@@ -63,17 +50,10 @@ export class DashboardComponent implements OnDestroy {
       .loadSnapshot()
       .pipe(take(1))
       .subscribe({
-        next: ({ data, metrics, error }) => {
+        next: ({ data, error }) => {
           this.loading.set(false);
           this.snapshot.set(data);
           this.error.set(error);
-          if (data && metrics && !error) {
-            this.briefing.setDailyMetrics({
-              ...metrics,
-              adminName: this.adminBriefingName(),
-            });
-            this.briefing.tryAutoPlayAfterDashboardLoad();
-          }
         },
         error: () => {
           this.loading.set(false);
@@ -180,16 +160,6 @@ export class DashboardComponent implements OnDestroy {
       default:
         return 'Activity';
     }
-  }
-
-  protected playBriefing(): void {
-    this.briefing.playNow();
-  }
-
-  private adminBriefingName(): string {
-    const name = this.auth.user()?.name?.trim();
-    if (!name) return 'Admin';
-    return name.split(/\s+/)[0] || 'Admin';
   }
 
   protected activityKindClass(item: AdminActivityStreamItem): string {

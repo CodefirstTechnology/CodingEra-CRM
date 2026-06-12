@@ -23,53 +23,7 @@
     <ul class="pp-actions">
       <li><button type="button" class="pp-link">Account settings</button></li>
       <li><button type="button" class="pp-link" (click)="openAdvancedSettings()">Advanced settings</button></li>
-    </ul>
-
-    @if (showBriefingPref()) {
-      <section class="pp-prefs" aria-label="Preferences">
-        <h3 class="pp-prefs-title">Preferences</h3>
-        <label class="pp-toggle">
-          <input
-            type="checkbox"
-            [checked]="briefing.enabled()"
-            (change)="onBriefingToggle($event)"
-          />
-          <span class="pp-toggle-label">Enable Daily Business Summary</span>
-        </label>
-        <p class="pp-toggle-help">Auto-plays once on your first admin dashboard visit each day.</p>
-        <div class="pp-briefing-actions">
-          <button
-            type="button"
-            class="pp-briefing-btn pp-briefing-btn--primary"
-            (click)="playBriefingNow()"
-            [disabled]="briefingBusy()"
-          >
-            {{ briefingBusy() ? 'Playing…' : 'Play summary now' }}
-          </button>
-          <button
-            type="button"
-            class="pp-briefing-btn"
-            (click)="regenerateBriefing()"
-            [disabled]="briefingBusy()"
-          >
-            Regenerate &amp; play
-          </button>
-          <button
-            type="button"
-            class="pp-briefing-btn pp-briefing-btn--ghost"
-            (click)="resetBriefingForTesting()"
-            [disabled]="briefingBusy()"
-          >
-            Reset daily play (testing)
-          </button>
-        </div>
-        @if (briefing.statusHint(); as hint) {
-          <p class="pp-toggle-help">{{ hint }}</p>
-        }
-      </section>
-    }
-
-    <ul class="pp-actions">
+      <li><button type="button" class="pp-link">Preferences</button></li>
       <li><button type="button" class="pp-link">Help &amp; docs</button></li>
     </ul>
   </div>

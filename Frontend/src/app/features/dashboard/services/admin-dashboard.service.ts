@@ -43,8 +43,6 @@ import {
   startOfDay,
   startOfMonth,
 } from '../utils/admin-dashboard.util';
-import { buildDailyBriefingMetrics } from '../utils/daily-briefing-metrics.util';
-import type { DailyBriefingMetrics } from '../../../core/services/dashboard/dashboard-api.models';
 
 interface GroupedRecords {
   leadsByOwner: Map<string, LeadRow[]>;
@@ -58,11 +56,7 @@ export class AdminDashboardService {
   private readonly scope = inject(UserDataScopeService);
   private readonly activitiesService = inject(ActivitiesService);
 
-  loadSnapshot(): Observable<{
-    data: AdminDashboardSnapshot | null;
-    metrics: DailyBriefingMetrics | null;
-    error: string | null;
-  }> {
+  loadSnapshot(): Observable<{ data: AdminDashboardSnapshot | null; error: string | null }> {
     return forkJoin({
       users: this.entityCache.listUsers().pipe(catchError(() => of([] as AdminUserRow[]))),
       leads: this.entityCache.listLeads().pipe(catchError(() => of([] as LeadRow[]))),
@@ -76,8 +70,8 @@ export class AdminDashboardService {
 
         return this.activitiesService.getRecentFeed(50).pipe(
           catchError(() => of([] as ActivityRow[])),
-          map((activities) => {
-            const data = this.buildSnapshot(
+          map((activities) => ({
+            data: this.buildSnapshot(
               salesUsers,
               leads,
               deals,
@@ -85,17 +79,13 @@ export class AdminDashboardService {
               grouped,
               activities,
               entityNames,
-            );
-            return {
-              data,
-              metrics: buildDailyBriefingMetrics(data, leads, deals, tasks),
-              error: null as string | null,
-            };
-          }),
+            ),
+            error: null as string | null,
+          })),
         );
       }),
       catchError((err: unknown) =>
-        of({ data: null, metrics: null, error: leadsHttpErrorMessage(err) }),
+        of({ data: null, error: leadsHttpErrorMessage(err) }),
       ),
     );
   }

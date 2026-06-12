@@ -5,45 +5,8 @@
       <div class="sales-dash__toolbar-row">
         <h1 class="sales-dash__title">Performance Ledger</h1>
       </div>
-      @if (briefing.state() === 'loading') {
-        <p class="sales-dash__briefing sales-dash__briefing--loading">Generating daily business summary…</p>
-      } @else if (briefing.state() === 'error') {
-        <p class="sales-dash__briefing sales-dash__briefing--error" role="alert">
-          Could not load summary. Click <strong>Play summary</strong> to try again.
-        </p>
-      } @else if (briefing.message(); as briefingText) {
-        <p class="sales-dash__briefing" [class.sales-dash__briefing--live]="briefing.state() === 'speaking'">
-          {{ briefingText }}
-        </p>
-      }
-      @if (briefing.statusHint(); as hint) {
-        <p class="sales-dash__briefing-hint">{{ hint }}</p>
-      }
     </div>
     <div class="sales-dash__toolbar-actions">
-      <button
-        type="button"
-        class="sales-dash__btn sales-dash__btn--play"
-        (click)="playBriefing()"
-        [disabled]="loading() || briefingBusy()"
-        [title]="briefingBusy() ? 'Summary in progress' : 'Play daily business summary (test anytime)'"
-      >
-        <svg
-          class="sales-dash__speaker-icon"
-          [class.sales-dash__speaker-icon--active]="briefingBusy()"
-          width="16"
-          height="16"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          aria-hidden="true"
-        >
-          <path d="M11 5 6 9H2v6h4l5 4V5Z" />
-          <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-        </svg>
-        {{ briefingBusy() ? 'Playing…' : 'Play summary' }}
-      </button>
       <span class="sales-dash__period-badge">This month</span>
       @if (snapshot(); as data) {
         <div class="sales-dash__quarterly" aria-label="Monthly revenue summary">
