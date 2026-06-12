@@ -1,11 +1,52 @@
-import type { LeadRow } from '../../leads/lead-row.model';
+import type { MasterDataOption } from '../../../core/services/leads/lead-master-data.service';
+import {
+  isDealClosed,
+  isDealClosedLost,
+  isDealClosedWon,
+} from '../../../core/services/deals/deal-pipeline.constants';
+import { DEAL_STAGE_MATERIAL_DELIVERED } from '../../../core/services/deals/deal-stage-milestones.constants';
 import type { DealRow } from '../../deals/deals.component';
-import { isDealClosed } from '../../../core/services/deals/deal-pipeline.constants';
-import type { AdminTeamMemberStats, AdminTeamSortKey } from '../models/admin-dashboard.models';
+import type { LeadRow } from '../../leads/lead-row.model';
+import type {
+  AdminDashboardPeriod,
+  AdminDashboardPeriodKey,
+  AdminTeamMemberStats,
+  AdminTeamSortKey,
+} from '../models/admin-dashboard.models';
+import type { UserTargetRow } from '../../../core/services/user-targets/user-target-api.models';
 
-export const ADMIN_MONTHLY_TARGET_INR = 1_000_000;
 export const STUCK_DEAL_INACTIVE_HOURS = 24;
-export const STUCK_DEAL_LIMIT = 5;
+export const STUCK_DEAL_PREVIEW_LIMIT = 5;
+
+/** Deal stages that should never appear in the stuck-deals panel. */
+const STUCK_DEAL_EXCLUDED_STATUS_NAMES = [
+  DEAL_STAGE_MATERIAL_DELIVERED,
+  'Lead Closed - Won',
+  'Lead Closed - Lost',
+] as const;
+
+function dealStatusNamesMatch(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/** True when a deal may appear in stuck-deals (open pipeline + not completed/closed). */
+export function isStuckDealCandidate(
+  status: string,
+  pipeline: readonly MasterDataOption[] = [],
+): boolean {
+  const label = status?.trim() ?? '';
+  if (!label) return false;
+
+  if (STUCK_DEAL_EXCLUDED_STATUS_NAMES.some((name) => dealStatusNamesMatch(label, name))) {
+    return false;
+  }
+
+  if (isDealClosedWon(label, pipeline) || isDealClosedLost(label, pipeline)) {
+    return false;
+  }
+
+  return isActiveDealStatus(label, pipeline);
+}
 
 export function parseDashboardDate(
   raw: string | Date | number | undefined | null,
@@ -42,7 +83,14 @@ export function parseDashboardDate(
   return null;
 }
 
-/** Last touch date for stuck-deal / inactivity (prefers API ISO, not display label). */
+export function parseDateOnly(iso: string): Date | null {
+  const s = iso.trim();
+  if (!s) return null;
+  const t = Date.parse(s.includes('T') ? s : `${s}T00:00:00`);
+  if (Number.isNaN(t)) return null;
+  return startOfDay(new Date(t));
+}
+
 export function dealLastModifiedDate(deal: DealRow): Date | null {
   return (
     parseDashboardDate(deal.lastModifiedAt) ??
@@ -55,14 +103,79 @@ export function startOfDay(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
+export function endOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+}
+
 export function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1);
 }
 
-export function isInCurrentMonth(date: Date, ref: Date): boolean {
-  return (
-    date.getFullYear() === ref.getFullYear() && date.getMonth() === ref.getMonth()
-  );
+export function endOfMonth(d: Date): Date {
+  return endOfDay(new Date(d.getFullYear(), d.getMonth() + 1, 0));
+}
+
+export function startOfQuarter(d: Date): Date {
+  const q = Math.floor(d.getMonth() / 3);
+  return new Date(d.getFullYear(), q * 3, 1);
+}
+
+export function endOfQuarter(d: Date): Date {
+  const q = Math.floor(d.getMonth() / 3);
+  return endOfMonth(new Date(d.getFullYear(), q * 3 + 2, 1));
+}
+
+export function startOfYear(d: Date): Date {
+  return new Date(d.getFullYear(), 0, 1);
+}
+
+export function endOfYear(d: Date): Date {
+  return endOfDay(new Date(d.getFullYear(), 11, 31));
+}
+
+export function resolveDashboardPeriod(
+  key: AdminDashboardPeriodKey,
+  ref = new Date(),
+): AdminDashboardPeriod {
+  const now = ref;
+  switch (key) {
+    case 'last_month': {
+      const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      return {
+        key,
+        label: 'Last month',
+        start: startOfMonth(prev),
+        end: endOfMonth(prev),
+      };
+    }
+    case 'this_quarter':
+      return {
+        key,
+        label: 'This quarter',
+        start: startOfQuarter(now),
+        end: endOfQuarter(now),
+      };
+    case 'this_year':
+      return {
+        key,
+        label: 'This year',
+        start: startOfYear(now),
+        end: endOfYear(now),
+      };
+    case 'this_month':
+    default:
+      return {
+        key: 'this_month',
+        label: 'This month',
+        start: startOfMonth(now),
+        end: endOfMonth(now),
+      };
+  }
+}
+
+export function isDateInRange(date: Date, start: Date, end: Date): boolean {
+  const t = startOfDay(date).getTime();
+  return t >= startOfDay(start).getTime() && t <= endOfDay(end).getTime();
 }
 
 export function leadRecordDate(lead: LeadRow): Date | null {
@@ -72,7 +185,6 @@ export function leadRecordDate(lead: LeadRow): Date | null {
   return parseDashboardDate(lead.created) ?? parseDashboardDate(lead.updated);
 }
 
-/** Close / record date for revenue and sorting (ISO fields first). */
 export function dealRecordDate(deal: DealRow): Date | null {
   return (
     parseDashboardDate(deal.lastModifiedAt) ??
@@ -86,8 +198,55 @@ export function isLeadConvertedRow(lead: LeadRow): boolean {
   return lead.status === 'Converted' || lead.isConverted === true;
 }
 
-export function isActiveDealStatus(status: string): boolean {
-  return !isDealClosed(status);
+export function resolveDealValue(deal: DealRow): number {
+  if (Number.isFinite(deal.dealAmount) && deal.dealAmount > 0) {
+    return deal.dealAmount;
+  }
+  if (Number.isFinite(deal.annualRevenue) && deal.annualRevenue > 0) {
+    return deal.annualRevenue;
+  }
+  return 0;
+}
+
+export function isActiveDealStatus(
+  status: string,
+  pipeline: readonly MasterDataOption[] = [],
+): boolean {
+  return !isDealClosed(status, pipeline);
+}
+
+export function isDealWonInPeriod(
+  deal: DealRow,
+  pipeline: readonly MasterDataOption[],
+  periodStart: Date,
+  periodEnd: Date,
+): boolean {
+  if (!isDealClosedWon(deal.status, pipeline)) return false;
+  const t = dealRecordDate(deal);
+  return t != null && isDateInRange(t, periodStart, periodEnd);
+}
+
+export function isDealLostInPeriod(
+  deal: DealRow,
+  pipeline: readonly MasterDataOption[],
+  periodStart: Date,
+  periodEnd: Date,
+): boolean {
+  if (!isDealClosedLost(deal.status, pipeline)) return false;
+  const t = dealRecordDate(deal);
+  return t != null && isDateInRange(t, periodStart, periodEnd);
+}
+
+export function targetOverlapsPeriod(
+  target: UserTargetRow,
+  periodStart: Date,
+  periodEnd: Date,
+): boolean {
+  if (!target.isActive) return false;
+  const ts = parseDateOnly(target.startDate);
+  const te = parseDateOnly(target.endDate);
+  if (!ts || !te) return false;
+  return ts.getTime() <= endOfDay(periodEnd).getTime() && te.getTime() >= startOfDay(periodStart).getTime();
 }
 
 export function dealDisplayName(deal: DealRow): string {
@@ -103,6 +262,17 @@ export function dealOwnerLabel(deal: DealRow): string {
   const assigned = deal.assignedTo?.trim();
   if (assigned && assigned !== '—') return assigned;
   return deal.assignedInitials?.trim() || 'Unassigned';
+}
+
+export function leadDisplayName(lead: LeadRow): string {
+  const named = lead.name?.trim();
+  if (named) return named;
+  const person = [lead.firstName, lead.lastName].filter(Boolean).join(' ').trim();
+  return person || lead.organization?.trim() || `Lead #${lead.id}`;
+}
+
+export function leadOwnerLabel(lead: LeadRow): string {
+  return lead.leadOwnerName?.trim() || lead.owner?.trim() || 'Unassigned';
 }
 
 export function ownerKeyFromDeal(deal: DealRow): string {
