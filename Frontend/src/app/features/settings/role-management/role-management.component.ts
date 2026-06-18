@@ -1,5 +1,5 @@
 import { TitleCasePipe } from '@angular/common';
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, input, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { AuthService } from '../../../core/auth/auth.service';
 import type {
@@ -13,6 +13,7 @@ import { RbacService } from '../../../core/services/rbac.service';
 import { ToastService } from '../../../core/toast/toast.service';
 
 type PanelMode = 'list' | 'create' | 'edit' | 'permissions';
+type RbacSection = 'roles' | 'permissions';
 
 @Component({
   selector: 'app-role-management',
@@ -25,6 +26,9 @@ export class RoleManagementComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly rbac = inject(RbacService);
   private readonly toast = inject(ToastService);
+
+  /** Which advanced-settings nav item opened this panel. */
+  readonly section = input<RbacSection>('roles');
 
   protected readonly mode = signal<PanelMode>('list');
   protected readonly roles = signal<RoleListItem[]>([]);
@@ -231,6 +235,15 @@ export class RoleManagementComponent implements OnInit {
         },
         error: () => this.toast.error('Could not clone role.'),
       });
+  }
+
+  protected enabledPermissionCount(): number {
+    return this.permissionScopes().size;
+  }
+
+  protected moduleEnabledCount(group: PermissionModuleGroup): number {
+    const enabled = this.permissionScopes();
+    return group.permissions.filter((p) => enabled.has(p.id)).length;
   }
 
   protected isPermissionEnabled(permissionId: number): boolean {

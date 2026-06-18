@@ -1,9 +1,9 @@
 <div class="rbac">
-  @if (mode() === 'list') {
+  @if (mode() === 'list' && section() === 'roles') {
     <header class="rbac__head">
       <div>
         <h2 class="rbac__title">Roles</h2>
-        <p class="rbac__sub">Create and manage roles. Assign permissions per module with Own, Team, or All scope.</p>
+        <p class="rbac__sub">Create and manage roles. Use Permissions to configure access per role.</p>
       </div>
       <button type="button" class="rbac__primary-btn" (click)="openCreate()">+ Create Role</button>
     </header>
@@ -19,52 +19,100 @@
 
     @if (loading()) {
       <p class="rbac__hint">Loading roles…</p>
+    } @else if (filteredRoles().length === 0) {
+      <p class="rbac__hint">No roles found.</p>
+    } @else {
+      <div class="rbac__table-wrap">
+        <table class="rbac__table">
+          <thead>
+            <tr>
+              <th>Role</th>
+              <th>Users</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (role of filteredRoles(); track role.id) {
+              <tr>
+                <td>
+                  <strong>{{ role.name }}</strong>
+                  @if (role.description) {
+                    <div class="rbac__desc">{{ role.description }}</div>
+                  }
+                </td>
+                <td>{{ role.assignedUserCount }}</td>
+                <td>
+                  <span class="rbac__badge" [class.rbac__badge--inactive]="!role.isActive">
+                    {{ role.isActive ? 'Active' : 'Inactive' }}
+                  </span>
+                </td>
+                <td class="rbac__actions">
+                  <button type="button" class="rbac__action-btn" (click)="openEdit(role)">Edit</button>
+                  <button type="button" class="rbac__action-btn rbac__action-btn--accent" (click)="openPermissions(role)">
+                    Permissions
+                  </button>
+                  <button type="button" class="rbac__action-btn" (click)="toggleActive(role)">
+                    {{ role.isActive ? 'Deactivate' : 'Activate' }}
+                  </button>
+                  <button type="button" class="rbac__action-btn" (click)="cloneRole(role)">Clone</button>
+                  <button
+                    type="button"
+                    class="rbac__action-btn rbac__action-btn--danger"
+                    [disabled]="role.assignedUserCount > 0"
+                    (click)="deleteRole(role)"
+                  >
+                    Delete
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
     }
+  } @else if (mode() === 'list' && section() === 'permissions') {
+    <header class="rbac__head">
+      <div>
+        <h2 class="rbac__title">Permissions</h2>
+        <p class="rbac__sub">Select a role to configure module permissions and record access scope.</p>
+      </div>
+    </header>
 
-    <table class="rbac__table">
-      <thead>
-        <tr>
-          <th>Role</th>
-          <th>Users</th>
-          <th>Status</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
+    <div class="rbac__toolbar">
+      <input
+        type="search"
+        placeholder="Search roles…"
+        [value]="searchQuery()"
+        (input)="onSearch($event)"
+      />
+    </div>
+
+    @if (loading()) {
+      <p class="rbac__hint">Loading roles…</p>
+    } @else if (filteredRoles().length === 0) {
+      <p class="rbac__hint">No roles found.</p>
+    } @else {
+      <div class="rbac__role-grid">
         @for (role of filteredRoles(); track role.id) {
-          <tr>
-            <td>
-              <strong>{{ role.name }}</strong>
-              @if (role.description) {
-                <div class="rbac__desc">{{ role.description }}</div>
-              }
-            </td>
-            <td>{{ role.assignedUserCount }}</td>
-            <td>
+          <article class="rbac__role-card">
+            <div class="rbac__role-card-head">
+              <h3 class="rbac__role-card-title">{{ role.name }}</h3>
               <span class="rbac__badge" [class.rbac__badge--inactive]="!role.isActive">
                 {{ role.isActive ? 'Active' : 'Inactive' }}
               </span>
-            </td>
-            <td class="rbac__actions">
-              <button type="button" (click)="openEdit(role)">Edit</button>
-              <button type="button" (click)="openPermissions(role)">Permissions</button>
-              <button type="button" (click)="toggleActive(role)">
-                {{ role.isActive ? 'Deactivate' : 'Activate' }}
-              </button>
-              <button type="button" (click)="cloneRole(role)">Clone</button>
-              <button
-                type="button"
-                class="rbac__danger"
-                [disabled]="role.assignedUserCount > 0"
-                (click)="deleteRole(role)"
-              >
-                Delete
-              </button>
-            </td>
-          </tr>
+            </div>
+            @if (role.description) {
+              <p class="rbac__role-card-desc">{{ role.description }}</p>
+            }
+            <p class="rbac__role-card-meta">{{ role.assignedUserCount }} user{{ role.assignedUserCount === 1 ? '' : 's' }}</p>
+            <button type="button" class="rbac__primary-btn rbac__role-card-btn" (click)="openPermissions(role)">
+              Manage Permissions
+            </button>
+          </article>
         }
-      </tbody>
-    </table>
+      </div>
+    }
   } @else if (mode() === 'create' || mode() === 'edit') {
     <header class="rbac__head">
       <h2 class="rbac__title">{{ mode() === 'create' ? 'Create Role' : 'Edit Role' }}</h2>
@@ -91,51 +139,89 @@
       </footer>
     </form>
   } @else if (mode() === 'permissions') {
-    <header class="rbac__head">
-      <div>
-        <h2 class="rbac__title">Permissions — {{ selectedRole()?.name }}</h2>
-        <p class="rbac__sub">Enable permissions and set access scope per module.</p>
+    <header class="rbac__perm-head">
+      <div class="rbac__perm-head-main">
+        <p class="rbac__perm-kicker">Role permissions</p>
+        <h2 class="rbac__title">{{ selectedRole()?.name }}</h2>
+        <p class="rbac__sub">Turn actions on or off and choose whether access is own, team, or all records.</p>
       </div>
-      <button type="button" class="rbac__link-btn" (click)="backToList()">← Back to list</button>
+      <div class="rbac__perm-head-actions">
+        <span class="rbac__perm-summary">{{ enabledPermissionCount() }} enabled</span>
+        <button type="button" class="rbac__link-btn" (click)="backToList()">← Back to list</button>
+      </div>
     </header>
 
     @if (loading()) {
       <p class="rbac__hint">Loading…</p>
     } @else {
-      @for (group of permissionGroups(); track group.module) {
-        <section class="rbac__module">
-          <h3 class="rbac__module-title">{{ group.module | titlecase }}</h3>
-          <ul class="rbac__perm-list">
-            @for (perm of group.permissions; track perm.id) {
-              <li class="rbac__perm-row">
-                <label class="rbac__perm-check">
-                  <input
-                    type="checkbox"
-                    [checked]="isPermissionEnabled(perm.id)"
-                    (change)="togglePermission(perm.id, $any($event.target).checked)"
-                  />
-                  <span>
-                    <strong>{{ perm.action }}</strong>
-                    <small>{{ perm.description }}</small>
-                  </span>
-                </label>
-                @if (isPermissionEnabled(perm.id)) {
-                  <select
-                    [value]="permissionScope(perm.id)"
-                    (change)="setPermissionScope(perm.id, $any($event.target).value)"
-                  >
-                    <option value="own">Own Records</option>
-                    <option value="team">Team Records</option>
-                    <option value="all">All Records</option>
-                  </select>
-                }
-              </li>
-            }
-          </ul>
-        </section>
-      }
+      <div class="rbac__perm-layout">
+        @for (group of permissionGroups(); track group.module) {
+          <section class="rbac__perm-panel">
+            <header class="rbac__perm-panel-head">
+              <div>
+                <h3 class="rbac__perm-panel-title">{{ group.module | titlecase }}</h3>
+                <p class="rbac__perm-panel-meta">
+                  {{ moduleEnabledCount(group) }} of {{ group.permissions.length }} enabled
+                </p>
+              </div>
+            </header>
 
-      <footer class="rbac__footer">
+            <div class="rbac__perm-table-wrap">
+              <table class="rbac__perm-table">
+                <thead>
+                  <tr>
+                    <th scope="col">On</th>
+                    <th scope="col">Action</th>
+                    <th scope="col">Description</th>
+                    <th scope="col">Access scope</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (perm of group.permissions; track perm.id) {
+                    <tr [class.rbac__perm-table-row--on]="isPermissionEnabled(perm.id)">
+                      <td>
+                        <label class="rbac__perm-toggle">
+                          <input
+                            type="checkbox"
+                            [checked]="isPermissionEnabled(perm.id)"
+                            (change)="togglePermission(perm.id, $any($event.target).checked)"
+                          />
+                          <span class="rbac__perm-toggle-ui" aria-hidden="true"></span>
+                          <span class="visually-hidden">Enable {{ perm.action }}</span>
+                        </label>
+                      </td>
+                      <td>
+                        <span class="rbac__perm-action">{{ perm.action }}</span>
+                      </td>
+                      <td>
+                        <span class="rbac__perm-desc">{{ perm.description }}</span>
+                      </td>
+                      <td>
+                        @if (isPermissionEnabled(perm.id)) {
+                          <select
+                            class="rbac__scope-select"
+                            [value]="permissionScope(perm.id)"
+                            (change)="setPermissionScope(perm.id, $any($event.target).value)"
+                          >
+                            <option value="own">Own Records</option>
+                            <option value="team">Team Records</option>
+                            <option value="all">All Records</option>
+                          </select>
+                        } @else {
+                          <span class="rbac__perm-scope-off">—</span>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </section>
+        }
+      </div>
+
+      <footer class="rbac__perm-footer">
+        <button type="button" class="rbac__secondary-btn" (click)="backToList()">Cancel</button>
         <button type="button" class="rbac__primary-btn" [disabled]="saving()" (click)="savePermissions()">
           {{ saving() ? 'Saving…' : 'Save Permissions' }}
         </button>

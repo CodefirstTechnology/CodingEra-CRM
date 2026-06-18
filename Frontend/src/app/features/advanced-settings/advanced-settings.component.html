@@ -195,9 +195,13 @@
         </footer>
       </form>
     </article>
-    } @else if (activeItem() === 'Roles' || activeItem() === 'Permissions') {
+    } @else if (activeItem() === 'Roles') {
     <article class="adv-settings__card">
-      <app-role-management />
+      <app-role-management section="roles" />
+    </article>
+    } @else if (activeItem() === 'Permissions') {
+    <article class="adv-settings__card">
+      <app-role-management section="permissions" />
     </article>
     } @else if (activeItem() === 'Master Forms') {
     <article class="adv-settings__card">

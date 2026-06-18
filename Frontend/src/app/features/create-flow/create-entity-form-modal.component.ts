@@ -123,8 +123,8 @@ export class CreateEntityFormModalComponent {
   protected readonly isAdminViewer = computed(() => isAdmin(this.auth.user()));
   protected readonly canAssignLeads = computed(() => this.permissions.canAssignLeads());
   protected readonly canSelfAssignLeads = computed(() => this.permissions.canSelfAssignLeads());
-  protected readonly canAssignDeals = computed(() => this.permissions.canAssignDeals());
   protected readonly canSelfAssignDeals = computed(() => this.permissions.canSelfAssignDeals());
+  protected readonly canAssignDeals = computed(() => this.permissions.canAssignDeals());
   protected readonly showLeadOwnerPicker = computed(() =>
     showOwnerPickerOnCreate(this.canAssignLeads(), this.isAdminViewer()),
   );

@@ -62,6 +62,12 @@ export class LeadOwnerOptionsService {
     this.ensureLoaded().pipe(take(1)).subscribe();
   }
 
+  /** Clears cached owner list and fetches again (e.g. after permission/session change). */
+  reload(): void {
+    this.reset();
+    this.load();
+  }
+
   /** Resolves when owner options are in memory (required before marketplace bulk save + round robin). */
   ensureLoaded(): Observable<readonly LeadOwnerOption[]> {
     if (this.loadedSignal()) {

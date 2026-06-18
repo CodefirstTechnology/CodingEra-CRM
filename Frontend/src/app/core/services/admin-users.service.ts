@@ -163,7 +163,14 @@ export class AdminUsersService {
     const base = environment.apiUrl?.replace(/\/$/, '');
     if (!base) return of([]);
 
-    if (!hasAnyPermission(this.auth.user(), ['users.view', 'settings.manage'])) {
+    if (
+      !hasAnyPermission(this.auth.user(), [
+        'users.view',
+        'settings.manage',
+        'leads.assign',
+        'deals.assign',
+      ])
+    ) {
       return of([]);
     }
 
