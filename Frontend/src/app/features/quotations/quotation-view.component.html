@@ -34,7 +34,7 @@
             }
           </button>
           <button type="button" class="qt-view__btn qt-view__btn--ghost" (click)="duplicate()">Duplicate</button>
-          @if (!q.dealClosed) {
+          @if (!q.dealClosed && canDeleteQuotation()) {
             <button type="button" class="qt-view__btn qt-view__btn--danger" (click)="deleteDoc()">Delete</button>
           }
         </div>

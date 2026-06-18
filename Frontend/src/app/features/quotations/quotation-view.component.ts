@@ -15,6 +15,7 @@ import {
   snapshotFieldValue,
   type SnapshotColumnDef,
 } from '../../core/services/quotations/quotation-item-snapshot.util';
+import { PermissionService } from '../../core/services/permission.service';
 import { QuotationsService, quotationHttpErrorMessage } from '../../core/services/quotations.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { QuotationPdfService } from './quotation-pdf.service';
@@ -30,9 +31,11 @@ export class QuotationViewComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly quotationsService = inject(QuotationsService);
+  private readonly permissions = inject(PermissionService);
   private readonly toast = inject(ToastService);
   private readonly quotationPdf = inject(QuotationPdfService);
 
+  protected readonly canDeleteQuotation = computed(() => this.permissions.has('quotations.delete'));
   protected readonly loading = signal(true);
   protected readonly pdfGenerating = signal(false);
   protected readonly quotation = signal<QuotationUpsertDto | null>(null);
@@ -92,6 +95,10 @@ export class QuotationViewComponent {
   protected deleteDoc(): void {
     const q = this.quotation();
     if (!q?.id) return;
+    if (!this.canDeleteQuotation()) {
+      this.toast.error('You do not have permission to perform this action.');
+      return;
+    }
     if (!confirm(`Delete quotation ${q.quotationNumber}?`)) return;
     this.quotationsService
       .delete(q.id)
