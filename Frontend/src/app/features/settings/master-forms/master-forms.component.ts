@@ -14,7 +14,7 @@ import {
 })
 export class MasterFormsComponent {
   protected readonly entities = MASTER_FORM_ENTITIES;
-  protected readonly activeSlug = signal<MasterFormEntitySlug>('salutations');
+  protected readonly activeSlug = signal<MasterFormEntitySlug>('lead-statuses');
 
   protected readonly activeConfig = signal<MasterFormEntityConfig>(MASTER_FORM_ENTITIES[0]);
 

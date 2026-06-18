@@ -94,17 +94,13 @@ export class AdvancedSettingsComponent implements OnInit {
     { title: 'Profile', items: ['Profile'] },
     {
       title: 'System Configuration',
-      items: ['Forecasting', 'Currency & Exchange', 'Brand Settings', 'Master Forms', 'Company Profile', 'Item Master', 'User Targets', 'Lead Sync Management'],
+      items: ['Master Forms', 'Company Profile', 'Item Master', 'User Targets', 'Lead Sync Management'],
     },
     {
       title: 'Access Control',
       items: ['Roles', 'Permissions'],
     },
     { title: 'User Management', items: ['Users', 'Invite User'] },
-    { title: 'Email Settings', items: ['Email Accounts', 'Email Templates'] },
-    { title: 'Automation & Rules', items: ['Assignment rules'] },
-    { title: 'Customization', items: ['Home Actions'] },
-    { title: 'Integrations', items: ['Telephony', 'ERPNext'] },
   ];
 
   protected readonly leftNav = computed(() => {
