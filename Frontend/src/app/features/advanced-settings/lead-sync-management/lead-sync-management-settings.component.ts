@@ -5,7 +5,6 @@ import { isAdmin } from '../../../core/auth/auth-role.util';
 import { AuthService } from '../../../core/auth/auth.service';
 import type {
   LeadSyncEligibleUser,
-  LeadSyncIntervalOption,
   LeadSyncLogRow,
   LeadSyncSource,
 } from '../../../core/services/lead-sync/lead-sync-api.models';
@@ -32,14 +31,11 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
 
   protected readonly sources = signal<LeadSyncSource[]>([]);
   protected readonly eligibleUsers = signal<LeadSyncEligibleUser[]>([]);
-  protected readonly intervals = signal<LeadSyncIntervalOption[]>([]);
   protected readonly history = signal<LeadSyncLogRow[]>([]);
 
   /** Per-source draft user selections before save. */
   protected readonly draftUserIds = signal<Record<number, number[]>>({});
-  protected readonly draftAutoSync = signal<
-    Record<number, { enabled: boolean; intervalOptionId: number | null }>
-  >({});
+  protected readonly draftAutoSync = signal<Record<number, boolean>>({});
 
   ngOnInit(): void {
     if (!this.isAdmin()) {
@@ -73,11 +69,6 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
 
     this.api.listEligibleUsers().subscribe({
       next: (rows) => this.eligibleUsers.set(rows),
-      error: () => {},
-    });
-
-    this.api.listIntervals().subscribe({
-      next: (rows) => this.intervals.set(rows),
       error: () => {},
     });
   }
@@ -122,47 +113,22 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
   }
 
   protected autoSyncEnabled(sourceId: number): boolean {
-    return this.draftAutoSync()[sourceId]?.enabled ?? false;
-  }
-
-  protected autoSyncInterval(sourceId: number): number | null {
-    return this.draftAutoSync()[sourceId]?.intervalOptionId ?? null;
+    return this.draftAutoSync()[sourceId] ?? false;
   }
 
   protected setAutoSyncEnabled(sourceId: number, enabled: boolean): void {
-    this.draftAutoSync.update((m) => ({
-      ...m,
-      [sourceId]: {
-        enabled,
-        intervalOptionId: m[sourceId]?.intervalOptionId ?? this.defaultIntervalId(),
-      },
-    }));
-  }
-
-  protected setAutoSyncInterval(sourceId: number, optionId: number): void {
-    this.draftAutoSync.update((m) => ({
-      ...m,
-      [sourceId]: {
-        enabled: m[sourceId]?.enabled ?? false,
-        intervalOptionId: optionId > 0 ? optionId : null,
-      },
-    }));
+    this.draftAutoSync.update((m) => ({ ...m, [sourceId]: enabled }));
   }
 
   protected saveAutoSync(source: LeadSyncSource): void {
-    const draft = this.draftAutoSync()[source.id];
-    if (!draft) return;
-
-    if (draft.enabled && !(draft.intervalOptionId != null && draft.intervalOptionId > 0)) {
-      this.toast.error('Select a sync interval when auto sync is enabled.');
-      return;
-    }
+    const enabled = this.draftAutoSync()[source.id];
+    if (enabled == null) return;
 
     this.savingSourceId.set(source.id);
     this.api
       .updateAutoSync(source.id, {
-        autoSyncEnabled: draft.enabled,
-        intervalOptionId: draft.intervalOptionId,
+        autoSyncEnabled: enabled,
+        intervalOptionId: null,
       })
       .subscribe({
         next: (rows) => {
@@ -180,20 +146,12 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
 
   private initDrafts(sources: LeadSyncSource[]): void {
     const userDraft: Record<number, number[]> = {};
-    const autoDraft: Record<number, { enabled: boolean; intervalOptionId: number | null }> = {};
+    const autoDraft: Record<number, boolean> = {};
     for (const s of sources) {
       userDraft[s.id] = s.assignments.map((a) => a.userId);
-      autoDraft[s.id] = {
-        enabled: s.autoSyncEnabled,
-        intervalOptionId: s.intervalOptionId ?? this.defaultIntervalId(),
-      };
+      autoDraft[s.id] = s.autoSyncEnabled;
     }
     this.draftUserIds.set(userDraft);
     this.draftAutoSync.set(autoDraft);
-  }
-
-  private defaultIntervalId(): number | null {
-    const rows = this.intervals();
-    return rows.length > 0 ? rows[0].id : null;
   }
 }

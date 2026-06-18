@@ -3,7 +3,7 @@
     <div>
       <h2 class="lsync__title">Lead Sync Management</h2>
       <p class="lsync__sub">
-        Assign users per lead source, configure auto sync intervals, and review sync history.
+        Assign users per lead source, configure automatic lead sync, and review sync history.
       </p>
     </div>
   </header>
@@ -93,19 +93,8 @@
               />
               <span>Enable auto sync</span>
             </label>
-
             @if (autoSyncEnabled(source.id)) {
-              <label class="lsync__field">
-                <span>Sync interval</span>
-                <select
-                  [value]="autoSyncInterval(source.id) ?? ''"
-                  (change)="setAutoSyncInterval(source.id, +$any($event.target).value)"
-                >
-                  @for (opt of intervals(); track opt.id) {
-                    <option [value]="opt.id">{{ opt.label }}</option>
-                  }
-                </select>
-              </label>
+              <p class="lsync__hint">Leads sync automatically on each background check.</p>
             }
 
             <dl class="lsync__meta">
@@ -122,8 +111,8 @@
               <div>
                 <dt>Next scheduled sync</dt>
                 <dd>
-                  @if (source.nextSyncAt && source.autoSyncEnabled) {
-                    {{ source.nextSyncAt | date: 'medium' }}
+                  @if (source.autoSyncEnabled) {
+                    Continuous
                   } @else {
                     —
                   }
