@@ -49,7 +49,6 @@ import { UserDataScopeService } from '../../core/services/user-data-scope.servic
 import { PermissionService } from '../../core/services/permission.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { TasksService } from '../../core/services/tasks.service';
-import { NotesService } from '../../core/services/notes.service';
 import { EmailsService, emailSendErrorMessage } from '../../core/services/emails.service';
 import type { EntityEmailItem } from '../../core/services/emails/email-api.models';
 import { ToastService } from '../../core/toast/toast.service';
@@ -74,10 +73,9 @@ import {
   buildDealQuotationPrefill,
   storeDealQuotationPrefill,
 } from '../../shared/utils/deal-quotation-prefill.util';
-import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
 
-type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Tasks' | 'Notes' | 'Attachments';
+type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Tasks' | 'Attachments';
 
 interface DealAttachmentItem {
   id: string;
@@ -105,7 +103,6 @@ export class DealDetailComponent {
   private readonly commentsService = inject(CommentsService);
   private readonly emailsService = inject(EmailsService);
   private readonly tasksService = inject(TasksService);
-  private readonly notesService = inject(NotesService);
   private readonly toast = inject(ToastService);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly createFlow = inject(CreateFlowService);
@@ -120,7 +117,6 @@ export class DealDetailComponent {
   protected readonly activeTab = signal<DetailTab>('Activity');
   protected readonly dataSaving = signal(false);
   protected readonly dealTasks = signal<TaskRow[]>([]);
-  protected readonly dealNotes = signal<NoteRow[]>([]);
   protected readonly dealAttachments = signal<DealAttachmentItem[]>([]);
   protected readonly dealComments = signal<DealCommentItem[]>([]);
   protected readonly dealActivityGroups = signal<ActivityGroup[]>([]);
@@ -158,7 +154,6 @@ export class DealDetailComponent {
     'Comments',
     'Data',
     'Tasks',
-    'Notes',
     'Attachments',
   ];
 
@@ -256,13 +251,6 @@ export class DealDetailComponent {
     return 0;
   });
 
-  private readonly noteRelatedTypeLabels: Record<NoteRelatedType, string> = {
-    lead: 'Lead',
-    deal: 'Deal',
-    contact: 'Contact',
-    organization: 'Organization',
-  };
-
   protected readonly dataForm = this.fb.nonNullable.group({
     organization: ['', Validators.required],
     annualRevenue: [''],
@@ -302,7 +290,6 @@ export class DealDetailComponent {
         this.numericId.set(null);
         this.deal.set(null);
         this.dealTasks.set([]);
-        this.dealNotes.set([]);
         this.dealAttachments.set([]);
         this.dealComments.set([]);
         this.commentComposerOpen.set(false);
@@ -331,7 +318,6 @@ export class DealDetailComponent {
             this.emailSubjectText.set(`${org} (${this.dealCode()})`);
             this.emailBody.set('');
             this.refreshDealTasks();
-            this.refreshDealNotes();
             this.refreshDealActivities();
             const did = row.id.trim();
             if (did) {
@@ -351,7 +337,6 @@ export class DealDetailComponent {
             this.refreshStageHistory();
           } else {
             this.dealTasks.set([]);
-            this.dealNotes.set([]);
             this.dealActivityGroups.set([]);
             this.dealAttachments.set([]);
             this.dealComments.set([]);
@@ -368,7 +353,7 @@ export class DealDetailComponent {
 
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((query) => {
       const tab = parseEntityDetailTab(query.get('tab'));
-      if (tab) this.setTab(tab);
+      if (tab && tab !== 'Notes') this.setTab(tab);
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
@@ -377,7 +362,6 @@ export class DealDetailComponent {
         this.refreshDealActivities();
       }
       if (e.kind === 'note') {
-        this.refreshDealNotes();
         this.refreshDealActivities();
       }
     });
@@ -417,21 +401,6 @@ export class DealDetailComponent {
           this.dealActivityGroups.set([]);
           this.dealActivityLoading.set(false);
         },
-      });
-  }
-
-  private refreshDealNotes(): void {
-    const id = this.numericId();
-    if (id == null) {
-      this.dealNotes.set([]);
-      return;
-    }
-    this.notesService
-      .getByRecord(id)
-      .pipe(take(1))
-      .subscribe({
-        next: (rows) => this.dealNotes.set(rows),
-        error: () => this.dealNotes.set([]),
       });
   }
 
@@ -731,19 +700,7 @@ export class DealDetailComponent {
     void this.router.navigate(['/tasks'], { queryParams: { edit: id } });
   }
 
-  protected openCreateNoteFromDeal(): void {
-    const d = this.deal();
-    if (!d?.id) return;
-    const displayName = d.organizationName.trim() || 'Deal';
-    this.createFlow.selectEntity('note', {
-      noteFromLead: {
-        relatedDealId: String(d.id),
-        dealRelatedName: displayName,
-        recordOwnerUserId: dealRecordOwnerUserId(d),
-      },
-    });
-  }
-
+  /** First character for avatar chip (matches initials or assignee display name). */
   protected taskAssigneeChipInitial(task: TaskRow): string {
     const ini = task.assignedInitials?.trim();
     if (ini) return ini.charAt(0).toUpperCase();
@@ -941,12 +898,6 @@ export class DealDetailComponent {
     } else {
       statusCtrl.enable({ emitEvent: false });
     }
-  }
-
-  protected noteRelatedLabel(note: NoteRow): string {
-    const label = this.noteRelatedTypeLabels[note.relatedType] ?? note.relatedType;
-    const suffix = note.visibility === 'private' ? ' · Private' : '';
-    return `${label} · ${note.relatedName}${suffix}`;
   }
 
   protected setTab(tab: DetailTab): void {

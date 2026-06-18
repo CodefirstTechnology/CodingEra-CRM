@@ -54,6 +54,49 @@
   font-variant-numeric: tabular-nums;
 }
 
+.qt-grid__totals-row--section {
+  .qt-grid__totals-label {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+  }
+}
+
+.qt-grid__additional {
+  width: 100%;
+  align-self: stretch;
+  padding-top: 0.25rem;
+  border-top: 1px dashed var(--card-border);
+}
+
+.qt-grid__charge-input {
+  width: 7.5rem;
+  text-align: right;
+}
+
+.qt-grid__charge-name {
+  width: 100%;
+  min-width: 8rem;
+  text-align: left;
+}
+
+.qt-grid__totals-row--custom {
+  align-items: center;
+}
+
+.qt-grid__totals-value--custom {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.qt-grid__charge-remove {
+  flex-shrink: 0;
+}
+
+.qt-grid__add-charge {
+  margin-top: 0.25rem;
+}
+
 .qt-grid__search {
   min-width: 160px;
   max-width: 220px;

@@ -44,10 +44,19 @@ export interface QuotationGridColumnsDto {
 
 export interface QuotationTotalsDto {
   subtotal: number;
+  additionalChargesTotal?: number;
+  taxableAmount?: number;
   taxTotal: number;
   grandTotal: number;
   totalQuantity: number;
   totalWeight: number;
+}
+
+export interface QuotationAdditionalChargeDto {
+  id?: number;
+  sortIndex: number;
+  chargeName: string;
+  amount: number;
 }
 
 export interface QuotationUpsertDto {
@@ -88,6 +97,10 @@ export interface QuotationUpsertDto {
   grandTotal?: number;
   totalQuantity?: number;
   totalWeight?: number;
+  transportationCharges?: number;
+  loadingCharges?: number;
+  serviceCharges?: number;
+  customCharges?: QuotationAdditionalChargeDto[];
   lineItems: QuotationLineItemDto[];
 }
 

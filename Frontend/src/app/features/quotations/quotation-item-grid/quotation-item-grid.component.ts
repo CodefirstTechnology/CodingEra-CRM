@@ -10,7 +10,7 @@ import {
   output,
   signal,
 } from '@angular/core';
-import { FormArray, FormBuilder, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { FormArray, FormBuilder, FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
 import { forkJoin, Subscription, take } from 'rxjs';
 import type { QuotationCatalogItem } from '../../../core/services/item-master/item-master-api.models';
 import { ItemMasterHttpService } from '../../../core/services/item-master/item-master-http.service';
@@ -28,6 +28,10 @@ import {
   parseItemSnapshot,
   snapshotFieldValue,
 } from '../../../core/services/quotations/quotation-item-snapshot.util';
+import {
+  additionalChargesTotal,
+  normalizeChargeAmount,
+} from '../../../core/services/quotations/quotation-additional-charges.util';
 import {
   aggregateQuotationLines,
   recalcLineGroupValues,
@@ -48,8 +52,14 @@ import { createQuotationLineGroup } from '../quotation-line-form.util';
 export class QuotationItemGridComponent implements OnDestroy {
   readonly lineItems = input.required<FormArray>();
   readonly gstPercent = input(0);
+  readonly transportationCharges = input.required<FormControl<number | string | null>>();
+  readonly loadingCharges = input.required<FormControl<number | string | null>>();
+  readonly serviceCharges = input.required<FormControl<number | string | null>>();
+  readonly customCharges = input.required<FormArray>();
 
   readonly gstPercentChange = output<number>();
+  readonly addCustomCharge = output<void>();
+  readonly removeCustomCharge = output<number>();
 
   private readonly fb = inject(FormBuilder);
   private readonly quotationsService = inject(QuotationsService);
@@ -119,6 +129,10 @@ export class QuotationItemGridComponent implements OnDestroy {
   protected readonly totals = computed(() => {
     this.recalcTick();
     this.gstPercent();
+    this.transportationCharges().value;
+    this.loadingCharges().value;
+    this.serviceCharges().value;
+    this.customCharges().length;
     const fa = this.lineItems();
     const rows = fa.controls.map((ctrl) => {
       const g = ctrl as FormGroup;
@@ -126,7 +140,20 @@ export class QuotationItemGridComponent implements OnDestroy {
       const amounts = recalcLineGroupValues(raw);
       return { quantity: Number(raw.quantity) || 0, amounts };
     });
-    return aggregateQuotationLines(rows, Number(this.gstPercent()) || 0);
+    const additional = additionalChargesTotal({
+      transportationCharges: normalizeChargeAmount(this.transportationCharges().value),
+      loadingCharges: normalizeChargeAmount(this.loadingCharges().value),
+      serviceCharges: normalizeChargeAmount(this.serviceCharges().value),
+      customCharges: this.customCharges().controls.map((ctrl, i) => {
+        const raw = (ctrl as FormGroup).getRawValue() as { chargeName?: string; amount?: number };
+        return {
+          sortIndex: i,
+          chargeName: String(raw.chargeName ?? ''),
+          amount: normalizeChargeAmount(raw.amount),
+        };
+      }),
+    });
+    return aggregateQuotationLines(rows, Number(this.gstPercent()) || 0, additional);
   });
 
   private lineSubs: Subscription[] = [];
@@ -376,6 +403,36 @@ export class QuotationItemGridComponent implements OnDestroy {
   protected onGstInput(event: Event): void {
     const value = Math.max(0, Number((event.target as HTMLInputElement).value) || 0);
     this.gstPercentChange.emit(value);
+    this.bumpRecalc();
+  }
+
+  protected onChargeInput(): void {
+    this.bumpRecalc();
+  }
+
+  protected onChargeBlur(control: FormControl<number | string | null>): void {
+    const value = normalizeChargeAmount(control.value);
+    control.setValue(value, { emitEvent: false });
+    this.bumpRecalc();
+  }
+
+  protected onCustomChargeAmountBlur(index: number): void {
+    const g = this.customChargeAt(index);
+    const control = g.controls['amount'] as FormControl<number | string | null>;
+    this.onChargeBlur(control);
+  }
+
+  protected customChargeAt(index: number): FormGroup {
+    return this.customCharges().at(index) as FormGroup;
+  }
+
+  protected requestAddCustomCharge(): void {
+    this.addCustomCharge.emit();
+    this.bumpRecalc();
+  }
+
+  protected requestRemoveCustomCharge(index: number): void {
+    this.removeCustomCharge.emit(index);
     this.bumpRecalc();
   }
 

@@ -579,36 +579,6 @@
         }
       </ul>
       }
-      } @else if (activeTab() === 'Notes') {
-      <header class="lead-detail__main-head lead-detail__main-head--tasks">
-        <h2>Notes</h2>
-        <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="openCreateNoteFromLead()">+ New Note</button>
-      </header>
-      @if (leadNotes().length === 0) {
-      <div class="lead-detail__notes-empty">
-        <span class="lead-detail__notes-icon" aria-hidden="true">
-          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <path d="M12 18h-6M12 14h-6M16 14h2M16 18h2" />
-          </svg>
-        </span>
-        <p>No Notes</p>
-        <button type="button" class="lead-detail__btn lead-detail__btn--calls-muted" (click)="openCreateNoteFromLead()">Create Note</button>
-      </div>
-      } @else {
-      <ul class="lead-detail__note-list" aria-label="Notes for this lead">
-        @for (note of leadNotes(); track note.id) {
-        <li class="lead-detail__note-row">
-          <p class="lead-detail__note-title">{{ note.title }}</p>
-          <p class="lead-detail__note-meta">{{ note.author }} · {{ note.when }}</p>
-          @if (note.bodyPreview?.trim()) {
-          <p class="lead-detail__note-preview">{{ note.bodyPreview }}</p>
-          }
-        </li>
-        }
-      </ul>
-      }
       } @else if (activeTab() === 'Attachments') {
       <input
         #leadAttachmentPicker

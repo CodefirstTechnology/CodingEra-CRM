@@ -31,7 +31,6 @@ import {
 } from './lead-full-name.util';
 import { ToastService } from '../../core/toast/toast.service';
 import { TasksService } from '../../core/services/tasks.service';
-import { NotesService } from '../../core/services/notes.service';
 import { LeadOwnerOptionsService, isPersistedApiLeadRow } from '../../core/services/leads/lead-owner-options.service';
 import {
   buildLeadConversionActivityGroup,
@@ -51,7 +50,6 @@ import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
 import { leadRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
-import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
 
 const FALLBACK_TERRITORY_NAMES = ['India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
@@ -65,7 +63,7 @@ const FALLBACK_INDUSTRY_NAMES = [
   'Other',
 ] as const;
 
-type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Tasks' | 'Notes' | 'Attachments';
+type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Tasks' | 'Attachments';
 
 interface LeadAttachmentItem {
   id: string;
@@ -100,7 +98,6 @@ export class LeadDetailComponent {
   private readonly toast = inject(ToastService);
   private readonly conversionStorage = inject(LeadConversionStorageService);
   private readonly tasksService = inject(TasksService);
-  private readonly notesService = inject(NotesService);
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly createFlow = inject(CreateFlowService);
@@ -114,8 +111,6 @@ export class LeadDetailComponent {
   protected readonly leadLoadError = signal<string | null>(null);
   /** Tasks where `relatedLeadId` matches the open lead (from lead-detail “+ New Task”). */
   protected readonly leadTasks = signal<TaskRow[]>([]);
-  /** Notes scoped to this lead (`relatedLeadId`) from lead-detail “Create note”. */
-  protected readonly leadNotes = signal<NoteRow[]>([]);
   /** Client-side attachments for this lead (sessionStorage until backend exists). */
   protected readonly leadAttachments = signal<LeadAttachmentItem[]>([]);
   /** Comments for this lead from the comments API. */
@@ -169,7 +164,6 @@ export class LeadDetailComponent {
     'Comments',
     'Data',
     'Tasks',
-    'Notes',
     'Attachments',
   ];
 
@@ -256,13 +250,6 @@ export class LeadDetailComponent {
   protected readonly canAssignLeads = computed(() => this.permissions.canAssignLeads());
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
 
-  private readonly noteRelatedTypeLabels: Record<NoteRelatedType, string> = {
-    lead: 'Lead',
-    deal: 'Deal',
-    contact: 'Contact',
-    organization: 'Organization',
-  };
-
   protected readonly dataForm = this.fb.nonNullable.group({
     organization: [''],
     website: [''],
@@ -306,7 +293,6 @@ export class LeadDetailComponent {
         this.leadLoadError.set(null);
         this.leadInitialLoading.set(false);
         this.leadTasks.set([]);
-        this.leadNotes.set([]);
         this.leadAttachments.set([]);
         this.leadComments.set([]);
         this.leadActivityGroups.set([]);
@@ -323,7 +309,7 @@ export class LeadDetailComponent {
 
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((query) => {
       const tab = parseEntityDetailTab(query.get('tab'));
-      if (tab) this.setTab(tab);
+      if (tab && tab !== 'Notes') this.setTab(tab);
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
@@ -332,7 +318,6 @@ export class LeadDetailComponent {
         this.refreshLeadActivities();
       }
       if (e.kind === 'note') {
-        this.refreshLeadNotes();
         this.refreshLeadActivities();
       }
       if (e.kind === 'lead') {
@@ -347,7 +332,6 @@ export class LeadDetailComponent {
 
   private clearLeadSideState(): void {
     this.leadTasks.set([]);
-    this.leadNotes.set([]);
     this.leadAttachments.set([]);
     this.leadComments.set([]);
     this.leadActivityGroups.set([]);
@@ -366,7 +350,6 @@ export class LeadDetailComponent {
     this.emailSubjectText.set(`Mr ${row.name} (${this.leadCode()})`);
     this.emailBody.set('');
     this.refreshLeadTasks();
-    this.refreshLeadNotes();
     this.refreshLeadActivities();
     const lid = row.id.trim();
     if (lid) {
@@ -420,23 +403,6 @@ export class LeadDetailComponent {
         const idNorm = lid.trim();
         const forLead = rows.filter((r) => (r.relatedLeadId ?? '').trim() === idNorm);
         this.leadTasks.set(forLead);
-      });
-  }
-
-  private refreshLeadNotes(): void {
-    const l = this.lead();
-    const lid = l?.id;
-    if (lid == null || lid === '') {
-      this.leadNotes.set([]);
-      return;
-    }
-    this.notesService
-      .getAll()
-      .pipe(take(1))
-      .subscribe((rows) => {
-        const idNorm = lid.trim();
-        const forLead = rows.filter((r) => (r.relatedLeadId ?? '').trim() === idNorm);
-        this.leadNotes.set(forLead);
       });
   }
 
@@ -768,19 +734,6 @@ export class LeadDetailComponent {
     void this.router.navigate(['/tasks'], { queryParams: { edit: id } });
   }
 
-  protected openCreateNoteFromLead(): void {
-    const l = this.lead();
-    if (!l?.id) return;
-    const displayName = fullNameFromLeadParts(l) || 'Lead';
-    this.createFlow.selectEntity('note', {
-      noteFromLead: {
-        relatedLeadId: String(l.id),
-        leadRelatedName: displayName,
-        recordOwnerUserId: leadRecordOwnerUserId(l),
-      },
-    });
-  }
-
   /** First character for avatar chip (matches initials or assignee display name). */
   protected taskAssigneeChipInitial(task: TaskRow): string {
     const ini = task.assignedInitials?.trim();
@@ -856,12 +809,6 @@ export class LeadDetailComponent {
     } else {
       this.dataForm.enable({ emitEvent: false });
     }
-  }
-
-  protected noteRelatedLabel(note: NoteRow): string {
-    const label = this.noteRelatedTypeLabels[note.relatedType] ?? note.relatedType;
-    const suffix = note.visibility === 'private' ? ' · Private' : '';
-    return `${label} · ${note.relatedName}${suffix}`;
   }
 
   protected setTab(tab: DetailTab): void {

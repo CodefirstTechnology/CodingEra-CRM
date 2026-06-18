@@ -5,6 +5,11 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { take } from 'rxjs';
 import type { QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
 import {
+  hasAdditionalCharges,
+  listAdditionalChargeLines,
+  type QuotationAdditionalChargesInput,
+} from '../../core/services/quotations/quotation-additional-charges.util';
+import {
   collectDynamicColumnsFromSnapshots,
   parseItemSnapshot,
   snapshotFieldValue,
@@ -137,6 +142,31 @@ export class QuotationViewComponent {
 
   protected headerGstPercent(): number {
     return this.quotation()?.gstPercent ?? 0;
+  }
+
+  protected additionalChargeLines(): { label: string; amount: number }[] {
+    const q = this.quotation();
+    if (!q) return [];
+    return listAdditionalChargeLines(this.additionalChargesInput(q));
+  }
+
+  protected showAdditionalCharges(): boolean {
+    const q = this.quotation();
+    if (!q) return false;
+    return hasAdditionalCharges(this.additionalChargesInput(q));
+  }
+
+  private additionalChargesInput(q: QuotationUpsertDto): QuotationAdditionalChargesInput {
+    return {
+      transportationCharges: q.transportationCharges ?? 0,
+      loadingCharges: q.loadingCharges ?? 0,
+      serviceCharges: q.serviceCharges ?? 0,
+      customCharges: (q.customCharges ?? []).map((c, i) => ({
+        sortIndex: c.sortIndex ?? i,
+        chargeName: c.chargeName,
+        amount: c.amount,
+      })),
+    };
   }
 
   protected statusClass(status: string): string {

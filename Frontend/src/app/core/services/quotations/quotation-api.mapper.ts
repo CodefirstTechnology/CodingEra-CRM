@@ -94,6 +94,16 @@ export function mapQuotationListItem(raw: unknown): QuotationListItem {
   };
 }
 
+function mapCustomCharge(raw: unknown, index: number) {
+  const o = asRecord(raw);
+  return {
+    id: pickNum(o, ['id', 'Id']) || undefined,
+    sortIndex: pickNum(o, ['sortIndex', 'sort_index']) || index,
+    chargeName: pickStr(o, ['chargeName', 'charge_name']),
+    amount: pickNum(o, ['amount', 'Amount']),
+  };
+}
+
 function mapLineItem(raw: unknown, index: number): QuotationLineItemDto {
   const o = asRecord(raw);
   const qty = pickNum(o, ['quantity', 'Quantity']) || 1;
@@ -137,6 +147,11 @@ export function mapQuotationDetail(raw: unknown): QuotationUpsertDto {
   const linesRaw = o['lineItems'] ?? o['line_items'] ?? o['LineItems'];
   const lines = Array.isArray(linesRaw)
     ? linesRaw.map((item, i) => mapLineItem(item, i))
+    : [];
+  const customRaw =
+    o['customCharges'] ?? o['custom_charges'] ?? o['CustomCharges'] ?? o['additionalCharges'];
+  const customCharges = Array.isArray(customRaw)
+    ? customRaw.map((item, i) => mapCustomCharge(item, i))
     : [];
 
   let firstName = pickStr(o, ['firstName', 'first_name']);
@@ -189,6 +204,10 @@ export function mapQuotationDetail(raw: unknown): QuotationUpsertDto {
     grandTotal: pickNum(o, ['grandTotal', 'grand_total']),
     totalQuantity: pickNum(o, ['totalQuantity', 'total_quantity']),
     totalWeight: pickNum(o, ['totalWeight', 'total_weight']),
+    transportationCharges: pickNum(o, ['transportationCharges', 'transportation_charges']),
+    loadingCharges: pickNum(o, ['loadingCharges', 'loading_charges']),
+    serviceCharges: pickNum(o, ['serviceCharges', 'service_charges']),
+    customCharges,
     lineItems: lines,
   };
 }
@@ -269,6 +288,15 @@ export function toApiUpsertBody(dto: QuotationUpsertDto): Record<string, unknown
     grandTotal: dto.grandTotal ?? 0,
     totalQuantity: dto.totalQuantity ?? 0,
     totalWeight: dto.totalWeight ?? 0,
+    transportationCharges: dto.transportationCharges ?? 0,
+    loadingCharges: dto.loadingCharges ?? 0,
+    serviceCharges: dto.serviceCharges ?? 0,
+    customCharges: (dto.customCharges ?? []).map((c, i) => ({
+      id: c.id ?? 0,
+      sortIndex: c.sortIndex ?? i,
+      chargeName: c.chargeName,
+      amount: c.amount ?? 0,
+    })),
     lineItems: dto.lineItems.map((l, i) => ({
       id: l.id ?? 0,
       lineIndex: l.lineIndex ?? i,

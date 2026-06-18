@@ -119,6 +119,27 @@
                     <td></td>
                   }
                 </tr>
+                @if (showAdditionalCharges()) {
+                  <tr>
+                    <td [attr.colspan]="6 + dynamicColumns().length" class="qt-view__total-label qt-view__total-label--section">
+                      Additional Charges
+                    </td>
+                    @if (!usesHeaderGst()) {
+                      <td></td>
+                    }
+                  </tr>
+                  @for (charge of additionalChargeLines(); track charge.label) {
+                    <tr>
+                      <td [attr.colspan]="6 + dynamicColumns().length" class="qt-view__total-label qt-view__total-label--indent">
+                        {{ charge.label }}
+                      </td>
+                      <td class="qt-view__total-value">₹ {{ charge.amount | number: '1.2-2' }}</td>
+                      @if (!usesHeaderGst()) {
+                        <td></td>
+                      }
+                    </tr>
+                  }
+                }
                 @if (usesHeaderGst()) {
                   <tr>
                     <td [attr.colspan]="6 + dynamicColumns().length" class="qt-view__total-label">

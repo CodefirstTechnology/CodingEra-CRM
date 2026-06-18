@@ -26,6 +26,10 @@ import {
   aggregateQuotationLines,
   recalcLineGroupValues,
 } from '../../core/services/quotations/quotation-line-calc.util';
+import {
+  additionalChargesTotal,
+  normalizeChargeAmount,
+} from '../../core/services/quotations/quotation-additional-charges.util';
 import { QuotationsService, quotationHttpErrorMessage } from '../../core/services/quotations.service';
 import { ToastService } from '../../core/toast/toast.service';
 import {
@@ -114,16 +118,31 @@ export class QuotationFormComponent {
     status: ['Draft', Validators.required],
     remarks: [''],
     gstPercent: [0, [Validators.min(0)]],
+    transportationCharges: [0],
+    loadingCharges: [0],
+    serviceCharges: [0],
+    customCharges: this.fb.array([]),
     lineItems: this.fb.array([this.createLineGroup()]),
   });
 
   protected readonly grandTotal = computed(() => {
+    const v = this.form.getRawValue();
     const rows = this.lineItems.controls.map((ctrl) => {
       const raw = (ctrl as FormGroup).getRawValue() as QuotationLineFormValue;
       return { quantity: Number(raw.quantity) || 0, amounts: recalcLineGroupValues(raw) };
     });
-    const gst = Number(this.form.controls.gstPercent.value) || 0;
-    return aggregateQuotationLines(rows, gst).grandTotal;
+    const gst = Number(v.gstPercent) || 0;
+    const additional = additionalChargesTotal({
+      transportationCharges: normalizeChargeAmount(v.transportationCharges),
+      loadingCharges: normalizeChargeAmount(v.loadingCharges),
+      serviceCharges: normalizeChargeAmount(v.serviceCharges),
+      customCharges: (v.customCharges as { chargeName: string; amount: number }[]).map((c, i) => ({
+        sortIndex: i,
+        chargeName: String(c.chargeName ?? ''),
+        amount: normalizeChargeAmount(c.amount),
+      })),
+    });
+    return aggregateQuotationLines(rows, gst, additional).grandTotal;
   });
 
   constructor() {
@@ -154,6 +173,23 @@ export class QuotationFormComponent {
 
   protected get lineItems(): FormArray {
     return this.form.controls.lineItems;
+  }
+
+  protected get customCharges(): FormArray {
+    return this.form.controls.customCharges;
+  }
+
+  protected addCustomCharge(): void {
+    this.customCharges.push(
+      this.fb.group({
+        chargeName: [''],
+        amount: [0],
+      }),
+    );
+  }
+
+  protected removeCustomCharge(index: number): void {
+    this.customCharges.removeAt(index);
   }
 
   protected addLine(): void {
@@ -263,6 +299,19 @@ export class QuotationFormComponent {
     const contactPerson = v.contactPerson.trim() || customerName;
 
     const headerGst = Number(v.gstPercent) || 0;
+    const customChargeRows = (v.customCharges as { chargeName: string; amount: number }[]).map(
+      (c, i) => ({
+        sortIndex: i,
+        chargeName: String(c.chargeName ?? '').trim(),
+        amount: normalizeChargeAmount(c.amount),
+      }),
+    );
+    const additional = additionalChargesTotal({
+      transportationCharges: normalizeChargeAmount(v.transportationCharges),
+      loadingCharges: normalizeChargeAmount(v.loadingCharges),
+      serviceCharges: normalizeChargeAmount(v.serviceCharges),
+      customCharges: customChargeRows,
+    });
     const lineRows = (v.lineItems as QuotationLineFormValue[]).map((l, i) => {
       const calc = recalcLineGroupValues(l);
       return {
@@ -299,6 +348,7 @@ export class QuotationFormComponent {
         }),
       })),
       headerGst,
+      additional,
     );
 
     return {
@@ -337,6 +387,10 @@ export class QuotationFormComponent {
       grandTotal: totals.grandTotal,
       totalQuantity: totals.totalQuantity,
       totalWeight: totals.totalWeight,
+      transportationCharges: normalizeChargeAmount(v.transportationCharges),
+      loadingCharges: normalizeChargeAmount(v.loadingCharges),
+      serviceCharges: normalizeChargeAmount(v.serviceCharges),
+      customCharges: customChargeRows.filter((c) => c.chargeName || c.amount > 0),
       lineItems: lineRows,
     };
   }
@@ -397,6 +451,9 @@ export class QuotationFormComponent {
             quotationDate: next.quotationDate?.slice(0, 10) || todayIsoDate(),
             status: 'Draft',
             remarks: '',
+            transportationCharges: 0,
+            loadingCharges: 0,
+            serviceCharges: 0,
           };
           this.applyNewFormPatch({ ...base, ...(dealPatch ?? {}) });
           this.syncQuotationNumberDisplay();
@@ -443,9 +500,13 @@ export class QuotationFormComponent {
       quotationDate: String(patch['quotationDate'] ?? todayIsoDate()),
       status: String(patch['status'] ?? 'Draft'),
       remarks: String(patch['remarks'] ?? ''),
+      transportationCharges: Number(patch['transportationCharges']) || 0,
+      loadingCharges: Number(patch['loadingCharges']) || 0,
+      serviceCharges: Number(patch['serviceCharges']) || 0,
     });
     this.lineItems.clear();
     this.lineItems.push(this.createLineGroup());
+    this.customCharges.clear();
     this.syncQuotationNumberDisplay();
   }
 
@@ -532,8 +593,12 @@ export class QuotationFormComponent {
       status: q.status,
       remarks: q.remarks,
       gstPercent: q.gstPercent ?? 0,
+      transportationCharges: q.transportationCharges ?? 0,
+      loadingCharges: q.loadingCharges ?? 0,
+      serviceCharges: q.serviceCharges ?? 0,
     });
     this.lineItems.clear();
+    this.customCharges.clear();
     const lines = q.lineItems?.length
       ? q.lineItems
       : [
@@ -578,6 +643,13 @@ export class QuotationFormComponent {
         lineTotal: l.lineTotal ?? l.amount,
       });
       this.lineItems.push(g);
+    }
+    for (const c of q.customCharges ?? []) {
+      const g = this.fb.group({
+        chargeName: [c.chargeName ?? ''],
+        amount: [c.amount ?? 0],
+      });
+      this.customCharges.push(g);
     }
     this.syncQuotationNumberDisplay();
   }
