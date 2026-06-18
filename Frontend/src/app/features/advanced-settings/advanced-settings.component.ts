@@ -118,6 +118,7 @@ export class AdvancedSettingsComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.auth.refreshSessionProfile();
     if (this.canLoadRoles()) {
       this.loadRoles();
     }
@@ -199,6 +200,9 @@ export class AdvancedSettingsComponent implements OnInit {
     }
 
     this.activeItem.set(item);
+    if (item === 'Profile') {
+      this.auth.refreshSessionProfile();
+    }
     if (item === 'Users') {
       this.reloadUsersFromApi();
     }
@@ -280,7 +284,7 @@ export class AdvancedSettingsComponent implements OnInit {
     );
   }
 
-  protected profile(): { name: string; email: string; firstName: string; lastName: string } {
+  protected readonly profile = computed(() => {
     const user = this.auth.user();
     const name = user?.name?.trim() || 'User';
     const email = user?.email?.trim() || 'user@example.com';
@@ -291,12 +295,12 @@ export class AdvancedSettingsComponent implements OnInit {
       firstName: firstName || 'User',
       lastName: rest.join(' ') || '',
     };
-  }
+  });
 
-  protected avatarInitial(): string {
+  protected readonly avatarInitial = computed(() => {
     const p = this.profile();
     return p.firstName.charAt(0).toUpperCase();
-  }
+  });
 
   protected userInitial(name: string): string {
     return name.trim().charAt(0).toUpperCase();
@@ -343,7 +347,12 @@ export class AdvancedSettingsComponent implements OnInit {
   }
 
   protected onUserSaved(): void {
+    const edited = this.editTarget();
+    const sessionId = this.auth.user()?.id?.trim();
     this.closeEditUserModal();
     this.reloadUsersFromApi();
+    if (edited && sessionId && edited.id.trim() === sessionId) {
+      this.auth.refreshSessionProfile();
+    }
   }
 }
