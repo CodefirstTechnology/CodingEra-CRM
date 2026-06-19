@@ -169,8 +169,7 @@
 
 .co-profile__field input,
 .co-profile__field textarea,
-.co-profile__field select,
-.co-profile__field .iti__tel-input {
+.co-profile__field select {
   width: 100%;
   border: 1px solid var(--card-border);
   border-radius: 10px;
@@ -184,15 +183,10 @@
 
 .co-profile__field input:focus,
 .co-profile__field textarea:focus,
-.co-profile__field select:focus,
-.co-profile__field .iti__tel-input:focus {
+.co-profile__field select:focus {
   outline: none;
   border-color: color-mix(in srgb, var(--tertiary-color) 45%, var(--card-border));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--tertiary-color) 12%, transparent);
-}
-
-.co-profile__field .iti {
-  width: 100%;
 }
 
 .co-profile__field--wide {

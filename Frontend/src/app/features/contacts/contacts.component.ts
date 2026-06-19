@@ -288,7 +288,7 @@ export class ContactsComponent {
   }
 
   protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
-  protected readonly intlTelMobileInputProps = crmIntlTelInputProps('contacts__control contacts__control--soft');
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps();
   protected intlTelMobileError = intlTelMobileErrorMessage;
 
   protected submitContact(): void {
