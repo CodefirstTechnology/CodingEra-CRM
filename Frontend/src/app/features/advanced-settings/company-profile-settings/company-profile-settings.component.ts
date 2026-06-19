@@ -4,6 +4,7 @@ import { canManageSettings } from '../../../core/auth/permission.util';
 import { AuthService } from '../../../core/auth/auth.service';
 import type { CompanyProfile, CompanyProfileTerm } from '../../../core/services/company-profile/company-profile-api.models';
 import { CompanyProfileHttpService } from '../../../core/services/company-profile/company-profile-http.service';
+import { CompanyBrandingService } from '../../../core/services/company-branding.service';
 import { ToastService } from '../../../core/toast/toast.service';
 import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../../shared/config/crm-intl-tel.config';
 import { intlTelFieldInvalid, intlTelMobileErrorMessage } from '../../../shared/utils/intl-tel.util';
@@ -21,6 +22,7 @@ const MAX_LOGO_BYTES = 2_100_000;
 export class CompanyProfileSettingsComponent implements OnInit {
   private readonly fb = inject(FormBuilder);
   private readonly api = inject(CompanyProfileHttpService);
+  private readonly branding = inject(CompanyBrandingService);
   private readonly auth = inject(AuthService);
   private readonly toast = inject(ToastService);
 
@@ -164,6 +166,7 @@ export class CompanyProfileSettingsComponent implements OnInit {
         this.pendingLogoContentType = '';
         this.logoRemoved.set(false);
         this.applyProfile(row);
+        this.branding.applyFromProfile(row);
         this.toast.success('Company profile saved.');
       },
       error: (err) => {

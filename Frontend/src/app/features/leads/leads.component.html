@@ -313,7 +313,7 @@
           <span>
             Auto sync: {{ src.autoSyncEnabled ? 'On' : 'Off' }}
             · Last: {{ src.lastSyncAt ? (src.lastSyncAt | date: 'short') : '—' }}
-            · Next: {{ src.autoSyncEnabled && src.nextSyncAt ? (src.nextSyncAt | date: 'short') : '—' }}
+            · Next: {{ src.autoSyncEnabled ? 'Continuous' : '—' }}
           </span>
         </div>
       }
@@ -529,44 +529,43 @@
                       ⋯
                     </summary>
                     <div class="leads__row-menu-panel" role="menu">
-                      @if (canManageLeadAssignment()) {
-                        @if (canAssignLead(row)) {
-                          <button type="button" role="menuitem" (click)="onRowAssignTo(row, $event)">
-                            Assign to…
-                          </button>
-                          <button type="button" role="menuitem" (click)="onRowClearAssignment(row, $event)">
-                            Clear assignment
-                          </button>
-                        }
-                      } @else {
-                        @if (canEditLead(row)) {
-                          <button type="button" role="menuitem" (click)="onRowEdit(row, $event)">Edit</button>
-                        }
-                        @if (canConvertLead(row)) {
-                          <button type="button" role="menuitem" (click)="openConvertModalForRow(row, $event)">
-                            Convert to deal
-                          </button>
-                        } @else if (showConvertLeadDisabled(row)) {
-                          <button
-                            type="button"
+                      @if (canShowRowAssignActions() && canAssignLead(row)) {
+                        <button type="button" role="menuitem" (click)="onRowAssignTo(row, $event)">
+                          Assign to…
+                        </button>
+                      }
+                      @if (canManageLeadAssignment() && canAssignLead(row)) {
+                        <button type="button" role="menuitem" (click)="onRowClearAssignment(row, $event)">
+                          Clear assignment
+                        </button>
+                      }
+                      @if (canEditLead(row)) {
+                        <button type="button" role="menuitem" (click)="onRowEdit(row, $event)">Edit</button>
+                      }
+                      @if (canConvertLead(row)) {
+                        <button type="button" role="menuitem" (click)="openConvertModalForRow(row, $event)">
+                          Convert to deal
+                        </button>
+                      } @else if (showConvertLeadDisabled(row)) {
+                        <button
+                          type="button"
+                          role="menuitem"
+                          disabled
+                          title="Only Qualified leads can be converted"
+                        >
+                          Convert to deal
+                        </button>
+                      } @else if (isLeadConvertedInTable(row)) {
+                        <span class="leads__row-menu-muted" role="menuitem">Already converted</span>
+                        @if (leadRowForTableStatus(row).convertedDealId; as dealId) {
+                          <a
                             role="menuitem"
-                            disabled
-                            title="Only Qualified leads can be converted"
+                            class="leads__row-menu-link"
+                            [routerLink]="['/deals', dealId]"
+                            (click)="closeRowMenus()"
                           >
-                            Convert to deal
-                          </button>
-                        } @else if (isLeadConvertedInTable(row)) {
-                          <span class="leads__row-menu-muted" role="menuitem">Already converted</span>
-                          @if (leadRowForTableStatus(row).convertedDealId; as dealId) {
-                            <a
-                              role="menuitem"
-                              class="leads__row-menu-link"
-                              [routerLink]="['/deals', dealId]"
-                              (click)="closeRowMenus()"
-                            >
-                              View deal
-                            </a>
-                          }
+                            View deal
+                          </a>
                         }
                       }
                     </div>

@@ -195,7 +195,13 @@
       <app-quotation-item-grid
         [lineItems]="lineItems"
         [gstPercent]="form.controls.gstPercent.value"
+        [transportationCharges]="form.controls.transportationCharges"
+        [loadingCharges]="form.controls.loadingCharges"
+        [serviceCharges]="form.controls.serviceCharges"
+        [customCharges]="customCharges"
         (gstPercentChange)="form.controls.gstPercent.setValue($event)"
+        (addCustomCharge)="addCustomCharge()"
+        (removeCustomCharge)="removeCustomCharge($event)"
       />
     </form>
   }

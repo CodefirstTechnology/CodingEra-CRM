@@ -5,11 +5,17 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { take } from 'rxjs';
 import type { QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
 import {
+  hasAdditionalCharges,
+  listAdditionalChargeLines,
+  type QuotationAdditionalChargesInput,
+} from '../../core/services/quotations/quotation-additional-charges.util';
+import {
   collectDynamicColumnsFromSnapshots,
   parseItemSnapshot,
   snapshotFieldValue,
   type SnapshotColumnDef,
 } from '../../core/services/quotations/quotation-item-snapshot.util';
+import { PermissionService } from '../../core/services/permission.service';
 import { QuotationsService, quotationHttpErrorMessage } from '../../core/services/quotations.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { QuotationPdfService } from './quotation-pdf.service';
@@ -25,9 +31,11 @@ export class QuotationViewComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly quotationsService = inject(QuotationsService);
+  private readonly permissions = inject(PermissionService);
   private readonly toast = inject(ToastService);
   private readonly quotationPdf = inject(QuotationPdfService);
 
+  protected readonly canDeleteQuotation = computed(() => this.permissions.has('quotations.delete'));
   protected readonly loading = signal(true);
   protected readonly pdfGenerating = signal(false);
   protected readonly quotation = signal<QuotationUpsertDto | null>(null);
@@ -87,6 +95,10 @@ export class QuotationViewComponent {
   protected deleteDoc(): void {
     const q = this.quotation();
     if (!q?.id) return;
+    if (!this.canDeleteQuotation()) {
+      this.toast.error('You do not have permission to perform this action.');
+      return;
+    }
     if (!confirm(`Delete quotation ${q.quotationNumber}?`)) return;
     this.quotationsService
       .delete(q.id)
@@ -137,6 +149,31 @@ export class QuotationViewComponent {
 
   protected headerGstPercent(): number {
     return this.quotation()?.gstPercent ?? 0;
+  }
+
+  protected additionalChargeLines(): { label: string; amount: number }[] {
+    const q = this.quotation();
+    if (!q) return [];
+    return listAdditionalChargeLines(this.additionalChargesInput(q));
+  }
+
+  protected showAdditionalCharges(): boolean {
+    const q = this.quotation();
+    if (!q) return false;
+    return hasAdditionalCharges(this.additionalChargesInput(q));
+  }
+
+  private additionalChargesInput(q: QuotationUpsertDto): QuotationAdditionalChargesInput {
+    return {
+      transportationCharges: q.transportationCharges ?? 0,
+      loadingCharges: q.loadingCharges ?? 0,
+      serviceCharges: q.serviceCharges ?? 0,
+      customCharges: (q.customCharges ?? []).map((c, i) => ({
+        sortIndex: c.sortIndex ?? i,
+        chargeName: c.chargeName,
+        amount: c.amount,
+      })),
+    };
   }
 
   protected statusClass(status: string): string {

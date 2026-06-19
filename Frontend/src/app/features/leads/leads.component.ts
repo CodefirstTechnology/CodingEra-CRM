@@ -470,10 +470,12 @@ export class LeadsComponent {
   /** Admins see lead status as read-only text in the table; users get dropdowns. */
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
   protected readonly canAssignLeads = computed(() => this.permissions.canAssignLeads());
-  /** Bulk/inline reassignment — admin dashboard only (Sales keeps assign for backend round-robin). */
+  /** Bulk/inline reassignment — admin dashboard only. */
   protected readonly canManageLeadAssignment = computed(
     () => this.canAssignLeads() && this.isAdminViewer(),
   );
+  /** Row menu assign — any user with leads.assign (e.g. Sales). */
+  protected readonly canShowRowAssignActions = computed(() => this.canAssignLeads());
   protected readonly canSelfAssignLeads = computed(() => this.permissions.canSelfAssignLeads());
   protected readonly showLeadOwnerPicker = computed(() =>
     showOwnerPickerOnCreate(this.canAssignLeads(), this.isAdminViewer()),
@@ -641,7 +643,7 @@ export class LeadsComponent {
   });
 
   protected canAssignLead(row: LeadRow): boolean {
-    return this.canManageLeadAssignment() && isPersistedApiLeadRow(row.id);
+    return this.canShowRowAssignActions() && isPersistedApiLeadRow(row.id);
   }
 
   private assignIdsForAction(): string[] {
@@ -650,7 +652,14 @@ export class LeadsComponent {
   }
 
   private canAssignIds(ids: string[]): boolean {
-    return this.canManageLeadAssignment() && ids.length > 0 && ids.every((id) => isPersistedApiLeadRow(id));
+    return ids.length > 0 && ids.every((id) => isPersistedApiLeadRow(id));
+  }
+
+  private canApplyAssignment(ids: string[]): boolean {
+    if (!this.canAssignIds(ids)) return false;
+    return this.assignTargetIds().length > 0
+      ? this.canShowRowAssignActions()
+      : this.canManageLeadAssignment();
   }
 
   protected readonly bulkConvertEnabled = computed(() => {
@@ -924,8 +933,20 @@ export class LeadsComponent {
   }
 
   protected onAssignToMenu(): void {
-    this.assignTargetIds.set([]);
-    this.assignPickerOpen.set(true);
+    this.openAssignPickerFor([]);
+  }
+
+  private openAssignPickerFor(rowIds: string[]): void {
+    const open = () => {
+      this.assignTargetIds.set(rowIds);
+      this.assignPickerOpen.set(true);
+    };
+    if (this.leadOwnerOpts.loaded() && this.leadOwnerOptions().length > 0) {
+      open();
+      return;
+    }
+    this.leadOwnerOpts.reload();
+    this.leadOwnerOpts.ensureLoaded().pipe(take(1)).subscribe(() => open());
   }
 
   protected onAssignClosed(): void {
@@ -937,15 +958,16 @@ export class LeadsComponent {
     ev?.stopPropagation();
     this.closeRowMenus();
     if (!this.canAssignLead(row)) return;
-    this.assignTargetIds.set([row.id]);
-    this.assignPickerOpen.set(true);
+    this.openAssignPickerFor([row.id]);
   }
 
   protected onRowClearAssignment(row: LeadRow, ev?: Event): void {
     ev?.stopPropagation();
     this.closeRowMenus();
     if (!this.canAssignLead(row)) return;
+    this.assignTargetIds.set([row.id]);
     this.applyClearAssignment([row.id]);
+    this.assignTargetIds.set([]);
   }
 
   protected onAssignPicked(ownerKey: string): void {
@@ -955,7 +977,7 @@ export class LeadsComponent {
       return;
     }
     const ids = this.assignIdsForAction();
-    if (!this.canAssignIds(ids)) {
+    if (!this.canApplyAssignment(ids)) {
       this.onAssignClosed();
       return;
     }
@@ -989,7 +1011,7 @@ export class LeadsComponent {
   }
 
   private applyClearAssignment(ids: string[]): void {
-    if (!this.canAssignIds(ids)) return;
+    if (!this.canApplyAssignment(ids)) return;
     const streams = ids.map((sid) =>
       this.leadsService
         .update(Number(sid), {

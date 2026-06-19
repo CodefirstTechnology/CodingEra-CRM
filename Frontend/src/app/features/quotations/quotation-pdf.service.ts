@@ -7,6 +7,10 @@ import { environment } from '../../../environments/environment';
 import { AuthService } from '../../core/auth/auth.service';
 import { mapCompanyProfile } from '../../core/services/company-profile/company-profile-api.mapper';
 import type { QuotationLineItemDto, QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
+import {
+  additionalChargesTotal,
+  listAdditionalChargeLines,
+} from '../../core/services/quotations/quotation-additional-charges.util';
 import { mergeCompanyProfileForPdf, type QuotationPdfCompanyConfig } from './company-profile-pdf.mapper';
 import { QUOTATION_PDF_COMPANY, QUOTATION_PDF_LAYOUT } from './quotation-pdf.config';
 import { formatIntlTelDisplay } from '../../shared/utils/intl-tel.util';
@@ -112,18 +116,20 @@ export class QuotationPdfService {
 
     const drawHeader = (): void => {
       const brandW = L.brandBlockWidthMm;
-      const centerX = margin + brandW;
-      const centerW = pageW - margin - centerX;
+      const headerLeft = margin;
+      const headerRight = margin + contentW;
+      const centerX = headerLeft + brandW;
+      const blueWidth = contentW - brandW;
       const lineH = 3.4;
       const padTop = 5;
       const padBottom = 1.5;
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(L.fontSize.headerLegal);
-      const nameLines = doc.splitTextToSize(C.legalName, centerW - 4);
+      const nameLines = doc.splitTextToSize(C.legalName, blueWidth - 4);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(L.fontSize.headerSub + 0.5);
-      const bizLines = doc.splitTextToSize(C.businessLine, centerW - 4);
+      const bizLines = doc.splitTextToSize(C.businessLine, blueWidth - 4);
 
       const taxY = padTop + nameLines.length * lineH + bizLines.length * lineH + 0.5;
       const textBlockBottom = taxY + lineH * 0.85 + padBottom;
@@ -135,14 +141,15 @@ export class QuotationPdfService {
       const headerH = Math.max(textBlockBottom, logoBlockBottom);
 
       doc.setFillColor(255, 255, 255);
-      doc.rect(0, 0, pageW, headerH, 'F');
+      doc.rect(headerLeft, 0, contentW, headerH, 'F');
 
       doc.setFillColor(...C.brandBlue);
-      doc.rect(centerX, 0, pageW - centerX, headerH, 'F');
+      doc.rect(centerX, 0, blueWidth, headerH, 'F');
 
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.15);
-      doc.rect(margin, 0, brandW, headerH, 'S');
+      doc.rect(headerLeft, 0, brandW, headerH, 'S');
+      doc.rect(headerLeft, 0, contentW, headerH, 'S');
 
       if (hasLogo) {
         try {
@@ -150,7 +157,7 @@ export class QuotationPdfService {
           doc.addImage(
             `data:${C.logoContentType};base64,${C.logoBase64}`,
             logoFormat,
-            margin + (brandW - fitLogo) / 2,
+            headerLeft + (brandW - fitLogo) / 2,
             (headerH - fitLogo) / 2,
             fitLogo,
             fitLogo,
@@ -165,16 +172,16 @@ export class QuotationPdfService {
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(L.fontSize.headerLegal);
-      doc.text(nameLines, centerX + centerW / 2, textY, { align: 'center' });
+      doc.text(nameLines, centerX + blueWidth / 2, textY, { align: 'center' });
       textY += nameLines.length * lineH;
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(L.fontSize.headerSub + 0.5);
-      doc.text(bizLines, centerX + centerW / 2, textY, { align: 'center' });
+      doc.text(bizLines, centerX + blueWidth / 2, textY, { align: 'center' });
 
       doc.setFontSize(L.fontSize.headerSub);
       doc.text(`GSTIN : ${C.gstin}`, centerX + 2, taxY);
-      doc.text(`CIN : ${C.cin}`, pageW - margin - 2, taxY, { align: 'right' });
+      doc.text(`CIN : ${C.cin}`, headerRight - 2, taxY, { align: 'right' });
 
       doc.setTextColor(0, 0, 0);
       y = headerH;
@@ -293,9 +300,21 @@ export class QuotationPdfService {
 
     const lineRows = this.lineItemRows(q.lineItems ?? []);
     const subtotal = this.subtotal(q);
+    const additionalTotal = this.additionalChargesTotal(q);
+    const taxableAmount = subtotal + additionalTotal;
     const taxTotal = this.taxTotal(q);
     const grandTotal = this.grandTotal(q);
-    const gstPercent = this.effectiveGstPercent(q, subtotal, taxTotal);
+    const gstPercent = this.effectiveGstPercent(q, taxableAmount, taxTotal);
+    const additionalLines = listAdditionalChargeLines({
+      transportationCharges: q.transportationCharges ?? 0,
+      loadingCharges: q.loadingCharges ?? 0,
+      serviceCharges: q.serviceCharges ?? 0,
+      customCharges: (q.customCharges ?? []).map((c, i) => ({
+        sortIndex: c.sortIndex ?? i,
+        chargeName: c.chargeName,
+        amount: c.amount,
+      })),
+    });
 
     autoTable(doc, {
       startY: y,
@@ -350,6 +369,7 @@ export class QuotationPdfService {
     const footerRows = this.buildUnifiedFooterRows(
       C,
       subtotal,
+      additionalLines,
       taxTotal,
       grandTotal,
       gstPercent,
@@ -450,6 +470,19 @@ export class QuotationPdfService {
     });
   }
 
+  private additionalChargesTotal(q: QuotationUpsertDto): number {
+    return additionalChargesTotal({
+      transportationCharges: q.transportationCharges ?? 0,
+      loadingCharges: q.loadingCharges ?? 0,
+      serviceCharges: q.serviceCharges ?? 0,
+      customCharges: (q.customCharges ?? []).map((c, i) => ({
+        sortIndex: c.sortIndex ?? i,
+        chargeName: c.chargeName,
+        amount: c.amount,
+      })),
+    });
+  }
+
   private subtotal(q: QuotationUpsertDto): number {
     if (q.subtotal != null && q.subtotal > 0) return q.subtotal;
     return (q.lineItems ?? []).reduce((s, l) => s + (l.amount || 0), 0);
@@ -465,7 +498,7 @@ export class QuotationPdfService {
     return this.subtotal(q) + this.taxTotal(q);
   }
 
-  private effectiveGstPercent(q: QuotationUpsertDto, subtotal: number, taxTotal: number): number {
+  private effectiveGstPercent(q: QuotationUpsertDto, taxableAmount: number, taxTotal: number): number {
     if ((q.gstPercent ?? 0) > 0) return q.gstPercent ?? 0;
     const lines = q.lineItems ?? [];
     if (lines.length) {
@@ -475,8 +508,8 @@ export class QuotationPdfService {
         return Math.round(avg * 100) / 100;
       }
     }
-    if (subtotal > 0 && taxTotal > 0) {
-      return Math.round((taxTotal / subtotal) * 10000) / 100;
+    if (taxableAmount > 0 && taxTotal > 0) {
+      return Math.round((taxTotal / taxableAmount) * 10000) / 100;
     }
     return QUOTATION_PDF_COMPANY.defaultGstPercent;
   }
@@ -522,6 +555,7 @@ export class QuotationPdfService {
   private buildUnifiedFooterRows(
     company: QuotationPdfCompanyConfig,
     subtotal: number,
+    additionalLines: { label: string; amount: number }[],
     taxTotal: number,
     grandTotal: number,
     gstPercent: number,
@@ -532,10 +566,25 @@ export class QuotationPdfService {
     const rows: RowInput[] = [
       [
         { content: 'Terms & Conditions:', colSpan: 3, styles: { fontStyle: 'bold' as const } },
-        { content: 'Total:', styles: { fontStyle: 'bold' as const } },
+        { content: 'Subtotal:', styles: { fontStyle: 'bold' as const } },
         { content: this.formatMoney(subtotal), styles: { halign: 'right' as const } },
       ],
     ];
+
+    if (additionalLines.length) {
+      rows.push([
+        { content: '', colSpan: 3 },
+        { content: 'Additional Charges:', styles: { fontStyle: 'bold' as const } },
+        '',
+      ]);
+      for (const line of additionalLines) {
+        rows.push([
+          { content: '', colSpan: 3 },
+          line.label,
+          { content: this.formatMoney(line.amount), styles: { halign: 'right' as const } },
+        ]);
+      }
+    }
 
     if (!terms.length) {
       rows.push([

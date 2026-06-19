@@ -7,6 +7,8 @@ export interface QuotationLineAmounts {
 
 export interface QuotationLineTotals {
   subtotal: number;
+  additionalChargesTotal: number;
+  taxableAmount: number;
   taxTotal: number;
   grandTotal: number;
   totalQuantity: number;
@@ -69,28 +71,49 @@ export function resolveUnitRate(unitWeight: number, steelRate: number, fallbackR
 export function aggregateQuotationLines(
   rows: { quantity: number; amounts: QuotationLineAmounts }[],
   headerGstPercent = 0,
+  additionalChargesTotal = 0,
 ): QuotationLineTotals {
   const lineSubtotal = round4(rows.reduce((s, r) => s + r.amounts.lineTotal, 0));
   const totalQuantity = round4(rows.reduce((s, r) => s + (r.quantity < 0 ? 0 : r.quantity), 0));
   const totalWeight = round4(rows.reduce((s, r) => s + r.amounts.lineWeight, 0));
+  const additional = additionalChargesTotal < 0 ? 0 : additionalChargesTotal;
+  const taxableAmount = round4(lineSubtotal + additional);
 
   const legacyTax = round4(rows.reduce((s, r) => s + r.amounts.taxAmount, 0));
   if (headerGstPercent > 0) {
-    const taxTotal = round4(lineSubtotal * (headerGstPercent / 100));
-    const grandTotal = round4(lineSubtotal + taxTotal);
-    return { subtotal: lineSubtotal, taxTotal, grandTotal, totalQuantity, totalWeight };
+    const taxTotal = round4(taxableAmount * (headerGstPercent / 100));
+    const grandTotal = round4(taxableAmount + taxTotal);
+    return {
+      subtotal: lineSubtotal,
+      additionalChargesTotal: additional,
+      taxableAmount,
+      taxTotal,
+      grandTotal,
+      totalQuantity,
+      totalWeight,
+    };
   }
 
   if (legacyTax > 0) {
-    const grandTotal = round4(rows.reduce((s, r) => s + r.amounts.lineTotal, 0));
+    const grandTotal = round4(rows.reduce((s, r) => s + r.amounts.lineTotal, 0) + additional);
     const subtotal = round4(grandTotal - legacyTax);
-    return { subtotal, taxTotal: legacyTax, grandTotal, totalQuantity, totalWeight };
+    return {
+      subtotal,
+      additionalChargesTotal: additional,
+      taxableAmount: round4(subtotal + additional),
+      taxTotal: legacyTax,
+      grandTotal,
+      totalQuantity,
+      totalWeight,
+    };
   }
 
   return {
     subtotal: lineSubtotal,
+    additionalChargesTotal: additional,
+    taxableAmount,
     taxTotal: 0,
-    grandTotal: lineSubtotal,
+    grandTotal: taxableAmount,
     totalQuantity,
     totalWeight,
   };

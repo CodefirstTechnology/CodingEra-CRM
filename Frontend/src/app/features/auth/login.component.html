@@ -1,8 +1,14 @@
 <div class="login">
   <div class="login__card">
     <div class="login__brand">
-      <span class="login__logo">CRM</span>
-      <span class="login__tag">Pro</span>
+      @if (branding.logoUrl(); as logoSrc) {
+        <img class="login__logo-img" [src]="logoSrc" [alt]="branding.brandLabel()" />
+      } @else {
+        <span class="login__logo">{{ branding.brandLabel() }}</span>
+      }
+      @if (branding.taglineLabel(); as tagline) {
+        <span class="login__tagline">{{ tagline }}</span>
+      }
     </div>
     <h1 class="login__title">Sign in</h1>
     <p class="login__sub">Use your work email and password to continue.</p>

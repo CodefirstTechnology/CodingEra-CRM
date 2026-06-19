@@ -58,7 +58,9 @@ function isCrmApiPath(pathname: string, prefix: string): boolean {
  */
 function isUnauthenticatedOnlyAuthRoute(pathname: string, prefix: string): boolean {
   const p = pathname.toLowerCase();
-  const base = `${prefix.toLowerCase()}/auth`;
+  const pre = prefix.toLowerCase();
+  if (p === `${pre}/company-profile/branding`) return true;
+  const base = `${pre}/auth`;
   if (!p.startsWith(`${base}/`)) return false;
   const rest = p.slice(base.length + 1);
   const segment = rest.split('/')[0] ?? '';

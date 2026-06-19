@@ -169,6 +169,100 @@
         <dt class="qt-grid__totals-label">Subtotal</dt>
         <dd class="qt-grid__totals-value">₹ {{ totals().subtotal | number: '1.2-2' }}</dd>
       </div>
+
+      <div class="qt-grid__additional" aria-label="Additional charges">
+        <div class="qt-grid__totals-row qt-grid__totals-row--section">
+          <dt class="qt-grid__totals-label">Additional Charges</dt>
+          <dd class="qt-grid__totals-value"></dd>
+        </div>
+        <div class="qt-grid__totals-row">
+          <dt class="qt-grid__totals-label">Transportation Charges</dt>
+          <dd class="qt-grid__totals-value">
+            <input
+              type="number"
+              class="qt-form__control qt-form__control--compact qt-grid__charge-input"
+              min="0"
+              step="0.01"
+              [formControl]="transportationCharges()"
+              (input)="onChargeInput()"
+              (blur)="onChargeBlur(transportationCharges())"
+              aria-label="Transportation charges"
+            />
+          </dd>
+        </div>
+        <div class="qt-grid__totals-row">
+          <dt class="qt-grid__totals-label">Loading Charges</dt>
+          <dd class="qt-grid__totals-value">
+            <input
+              type="number"
+              class="qt-form__control qt-form__control--compact qt-grid__charge-input"
+              min="0"
+              step="0.01"
+              [formControl]="loadingCharges()"
+              (input)="onChargeInput()"
+              (blur)="onChargeBlur(loadingCharges())"
+              aria-label="Loading charges"
+            />
+          </dd>
+        </div>
+        <div class="qt-grid__totals-row">
+          <dt class="qt-grid__totals-label">Service Charges</dt>
+          <dd class="qt-grid__totals-value">
+            <input
+              type="number"
+              class="qt-form__control qt-form__control--compact qt-grid__charge-input"
+              min="0"
+              step="0.01"
+              [formControl]="serviceCharges()"
+              (input)="onChargeInput()"
+              (blur)="onChargeBlur(serviceCharges())"
+              aria-label="Service charges"
+            />
+          </dd>
+        </div>
+        @for (row of customCharges().controls; track $index; let ci = $index) {
+          <div class="qt-grid__totals-row qt-grid__totals-row--custom" [formGroup]="customChargeAt(ci)">
+            <dt class="qt-grid__totals-label">
+              <input
+                type="text"
+                class="qt-form__control qt-form__control--compact qt-grid__charge-name"
+                formControlName="chargeName"
+                placeholder="Charge name"
+                (input)="onChargeInput()"
+                aria-label="Custom charge name"
+              />
+            </dt>
+            <dd class="qt-grid__totals-value qt-grid__totals-value--custom">
+              <input
+                type="number"
+                class="qt-form__control qt-form__control--compact qt-grid__charge-input"
+                min="0"
+                step="0.01"
+                formControlName="amount"
+                (input)="onChargeInput()"
+                (blur)="onCustomChargeAmountBlur(ci)"
+                aria-label="Custom charge amount"
+              />
+              <button
+                type="button"
+                class="qt-form__line-remove qt-grid__charge-remove"
+                (click)="requestRemoveCustomCharge(ci)"
+                aria-label="Remove custom charge"
+              >
+                ×
+              </button>
+            </dd>
+          </div>
+        }
+        <button
+          type="button"
+          class="qt-form__btn qt-form__btn--outline qt-form__btn--sm qt-grid__add-charge"
+          (click)="requestAddCustomCharge()"
+        >
+          + Add Charge
+        </button>
+      </div>
+
       <div class="qt-grid__totals-row qt-grid__totals-row--gst">
         <dt class="qt-grid__totals-label">GST %</dt>
         <dd class="qt-grid__totals-value">
