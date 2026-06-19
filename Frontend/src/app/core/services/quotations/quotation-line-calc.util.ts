@@ -128,10 +128,7 @@ export function recalcLineGroupValues(raw: {
   unitWeight: number;
   steelRate?: number;
 }): QuotationLineAmounts {
-  const rate =
-    raw.gstPercent > 0
-      ? Number(raw.rate) || 0
-      : resolveUnitRate(Number(raw.unitWeight) || 0, Number(raw.steelRate) || 0, Number(raw.rate) || 0);
+  const rate = Number(raw.rate) || 0;
 
   if (raw.gstPercent > 0) {
     return calculateQuotationLineLegacy(

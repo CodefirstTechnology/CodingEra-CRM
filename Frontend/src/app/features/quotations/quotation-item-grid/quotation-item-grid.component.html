@@ -84,8 +84,6 @@
                 } @else if (formControlName(col); as ctrlName) {
                   @if (col.key === 'amount') {
                     <span class="qt-grid__amount">{{ displayAmount(rowIndex) | number: '1.2-4' }}</span>
-                  } @else if (col.key === 'unitRate') {
-                    <span class="qt-grid__readonly">{{ displayRate(rowIndex) | number: '1.2-4' }}</span>
                   } @else if (isNumericColumn(col.key)) {
                     <input
                       type="number"

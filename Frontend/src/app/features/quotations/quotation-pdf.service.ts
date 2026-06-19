@@ -1,4 +1,4 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { jsPDF } from 'jspdf';
 import autoTable, { type RowInput } from 'jspdf-autotable';
@@ -71,13 +71,27 @@ export class QuotationPdfService {
 
     try {
       const headers = new HttpHeaders({ Authorization: `Bearer ${token}` });
+      const params = new HttpParams().set('userId', id);
       const body = await firstValueFrom(
-        this.http.get<unknown>(`${base}/auth/users/${encodeURIComponent(id)}`, { headers }).pipe(timeout(8000)),
+        this.http
+          .get<unknown>(`${base}/auth/users/${encodeURIComponent(id)}`, { headers, params })
+          .pipe(timeout(8000)),
       );
       const row = this.unwrapRecord(body);
       const fullName =
-        this.pickStr(row, ['fullName', 'FullName', 'name', 'Name']) || fallback.fullName;
-      const phone = this.pickStr(row, ['phone', 'Phone']) || '—';
+        this.pickStr(row, ['fullName', 'FullName', 'name', 'Name', 'userName', 'UserName']) ||
+        fallback.fullName;
+      const phoneRaw = this.pickStr(row, [
+        'phone',
+        'Phone',
+        'mobile',
+        'Mobile',
+        'mobileNumber',
+        'MobileNumber',
+        'contactNumber',
+        'ContactNumber',
+      ]);
+      const phone = phoneRaw ? formatIntlTelDisplay(phoneRaw) || phoneRaw : '—';
       const email = this.pickStr(row, ['email', 'Email']) || fallback.email;
       return { fullName, phone, email };
     } catch {
@@ -408,8 +422,8 @@ export class QuotationPdfService {
 
     y = (doc as DocWithTable).lastAutoTable?.finalY ?? footerStartY + 40;
 
-    const sigName = C.signatoryName?.trim() || generator.fullName;
-    const sigPhone = C.signatoryMobile?.trim() || (generator.phone !== '—' ? generator.phone : '');
+    const sigName = generator.fullName !== '—' ? generator.fullName : '';
+    const sigPhone = generator.phone !== '—' ? generator.phone : '';
     const sigBlock = [sigName, sigPhone].filter(Boolean).join('\n');
 
     autoTable(doc, {

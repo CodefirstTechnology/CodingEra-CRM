@@ -35,7 +35,6 @@ import {
 import {
   aggregateQuotationLines,
   recalcLineGroupValues,
-  resolveUnitRate,
 } from '../../../core/services/quotations/quotation-line-calc.util';
 import { QuotationsService, quotationHttpErrorMessage } from '../../../core/services/quotations.service';
 import { UserDataScopeService } from '../../../core/services/user-data-scope.service';
@@ -441,11 +440,6 @@ export class QuotationItemGridComponent implements OnDestroy {
     return Number(g.controls['amount']?.value) || 0;
   }
 
-  protected displayRate(index: number): number {
-    const g = this.lineItems().at(index) as FormGroup;
-    return Number(g.controls['rate']?.value) || 0;
-  }
-
   protected sortedDraftColumns(): QuotationGridColumn[] {
     return [...this.draftColumns()]
       .filter((c) => c.key !== 'srNo')
@@ -465,17 +459,11 @@ export class QuotationItemGridComponent implements OnDestroy {
     const raw = g.getRawValue();
     const qty = Number(raw.quantity) || 0;
     const unitWeight = Number(raw.unitWeight) || 0;
-    const steelRate = Number(raw.steelRate) || 0;
-    const legacyLineGst = Number(raw.gstPercent) || 0;
-    const rate =
-      legacyLineGst > 0
-        ? Number(raw.rate) || 0
-        : resolveUnitRate(unitWeight, steelRate, Number(raw.rate) || 0);
+    const rate = Number(raw.rate) || 0;
     const weight = unitWeight > 0 ? qty * unitWeight : Number(raw.weight) || 0;
     const calc = recalcLineGroupValues({ ...raw, rate, weight });
     g.patchValue(
       {
-        rate,
         weight,
         amount: calc.amount,
         taxAmount: calc.taxAmount,
