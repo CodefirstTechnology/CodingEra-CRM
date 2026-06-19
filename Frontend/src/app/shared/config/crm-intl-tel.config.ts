@@ -25,12 +25,13 @@ export function getCrmIntlTelInitOptions() {
 /** @deprecated Use {@link getCrmIntlTelInitOptions} for modal-safe dropdown behaviour. */
 export const CRM_INTL_TEL_INIT_OPTIONS = CRM_INTL_TEL_INIT_OPTIONS_BASE;
 
-/** Default input attributes for mobile number fields. */
-export function crmIntlTelInputProps(inputClass: string): Record<string, string> {
-  return {
-    class: inputClass,
-    autocomplete: 'tel',
-    inputmode: 'numeric',
-    type: 'tel',
-  };
+/** Default input attributes for mobile number fields (visual styles live on `.crm-intl-tel-field` wrappers). */
+export const CRM_INTL_TEL_INPUT_PROPS: Record<string, string> = {
+  autocomplete: 'tel',
+  inputmode: 'numeric',
+  type: 'tel',
+};
+
+export function crmIntlTelInputProps(): Record<string, string> {
+  return { ...CRM_INTL_TEL_INPUT_PROPS };
 }

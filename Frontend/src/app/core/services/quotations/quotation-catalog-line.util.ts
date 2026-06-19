@@ -2,7 +2,6 @@ import type { QuotationCatalogItem } from '../item-master/item-master-api.models
 import { slugKey } from './quotation-item-snapshot.util';
 import type { QuotationItemSnapshot } from './quotation-item-snapshot.util';
 import { resolveUnitWeightFromSnapshot, stringifyItemSnapshot } from './quotation-item-snapshot.util';
-import { resolveUnitRate } from './quotation-line-calc.util';
 
 export function buildSnapshotFromCatalogItem(item: QuotationCatalogItem): QuotationItemSnapshot {
   const snapshot: QuotationItemSnapshot = {
@@ -25,17 +24,15 @@ export function buildSnapshotFromCatalogItem(item: QuotationCatalogItem): Quotat
 export function patchLineFromCatalogItem(item: QuotationCatalogItem): Record<string, unknown> {
   const snapshot = buildSnapshotFromCatalogItem(item);
   const unitWeight = snapshot.unitWeight;
-  const steelRate = item.steelRate;
-  const rate = resolveUnitRate(unitWeight, steelRate, 0);
   return {
     itemId: item.id,
     itemCode: item.itemCode,
     itemName: item.itemName,
     description: item.description,
-    steelRate,
+    steelRate: 0,
     unitWeight,
     weight: unitWeight,
-    rate,
+    rate: 0,
     itemSnapshotJson: stringifyItemSnapshot(snapshot),
     gstPercent: 0,
   };

@@ -208,7 +208,7 @@ export class QuotationFormComponent {
   protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
   protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
   protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
-  protected readonly intlTelMobileInputProps = crmIntlTelInputProps('qt-form__control');
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps();
   protected intlTelMobileError = intlTelMobileErrorMessage;
 
   protected fieldInvalid(name: keyof typeof this.form.controls): boolean {
@@ -228,27 +228,6 @@ export class QuotationFormComponent {
     const g = this.lineGroupAt(index);
     const c = g.controls[name];
     return c != null && c.invalid && (c.touched || c.dirty);
-  }
-
-  protected refreshQuotationNumber(): void {
-    const cc = this.form.controls.companyCode.value.trim();
-    this.quotationsService
-      .getNextNumber(cc || undefined)
-      .pipe(take(1))
-      .subscribe({
-        next: (n) => {
-          this.form.patchValue({
-            companyCode: n.companyCode || 'BCEPL',
-            documentTypeCode: n.documentTypeCode,
-            fiscalYearLabel: n.fiscalYearLabel,
-            sequenceNumber: n.sequenceNumber,
-            quotationDate: n.quotationDate?.slice(0, 10) || todayIsoDate(),
-          });
-          this.syncQuotationNumberDisplay();
-        },
-        error: (err) =>
-          this.toast.error(quotationHttpErrorMessage(err, 'Could not generate quotation number.')),
-      });
   }
 
   protected saveDraft(): void {
