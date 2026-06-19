@@ -16,7 +16,7 @@
     </div>
   </div>
 
-  <div class="qt-form__lines-scroll">
+  <div class="qt-form__lines-scroll" (scroll)="repositionItemPicker()">
     <table class="qt-form__lines-table qt-grid__table">
       <thead>
         <tr>
@@ -60,9 +60,32 @@
                 [class.qt-form__lines-td--num]="isNumericColumn(col.key)"
                 [style.min-width]="columnWidth(col)"
               >
-                @if (formControlName(col); as ctrlName) {
+                @if (col.key === 'itemName') {
+                  <div
+                    class="qt-item-picker"
+                    [class.qt-item-picker--open]="isItemPickerOpen(rowIndex)"
+                  >
+                    <input
+                      type="search"
+                      class="qt-form__control qt-form__control--compact qt-item-picker__input"
+                      [value]="itemPickerInputValue(rowIndex)"
+                      placeholder="Search item…"
+                      autocomplete="off"
+                      role="combobox"
+                      aria-autocomplete="list"
+                      [attr.aria-expanded]="isItemPickerOpen(rowIndex)"
+                      (focus)="openItemPicker(rowIndex, $event)"
+                      (input)="onItemPickerInput(rowIndex, $event)"
+                      (blur)="onItemPickerBlur(rowIndex)"
+                    />
+                  </div>
+                } @else if (isDynamicColumn(col.key)) {
+                  <span class="qt-grid__readonly">{{ dynamicCellValue(rowIndex, col.key) || '—' }}</span>
+                } @else if (formControlName(col); as ctrlName) {
                   @if (col.key === 'amount') {
                     <span class="qt-grid__amount">{{ displayAmount(rowIndex) | number: '1.2-4' }}</span>
+                  } @else if (col.key === 'unitRate') {
+                    <span class="qt-grid__readonly">{{ displayRate(rowIndex) | number: '1.2-4' }}</span>
                   } @else if (isNumericColumn(col.key)) {
                     <input
                       type="number"
@@ -102,34 +125,167 @@
           </tr>
         }
       </tbody>
-      <div class="no-parent-style">
-        <button type="button" class="qt-form__btn qt-form__btn--outline qt-form__btn--sm" (click)="addRow()">
-           Add
+    </table>
+  </div>
+
+  @if (itemPickerRow() !== null && itemPickerRect(); as rect) {
+    <ul
+      class="qt-item-picker__list qt-item-picker__list--fixed"
+      role="listbox"
+      [style.top.px]="rect.top"
+      [style.left.px]="rect.left"
+      [style.width.px]="rect.width"
+    >
+      @for (opt of filteredCatalogItems(); track opt.id) {
+        <li
+          class="qt-item-picker__option"
+          role="option"
+          [class.qt-item-picker__option--active]="selectedItemId(itemPickerRow()!) === opt.id"
+          (mousedown)="selectCatalogItem(itemPickerRow()!, opt, $event)"
+        >
+          {{ opt.itemName }}
+        </li>
+      } @empty {
+        <li class="qt-item-picker__empty">No items found</li>
+      }
+    </ul>
+  }
+
+  <div class="qt-grid__lines-foot">
+    <button type="button" class="qt-form__btn qt-form__btn--outline qt-form__btn--sm" (click)="addRow()">
+      Add
+    </button>
+
+    <dl class="qt-grid__totals" aria-label="Line item totals">
+      <div class="qt-grid__totals-row">
+        <dt class="qt-grid__totals-label">Total quantity</dt>
+        <dd class="qt-grid__totals-value">{{ totals().totalQuantity | number: '1.2-4' }}</dd>
+      </div>
+      <div class="qt-grid__totals-row">
+        <dt class="qt-grid__totals-label">Total weight</dt>
+        <dd class="qt-grid__totals-value">{{ totals().totalWeight | number: '1.2-4' }}</dd>
+      </div>
+      <div class="qt-grid__totals-row">
+        <dt class="qt-grid__totals-label">Subtotal</dt>
+        <dd class="qt-grid__totals-value">₹ {{ totals().subtotal | number: '1.2-2' }}</dd>
+      </div>
+
+      <div class="qt-grid__additional" aria-label="Additional charges">
+        <div class="qt-grid__totals-row qt-grid__totals-row--section">
+          <dt class="qt-grid__totals-label">Additional Charges</dt>
+          <dd class="qt-grid__totals-value"></dd>
+        </div>
+        <div class="qt-grid__totals-row">
+          <dt class="qt-grid__totals-label">Transportation Charges</dt>
+          <dd class="qt-grid__totals-value">
+            <input
+              type="number"
+              class="qt-form__control qt-form__control--compact qt-grid__charge-input"
+              min="0"
+              step="0.01"
+              [formControl]="transportationCharges()"
+              (input)="onChargeInput()"
+              (blur)="onChargeBlur(transportationCharges())"
+              aria-label="Transportation charges"
+            />
+          </dd>
+        </div>
+        <div class="qt-grid__totals-row">
+          <dt class="qt-grid__totals-label">Loading Charges</dt>
+          <dd class="qt-grid__totals-value">
+            <input
+              type="number"
+              class="qt-form__control qt-form__control--compact qt-grid__charge-input"
+              min="0"
+              step="0.01"
+              [formControl]="loadingCharges()"
+              (input)="onChargeInput()"
+              (blur)="onChargeBlur(loadingCharges())"
+              aria-label="Loading charges"
+            />
+          </dd>
+        </div>
+        <div class="qt-grid__totals-row">
+          <dt class="qt-grid__totals-label">Service Charges</dt>
+          <dd class="qt-grid__totals-value">
+            <input
+              type="number"
+              class="qt-form__control qt-form__control--compact qt-grid__charge-input"
+              min="0"
+              step="0.01"
+              [formControl]="serviceCharges()"
+              (input)="onChargeInput()"
+              (blur)="onChargeBlur(serviceCharges())"
+              aria-label="Service charges"
+            />
+          </dd>
+        </div>
+        @for (row of customCharges().controls; track $index; let ci = $index) {
+          <div class="qt-grid__totals-row qt-grid__totals-row--custom" [formGroup]="customChargeAt(ci)">
+            <dt class="qt-grid__totals-label">
+              <input
+                type="text"
+                class="qt-form__control qt-form__control--compact qt-grid__charge-name"
+                formControlName="chargeName"
+                placeholder="Charge name"
+                (input)="onChargeInput()"
+                aria-label="Custom charge name"
+              />
+            </dt>
+            <dd class="qt-grid__totals-value qt-grid__totals-value--custom">
+              <input
+                type="number"
+                class="qt-form__control qt-form__control--compact qt-grid__charge-input"
+                min="0"
+                step="0.01"
+                formControlName="amount"
+                (input)="onChargeInput()"
+                (blur)="onCustomChargeAmountBlur(ci)"
+                aria-label="Custom charge amount"
+              />
+              <button
+                type="button"
+                class="qt-form__line-remove qt-grid__charge-remove"
+                (click)="requestRemoveCustomCharge(ci)"
+                aria-label="Remove custom charge"
+              >
+                ×
+              </button>
+            </dd>
+          </div>
+        }
+        <button
+          type="button"
+          class="qt-form__btn qt-form__btn--outline qt-form__btn--sm qt-grid__add-charge"
+          (click)="requestAddCustomCharge()"
+        >
+          + Add Charge
         </button>
       </div>
-      <tfoot>
-        <tr>
-          <td [attr.colspan]="visibleColumns().length + 2" class="qt-form__lines-total-label">Total quantity</td>
-          <td class="qt-form__lines-td qt-form__lines-td--num">{{ totals().totalQuantity | number: '1.2-4' }}</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td [attr.colspan]="visibleColumns().length + 2" class="qt-form__lines-total-label">Total weight</td>
-          <td class="qt-form__lines-td qt-form__lines-td--num">{{ totals().totalWeight | number: '1.2-4' }}</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td [attr.colspan]="visibleColumns().length + 2" class="qt-form__lines-total-label">Tax total</td>
-          <td class="qt-form__lines-total-value">₹ {{ totals().taxTotal | number: '1.2-2' }}</td>
-          <td></td>
-        </tr>
-        <tr>
-          <td [attr.colspan]="visibleColumns().length + 2" class="qt-form__lines-total-label">Grand total</td>
-          <td class="qt-form__lines-total-value qt-grid__grand">₹ {{ totals().grandTotal | number: '1.2-2' }}</td>
-          <td></td>
-        </tr>
-      </tfoot>
-    </table>
+
+      <div class="qt-grid__totals-row qt-grid__totals-row--gst">
+        <dt class="qt-grid__totals-label">GST %</dt>
+        <dd class="qt-grid__totals-value">
+          <input
+            type="number"
+            class="qt-form__control qt-form__control--compact qt-grid__gst-input"
+            min="0"
+            step="0.01"
+            [value]="gstPercent()"
+            (input)="onGstInput($event)"
+            aria-label="GST percent on subtotal"
+          />
+        </dd>
+      </div>
+      <div class="qt-grid__totals-row">
+        <dt class="qt-grid__totals-label">GST amount</dt>
+        <dd class="qt-grid__totals-value">₹ {{ totals().taxTotal | number: '1.2-2' }}</dd>
+      </div>
+      <div class="qt-grid__totals-row">
+        <dt class="qt-grid__totals-label">Grand total</dt>
+        <dd class="qt-grid__totals-value qt-grid__grand">₹ {{ totals().grandTotal | number: '1.2-2' }}</dd>
+      </div>
+    </dl>
   </div>
 
   @if (configOpen()) {

@@ -27,18 +27,6 @@
     </div>
   </header>
 
-  <app-crm-selection-bar
-    [selectionCount]="sel.selectedCount()"
-    [canEdit]="sel.selectedCount() === 1"
-    [showAssignActions]="isAdminViewer()"
-    [showConvertLead]="false"
-    [showDelete]="false"
-    (edit)="onBulkEdit()"
-    (assignTo)="onAssignToMenu()"
-    (clearAssignment)="onClearAssignmentBulk()"
-    (dismiss)="onBulkDismiss()"
-  />
-
   <app-crm-assign-picker
     [open]="assignPickerOpen()"
     title="Assign deals"
@@ -50,7 +38,6 @@
 
   <div class="deals__toolbar card">
     <label class="deals__search">
-      <span class="visually-hidden">Search deals</span>
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
         <circle cx="11" cy="11" r="8" />
         <path d="m21 21-4.3-4.3" />
@@ -159,6 +146,15 @@
                 />
               </label>
               <label class="deals__field">
+                <span class="deals__label">Deal amount</span>
+                <input
+                  class="deals__control deals__control--soft"
+                  type="text"
+                  formControlName="dealAmount"
+                  placeholder="₹ 0.00"
+                />
+              </label>
+              <label class="deals__field">
                 <span class="deals__label">Website</span>
                 <input class="deals__control deals__control--soft" type="text" formControlName="website" placeholder="https://" />
                 @if (fieldInvalid('website') && createForm.get('website')?.errors?.['url']) {
@@ -220,18 +216,19 @@
                   <span class="deals__err">Full name is required.</span>
                 }
               </label>
-              <label class="deals__field">
+              <div class="deals__field">
                 <span class="deals__label">Primary mobile no.</span>
-                <input
-                  class="deals__control deals__control--soft"
-                  type="tel"
-                  formControlName="primaryMobile"
-                  autocomplete="tel"
-                />
-                @if (fieldInvalid('primaryMobile') && createForm.get('primaryMobile')?.errors?.['phone']) {
-                  <span class="deals__err">Enter a valid phone number.</span>
+                <div class="crm-intl-tel-field">
+                  <intl-tel-input
+                    formControlName="primaryMobile"
+                    [initOptions]="intlTelInitOptions"
+                    [inputProps]="intlTelMobileInputProps"
+                  />
+                </div>
+                @if (fieldInvalid('primaryMobile')) {
+                  <span class="deals__err">{{ intlTelMobileError(createForm.get('primaryMobile')?.errors) }}</span>
                 }
-              </label>
+              </div>
               <label class="deals__field">
                 <span class="deals__label">Primary email</span>
                 <input
@@ -276,11 +273,15 @@
               </label>
               <label class="deals__field">
                 <span class="deals__label">Deal owner</span>
-                <select class="deals__control deals__control--soft" formControlName="dealOwner">
-                  @for (o of dealOwnerOptions(); track o.id) {
-                    <option [value]="o.id">{{ o.label }}</option>
-                  }
-                </select>
+                @if (showDealOwnerPicker()) {
+                  <select class="deals__control deals__control--soft" formControlName="dealOwner">
+                    @for (o of dealOwnerOptions(); track o.id) {
+                      <option [value]="o.id">{{ o.label }}</option>
+                    }
+                  </select>
+                } @else if (showSelfAssignedDealOwner()) {
+                  <span class="deals__owner-readonly">{{ dealOwnerDisplayLabel() }}</span>
+                }
               </label>
               <label class="deals__field deals__field--span2">
                 <span class="deals__label">Requirement</span>
@@ -364,32 +365,14 @@
       <table class="deals__table">
         <thead>
           <tr class="deals__thead-row">
-            <th class="deals__th deals__th--check">
-              <input
-                type="checkbox"
-                class="deals__checkbox"
-                [checked]="allSelected()"
-                (change)="toggleSelectAll()"
-                aria-label="Select all deals"
-              />
-            </th>
             @for (column of visibleColumns(); track column.id) {
               <th class="deals__th">{{ column.label }}</th>
             }
           </tr>
         </thead>
         <tbody>
-          @for (row of filtered(); track row.id) {
+          @for (row of tablePagination.paginatedItems(); track row.id) {
             <tr class="deals__row">
-              <td class="deals__td deals__td--check">
-                <input
-                  type="checkbox"
-                  class="deals__checkbox"
-                  [checked]="isRowSelected(row.id)"
-                  (change)="toggleRow(row.id, $event)"
-                  [attr.aria-label]="'Select ' + row.organizationName"
-                />
-              </td>
               @for (column of visibleColumns(); track column.id) {
                 <td
                   class="deals__td"
@@ -417,18 +400,21 @@
                       />
                     }
                     @case ('mobile') {
-                      <input
-                        type="tel"
-                        class="deals__inline-input"
-                        [value]="dealMobileInputValue(row)"
-                        (blur)="onDealMobileBlur(row, $event)"
-                        (click)="$event.stopPropagation()"
-                        [attr.aria-label]="'Mobile for ' + dealContactName(row)"
-                        autocomplete="tel"
-                      />
+                      <div class="crm-intl-tel-field crm-intl-tel-field--inline" (click)="$event.stopPropagation()">
+                        <intl-tel-input
+                          #dealMobileTel
+                          [initialValue]="dealMobileInputValue(row)"
+                          [initOptions]="intlTelInitOptions"
+                          [inputProps]="intlTelInlineInputProps"
+                          (blur)="onDealMobileBlur(row, dealMobileTel)"
+                        />
+                      </div>
                     }
                     @case ('annualRevenue') {
                       {{ formatDealRevenue(row.annualRevenue) }}
+                    }
+                    @case ('dealAmount') {
+                      {{ formatDealRevenue(row.dealAmount) }}
                     }
                     @case ('status') {
                       <span [class]="statusClass(row.status)">{{ row.status }}</span>
@@ -454,6 +440,16 @@
       </table>
       }
     </div>
+    @if (filtered().length > 0) {
+      <app-crm-pagination-footer
+        ariaLabel="Deals table pages"
+        [page]="tablePagination.page()"
+        [pageSize]="tablePagination.pageSize()"
+        [totalItems]="tablePagination.totalItems()"
+        (pageChange)="tablePagination.setPage($event)"
+        (pageSizeChange)="tablePagination.setPageSize($event)"
+      />
+    }
   </div>
   }
 </div>

@@ -7,16 +7,6 @@
     <button type="button" class="tasks__btn tasks__btn--solid" (click)="openForm()">+ New task</button>
   </header>
 
-  <app-crm-selection-bar
-    [selectionCount]="sel.selectedCount()"
-    [canEdit]="sel.selectedCount() === 1"
-    [showAssignActions]="false"
-    [showConvertLead]="false"
-    (edit)="onBulkEdit()"
-    (delete)="onBulkDelete()"
-    (dismiss)="onBulkDismiss()"
-  />
-
   @if (formOpen()) {
     <div class="tasks__modal-root" aria-modal="true" role="dialog" aria-labelledby="create-task-title">
       <div class="tasks__modal-backdrop" (click)="closeForm()"></div>
@@ -100,20 +90,86 @@
     </div>
   }
 
+  <div class="tasks__toolbar card">
+    <label class="tasks__search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+      <input
+        type="search"
+        class="tasks__input"
+        placeholder="Search title, description, assignee, record…"
+        [value]="searchQuery()"
+        (input)="onSearchInput($event)"
+      />
+      @if (searchQuery()) {
+        <button type="button" class="tasks__clear" (click)="clearSearch()" aria-label="Clear search">×</button>
+      }
+    </label>
+    <div class="tasks__filter-selects">
+      <label class="tasks__filter-field">
+        <select
+          class="tasks__filter-select tasks__filter-select--status"
+          [value]="statusFilter()"
+          (change)="onStatusFilterSelect($event)"
+        >
+          @for (opt of statusFilterOptions; track opt.id) {
+            <option [value]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+      <label class="tasks__filter-field">
+        <select
+          class="tasks__filter-select tasks__filter-select--priority"
+          [value]="priorityFilter()"
+          (change)="onPriorityFilterSelect($event)"
+        >
+          @for (opt of priorityFilterOptions; track opt.id) {
+            <option [value]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+      @if (isAdminViewer()) {
+        <label class="tasks__filter-field">
+          <span class="visually-hidden">Filter by assignee</span>
+          <select
+            class="tasks__filter-select tasks__filter-select--assignee"
+            [value]="assigneeFilter()"
+            (change)="onAssigneeFilterSelect($event)"
+          >
+            @for (opt of assigneeFilterOptions(); track opt.id) {
+              <option [value]="opt.id">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+      }
+    </div>
+  </div>
+
   <div class="tasks__table-card card">
+    <div class="tasks__table-head">
+      <span class="tasks__count">
+        <strong>{{ filtered().length }}</strong>
+        @if (hasActiveFilters() && filtered().length !== rows().length) {
+          <span class="tasks__count-muted">of {{ rows().length }} tasks</span>
+        } @else {
+          <span class="tasks__count-muted">tasks</span>
+        }
+      </span>
+    </div>
     <div class="tasks__table-scroll">
+      @if (filtered().length === 0) {
+        <p class="tasks__empty">
+          No tasks match your filters.
+          @if (hasActiveFilters()) {
+            <button type="button" class="tasks__linkish tasks__linkish--inline" (click)="resetFilters()">Clear filters</button>
+          }
+        </p>
+      } @else {
       <table class="tasks__table">
         <thead>
           <tr class="tasks__thead-row">
-            <th class="tasks__th tasks__th--check">
-              <input
-                type="checkbox"
-                class="tasks__checkbox"
-                [checked]="allSelected()"
-                (change)="toggleSelectAll()"
-                aria-label="Select all tasks"
-              />
-            </th>
             <th class="tasks__th">Title</th>
             <th class="tasks__th tasks__th--record">Record</th>
             <th class="tasks__th">Status</th>
@@ -124,17 +180,8 @@
           </tr>
         </thead>
         <tbody>
-          @for (row of rows(); track row.id) {
+          @for (row of tablePagination.paginatedItems(); track row.id) {
             <tr class="tasks__row">
-              <td class="tasks__td tasks__td--check">
-                <input
-                  type="checkbox"
-                  class="tasks__checkbox"
-                  [checked]="isRowSelected(row.id)"
-                  (change)="toggleRow(row.id, $event)"
-                  [attr.aria-label]="'Select ' + row.title"
-                />
-              </td>
               <td class="tasks__td tasks__td--strong">
                 <button type="button" class="tasks__title-link" (click)="openTaskForEdit(row, $event)">
                   {{ row.title }}
@@ -180,6 +227,17 @@
           }
         </tbody>
       </table>
+      }
     </div>
+    @if (filtered().length > 0) {
+      <app-crm-pagination-footer
+        ariaLabel="Tasks table pages"
+        [page]="tablePagination.page()"
+        [pageSize]="tablePagination.pageSize()"
+        [totalItems]="tablePagination.totalItems()"
+        (pageChange)="tablePagination.setPage($event)"
+        (pageSizeChange)="tablePagination.setPageSize($event)"
+      />
+    }
   </div>
 </div>

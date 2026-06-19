@@ -1,0 +1,239 @@
+.utarget__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.utarget__title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.utarget__sub {
+  margin: 0.35rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
+}
+
+.utarget__tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.utarget__tab {
+  border: 1px solid var(--card-border);
+  background: var(--surface);
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 0.4rem 0.9rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.utarget__tab--active {
+  background: var(--tertiary-color);
+  border-color: var(--tertiary-color);
+  color: #fff;
+}
+
+.utarget__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.utarget__toolbar--monitor {
+  align-items: center;
+}
+
+.utarget__search input,
+.utarget__filter select {
+  min-width: 12rem;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.utarget__table-wrap {
+  overflow-x: auto;
+}
+
+.utarget__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.utarget__table th,
+.utarget__table td {
+  padding: 0.65rem 0.75rem;
+  border-bottom: 1px solid var(--card-border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.utarget__table th {
+  color: var(--text-muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.utarget__user {
+  display: block;
+  font-weight: 600;
+}
+
+.utarget__muted {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+}
+
+.utarget__progress {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 7rem;
+}
+
+.utarget__progress-bar {
+  flex: 1;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--tertiary-color), #6dd5a8);
+  max-width: 5rem;
+}
+
+.utarget__badge {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  color: var(--text-muted);
+}
+
+.utarget__badge--active {
+  background: color-mix(in srgb, var(--tertiary-color) 18%, transparent);
+  color: var(--tertiary-color);
+}
+
+.utarget__actions {
+  display: flex;
+  gap: 0.65rem;
+  white-space: nowrap;
+}
+
+.utarget__link,
+.utarget__sort {
+  border: none;
+  background: none;
+  color: var(--tertiary-color);
+  font: inherit;
+  cursor: pointer;
+  padding: 0;
+}
+
+.utarget__btn {
+  border-radius: 8px;
+  padding: 0.5rem 0.9rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+.utarget__btn--solid {
+  border: none;
+  background: var(--tertiary-color);
+  color: #fff;
+}
+
+.utarget__btn--ghost {
+  border: 1px solid var(--card-border);
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.utarget__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.utarget__form-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.utarget__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 1rem;
+}
+
+.utarget__field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+}
+
+.utarget__field span {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.utarget__field input,
+.utarget__field select {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  background: var(--surface);
+  color: var(--text-primary);
+}
+
+.utarget__field--check {
+  flex-direction: row;
+  align-items: center;
+  padding-top: 1.5rem;
+}
+
+.utarget__req {
+  color: var(--danger, #c0392b);
+}
+
+.utarget__field-error,
+.utarget__err {
+  color: var(--danger, #c0392b);
+  font-size: 0.82rem;
+}
+
+.utarget__hint {
+  color: var(--text-muted);
+}
+
+.utarget__empty {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.utarget__form-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .utarget__grid {
+    grid-template-columns: 1fr;
+  }
+}

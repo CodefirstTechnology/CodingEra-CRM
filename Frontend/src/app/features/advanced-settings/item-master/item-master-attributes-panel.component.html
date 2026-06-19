@@ -1,0 +1,115 @@
+<section class="im-panel">
+  <header class="im-panel__head">
+    <div>
+      <h3 class="im-panel__title">Item Attributes</h3>
+      <p class="im-panel__sub">
+        Define flexible attributes for variants and specifications — Size, Material Type, Thickness, Weight, etc.
+      </p>
+    </div>
+    @if (canEdit()) {
+      <button type="button" class="im-panel__btn" (click)="startCreate()">+ New Attribute</button>
+    }
+  </header>
+
+  @if (canEdit() && formOpen()) {
+    <form class="im-panel__form" [formGroup]="form" (ngSubmit)="submit()">
+      <div class="im-panel__grid">
+        <label>
+          <span>Name</span>
+          <input type="text" formControlName="name" placeholder="e.g. Size" />
+        </label>
+        <label>
+          <span>Code (optional)</span>
+          <input type="text" formControlName="code" placeholder="size" />
+        </label>
+        <label>
+          <span>Value type</span>
+          <select formControlName="valueType">
+            @for (t of valueTypes; track t) {
+              <option [value]="t">{{ t }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          <span>Sort order</span>
+          <input type="number" formControlName="sortOrder" />
+        </label>
+        <label class="im-panel__check">
+          <input type="checkbox" formControlName="isVariantAttribute" />
+          <span>Variant attribute</span>
+        </label>
+        <label class="im-panel__check">
+          <input type="checkbox" formControlName="isActive" />
+          <span>Active</span>
+        </label>
+      </div>
+
+      <div class="im-attr__values">
+        <div class="im-attr__values-head">
+          <strong>Predefined values (for Select type)</strong>
+          <button type="button" class="im-panel__ghost im-panel__ghost--sm" (click)="addValue()">+ Add value</button>
+        </div>
+        <div formArrayName="values">
+          @for (row of valuesArray().controls; track $index; let i = $index) {
+            <div class="im-attr__value-row" [formGroupName]="i">
+              <input type="text" formControlName="value" placeholder="Value" />
+              <input type="number" formControlName="sortOrder" placeholder="Order" />
+              <label class="im-panel__check">
+                <input type="checkbox" formControlName="isActive" />
+                Active
+              </label>
+              <button type="button" class="im-panel__danger im-panel__danger--sm" (click)="removeValue(i)">×</button>
+            </div>
+          }
+        </div>
+      </div>
+
+      <footer class="im-panel__actions">
+        <button type="button" class="im-panel__ghost" (click)="cancelEdit()">Cancel</button>
+        <button type="submit" class="im-panel__btn" [disabled]="saving()">
+          {{ editingId() ? 'Update' : 'Create' }}
+        </button>
+      </footer>
+    </form>
+  }
+
+  @if (loading()) {
+    <p class="im-panel__hint">Loading…</p>
+  }
+
+  <div class="im-panel__table-wrap">
+    <table class="im-panel__table">
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Code</th>
+          <th>Type</th>
+          <th>Variant</th>
+          <th>Values</th>
+          <th>Status</th>
+          @if (canEdit()) { <th></th> }
+        </tr>
+      </thead>
+      <tbody>
+        @for (a of attributes(); track a.id) {
+          <tr>
+            <td>{{ a.name }}</td>
+            <td><code>{{ a.code }}</code></td>
+            <td>{{ a.valueType }}</td>
+            <td>{{ a.isVariantAttribute ? 'Yes' : 'No' }}</td>
+            <td>{{ a.values.length }}</td>
+            <td>{{ a.isActive ? 'Active' : 'Inactive' }}</td>
+            @if (canEdit()) {
+              <td class="im-panel__row-actions">
+                <button type="button" class="im-panel__ghost im-panel__ghost--sm" (click)="startEdit(a)">Edit</button>
+                <button type="button" class="im-panel__danger im-panel__danger--sm" (click)="deleteAttribute(a)">Delete</button>
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr><td colspan="7" class="im-panel__empty">No attributes yet. Create attributes like Size, Material Type, Thickness, Weight.</td></tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

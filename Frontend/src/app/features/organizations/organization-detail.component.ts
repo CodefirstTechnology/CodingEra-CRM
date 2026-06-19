@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
@@ -17,6 +17,7 @@ import {
   resolveOrgMasterPick,
 } from '../../core/services/organizations/organization-master-select.util';
 import { dealStatusCssKind } from '../../core/services/deals/deal-status.constants';
+import { IntlTelDisplayPipe } from '../../shared/pipes/intl-tel-display.pipe';
 import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { OrganizationRow } from './organizations.component';
@@ -25,13 +26,12 @@ export type OrganizationMainTab = 'deals' | 'contacts';
 
 @Component({
   selector: 'app-organization-detail',
-  imports: [RouterLink, ReactiveFormsModule],
+  imports: [RouterLink, ReactiveFormsModule, IntlTelDisplayPipe],
   templateUrl: './organization-detail.component.html',
   styleUrl: './organization-detail.component.scss',
 })
 export class OrganizationDetailComponent {
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly organizationsService = inject(OrganizationsService);
   private readonly toast = inject(ToastService);
@@ -315,22 +315,6 @@ export class OrganizationDetailComponent {
     const next = { ...errs };
     delete next['duplicate'];
     c.setErrors(Object.keys(next).length ? next : null);
-  }
-
-  protected confirmDeleteOrganization(): void {
-    const idn = this.numericId();
-    if (idn == null) return;
-    if (!confirm('Delete this organization?')) return;
-    this.organizationsService
-      .delete(idn)
-      .pipe(take(1))
-      .subscribe({
-        next: () => {
-          this.toast.success('Organization deleted.');
-          void this.router.navigateByUrl('/organizations');
-        },
-        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
-      });
   }
 
   protected dealStatusDotClass(status: DealPipelineStatus): string {

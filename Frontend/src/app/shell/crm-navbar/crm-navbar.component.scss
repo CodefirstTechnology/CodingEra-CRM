@@ -1,56 +1,13 @@
 .navbar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 1rem;
   padding: 0.75rem 1.5rem;
   background: var(--primary-color);
   color: var(--navbar-text);
   border-bottom: 1px solid color-mix(in srgb, var(--navbar-text) 12%, transparent);
   transition: var(--transition-theme);
-}
-
-.navbar__left {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
-.navbar__workspace {
-  font-size: 0.6875rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--tertiary-color) 16%, transparent);
-  color: var(--tertiary-color);
-  margin-right: 0.25rem;
-  transition: var(--transition-theme);
-}
-
-.navbar__breadcrumb {
-  font-size: 0.875rem;
-  font-weight: 500;
-  opacity: 0.75;
-  align-self: baseline;
-}
-
-.navbar__slash {
-  opacity: 0.4;
-  font-size: 0.875rem;
-  align-self: baseline;
-}
-
-.navbar__page {
-  font-size: 1rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  align-self: baseline;
 }
 
 .navbar__notify {

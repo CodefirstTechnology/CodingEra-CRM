@@ -141,6 +141,42 @@
       </div>
 
       <div class="udash__col udash__col--side">
+        @if (showTargets()) {
+          <article class="udash__panel udash__panel--targets">
+            <header class="udash__panel-head">
+              <h2 class="udash__panel-title">My targets</h2>
+            </header>
+            @if (targetsLoading()) {
+              <p class="udash__muted">Loading targets…</p>
+            } @else if (targetWidgets().length === 0) {
+              <p class="udash__muted">No active targets assigned for the current period.</p>
+            } @else {
+              <div class="udash__target-grid">
+                @for (t of targetWidgets(); track t.targetId) {
+                  <div class="udash__target-card">
+                    <p class="udash__target-type">{{ t.targetTypeName }}</p>
+                    <p class="udash__target-amount">{{ formatRevenue(t.targetAmount) }}</p>
+                    <dl class="udash__target-stats">
+                      <div>
+                        <dt>Achieved</dt>
+                        <dd>{{ formatRevenue(t.achievedAmount) }}</dd>
+                      </div>
+                      <div>
+                        <dt>Remaining</dt>
+                        <dd>{{ formatRevenue(t.remainingAmount) }}</dd>
+                      </div>
+                    </dl>
+                    <div class="udash__target-track" role="progressbar" [attr.aria-valuenow]="t.achievementPercent" aria-valuemin="0" aria-valuemax="100">
+                      <div class="udash__target-fill" [style.width.%]="t.achievementPercent"></div>
+                    </div>
+                    <p class="udash__target-pct">{{ t.achievementPercent | number: '1.0-1' }}% achieved</p>
+                  </div>
+                }
+              </div>
+            }
+          </article>
+        }
+
         <article class="udash__panel">
           <header class="udash__panel-head">
             <h2 class="udash__panel-title">Follow-ups &amp; meetings</h2>

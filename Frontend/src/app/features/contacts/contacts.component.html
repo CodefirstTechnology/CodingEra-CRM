@@ -7,16 +7,6 @@
     <button type="button" class="contacts__btn contacts__btn--solid" (click)="openForm()">+ New contact</button>
   </header>
 
-  <app-crm-selection-bar
-    [selectionCount]="sel.selectedCount()"
-    [canEdit]="sel.selectedCount() === 1"
-    [showAssignActions]="false"
-    [showConvertLead]="false"
-    (edit)="onBulkEdit()"
-    (delete)="onBulkDelete()"
-    (dismiss)="onBulkDismiss()"
-  />
-
   @if (formOpen()) {
     <div class="contacts__modal-root" aria-modal="true" role="dialog" aria-labelledby="new-contact-title">
       <div class="contacts__modal-backdrop" (click)="closeForm()"></div>
@@ -86,15 +76,19 @@
           </label>
 
           <div class="contacts__row2">
-            <label class="contacts__field">
+            <div class="contacts__field">
               <span class="contacts__label">Mobile No</span>
-              <input class="contacts__control contacts__control--soft" type="tel" formControlName="mobile" placeholder="10-digit mobile" />
-              @if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['required']) {
-                <span class="contacts__err">Mobile is required.</span>
-              } @else if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['pattern']) {
-                <span class="contacts__err">Enter exactly 10 digits.</span>
+              <div class="crm-intl-tel-field">
+                <intl-tel-input
+                  formControlName="mobile"
+                  [initOptions]="intlTelInitOptions"
+                  [inputProps]="intlTelMobileInputProps"
+                />
+              </div>
+              @if (fieldInvalid('mobile')) {
+                <span class="contacts__err">{{ intlTelMobileError(createForm.get('mobile')?.errors) }}</span>
               }
-            </label>
+            </div>
             <label class="contacts__field">
               <span class="contacts__label">Gender</span>
               <select class="contacts__control contacts__control--soft" formControlName="gender">
@@ -144,20 +138,48 @@
     </div>
   }
 
+  <div class="contacts__toolbar card">
+    <label class="contacts__search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+      <input
+        type="search"
+        class="contacts__input"
+        placeholder="Search name, email, phone, organization, designation…"
+        [value]="searchQuery()"
+        (input)="onSearchInput($event)"
+      />
+      @if (searchQuery()) {
+        <button type="button" class="contacts__clear" (click)="clearSearch()" aria-label="Clear search">×</button>
+      }
+    </label>
+  </div>
+
   <div class="contacts__table-card card">
+    <div class="contacts__table-head">
+      <span class="contacts__count">
+        <strong>{{ filtered().length }}</strong>
+        @if (hasActiveFilters() && filtered().length !== rows().length) {
+          <span class="contacts__count-muted">of {{ rows().length }} contacts</span>
+        } @else {
+          <span class="contacts__count-muted">contacts</span>
+        }
+      </span>
+    </div>
     <div class="contacts__table-scroll">
+      @if (filtered().length === 0) {
+        <p class="contacts__empty">
+          No contacts match your filters.
+          @if (hasActiveFilters()) {
+            <button type="button" class="contacts__linkish contacts__linkish--inline" (click)="resetFilters()">Clear filters</button>
+          }
+        </p>
+      } @else {
       <table class="contacts__table">
         <thead>
           <tr class="contacts__thead-row">
-            <th class="contacts__th contacts__th--check">
-              <input
-                type="checkbox"
-                class="contacts__checkbox"
-                [checked]="allSelected()"
-                (change)="toggleSelectAll()"
-                aria-label="Select all contacts"
-              />
-            </th>
             <th class="contacts__th">Name</th>
             <th class="contacts__th">Email</th>
             <th class="contacts__th">Phone</th>
@@ -167,22 +189,13 @@
           </tr>
         </thead>
         <tbody>
-          @for (row of rows(); track row.id) {
+          @for (row of tablePagination.paginatedItems(); track row.id) {
             <tr class="contacts__row">
-              <td class="contacts__td contacts__td--check">
-                <input
-                  type="checkbox"
-                  class="contacts__checkbox"
-                  [checked]="isRowSelected(row.id)"
-                  (change)="toggleRow(row.id, $event)"
-                  [attr.aria-label]="'Select ' + contactLabel(row)"
-                />
-              </td>
               <td class="contacts__td contacts__td--strong">
                 <a class="contacts__name-link" [routerLink]="['/contacts', row.id]">{{ contactLabel(row) }}</a>
               </td>
               <td class="contacts__td contacts__td--muted">{{ row.email }}</td>
-              <td class="contacts__td">{{ row.phone }}</td>
+              <td class="contacts__td">{{ row.phone | intlTelDisplay }}</td>
               <td class="contacts__td">{{ row.organization }}</td>
               <td class="contacts__td contacts__td--muted">{{ row.lastModified }}</td>
               <td class="contacts__td">
@@ -192,6 +205,17 @@
           }
         </tbody>
       </table>
+      }
     </div>
+    @if (filtered().length > 0) {
+      <app-crm-pagination-footer
+        ariaLabel="Contacts table pages"
+        [page]="tablePagination.page()"
+        [pageSize]="tablePagination.pageSize()"
+        [totalItems]="tablePagination.totalItems()"
+        (pageChange)="tablePagination.setPage($event)"
+        (pageSizeChange)="tablePagination.setPageSize($event)"
+      />
+    }
   </div>
 </div>

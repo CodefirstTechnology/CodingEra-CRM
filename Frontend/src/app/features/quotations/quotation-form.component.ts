@@ -8,8 +8,14 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
-import { combineLatest, forkJoin, take } from 'rxjs';
+import { catchError, combineLatest, forkJoin, of, take } from 'rxjs';
+import { toDealPipelineRows } from '../../core/services/deals/deal-pipeline-config.util';
 import { DealMasterSelectService } from '../../core/services/deals/deal-master-select.service';
+import {
+  isQuotationGenerationBlockedForDeal,
+  QUOTATION_GENERATION_BLOCKED_MESSAGE,
+} from '../../core/services/deals/deal-stage-validation.util';
+import { DealsService } from '../../core/services/deals.service';
 import {
   masterOptionFormValue,
 } from '../../core/services/organizations/organization-master-select.util';
@@ -20,6 +26,10 @@ import {
   aggregateQuotationLines,
   recalcLineGroupValues,
 } from '../../core/services/quotations/quotation-line-calc.util';
+import {
+  additionalChargesTotal,
+  normalizeChargeAmount,
+} from '../../core/services/quotations/quotation-additional-charges.util';
 import { QuotationsService, quotationHttpErrorMessage } from '../../core/services/quotations.service';
 import { ToastService } from '../../core/toast/toast.service';
 import {
@@ -34,9 +44,14 @@ import {
   normalizeGstin,
   syncGstinInputFromEvent,
 } from '../../shared/utils/gstin.util';
-import { gstFormValidators } from '../../shared/validators/crm-validators';
+import { gstFormValidators, optionalEmailValidator } from '../../shared/validators/crm-validators';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { QuotationItemGridComponent } from './quotation-item-grid/quotation-item-grid.component';
 import { createQuotationLineGroup, type QuotationLineFormValue } from './quotation-line-form.util';
+import { splitFullName } from '../leads/lead-full-name.util';
+import { formatQuotationNumber } from '../../core/services/quotations/quotation-next-number.util';
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -51,7 +66,7 @@ function parseDealIdFromQuery(qpm: ParamMap): number | null {
 
 @Component({
   selector: 'app-quotation-form',
-  imports: [ReactiveFormsModule, RouterLink, QuotationItemGridComponent],
+  imports: [ReactiveFormsModule, RouterLink, QuotationItemGridComponent, IntlTelInputComponent],
   templateUrl: './quotation-form.component.html',
   styleUrl: './quotation-form.component.scss',
 })
@@ -61,6 +76,7 @@ export class QuotationFormComponent {
   private readonly fb = inject(FormBuilder);
   private readonly quotationsService = inject(QuotationsService);
   private readonly prefillService = inject(QuotationDealPrefillService);
+  private readonly dealsService = inject(DealsService);
   protected readonly dealMaster = inject(DealMasterSelectService);
   private readonly toast = inject(ToastService);
 
@@ -77,12 +93,10 @@ export class QuotationFormComponent {
 
   protected readonly form = this.fb.nonNullable.group({
     dealId: [null as number | null],
-    salutation: [''],
-    firstName: ['', [Validators.required, Validators.maxLength(128)]],
-    lastName: ['', [Validators.required, Validators.maxLength(128)]],
+    fullName: ['', [Validators.required, Validators.maxLength(200)]],
     gender: [''],
-    mobileNumber: ['', Validators.maxLength(64)],
-    emailAddress: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
+    mobileNumber: [''],
+    emailAddress: ['', [Validators.maxLength(256), optionalEmailValidator()]],
     companyName: ['', [Validators.required, Validators.maxLength(512)]],
     employees: [''],
     annualRevenue: [''],
@@ -93,27 +107,42 @@ export class QuotationFormComponent {
     contactPerson: ['', Validators.maxLength(256)],
     officeAddress: [''],
     siteAddress: [''],
-    referenceNumber: ['', Validators.maxLength(128)],
+    referenceNumber: [''],
     referenceDate: [''],
     companyCode: ['', Validators.maxLength(32)],
-    documentTypeCode: ['QTN', Validators.maxLength(32)],
+    documentTypeCode: ['QTN'],
     fiscalYearLabel: ['', Validators.maxLength(16)],
     sequenceNumber: [0],
     quotationNumber: ['', Validators.maxLength(64)],
     quotationDate: [todayIsoDate(), Validators.required],
     status: ['Draft', Validators.required],
     remarks: [''],
+    gstPercent: [0, [Validators.min(0)]],
+    transportationCharges: [0],
+    loadingCharges: [0],
+    serviceCharges: [0],
+    customCharges: this.fb.array([]),
     lineItems: this.fb.array([this.createLineGroup()]),
   });
 
   protected readonly grandTotal = computed(() => {
-    let sum = 0;
-    for (const ctrl of this.lineItems.controls) {
-      const g = ctrl as FormGroup;
-      const raw = g.getRawValue();
-      sum += recalcLineGroupValues(raw).lineTotal;
-    }
-    return sum;
+    const v = this.form.getRawValue();
+    const rows = this.lineItems.controls.map((ctrl) => {
+      const raw = (ctrl as FormGroup).getRawValue() as QuotationLineFormValue;
+      return { quantity: Number(raw.quantity) || 0, amounts: recalcLineGroupValues(raw) };
+    });
+    const gst = Number(v.gstPercent) || 0;
+    const additional = additionalChargesTotal({
+      transportationCharges: normalizeChargeAmount(v.transportationCharges),
+      loadingCharges: normalizeChargeAmount(v.loadingCharges),
+      serviceCharges: normalizeChargeAmount(v.serviceCharges),
+      customCharges: (v.customCharges as { chargeName: string; amount: number }[]).map((c, i) => ({
+        sortIndex: i,
+        chargeName: String(c.chargeName ?? ''),
+        amount: normalizeChargeAmount(c.amount),
+      })),
+    });
+    return aggregateQuotationLines(rows, gst, additional).grandTotal;
   });
 
   constructor() {
@@ -146,6 +175,23 @@ export class QuotationFormComponent {
     return this.form.controls.lineItems;
   }
 
+  protected get customCharges(): FormArray {
+    return this.form.controls.customCharges;
+  }
+
+  protected addCustomCharge(): void {
+    this.customCharges.push(
+      this.fb.group({
+        chargeName: [''],
+        amount: [0],
+      }),
+    );
+  }
+
+  protected removeCustomCharge(index: number): void {
+    this.customCharges.removeAt(index);
+  }
+
   protected addLine(): void {
     this.lineItems.push(createQuotationLineGroup(this.fb));
   }
@@ -161,6 +207,9 @@ export class QuotationFormComponent {
 
   protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
   protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps('qt-form__control');
+  protected intlTelMobileError = intlTelMobileErrorMessage;
 
   protected fieldInvalid(name: keyof typeof this.form.controls): boolean {
     const c = this.form.controls[name];
@@ -189,13 +238,13 @@ export class QuotationFormComponent {
       .subscribe({
         next: (n) => {
           this.form.patchValue({
-            companyCode: n.companyCode,
+            companyCode: n.companyCode || 'BCEPL',
             documentTypeCode: n.documentTypeCode,
             fiscalYearLabel: n.fiscalYearLabel,
             sequenceNumber: n.sequenceNumber,
-            quotationNumber: n.quotationNumber,
             quotationDate: n.quotationDate?.slice(0, 10) || todayIsoDate(),
           });
+          this.syncQuotationNumberDisplay();
         },
         error: (err) =>
           this.toast.error(quotationHttpErrorMessage(err, 'Could not generate quotation number.')),
@@ -245,18 +294,29 @@ export class QuotationFormComponent {
 
   private buildDto(statusOverride?: string): QuotationUpsertDto {
     const v = this.form.getRawValue();
-    const firstName = v.firstName.trim();
-    const lastName = v.lastName.trim();
-    const customerName = [firstName, lastName].filter(Boolean).join(' ').trim() || v.companyName.trim();
-    const contactPerson =
-      v.contactPerson.trim() ||
-      [v.salutation.trim(), firstName, lastName].filter(Boolean).join(' ').trim() ||
-      customerName;
+    const { firstName, lastName } = splitFullName(v.fullName);
+    const customerName = v.fullName.trim() || v.companyName.trim();
+    const contactPerson = v.contactPerson.trim() || customerName;
 
+    const headerGst = Number(v.gstPercent) || 0;
+    const customChargeRows = (v.customCharges as { chargeName: string; amount: number }[]).map(
+      (c, i) => ({
+        sortIndex: i,
+        chargeName: String(c.chargeName ?? '').trim(),
+        amount: normalizeChargeAmount(c.amount),
+      }),
+    );
+    const additional = additionalChargesTotal({
+      transportationCharges: normalizeChargeAmount(v.transportationCharges),
+      loadingCharges: normalizeChargeAmount(v.loadingCharges),
+      serviceCharges: normalizeChargeAmount(v.serviceCharges),
+      customCharges: customChargeRows,
+    });
     const lineRows = (v.lineItems as QuotationLineFormValue[]).map((l, i) => {
       const calc = recalcLineGroupValues(l);
       return {
         lineIndex: i,
+        itemId: l.itemId ?? null,
         itemCode: l.itemCode.trim(),
         itemName: l.itemName.trim(),
         description: l.description.trim(),
@@ -264,22 +324,37 @@ export class QuotationFormComponent {
         uom: l.uom.trim(),
         weight: Number(l.weight) || 0,
         unitWeight: Number(l.unitWeight) || 0,
+        steelRate: Number(l.steelRate) || 0,
         rate: Number(l.rate) || 0,
+        itemSnapshotJson: l.itemSnapshotJson ?? '',
         discountPercent: Number(l.discountPercent) || 0,
-        gstPercent: Number(l.gstPercent) || 0,
+        gstPercent: headerGst > 0 ? 0 : Number(l.gstPercent) || 0,
         amount: calc.amount,
         taxAmount: calc.taxAmount,
         lineTotal: calc.lineTotal,
       };
     });
     const totals = aggregateQuotationLines(
-      lineRows.map((l) => ({ quantity: l.quantity, amounts: recalcLineGroupValues(l) })),
+      lineRows.map((l) => ({
+        quantity: l.quantity,
+        amounts: recalcLineGroupValues({
+          quantity: l.quantity,
+          rate: l.rate,
+          discountPercent: l.discountPercent,
+          gstPercent: l.gstPercent,
+          weight: l.weight,
+          unitWeight: l.unitWeight,
+          steelRate: l.steelRate,
+        }),
+      })),
+      headerGst,
+      additional,
     );
 
     return {
       id: this.editId() ?? undefined,
       dealId: v.dealId,
-      salutation: v.salutation.trim(),
+      salutation: '',
       firstName,
       lastName,
       gender: v.gender.trim(),
@@ -308,9 +383,14 @@ export class QuotationFormComponent {
       remarks: v.remarks.trim(),
       subtotal: totals.subtotal,
       taxTotal: totals.taxTotal,
+      gstPercent: headerGst,
       grandTotal: totals.grandTotal,
       totalQuantity: totals.totalQuantity,
       totalWeight: totals.totalWeight,
+      transportationCharges: normalizeChargeAmount(v.transportationCharges),
+      loadingCharges: normalizeChargeAmount(v.loadingCharges),
+      serviceCharges: normalizeChargeAmount(v.serviceCharges),
+      customCharges: customChargeRows.filter((c) => c.chargeName || c.amount > 0),
       lineItems: lineRows,
     };
   }
@@ -328,15 +408,27 @@ export class QuotationFormComponent {
       settings: this.quotationsService.getSettings(),
       next: this.quotationsService.getNextNumber(),
       dealPatch: this.prefillService.resolveFormPatch(cached, dealIdFromQuery),
+      dealRow:
+        dealIdFromQuery != null
+          ? this.dealsService.getById(dealIdFromQuery).pipe(catchError(() => of(null)))
+          : of(null),
+      statuses: this.dealMaster.ensureStatusesLoaded().pipe(take(1)),
     })
       .pipe(take(1))
       .subscribe({
-        next: ({ settings, next, dealPatch }) => {
+        next: ({ settings, next, dealPatch, dealRow }) => {
+          if (dealRow && dealIdFromQuery != null) {
+            const pipeline = toDealPipelineRows(this.dealMaster.statusSelectOptions());
+            if (isQuotationGenerationBlockedForDeal(dealRow.status, pipeline)) {
+              this.loading.set(false);
+              this.toast.error(QUOTATION_GENERATION_BLOCKED_MESSAGE);
+              void this.router.navigate(['/deals', dealIdFromQuery]);
+              return;
+            }
+          }
           const base: Record<string, unknown> = {
             dealId: dealIdFromQuery,
-            salutation: '',
-            firstName: '',
-            lastName: '',
+            fullName: '',
             gender: '',
             mobileNumber: '',
             emailAddress: '',
@@ -352,16 +444,19 @@ export class QuotationFormComponent {
             siteAddress: '',
             referenceNumber: '',
             referenceDate: '',
-            companyCode: next.companyCode || settings.companyCode || '',
+            companyCode: next.companyCode || settings.companyCode || 'BCEPL',
             documentTypeCode: next.documentTypeCode || settings.documentTypeCode || 'QTN',
             fiscalYearLabel: next.fiscalYearLabel,
             sequenceNumber: next.sequenceNumber,
-            quotationNumber: next.quotationNumber,
             quotationDate: next.quotationDate?.slice(0, 10) || todayIsoDate(),
             status: 'Draft',
             remarks: '',
+            transportationCharges: 0,
+            loadingCharges: 0,
+            serviceCharges: 0,
           };
           this.applyNewFormPatch({ ...base, ...(dealPatch ?? {}) });
+          this.syncQuotationNumberDisplay();
           this.loading.set(false);
         },
         error: () => {
@@ -374,11 +469,15 @@ export class QuotationFormComponent {
   }
 
   private applyNewFormPatch(patch: Record<string, unknown>): void {
+    const firstName = String(patch['firstName'] ?? '');
+    const lastName = String(patch['lastName'] ?? '');
+    const fullName =
+      String(patch['fullName'] ?? '').trim() ||
+      [firstName, lastName].filter(Boolean).join(' ').trim();
+
     this.form.patchValue({
       dealId: (patch['dealId'] as number | null) ?? null,
-      salutation: String(patch['salutation'] ?? ''),
-      firstName: String(patch['firstName'] ?? ''),
-      lastName: String(patch['lastName'] ?? ''),
+      fullName,
       gender: String(patch['gender'] ?? ''),
       mobileNumber: String(patch['mobileNumber'] ?? ''),
       emailAddress: String(patch['emailAddress'] ?? ''),
@@ -394,17 +493,38 @@ export class QuotationFormComponent {
       siteAddress: String(patch['siteAddress'] ?? ''),
       referenceNumber: String(patch['referenceNumber'] ?? ''),
       referenceDate: String(patch['referenceDate'] ?? ''),
-      companyCode: String(patch['companyCode'] ?? ''),
+      companyCode: String(patch['companyCode'] ?? 'BCEPL'),
       documentTypeCode: String(patch['documentTypeCode'] ?? 'QTN'),
       fiscalYearLabel: String(patch['fiscalYearLabel'] ?? ''),
       sequenceNumber: Number(patch['sequenceNumber']) || 0,
-      quotationNumber: String(patch['quotationNumber'] ?? ''),
       quotationDate: String(patch['quotationDate'] ?? todayIsoDate()),
       status: String(patch['status'] ?? 'Draft'),
       remarks: String(patch['remarks'] ?? ''),
+      transportationCharges: Number(patch['transportationCharges']) || 0,
+      loadingCharges: Number(patch['loadingCharges']) || 0,
+      serviceCharges: Number(patch['serviceCharges']) || 0,
     });
     this.lineItems.clear();
     this.lineItems.push(this.createLineGroup());
+    this.customCharges.clear();
+    this.syncQuotationNumberDisplay();
+  }
+
+  /** Display e.g. BCEPL/QTN/2025-26/601 from hidden numbering parts. */
+  private syncQuotationNumberDisplay(): void {
+    const cc = this.form.controls.companyCode.value.trim() || 'BCEPL';
+    const doc = this.form.controls.documentTypeCode.value.trim() || 'QTN';
+    const fy = this.form.controls.fiscalYearLabel.value.trim();
+    const seq = this.form.controls.sequenceNumber.value;
+    if (!fy || seq <= 0) return;
+
+    if (!this.form.controls.companyCode.value.trim()) {
+      this.form.controls.companyCode.setValue(cc, { emitEvent: false });
+    }
+
+    this.form.controls.quotationNumber.setValue(formatQuotationNumber(cc, doc, fy, seq), {
+      emitEvent: false,
+    });
   }
 
   private loadQuotation(id: number): void {
@@ -448,9 +568,7 @@ export class QuotationFormComponent {
 
     this.form.patchValue({
       dealId: q.dealId ?? null,
-      salutation: q.salutation ?? '',
-      firstName: q.firstName ?? '',
-      lastName: q.lastName ?? '',
+      fullName: [q.firstName, q.lastName].filter(Boolean).join(' ').trim() || q.customerName?.trim() || '',
       gender: q.gender ?? '',
       mobileNumber: q.mobileNumber,
       emailAddress: q.emailAddress,
@@ -474,12 +592,18 @@ export class QuotationFormComponent {
       quotationDate: q.quotationDate?.slice(0, 10) ?? todayIsoDate(),
       status: q.status,
       remarks: q.remarks,
+      gstPercent: q.gstPercent ?? 0,
+      transportationCharges: q.transportationCharges ?? 0,
+      loadingCharges: q.loadingCharges ?? 0,
+      serviceCharges: q.serviceCharges ?? 0,
     });
     this.lineItems.clear();
+    this.customCharges.clear();
     const lines = q.lineItems?.length
       ? q.lineItems
       : [
           {
+            itemId: null,
             itemName: '',
             description: '',
             quantity: 1,
@@ -490,6 +614,8 @@ export class QuotationFormComponent {
             uom: 'Nos',
             weight: 0,
             unitWeight: 0,
+            steelRate: 0,
+            itemSnapshotJson: '',
             discountPercent: 0,
             gstPercent: 0,
             taxAmount: 0,
@@ -499,6 +625,7 @@ export class QuotationFormComponent {
     for (const l of lines) {
       const g = this.createLineGroup();
       g.patchValue({
+        itemId: l.itemId ?? null,
         itemCode: l.itemCode,
         itemName: l.itemName ?? l.itemCode,
         description: l.description,
@@ -506,7 +633,9 @@ export class QuotationFormComponent {
         uom: l.uom || 'Nos',
         weight: l.weight ?? 0,
         unitWeight: l.unitWeight ?? 0,
+        steelRate: l.steelRate ?? 0,
         rate: l.rate,
+        itemSnapshotJson: l.itemSnapshotJson ?? '',
         discountPercent: l.discountPercent ?? 0,
         gstPercent: l.gstPercent ?? 0,
         amount: l.amount,
@@ -515,5 +644,13 @@ export class QuotationFormComponent {
       });
       this.lineItems.push(g);
     }
+    for (const c of q.customCharges ?? []) {
+      const g = this.fb.group({
+        chargeName: [c.chargeName ?? ''],
+        amount: [c.amount ?? 0],
+      });
+      this.customCharges.push(g);
+    }
+    this.syncQuotationNumberDisplay();
   }
 }

@@ -37,6 +37,7 @@
         <span class="nav-item__label">My Dashboard</span>
       </a>
     }
+    @if (showLeads()) {
     <a routerLink="/leads" routerLinkActive="is-active" class="nav-item">
       <span class="nav-item__icon" aria-hidden="true">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -48,6 +49,8 @@
       </span>
       <span class="nav-item__label">Leads</span>
     </a>
+    }
+    @if (showDeals()) {
     <a routerLink="/deals" routerLinkActive="is-active" class="nav-item">
       <span class="nav-item__icon" aria-hidden="true">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -56,6 +59,8 @@
       </span>
       <span class="nav-item__label">Deals</span>
     </a>
+    }
+    @if (showContacts()) {
     <a routerLink="/contacts" routerLinkActive="is-active" class="nav-item">
       <span class="nav-item__icon" aria-hidden="true">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -66,6 +71,8 @@
       </span>
       <span class="nav-item__label">Contacts</span>
     </a>
+    }
+    @if (showOrganizations()) {
     <a routerLink="/organizations" routerLinkActive="is-active" class="nav-item">
       <span class="nav-item__icon" aria-hidden="true">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -75,6 +82,8 @@
       </span>
       <span class="nav-item__label">Organizations</span>
     </a>
+    }
+    @if (showNotes()) {
     <a routerLink="/notes" routerLinkActive="is-active" class="nav-item">
       <span class="nav-item__icon" aria-hidden="true">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -87,6 +96,8 @@
       </span>
       <span class="nav-item__label">Notes</span>
     </a>
+    }
+    @if (showTasks()) {
     <a routerLink="/tasks" routerLinkActive="is-active" class="nav-item">
       <span class="nav-item__icon" aria-hidden="true">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -96,6 +107,8 @@
       </span>
       <span class="nav-item__label">Tasks</span>
     </a>
+    }
+    @if (showQuotations()) {
     <a routerLink="/quotations" routerLinkActive="is-active" class="nav-item">
       <span class="nav-item__icon" aria-hidden="true">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -107,6 +120,7 @@
       </span>
       <span class="nav-item__label">Quotations</span>
     </a>
+    }
   </nav>
 
   <div class="sidebar__footer-nav">

@@ -1,4 +1,4 @@
-import { NgComponentOutlet } from '@angular/common';
+import { NgComponentOutlet, DatePipe } from '@angular/common';
 import {
   afterNextRender,
   Component,
@@ -12,12 +12,18 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { concat, defaultIfEmpty, forkJoin, last, take, tap } from 'rxjs';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
+import { concat, defaultIfEmpty, filter, forkJoin, last, map, Observable, startWith, take, tap } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
-import { coerceLeadStatus } from '../../core/services/leads/lead-api.mapper';
 import {
+  coerceLeadStatus,
+  formatLeadDateDisplay,
+  leadDateToFormInput,
+  todayIsoDateLocal,
+} from '../../core/services/leads/lead-api.mapper';
+import {
+  CONVERTED_LEAD_STATUS_NAME,
   ensureConvertedInLeadStatusOptions,
   FALLBACK_LEAD_STATUS_OPTIONS,
   isConvertedLeadStatusName,
@@ -38,17 +44,25 @@ import {
   resolveLeadRequirementForDisplay,
   resolveManualLeadCustomFieldForForm,
 } from '../../core/services/leads/lead-notes-requirement.util';
+import { LeadConversionStorageService } from '../../core/services/leads/lead-conversion-storage.service';
+import { DealsService } from '../../core/services/deals.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { resolveRecordOwnerIdForSubmit, showOwnerPickerOnCreate, showSelfAssignedOwnerOnCreate } from '../../shared/utils/record-owner-assignment.util';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
-import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
-import { isLeadConverted, isLeadQualifiedForConversion } from '../../shared/utils/lead-conversion.util';
+import {
+  buildLeadDealConversionIndex,
+  isLeadConverted,
+  isLeadQualifiedForConversion,
+  type LeadDealConversionIndex,
+} from '../../shared/utils/lead-conversion.util';
 import type { ConvertLeadOptions } from '../../core/services/leads/lead-conversion.types';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import type { LeadImportCommitResult } from './import/lead-import-api.models';
-import { CRM_PAGINATED_SELECT_PAGE_SIZE } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import {
@@ -58,18 +72,23 @@ import {
   normalizeGstin,
   syncGstinInputFromEvent,
 } from '../../shared/utils/gstin.util';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelMobileErrorMessage, formatIntlTelDisplay } from '../../shared/utils/intl-tel.util';
 import {
   gstFormValidators,
   optionalEmailValidator,
-  optionalMobile10Validator,
   optionalUrlValidator,
 } from '../../shared/validators/crm-validators';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import {
   buildLeadDisplayName,
   fullNameFromLeadParts,
   splitFullName,
 } from './lead-full-name.util';
 import { environment } from '../../../environments/environment';
+import { LeadSyncHttpService } from '../../core/services/lead-sync/lead-sync-http.service';
+import type { LeadSyncMyAccess } from '../../core/services/lead-sync/lead-sync-api.models';
+import { isLeadSyncClientPullEnabled } from '../../core/services/lead-sync/lead-sync-client.util';
 import {
   isIndiamartLeadRowId,
   isJustdialLeadRowId,
@@ -122,30 +141,41 @@ interface LeadColumnOption {
     ReactiveFormsModule,
     FormsModule,
     RouterLink,
-    CrmSelectionBarComponent,
+    RouterOutlet,
     CrmAssignPickerComponent,
     CrmPaginationFooterComponent,
     ConvertLeadModalComponent,
     NgComponentOutlet,
+    IntlTelInputComponent,
+    DatePipe,
   ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
 })
 export class LeadsComponent {
-  /** Exposes feature flag for template (merged IndiaMART list). */
-  protected readonly enableIndiamartLead = environment.enableIndiamartLead;
-  protected readonly justdialEnabled = environment.justdial.enabled;
-  protected readonly tradeindiaEnabled = environment.tradeindia.enabled;
-
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly leadsService = inject(LeadsService);
+  private readonly dealsService = inject(DealsService);
+  private readonly conversionStorage = inject(LeadConversionStorageService);
   private readonly userScope = inject(UserDataScopeService);
+  private readonly permissions = inject(PermissionService);
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly leadRoundRobin = inject(LeadRoundRobinService);
+  private readonly leadSyncApi = inject(LeadSyncHttpService);
   private readonly injector = inject(Injector);
+
+  /** Assigned lead sync sources for the current user (from API). */
+  protected readonly leadSyncAccess = signal<LeadSyncMyAccess[]>([]);
+
+  /** Sources the user may sync manually (assigned + client integration available). */
+  protected readonly visibleSyncSources = computed(() =>
+    this.leadSyncAccess().filter(
+      (s) => isLeadSyncClientPullEnabled(s.code) || s.apiIntegrationReady,
+    ),
+  );
 
   private readonly marketplaceRuntime = signal<LeadsMarketplaceRuntime | null>(null);
   private readonly marketplaceLocalRows = signal<LeadRow[]>([]);
@@ -178,6 +208,8 @@ export class LeadsComponent {
   private lastRouteEdit = '';
 
   protected readonly formOpen = signal(false);
+  /** True when `/leads/:id` detail child route is active. */
+  protected readonly detailChildActive = signal(false);
   /** Shown read-only in the lead modal (manual CRM flows only; IndiaMART rows never open this form). */
   protected readonly modalLeadSource = signal<LeadSource>('Manual');
   protected readonly searchQuery = signal('');
@@ -185,8 +217,6 @@ export class LeadsComponent {
   protected readonly sourceFilter = signal<LeadListSourceFilter>('all');
   protected readonly ownerFilter = signal<LeadListOwnerFilter>('all');
   protected readonly columnMenuOpen = signal(false);
-  protected readonly tablePage = signal(0);
-  protected readonly tablePageSize = CRM_PAGINATED_SELECT_PAGE_SIZE;
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
 
@@ -301,6 +331,8 @@ export class LeadsComponent {
     'annualRevenue',
     'website',
     'territory',
+    'location',
+    'leadDate',
     'requestType',
     'notes',
   ];
@@ -310,20 +342,31 @@ export class LeadsComponent {
     owner: 'Lead owner',
     leadOwnerName: 'Lead owner',
     annualRevenue: 'Annual revenue',
+    location: 'Location',
+    leadDate: 'Lead date',
     requestType: 'Request type',
   };
 
   /** Manual / API-backed rows only; merged with marketplace lead sources in {@link rows}. */
   protected readonly manualRows = signal<LeadRow[]>([]);
+  /** Deal index for inferring converted leads without per-browser localStorage. */
+  private readonly dealConversionIndex = signal<LeadDealConversionIndex | null>(null);
 
   constructor() {
     this.selectedColumnIds.set(this.loadStoredOptionalColumnIds());
     this.leadOwnerOpts.load();
-    effect(() => {
-      const max = this.tableTotalPages() - 1;
-      if (this.tablePage() > max) this.tablePage.set(Math.max(0, max));
-    });
+    this.loadLeadSyncAccess();
+    this.detailChildActive.set(!!this.route.firstChild);
+    this.router.events
+      .pipe(
+        filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+        map(() => !!this.route.firstChild),
+        startWith(!!this.route.firstChild),
+        takeUntilDestroyed(),
+      )
+      .subscribe((active) => this.detailChildActive.set(active));
     this.refreshLeads();
+    this.refreshDealConversionIndex();
     forkJoin({
       employeeCounts: this.leadMasterData.loadEmployeeCounts(),
       territories: this.leadMasterData.loadTerritories(),
@@ -346,6 +389,16 @@ export class LeadsComponent {
       this.refreshLeads();
     });
     this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
+      if (q['create'] === '1') {
+        this.openForm();
+        void this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { create: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
+        return;
+      }
       const edit = q['edit'];
       if (edit != null && edit !== '') {
         this.beginEditFromRoute(String(edit));
@@ -403,12 +456,33 @@ export class LeadsComponent {
   }
 
   /** Unified list: manual CRM leads + marketplace sources, sorted by recency (scoped for User role). */
-  protected readonly rows = computed(() =>
-    this.userScope.filterLeads(this.leadOwnerOpts.enrichRows(this.buildMergedRows())),
-  );
+  protected readonly rows = computed(() => {
+    const index = this.dealConversionIndex();
+    const enriched = this.conversionStorage.enrichLeadRows(
+      this.leadOwnerOpts.enrichRows(this.buildMergedRows()),
+    );
+    const withDealConversion = index
+      ? enriched.map((row) => this.conversionStorage.enrichLeadRowWithDeals(row, index))
+      : enriched;
+    return this.userScope.filterLeads(withDealConversion);
+  });
 
   /** Admins see lead status as read-only text in the table; users get dropdowns. */
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
+  protected readonly canAssignLeads = computed(() => this.permissions.canAssignLeads());
+  /** Bulk/inline reassignment — admin dashboard only. */
+  protected readonly canManageLeadAssignment = computed(
+    () => this.canAssignLeads() && this.isAdminViewer(),
+  );
+  /** Row menu assign — any user with leads.assign (e.g. Sales). */
+  protected readonly canShowRowAssignActions = computed(() => this.canAssignLeads());
+  protected readonly canSelfAssignLeads = computed(() => this.permissions.canSelfAssignLeads());
+  protected readonly showLeadOwnerPicker = computed(() =>
+    showOwnerPickerOnCreate(this.canAssignLeads(), this.isAdminViewer()),
+  );
+  protected readonly showSelfAssignedLeadOwner = computed(() =>
+    showSelfAssignedOwnerOnCreate(this.canAssignLeads(), this.isAdminViewer()),
+  );
 
   private persistMarketplaceLeadsToDb(): boolean {
     const flag = (environment as { persistMarketplaceLeadsToDb?: boolean }).persistMarketplaceLeadsToDb;
@@ -473,6 +547,16 @@ export class LeadsComponent {
       });
   }
 
+  private refreshDealConversionIndex(): void {
+    this.dealsService
+      .getAll()
+      .pipe(take(1))
+      .subscribe({
+        next: (deals) => this.dealConversionIndex.set(buildLeadDealConversionIndex(deals)),
+        error: () => this.dealConversionIndex.set(null),
+      });
+  }
+
   protected readonly filtered = computed(() => {
     const q = this.searchQuery().trim().toLowerCase();
     const st = this.statusFilter();
@@ -482,11 +566,8 @@ export class LeadsComponent {
     return this.rows().filter((row) => {
       if (filterByOwner && !this.rowMatchesOwnerFilter(row, owner)) return false;
       if (src !== 'all' && (row.leadSource ?? 'Manual') !== src) return false;
-      if (st === 'Converted') {
-        if (!isLeadConverted(row)) return false;
-      } else {
-        if (st === 'all' && isLeadConverted(row)) return false;
-        if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) return false;
+      if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) {
+        return false;
       }
       if (!q) return true;
       const srcLabel = (row.leadSource ?? 'Manual').toLowerCase();
@@ -508,25 +589,7 @@ export class LeadsComponent {
     });
   });
 
-  protected readonly tableTotalPages = computed(() => {
-    const n = this.filtered().length;
-    return Math.max(1, Math.ceil(n / this.tablePageSize));
-  });
-
-  protected readonly paginatedFiltered = computed(() => {
-    const all = this.filtered();
-    const start = this.tablePage() * this.tablePageSize;
-    return all.slice(start, start + this.tablePageSize);
-  });
-
-  protected setTablePage(page: number): void {
-    const max = this.tableTotalPages() - 1;
-    this.tablePage.set(Math.min(Math.max(0, page), max));
-  }
-
-  private resetTablePage(): void {
-    this.tablePage.set(0);
-  }
+  protected readonly tablePagination = createClientTablePagination(this.filtered);
 
   protected readonly allSelectedFiltered = computed(() =>
     this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
@@ -575,12 +638,12 @@ export class LeadsComponent {
   });
 
   protected readonly bulkAssignEnabled = computed(() => {
-    if (!this.isAdminViewer()) return false;
+    if (!this.canManageLeadAssignment()) return false;
     return this.canAssignIds(this.sel.selectedItems());
   });
 
   protected canAssignLead(row: LeadRow): boolean {
-    return this.isAdminViewer() && isPersistedApiLeadRow(row.id);
+    return this.canShowRowAssignActions() && isPersistedApiLeadRow(row.id);
   }
 
   private assignIdsForAction(): string[] {
@@ -589,7 +652,14 @@ export class LeadsComponent {
   }
 
   private canAssignIds(ids: string[]): boolean {
-    return this.isAdminViewer() && ids.length > 0 && ids.every((id) => isPersistedApiLeadRow(id));
+    return ids.length > 0 && ids.every((id) => isPersistedApiLeadRow(id));
+  }
+
+  private canApplyAssignment(ids: string[]): boolean {
+    if (!this.canAssignIds(ids)) return false;
+    return this.assignTargetIds().length > 0
+      ? this.canShowRowAssignActions()
+      : this.canManageLeadAssignment();
   }
 
   protected readonly bulkConvertEnabled = computed(() => {
@@ -611,27 +681,30 @@ export class LeadsComponent {
       .concat(targets.length > 3 ? ` +${targets.length - 3} more` : '');
   });
 
-  /** User-only: persisted CRM leads (not local marketplace-only rows). */
+  /** User-only: persisted CRM leads that are not converted. */
   protected canEditLead(row: LeadRow): boolean {
-    return !this.isAdminViewer() && isPersistedApiLeadRow(row.id);
+    return (
+      !this.isAdminViewer() &&
+      isPersistedApiLeadRow(row.id) &&
+      !isLeadConverted(row)
+    );
   }
 
   protected canConvertLead(row: LeadRow): boolean {
     return (
       this.canEditLead(row) &&
-      !isLeadConverted(row) &&
       isLeadQualifiedForConversion(row, this.resolvedLeadStatusLabel(row))
     );
   }
 
   /** User may see Convert in the menu but it stays disabled until status is Qualified. */
   protected showConvertLeadDisabled(row: LeadRow): boolean {
-    return this.canEditLead(row) && !isLeadConverted(row) && !this.canConvertLead(row);
+    return this.canEditLead(row) && !this.canConvertLead(row);
   }
 
   protected readonly createForm = this.fb.nonNullable.group({
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
-    mobile: ['', [optionalMobile10Validator()]],
+    mobile: [''],
     email: ['', [Validators.maxLength(160), optionalEmailValidator()]],
     gender: [''],
     organization: ['', [Validators.required, Validators.maxLength(160)]],
@@ -646,6 +719,8 @@ export class LeadsComponent {
     requestType: [''],
     requirement: ['', [Validators.required, Validators.maxLength(240)]],
     customField: ['', Validators.maxLength(240)],
+    location: ['', Validators.maxLength(240)],
+    leadDate: [todayIsoDateLocal()],
   });
 
   private clearEditQuery(): void {
@@ -662,12 +737,6 @@ export class LeadsComponent {
 
   private readonly importModalRequestImportCompleted = (value: unknown): void =>
     this.onLeadsImportCompleted(value as LeadImportCommitResult);
-
-  /** Stable output map for {@link NgComponentOutlet}. */
-  protected readonly importModalOutletOutputs: Record<string, (value: unknown) => void> = {
-    dismiss: () => this.closeImportModal(),
-    importCompleted: (value) => this.onLeadsImportCompleted(value as LeadImportCommitResult),
-  };
 
   protected openImportModal(): void {
     this.importModalOpen.set(true);
@@ -696,25 +765,25 @@ export class LeadsComponent {
     }
   }
 
-  /** Admins pick/rotate owners; sales users are assigned as owner on manual create. */
+  /** Admins with assign pick/rotate; user-dashboard create self-assigns (legacy production). */
   private defaultLeadOwnerForForm(): string {
-    if (this.isAdminViewer()) {
+    if (showOwnerPickerOnCreate(this.canAssignLeads(), this.isAdminViewer())) {
       return this.leadRoundRobin.nextOwnerIdForForm();
     }
     return this.leadOwnerOpts.defaultOwnerId();
   }
 
   private resolveLeadOwnerIdForSubmit(rawOwnerId: string, editId: number | null): string {
-    if (this.isAdminViewer()) {
-      return rawOwnerId;
-    }
-    if (editId != null) {
-      const existing = this.rows().find((r) => Number(r.id) === editId);
-      if (existing?.leadOwnerId) {
-        return existing.leadOwnerId;
-      }
-    }
-    return this.leadOwnerOpts.defaultOwnerId() || rawOwnerId;
+    const existing =
+      editId != null ? this.rows().find((r) => Number(r.id) === editId)?.leadOwnerId : undefined;
+    return resolveRecordOwnerIdForSubmit({
+      canAssign: this.canAssignLeads(),
+      isAdminSession: this.isAdminViewer(),
+      rawOwnerId,
+      existingOwnerId: existing,
+      sessionOwnerId: this.leadOwnerOpts.sessionOwnerId(),
+      fallbackOwnerId: this.leadOwnerOpts.defaultOwnerId(),
+    });
   }
 
   protected openForm(): void {
@@ -738,6 +807,8 @@ export class LeadsComponent {
       requestType: '',
       requirement: '',
       customField: '',
+      location: '',
+      leadDate: todayIsoDateLocal(),
     });
     this.createForm.markAsUntouched();
     this.formOpen.set(true);
@@ -765,6 +836,8 @@ export class LeadsComponent {
       requestType: '',
       requirement: '',
       customField: '',
+      location: '',
+      leadDate: todayIsoDateLocal(),
     });
     this.createForm.markAsUntouched();
   }
@@ -786,6 +859,11 @@ export class LeadsComponent {
             this.toast.error('Lead not found.');
             return;
           }
+          if (isLeadConverted(row)) {
+            this.toast.error('Converted leads cannot be edited.');
+            this.clearEditQuery();
+            return;
+          }
           this.editingNumericId.set(id);
           this.modalLeadSource.set(row.leadSource ?? 'Manual');
           const ownerOpt =
@@ -797,7 +875,7 @@ export class LeadsComponent {
           const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
           this.createForm.patchValue({
             fullName: fullNameFromLeadParts(row),
-            mobile: (row.mobile ?? '').replace(/\D/g, '').slice(-10) || row.mobile || '',
+            mobile: row.mobile ?? '',
             email: row.email ?? '',
             gender: row.gender ?? '',
             organization: row.organization ?? '',
@@ -820,6 +898,8 @@ export class LeadsComponent {
             ),
             requirement: resolveLeadRequirementForDisplay(row.requirement, row.notes),
             customField: resolveManualLeadCustomFieldForForm(row.requirement, row.notes),
+            location: row.location ?? '',
+            leadDate: leadDateToFormInput(row.leadDate) || todayIsoDateLocal(),
           });
           this.formOpen.set(true);
         },
@@ -853,8 +933,20 @@ export class LeadsComponent {
   }
 
   protected onAssignToMenu(): void {
-    this.assignTargetIds.set([]);
-    this.assignPickerOpen.set(true);
+    this.openAssignPickerFor([]);
+  }
+
+  private openAssignPickerFor(rowIds: string[]): void {
+    const open = () => {
+      this.assignTargetIds.set(rowIds);
+      this.assignPickerOpen.set(true);
+    };
+    if (this.leadOwnerOpts.loaded() && this.leadOwnerOptions().length > 0) {
+      open();
+      return;
+    }
+    this.leadOwnerOpts.reload();
+    this.leadOwnerOpts.ensureLoaded().pipe(take(1)).subscribe(() => open());
   }
 
   protected onAssignClosed(): void {
@@ -866,15 +958,16 @@ export class LeadsComponent {
     ev?.stopPropagation();
     this.closeRowMenus();
     if (!this.canAssignLead(row)) return;
-    this.assignTargetIds.set([row.id]);
-    this.assignPickerOpen.set(true);
+    this.openAssignPickerFor([row.id]);
   }
 
   protected onRowClearAssignment(row: LeadRow, ev?: Event): void {
     ev?.stopPropagation();
     this.closeRowMenus();
     if (!this.canAssignLead(row)) return;
+    this.assignTargetIds.set([row.id]);
     this.applyClearAssignment([row.id]);
+    this.assignTargetIds.set([]);
   }
 
   protected onAssignPicked(ownerKey: string): void {
@@ -884,7 +977,7 @@ export class LeadsComponent {
       return;
     }
     const ids = this.assignIdsForAction();
-    if (!this.canAssignIds(ids)) {
+    if (!this.canApplyAssignment(ids)) {
       this.onAssignClosed();
       return;
     }
@@ -918,7 +1011,7 @@ export class LeadsComponent {
   }
 
   private applyClearAssignment(ids: string[]): void {
-    if (!this.canAssignIds(ids)) return;
+    if (!this.canApplyAssignment(ids)) return;
     const streams = ids.map((sid) =>
       this.leadsService
         .update(Number(sid), {
@@ -947,18 +1040,19 @@ export class LeadsComponent {
     return this.leadOwnerOpts.resolveSelectValue(row);
   }
 
-  /** Read-only lead owner line in create/edit modal for non-admin users. */
+  /** Read-only lead owner line in create/edit modal for self-assign users. */
   protected createFormLeadOwnerDisplay(): { initials: string; label: string } {
+    const display = this.leadOwnerOpts.sessionOwnerDisplay();
     const id = this.createForm.controls.leadOwner.value?.trim() ?? '';
-    const opt = this.leadOwnerOpts.findById(id);
-    return {
-      initials: opt?.initials ?? '',
-      label: opt?.label ?? '—',
-    };
+    const opt = id ? this.leadOwnerOpts.findById(id) : undefined;
+    if (opt) {
+      return { initials: opt.initials, label: opt.label };
+    }
+    return { initials: display.initials, label: display.label };
   }
 
   protected onLeadOwnerSelectChange(row: LeadRow, ownerKey: string): void {
-    if (!this.isAdminViewer() || !isPersistedApiLeadRow(row.id)) return;
+    if (!this.canManageLeadAssignment() || !isPersistedApiLeadRow(row.id)) return;
     const idn = Number(row.id);
     if (!Number.isFinite(idn)) return;
 
@@ -1067,6 +1161,7 @@ export class LeadsComponent {
       .pipe(last(), defaultIfEmpty(null))
       .subscribe({
         next: () => {
+          this.refreshDealConversionIndex();
           this.sel.clear();
           this.toast.success(
             targets.length === 1
@@ -1114,27 +1209,27 @@ export class LeadsComponent {
     this.statusFilter.set('all');
     this.sourceFilter.set('all');
     this.ownerFilter.set('all');
-    this.resetTablePage();
+    this.tablePagination.resetPage();
   }
 
   protected onSearchInput(ev: Event): void {
     this.searchQuery.set((ev.target as HTMLInputElement).value);
-    this.resetTablePage();
+    this.tablePagination.resetPage();
   }
 
   protected clearSearch(): void {
     this.searchQuery.set('');
-    this.resetTablePage();
+    this.tablePagination.resetPage();
   }
 
   protected setStatusFilter(id: LeadListStatusFilter): void {
     this.statusFilter.set(id);
-    this.resetTablePage();
+    this.tablePagination.resetPage();
   }
 
   protected setSourceFilter(id: LeadListSourceFilter): void {
     this.sourceFilter.set(id);
-    this.resetTablePage();
+    this.tablePagination.resetPage();
   }
 
   protected onStatusFilterSelect(ev: Event): void {
@@ -1147,7 +1242,7 @@ export class LeadsComponent {
 
   protected setOwnerFilter(id: LeadListOwnerFilter): void {
     this.ownerFilter.set(id);
-    this.resetTablePage();
+    this.tablePagination.resetPage();
   }
 
   protected onOwnerFilterSelect(ev: Event): void {
@@ -1216,11 +1311,9 @@ export class LeadsComponent {
     return this.requiredColumnIds.has(id) || this.selectedColumnIds().includes(id);
   }
 
-  /** Keeps +91-XXXXXXXXXX on one line in the table (no break after hyphen). */
+  /** Keeps international mobile on one line with a space after the country code. */
   protected formatMobileCell(mobile: string | undefined): string {
-    const t = mobile?.trim();
-    if (!t || /^null$/i.test(t) || /^undefined$/i.test(t)) return '—';
-    return t.replace(/\s+/g, ' ');
+    return formatIntlTelDisplay(mobile);
   }
 
   protected displayColumnValue(row: LeadRow, id: string): string {
@@ -1241,6 +1334,9 @@ export class LeadsComponent {
       }
       if (!t || /^null$/i.test(t) || /^undefined$/i.test(t)) return '—';
       return t;
+    }
+    if (id === 'leadDate') {
+      return formatLeadDateDisplay(String(value));
     }
     if (typeof value === 'number' || typeof value === 'boolean') return String(value);
     return '—';
@@ -1362,6 +1458,8 @@ export class LeadsComponent {
       requestTypeId: rtPick.masterId,
       requirement: raw.requirement.trim(),
       notes: composeLeadNotesForApi(raw.requirement, raw.customField) || undefined,
+      location: raw.location.trim() || undefined,
+      leadDate: raw.leadDate.trim() || todayIsoDateLocal(),
       leadOwnerName,
       owner: initials,
       updated: 'Just now',
@@ -1381,6 +1479,7 @@ export class LeadsComponent {
         .subscribe({
           next: () => {
             this.toast.success('Lead updated.');
+            this.createRowBus.publish('lead', { ...payload, id: String(editId) });
             done();
           },
           error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
@@ -1400,13 +1499,38 @@ export class LeadsComponent {
   }
 
   protected canEditLeadStatusInTable(row: LeadRow): boolean {
-    return !this.isAdminViewer() && isPersistedApiLeadRow(row.id);
+    return (
+      !this.isAdminViewer() &&
+      isPersistedApiLeadRow(row.id) &&
+      !this.isLeadConvertedInTable(row)
+    );
+  }
+
+  /** Applies conversion metadata before status is rendered in the table. */
+  protected leadRowForTableStatus(row: LeadRow): LeadRow {
+    return this.conversionStorage.enrichLeadRowWithDeals(row, this.dealConversionIndex());
+  }
+
+  protected isLeadConvertedInTable(row: LeadRow): boolean {
+    return isLeadConverted(this.leadRowForTableStatus(row));
+  }
+
+  /** Master-data status label for table display (admin read-only and filters). */
+  protected leadStatusLabel(row: LeadRow): LeadStatus {
+    return coerceLeadStatus(this.resolvedLeadStatusLabel(row));
+  }
+
+  /** Status label shown in the table — matches user dropdown / converted badge rules. */
+  protected leadTableStatusLabel(row: LeadRow): LeadStatus {
+    const enriched = this.leadRowForTableStatus(row);
+    if (isLeadConverted(enriched)) return CONVERTED_LEAD_STATUS_NAME;
+    return this.leadStatusLabel(enriched);
   }
 
   /** Select value (master id string) — prefers {@link LeadRow.status} so it matches admin read-only text. */
   protected statusSelectValueForRow(row: LeadRow): string {
     const options = this.statusSelectOptions();
-    const label = this.resolvedLeadStatusLabel(row);
+    const label = this.resolvedLeadStatusLabel(this.leadRowForTableStatus(row));
     const norm = (s: string) => s.trim().toLowerCase();
     const key = norm(label);
     const byName = options.find((o) => o.id > 0 && norm(o.name) === key);
@@ -1438,11 +1562,13 @@ export class LeadsComponent {
   /** Filter by `lead_status_id` when present; falls back to label match (incl. legacy Converted → Qualified). */
   private rowMatchesStatusFilter(row: LeadRow, filter: LeadListStatusFilter): boolean {
     if (filter === 'all') return true;
+    const enriched = this.leadRowForTableStatus(row);
+    if (filter === 'Converted') return isLeadConverted(enriched);
     const filterId = resolveLeadStatusIdFromName(filter);
-    if (row.leadStatusId != null && row.leadStatusId > 0 && filterId != null) {
-      return row.leadStatusId === filterId;
+    if (enriched.leadStatusId != null && enriched.leadStatusId > 0 && filterId != null) {
+      return enriched.leadStatusId === filterId;
     }
-    const display = this.resolvedLeadStatusLabel(row);
+    const display = this.resolvedLeadStatusLabel(enriched);
     return display === filter || coerceLeadStatus(display) === filter;
   }
 
@@ -1508,71 +1634,92 @@ export class LeadsComponent {
     return msg;
   }
 
-  /** Pulls IndiaMART leads from `environment.indiamart.pullApiUrl`. */
-  protected syncIndiaMartFromApi(): void {
-    void this.ensureMarketplaceRuntime().then((rt) => {
-      const im = rt?.indiamart;
-      if (!im) return;
-      im.fetchFromApi()
-        .pipe(take(1))
-        .subscribe({
-          next: (r) => {
-            this.refreshMarketplaceLocalRows();
-            this.refreshLeads();
-            this.toast.success(
-              `IndiaMART sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
-            );
-          },
-          error: (e: unknown) =>
-            this.toast.error(e instanceof Error ? e.message : 'IndiaMART sync failed.'),
-        });
+  protected syncSourceLoading(code: string): boolean {
+    const rt = this.marketplaceRuntime();
+    const c = code.trim().toLowerCase();
+    if (c === 'indiamart') return rt?.indiamart?.pullInProgress() ?? false;
+    if (c === 'justdial') return rt?.justdial?.loading() ?? false;
+    if (c === 'tradeindia') return rt?.tradeindia?.loading() ?? false;
+    return false;
+  }
+
+  protected syncSourceConfigError(code: string): string | null {
+    const c = code.trim().toLowerCase();
+    if (c === 'indiamart') {
+      return this.marketplaceRuntime()?.indiamart?.getConfigError() ?? null;
+    }
+    return null;
+  }
+
+  private loadLeadSyncAccess(): void {
+    this.leadSyncApi.listMyAccess().pipe(take(1)).subscribe({
+      next: (rows) => this.leadSyncAccess.set(rows),
+      error: () => this.leadSyncAccess.set([]),
     });
   }
 
-  /** Pulls Justdial leads from `environment.justdial.pullApiUrl`. */
-  protected syncJustdialFromApi(): void {
+  protected syncMarketplaceSource(access: LeadSyncMyAccess): void {
+    const startedAt = new Date().toISOString();
     void this.ensureMarketplaceRuntime().then((rt) => {
-      const jd = rt?.justdial;
-      if (!jd) return;
-      jd.fetchFromApi()
-        .pipe(take(1))
-        .subscribe({
-          next: (r) => {
-            this.refreshMarketplaceLocalRows();
-            this.refreshLeads();
-            this.toast.success(
-              `Justdial sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
-            );
-          },
-          error: (e: unknown) =>
-            this.toast.error(e instanceof Error ? e.message : 'Justdial sync failed.'),
-        });
+      const fetch$ = this.fetchMarketplaceByCode(rt, access.code);
+      if (!fetch$) {
+        this.toast.error(`Sync is not available for ${access.displayName}.`);
+        return;
+      }
+      fetch$.pipe(take(1)).subscribe({
+        next: (r) => {
+          this.refreshMarketplaceLocalRows();
+          this.refreshLeads();
+          this.loadLeadSyncAccess();
+          this.toast.success(
+            `${access.displayName} sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
+          );
+          this.leadSyncApi
+            .recordManualLog({
+              sourceId: access.sourceId,
+              startedAt,
+              endedAt: new Date().toISOString(),
+              totalReceived: r.added + r.skippedDuplicates,
+              totalCreated: r.dbSaved ?? 0,
+              failedCount: r.dbFailed ?? 0,
+              errorMessage: r.lastError ?? null,
+            })
+            .pipe(take(1))
+            .subscribe({ error: () => {} });
+        },
+        error: (e: unknown) => {
+          const msg = e instanceof Error ? e.message : `${access.displayName} sync failed.`;
+          this.toast.error(msg);
+          this.leadSyncApi
+            .recordManualLog({
+              sourceId: access.sourceId,
+              startedAt,
+              endedAt: new Date().toISOString(),
+              totalReceived: 0,
+              totalCreated: 0,
+              failedCount: 1,
+              errorMessage: msg,
+            })
+            .pipe(take(1))
+            .subscribe({ error: () => {} });
+        },
+      });
     });
   }
 
-  /** Pulls TradeIndia leads from `environment.tradeindia.pullApiUrl`. */
-  protected syncTradeIndiaFromApi(): void {
-    void this.ensureMarketplaceRuntime().then((rt) => {
-      const ti = rt?.tradeindia;
-      if (!ti) return;
-      ti.fetchFromApi()
-        .pipe(take(1))
-        .subscribe({
-          next: (r) => {
-            this.refreshMarketplaceLocalRows();
-            this.refreshLeads();
-            this.toast.success(
-              `TradeIndia sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
-            );
-          },
-          error: (e: unknown) =>
-            this.toast.error(e instanceof Error ? e.message : 'TradeIndia sync failed.'),
-        });
-    });
+  private fetchMarketplaceByCode(rt: LeadsMarketplaceRuntime | null, code: string) {
+    const c = code.trim().toLowerCase();
+    if (c === 'indiamart') return rt?.indiamart?.fetchFromApi();
+    if (c === 'justdial') return rt?.justdial?.fetchFromApi();
+    if (c === 'tradeindia') return rt?.tradeindia?.fetchFromApi();
+    return undefined;
   }
 
   protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
   protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps('leads__control leads__control--soft');
+  protected intlTelMobileError = intlTelMobileErrorMessage;
 
   protected fieldInvalid(name: string): boolean {
     const c = this.createForm.get(name);

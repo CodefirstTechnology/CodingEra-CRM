@@ -14,6 +14,14 @@
   padding: 0 0.5rem 1.5rem;
 }
 
+.contact-detail__field-error {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #b91c1c;
+}
+
 .contact-detail--loading,
 .contact-detail--empty {
   padding: 2rem 0.5rem;

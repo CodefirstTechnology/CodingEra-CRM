@@ -1,9 +1,9 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { take } from 'rxjs';
-import { switchMap } from 'rxjs/operators';
+import { forkJoin, of, take } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
@@ -41,17 +41,22 @@ import type { DealStageHistoryRecord } from '../../core/services/deals/deal-http
 import {
   canSelectDealStage,
   DEAL_STAGE_CLOSED_MESSAGE,
+  isQuotationGenerationBlockedForDeal,
+  QUOTATION_GENERATION_BLOCKED_MESSAGE,
   validateDealStageTransition,
 } from '../../core/services/deals/deal-stage-validation.util';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { PermissionService } from '../../core/services/permission.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { TasksService } from '../../core/services/tasks.service';
-import { NotesService } from '../../core/services/notes.service';
 import { EmailsService, emailSendErrorMessage } from '../../core/services/emails.service';
 import type { EntityEmailItem } from '../../core/services/emails/email-api.models';
 import { ToastService } from '../../core/toast/toast.service';
 import { QuotationsService } from '../../core/services/quotations.service';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelFieldInvalid, intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
 import { dealRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from './deals.component';
@@ -68,10 +73,9 @@ import {
   buildDealQuotationPrefill,
   storeDealQuotationPrefill,
 } from '../../shared/utils/deal-quotation-prefill.util';
-import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
 
-type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Tasks' | 'Notes' | 'Attachments';
+type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Tasks' | 'Attachments';
 
 interface DealAttachmentItem {
   id: string;
@@ -84,7 +88,7 @@ interface DealCommentItem extends EntityCommentItem {}
 
 @Component({
   selector: 'app-deal-detail',
-  imports: [RouterLink, ReactiveFormsModule, EntityActivityTimelineComponent],
+  imports: [RouterLink, ReactiveFormsModule, EntityActivityTimelineComponent, IntlTelInputComponent],
   templateUrl: './deal-detail.component.html',
   styleUrl: './deal-detail.component.scss',
 })
@@ -99,13 +103,13 @@ export class DealDetailComponent {
   private readonly commentsService = inject(CommentsService);
   private readonly emailsService = inject(EmailsService);
   private readonly tasksService = inject(TasksService);
-  private readonly notesService = inject(NotesService);
   private readonly toast = inject(ToastService);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly createFlow = inject(CreateFlowService);
   protected readonly auth = inject(AuthService);
   private readonly quotationsService = inject(QuotationsService);
   private readonly userScope = inject(UserDataScopeService);
+  private readonly permissions = inject(PermissionService);
 
   protected readonly numericId = signal<number | null>(null);
   protected readonly deal = signal<DealRow | null>(null);
@@ -113,7 +117,6 @@ export class DealDetailComponent {
   protected readonly activeTab = signal<DetailTab>('Activity');
   protected readonly dataSaving = signal(false);
   protected readonly dealTasks = signal<TaskRow[]>([]);
-  protected readonly dealNotes = signal<NoteRow[]>([]);
   protected readonly dealAttachments = signal<DealAttachmentItem[]>([]);
   protected readonly dealComments = signal<DealCommentItem[]>([]);
   protected readonly dealActivityGroups = signal<ActivityGroup[]>([]);
@@ -151,7 +154,6 @@ export class DealDetailComponent {
     'Comments',
     'Data',
     'Tasks',
-    'Notes',
     'Attachments',
   ];
 
@@ -188,6 +190,7 @@ export class DealDetailComponent {
   protected readonly masterOptionFormValue = masterOptionFormValue;
   protected readonly progressStages = computed(() => buildDealDetailProgressStages(this.dealStatuses()));
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
+  protected readonly canAssignDeals = computed(() => this.permissions.canAssignDeals());
 
   protected readonly dealOwnerOptions = this.ownerOpts.options;
 
@@ -200,6 +203,13 @@ export class DealDetailComponent {
   });
 
   protected readonly isStatusLocked = this.isDealReadOnly;
+
+  protected readonly canCreateQuotation = computed(() => {
+    const row = this.deal();
+    if (!row || this.dealQuotationId() != null || this.isDealReadOnly()) return false;
+    const pipeline = toDealPipelineRows(this.dealStatuses());
+    return !isQuotationGenerationBlockedForDeal(row.status, pipeline);
+  });
 
   protected readonly statusLockedMessage = computed(() => {
     const row = this.deal();
@@ -241,16 +251,10 @@ export class DealDetailComponent {
     return 0;
   });
 
-  private readonly noteRelatedTypeLabels: Record<NoteRelatedType, string> = {
-    lead: 'Lead',
-    deal: 'Deal',
-    contact: 'Contact',
-    organization: 'Organization',
-  };
-
   protected readonly dataForm = this.fb.nonNullable.group({
     organization: ['', Validators.required],
     annualRevenue: [''],
+    dealAmount: [''],
     status: this.fb.nonNullable.control<string>(DEFAULT_DEAL_PIPELINE_STATUS, Validators.required),
     stageComment: [''],
     email: ['', [Validators.email]],
@@ -263,7 +267,20 @@ export class DealDetailComponent {
     nextStep: [''],
   });
 
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelDetailInputProps = crmIntlTelInputProps('deal-detail__input');
+  protected intlTelMobileError = intlTelMobileErrorMessage;
+  protected intlTelFieldInvalid = intlTelFieldInvalid;
+
   constructor() {
+    effect(() => {
+      this.deal();
+      this.isDealReadOnly();
+      this.dataSaving();
+      this.progressUpdating();
+      this.syncDataFormEditability();
+    });
+
     this.ownerOpts.load();
     this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
@@ -273,7 +290,6 @@ export class DealDetailComponent {
         this.numericId.set(null);
         this.deal.set(null);
         this.dealTasks.set([]);
-        this.dealNotes.set([]);
         this.dealAttachments.set([]);
         this.dealComments.set([]);
         this.commentComposerOpen.set(false);
@@ -302,7 +318,6 @@ export class DealDetailComponent {
             this.emailSubjectText.set(`${org} (${this.dealCode()})`);
             this.emailBody.set('');
             this.refreshDealTasks();
-            this.refreshDealNotes();
             this.refreshDealActivities();
             const did = row.id.trim();
             if (did) {
@@ -322,7 +337,6 @@ export class DealDetailComponent {
             this.refreshStageHistory();
           } else {
             this.dealTasks.set([]);
-            this.dealNotes.set([]);
             this.dealActivityGroups.set([]);
             this.dealAttachments.set([]);
             this.dealComments.set([]);
@@ -339,7 +353,7 @@ export class DealDetailComponent {
 
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((query) => {
       const tab = parseEntityDetailTab(query.get('tab'));
-      if (tab) this.setTab(tab);
+      if (tab && tab !== 'Notes') this.setTab(tab);
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
@@ -348,7 +362,6 @@ export class DealDetailComponent {
         this.refreshDealActivities();
       }
       if (e.kind === 'note') {
-        this.refreshDealNotes();
         this.refreshDealActivities();
       }
     });
@@ -388,21 +401,6 @@ export class DealDetailComponent {
           this.dealActivityGroups.set([]);
           this.dealActivityLoading.set(false);
         },
-      });
-  }
-
-  private refreshDealNotes(): void {
-    const id = this.numericId();
-    if (id == null) {
-      this.dealNotes.set([]);
-      return;
-    }
-    this.notesService
-      .getByRecord(id)
-      .pipe(take(1))
-      .subscribe({
-        next: (rows) => this.dealNotes.set(rows),
-        error: () => this.dealNotes.set([]),
       });
   }
 
@@ -471,8 +469,10 @@ export class DealDetailComponent {
       return;
     }
     const next = [...this.dealAttachments()];
+    const addedNames: string[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      addedNames.push(file.name);
       const id =
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? crypto.randomUUID()
@@ -487,6 +487,23 @@ export class DealDetailComponent {
     this.dealAttachments.set(next);
     this.persistAttachments(did);
     input.value = '';
+    this.logAttachmentActivities('deal', addedNames);
+  }
+
+  private logAttachmentActivities(entityType: 'deal', fileNames: string[]): void {
+    const id = this.numericId();
+    if (id == null || !fileNames.length) return;
+
+    const actor = this.auth.user()?.name?.trim() || 'User';
+    const requests = fileNames.map((name) =>
+      this.activitiesService
+        .logAttachmentAdded(entityType, id, `${actor} added attachment: ${name}`)
+        .pipe(catchError(() => of(null))),
+    );
+
+    forkJoin(requests)
+      .pipe(take(1))
+      .subscribe(() => this.refreshDealActivities());
   }
 
   private refreshDealComments(): void {
@@ -683,19 +700,7 @@ export class DealDetailComponent {
     void this.router.navigate(['/tasks'], { queryParams: { edit: id } });
   }
 
-  protected openCreateNoteFromDeal(): void {
-    const d = this.deal();
-    if (!d?.id) return;
-    const displayName = d.organizationName.trim() || 'Deal';
-    this.createFlow.selectEntity('note', {
-      noteFromLead: {
-        relatedDealId: String(d.id),
-        dealRelatedName: displayName,
-        recordOwnerUserId: dealRecordOwnerUserId(d),
-      },
-    });
-  }
-
+  /** First character for avatar chip (matches initials or assignee display name). */
   protected taskAssigneeChipInitial(task: TaskRow): string {
     const ini = task.assignedInitials?.trim();
     if (ini) return ini.charAt(0).toUpperCase();
@@ -850,6 +855,7 @@ export class DealDetailComponent {
       {
         organization: row.organizationName ?? '',
         annualRevenue: this.revenueNumberToInputString(row.annualRevenue),
+        dealAmount: this.revenueNumberToInputString(row.dealAmount),
         status: resolveDealStatusSelectValue(
           row.dealStatusId,
           row.status,
@@ -873,17 +879,25 @@ export class DealDetailComponent {
       { emitEvent: false },
     );
     this.dataForm.markAsPristine();
-    if (isDealClosed(row.status)) {
-      this.dataForm.disable({ emitEvent: false });
-    } else {
-      this.dataForm.enable({ emitEvent: false });
-    }
+    this.syncDataFormEditability();
   }
 
-  protected noteRelatedLabel(note: NoteRow): string {
-    const label = this.noteRelatedTypeLabels[note.relatedType] ?? note.relatedType;
-    const suffix = note.visibility === 'private' ? ' · Private' : '';
-    return `${label} · ${note.relatedName}${suffix}`;
+  /** Keeps reactive-form disabled state in sync — do not use `[disabled]` on form controls in the template. */
+  private syncDataFormEditability(): void {
+    const row = this.deal();
+    if (!row || this.isDealReadOnly()) {
+      this.dataForm.disable({ emitEvent: false });
+      return;
+    }
+
+    this.dataForm.enable({ emitEvent: false });
+
+    const statusCtrl = this.dataForm.controls.status;
+    if (this.dataSaving() || this.progressUpdating()) {
+      statusCtrl.disable({ emitEvent: false });
+    } else {
+      statusCtrl.enable({ emitEvent: false });
+    }
   }
 
   protected setTab(tab: DetailTab): void {
@@ -1109,6 +1123,7 @@ export class DealDetailComponent {
             const otherDirty =
               this.dataForm.controls.organization.dirty ||
               this.dataForm.controls.annualRevenue.dirty ||
+              this.dataForm.controls.dealAmount.dirty ||
               this.dataForm.controls.status.dirty ||
               this.dataForm.controls.email.dirty ||
               this.dataForm.controls.mobile.dirty ||
@@ -1145,6 +1160,9 @@ export class DealDetailComponent {
     if (this.dataForm.controls.annualRevenue.dirty) {
       patch.annualRevenue = parseRevenueInputToNumber(v.annualRevenue);
     }
+    if (this.dataForm.controls.dealAmount.dirty) {
+      patch.dealAmount = parseRevenueInputToNumber(v.dealAmount);
+    }
     if (this.dataForm.controls.status.dirty) {
       const statPick = resolveOrgMasterPick(v.status, this.dealMaster.statusSelectOptions());
       patch.status = resolveDealStatusLabel(statPick.label || v.status);
@@ -1156,7 +1174,7 @@ export class DealDetailComponent {
     if (this.dataForm.controls.mobile.dirty) {
       patch.mobile = v.mobile.trim() || '—';
     }
-    if (this.dataForm.controls.dealOwner.dirty) {
+    if (this.canAssignDeals() && this.isAdminViewer() && this.dataForm.controls.dealOwner.dirty) {
       const opt = this.dealOwnerOptions().find((o) => o.id === v.dealOwner.trim());
       const ownerId = v.dealOwner.trim();
       patch.dealOwnerId = ownerId;
@@ -1213,6 +1231,11 @@ export class DealDetailComponent {
       this.toast.error('Deal not loaded.');
       return;
     }
+    const pipeline = toDealPipelineRows(this.dealStatuses());
+    if (isQuotationGenerationBlockedForDeal(row.status, pipeline)) {
+      this.toast.error(QUOTATION_GENERATION_BLOCKED_MESSAGE);
+      return;
+    }
     const v = this.dataForm.getRawValue();
     const prefill = buildDealQuotationPrefill(
       idn,
@@ -1259,9 +1282,23 @@ export class DealDetailComponent {
         next: (items) => {
           const latest = items.length > 0 ? items[0] : null;
           this.dealQuotationId.set(latest?.id ?? null);
+          if (latest?.grandTotal != null && Number.isFinite(latest.grandTotal) && latest.grandTotal > 0) {
+            this.applyQuotationGrandTotalToDealAmount(latest.grandTotal);
+          }
         },
         error: () => this.dealQuotationId.set(null),
       });
+  }
+
+  /** Populates Deal amount from the linked quotation grand total. */
+  private applyQuotationGrandTotalToDealAmount(grandTotal: number): void {
+    const amountStr = this.revenueNumberToInputString(grandTotal);
+    this.dataForm.patchValue({ dealAmount: amountStr }, { emitEvent: false });
+
+    const current = this.deal();
+    if (current) {
+      this.deal.set({ ...current, dealAmount: grandTotal });
+    }
   }
 
   protected sidebarAnnualRevenueLabel(): string {

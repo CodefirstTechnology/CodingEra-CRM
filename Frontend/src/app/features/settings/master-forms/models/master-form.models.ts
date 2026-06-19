@@ -1,6 +1,5 @@
 /** API slug for `GET/POST/PUT/PATCH /api/master-data/{slug}`. */
 export type MasterFormEntitySlug =
-  | 'salutations'
   | 'lead-statuses'
   | 'deal-statuses'
   | 'request-types'
@@ -46,12 +45,6 @@ export type MasterFormSaveResult =
   | { ok: false; error: string };
 
 export const MASTER_FORM_ENTITIES: readonly MasterFormEntityConfig[] = [
-  {
-    slug: 'salutations',
-    label: 'Salutations',
-    singularLabel: 'Salutation',
-    description: 'Titles such as Mr, Mrs, Ms, and Dr.',
-  },
   {
     slug: 'lead-statuses',
     label: 'Lead Statuses',

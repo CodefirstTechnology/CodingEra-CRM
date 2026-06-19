@@ -376,18 +376,32 @@
       } @else if (activeTab() === 'Data') {
       <header class="lead-detail__main-head">
         <h2>Data</h2>
+        @if (!isLeadDataReadOnly()) {
         <div class="lead-detail__data-actions">
-          <button type="button" class="lead-detail__icon-btn" aria-label="Discard unsaved edits" title="Revert" (click)="discardDataEdits()">
+          @if (canEditLead(row)) {
+          <button type="button" class="lead-detail__icon-btn" aria-label="Edit lead" title="Edit" (click)="openLeadEditForm()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
               <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+          }
+          <button type="button" class="lead-detail__icon-btn" aria-label="Discard unsaved edits" title="Revert" (click)="discardDataEdits()">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
             </svg>
           </button>
           <button type="button" class="lead-detail__btn lead-detail__btn--solid" [disabled]="dataSaving()" (click)="saveDataTab()">
             Save
           </button>
         </div>
+        }
       </header>
+
+      @if (isLeadDataReadOnly()) {
+      <p class="lead-detail__readonly-msg" role="status">This lead is converted and can no longer be edited.</p>
+      }
 
       <form class="lead-detail__data-form" [formGroup]="dataForm" (ngSubmit)="saveDataTab()">
         <fieldset class="lead-detail__fieldset">
@@ -400,6 +414,14 @@
             <label class="lead-detail__field">
               <span class="lead-detail__label">Website</span>
               <input type="text" class="lead-detail__input" formControlName="website" />
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Location</span>
+              <input type="text" class="lead-detail__input" formControlName="location" />
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Lead date</span>
+              <input type="date" class="lead-detail__input" formControlName="leadDate" />
             </label>
             <label class="lead-detail__field">
               <span class="lead-detail__label">Territory</span>
@@ -429,7 +451,7 @@
             </label>
             <label class="lead-detail__field">
               <span class="lead-detail__label">Lead Owner</span>
-              @if (isAdminViewer()) {
+              @if (canAssignLeads() && isAdminViewer()) {
                 <select class="lead-detail__select" formControlName="owner">
                   <option value="">— Select owner —</option>
                   @for (o of leadOwnerOptions(); track o.id) {
@@ -465,10 +487,19 @@
               <span class="lead-detail__label">Email</span>
               <input type="email" class="lead-detail__input" formControlName="email" />
             </label>
-            <label class="lead-detail__field">
+            <div class="lead-detail__field">
               <span class="lead-detail__label">Mobile No</span>
-              <input type="text" class="lead-detail__input" formControlName="mobile" autocomplete="tel" />
-            </label>
+              <div class="crm-intl-tel-field">
+                <intl-tel-input
+                  formControlName="mobile"
+                  [initOptions]="intlTelInitOptions"
+                  [inputProps]="intlTelDetailInputProps"
+                />
+              </div>
+              @if (intlTelFieldInvalid(dataForm.controls.mobile)) {
+                <span class="lead-detail__field-error">{{ intlTelMobileError(dataForm.controls.mobile.errors) }}</span>
+              }
+            </div>
           </div>
         </fieldset>
       </form>
@@ -544,36 +575,6 @@
               </svg>
             </button>
           </div>
-        </li>
-        }
-      </ul>
-      }
-      } @else if (activeTab() === 'Notes') {
-      <header class="lead-detail__main-head lead-detail__main-head--tasks">
-        <h2>Notes</h2>
-        <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="openCreateNoteFromLead()">+ New Note</button>
-      </header>
-      @if (leadNotes().length === 0) {
-      <div class="lead-detail__notes-empty">
-        <span class="lead-detail__notes-icon" aria-hidden="true">
-          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <path d="M12 18h-6M12 14h-6M16 14h2M16 18h2" />
-          </svg>
-        </span>
-        <p>No Notes</p>
-        <button type="button" class="lead-detail__btn lead-detail__btn--calls-muted" (click)="openCreateNoteFromLead()">Create Note</button>
-      </div>
-      } @else {
-      <ul class="lead-detail__note-list" aria-label="Notes for this lead">
-        @for (note of leadNotes(); track note.id) {
-        <li class="lead-detail__note-row">
-          <p class="lead-detail__note-title">{{ note.title }}</p>
-          <p class="lead-detail__note-meta">{{ note.author }} · {{ note.when }}</p>
-          @if (note.bodyPreview?.trim()) {
-          <p class="lead-detail__note-preview">{{ note.bodyPreview }}</p>
-          }
         </li>
         }
       </ul>
@@ -671,20 +672,6 @@
                 <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
               </svg>
             </button>
-            <button
-              type="button"
-              class="lead-detail__side-icon lead-detail__side-icon--danger"
-              aria-label="Delete lead"
-              title="Delete"
-              (click)="confirmDeleteLead()"
-            >
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 6h18" />
-                <path d="M8 6V4h8v2" />
-                <path d="M19 6l-1 14H6L5 6" />
-                <path d="M10 11v6M14 11v6" />
-              </svg>
-            </button>
           </div>
         </div>
       </div>
@@ -697,16 +684,18 @@
             </svg>
             <span class="lead-detail__side-toggle-text">Details</span>
           </button>
-          <button type="button" class="lead-detail__side-edit" aria-label="Edit details on Data tab" title="Edit" (click)="setTab('Data')">
+          @if (!isLeadDataReadOnly() && canEditLead(row)) {
+          <button type="button" class="lead-detail__side-edit" aria-label="Edit lead" title="Edit" (click)="openLeadEditForm()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
               <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
               <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
           </button>
+          }
         </div>
         @if (sidebarDetailsOpen()) {
         <div class="lead-detail__side-section-body">
-          <dl class="lead-detail__kv lead-detail__kv--side lead-detail__kv--editable">
+          <dl class="lead-detail__kv lead-detail__kv--side" [class.lead-detail__kv--editable]="!isLeadDataReadOnly()" [class.lead-detail__kv--readonly]="isLeadDataReadOnly()">
             <dt>Organization</dt>
             <dd class="lead-detail__kv-dd">
               <input
@@ -726,6 +715,23 @@
                 [placeholder]="sidebarAddLabel('Website')"
                 inputmode="url"
                 autocomplete="url"
+              />
+            </dd>
+            <dt>Location</dt>
+            <dd class="lead-detail__kv-dd">
+              <input
+                type="text"
+                class="lead-detail__side-field"
+                [formControl]="dataForm.controls.location"
+                [placeholder]="sidebarAddLabel('Location')"
+              />
+            </dd>
+            <dt>Lead date</dt>
+            <dd class="lead-detail__kv-dd">
+              <input
+                type="date"
+                class="lead-detail__side-field"
+                [formControl]="dataForm.controls.leadDate"
               />
             </dd>
             <dt>Territory</dt>
@@ -756,9 +762,9 @@
               />
             </dd>
             <dt>Lead Owner</dt>
-            <dd class="lead-detail__kv-owner" [class.lead-detail__kv-owner--editable]="isAdminViewer()">
+            <dd class="lead-detail__kv-owner" [class.lead-detail__kv-owner--editable]="canAssignLeads() && isAdminViewer()">
               <span class="lead-detail__owner-badge lead-detail__owner-badge--side">{{ sidebarOwnerChipInitial() }}</span>
-              @if (isAdminViewer()) {
+              @if (canAssignLeads() && isAdminViewer()) {
                 <app-crm-paginated-select
                   class="lead-detail__owner-paginated-select"
                   stylePrefix="lead-detail"
@@ -787,7 +793,7 @@
         </div>
         @if (sidebarPersonOpen()) {
         <div class="lead-detail__side-section-body">
-          <dl class="lead-detail__kv lead-detail__kv--side lead-detail__kv--editable">
+          <dl class="lead-detail__kv lead-detail__kv--side" [class.lead-detail__kv--editable]="!isLeadDataReadOnly()" [class.lead-detail__kv--readonly]="isLeadDataReadOnly()">
             <dt><span class="lead-detail__req">*</span> Full name</dt>
             <dd class="lead-detail__kv-dd">
               <input
@@ -811,20 +817,23 @@
             </dd>
             <dt>Mobile No</dt>
             <dd class="lead-detail__kv-dd">
-              <input
-                type="tel"
-                class="lead-detail__side-field"
-                [formControl]="dataForm.controls.mobile"
-                [placeholder]="sidebarAddLabel('Mobile No')"
-                autocomplete="tel"
-              />
+              <div class="crm-intl-tel-field">
+                <intl-tel-input
+                  [formControl]="dataForm.controls.mobile"
+                  [initOptions]="intlTelInitOptions"
+                  [inputProps]="intlTelSideInputProps"
+                />
+              </div>
+              @if (intlTelFieldInvalid(dataForm.controls.mobile)) {
+                <span class="lead-detail__field-error">{{ intlTelMobileError(dataForm.controls.mobile.errors) }}</span>
+              }
             </dd>
           </dl>
         </div>
         }
       </section>
 
-      @if (dataForm.dirty) {
+      @if (dataForm.dirty && !isLeadDataReadOnly()) {
       <footer class="lead-detail__side-save">
         <button type="button" class="lead-detail__btn lead-detail__btn--light lead-detail__side-save-discard" [disabled]="dataSaving()" (click)="discardDataEdits()">
           Discard

@@ -1,0 +1,175 @@
+<div class="lsync">
+  <header class="lsync__head">
+    <div>
+      <h2 class="lsync__title">Lead Sync Management</h2>
+      <p class="lsync__sub">
+        Assign users per lead source, configure automatic lead sync, and review sync history.
+      </p>
+    </div>
+  </header>
+
+  @if (!isAdmin()) {
+    <p class="lsync__err" role="alert">Only administrators can access this module.</p>
+  } @else {
+    <nav class="lsync__tabs" aria-label="Lead sync sections">
+      <button
+        type="button"
+        class="lsync__tab"
+        [class.lsync__tab--active]="activeTab() === 'config'"
+        (click)="setTab('config')"
+      >
+        Configuration
+      </button>
+      <button
+        type="button"
+        class="lsync__tab"
+        [class.lsync__tab--active]="activeTab() === 'history'"
+        (click)="setTab('history')"
+      >
+        Sync History
+      </button>
+    </nav>
+
+    @if (loadError(); as err) {
+      <p class="lsync__err" role="alert">{{ err }}</p>
+    }
+
+    @if (loading()) {
+      <p class="lsync__hint">Loading…</p>
+    }
+
+    @if (activeTab() === 'config' && !loading()) {
+      @for (source of sources(); track source.id) {
+        <section class="lsync__card">
+          <header class="lsync__card-head">
+            <h3 class="lsync__card-title">{{ source.displayName }}</h3>
+            <span
+              class="lsync__badge"
+              [class.lsync__badge--ready]="source.apiIntegrationReady"
+              [class.lsync__badge--pending]="!source.apiIntegrationReady"
+            >
+              {{ source.apiIntegrationReady ? 'API ready' : 'API pending' }}
+            </span>
+          </header>
+
+          <div class="lsync__section">
+            <h4 class="lsync__section-title">User assignment</h4>
+            <p class="lsync__section-sub">Only users with Lead module access are listed.</p>
+            @if (eligibleUsers().length === 0) {
+              <p class="lsync__hint">No eligible users found.</p>
+            } @else {
+              <ul class="lsync__user-list">
+                @for (user of eligibleUsers(); track user.id) {
+                  <li>
+                    <label class="lsync__user-check">
+                      <input
+                        type="checkbox"
+                        [checked]="isUserSelected(source.id, user.id)"
+                        (change)="toggleUser(source.id, user.id, $any($event.target).checked)"
+                      />
+                      <span>{{ user.fullName }} ({{ user.email }}) — {{ user.roleName }}</span>
+                    </label>
+                  </li>
+                }
+              </ul>
+            }
+            <button
+              type="button"
+              class="lsync__btn lsync__btn--solid"
+              [disabled]="savingSourceId() === source.id"
+              (click)="saveAssignments(source)"
+            >
+              {{ savingSourceId() === source.id ? 'Saving…' : 'Save assignments' }}
+            </button>
+          </div>
+
+          <div class="lsync__section">
+            <h4 class="lsync__section-title">Auto sync</h4>
+            <label class="lsync__toggle">
+              <input
+                type="checkbox"
+                [checked]="autoSyncEnabled(source.id)"
+                (change)="setAutoSyncEnabled(source.id, $any($event.target).checked)"
+              />
+              <span>Enable auto sync</span>
+            </label>
+            @if (autoSyncEnabled(source.id)) {
+              <p class="lsync__hint">Leads sync automatically on each background check.</p>
+            }
+
+            <dl class="lsync__meta">
+              <div>
+                <dt>Last sync</dt>
+                <dd>
+                  @if (source.lastSyncAt) {
+                    {{ source.lastSyncAt | date: 'medium' }}
+                  } @else {
+                    —
+                  }
+                </dd>
+              </div>
+              <div>
+                <dt>Next scheduled sync</dt>
+                <dd>
+                  @if (source.autoSyncEnabled) {
+                    Continuous
+                  } @else {
+                    —
+                  }
+                </dd>
+              </div>
+            </dl>
+
+            <button
+              type="button"
+              class="lsync__btn lsync__btn--solid"
+              [disabled]="savingSourceId() === source.id"
+              (click)="saveAutoSync(source)"
+            >
+              {{ savingSourceId() === source.id ? 'Saving…' : 'Save auto sync' }}
+            </button>
+          </div>
+        </section>
+      }
+    }
+
+    @if (activeTab() === 'history') {
+      <div class="lsync__table-wrap">
+        <table class="lsync__table">
+          <thead>
+            <tr>
+              <th>Source</th>
+              <th>Type</th>
+              <th>Started</th>
+              <th>Ended</th>
+              <th>Received</th>
+              <th>Created</th>
+              <th>Failed</th>
+              <th>Triggered by</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of history(); track row.id) {
+              <tr>
+                <td>{{ row.sourceName }}</td>
+                <td>{{ row.syncType }}</td>
+                <td>{{ row.startedAt | date: 'short' }}</td>
+                <td>{{ row.endedAt ? (row.endedAt | date: 'short') : '—' }}</td>
+                <td>{{ row.totalReceived }}</td>
+                <td>{{ row.totalCreated }}</td>
+                <td>{{ row.failedCount }}</td>
+                <td>{{ row.triggeredByName ?? 'System' }}</td>
+                <td>{{ row.status }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="9" class="lsync__empty">No sync history yet.</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</div>

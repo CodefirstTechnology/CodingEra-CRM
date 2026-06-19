@@ -26,7 +26,7 @@
         >
           View Quotation
         </button>
-      } @else if (!isDealReadOnly()) {
+      } @else if (canCreateQuotation()) {
         <button type="button" class="deal-detail__btn deal-detail__btn--quotation" (click)="onCreateQuotation()">
           Create Quotation
         </button>
@@ -59,7 +59,6 @@
           class="deal-detail__hdr-status-select"
           [formControl]="dataForm.controls.status"
           aria-label="Pipeline status"
-          [disabled]="isStatusLocked() || dataSaving() || progressUpdating()"
           (change)="onHeaderPipelineStatusChange()"
         >
           @for (opt of dealStatuses(); track opt.id + opt.name) {
@@ -510,8 +509,12 @@
               <input type="text" class="deal-detail__input" formControlName="annualRevenue" placeholder="0.00" />
             </label>
             <label class="deal-detail__field">
+              <span class="deal-detail__label">Deal amount</span>
+              <input type="text" class="deal-detail__input" formControlName="dealAmount" placeholder="0.00" />
+            </label>
+            <label class="deal-detail__field">
               <span class="deal-detail__label">Pipeline status<span class="deal-detail__req" aria-hidden="true">*</span></span>
-              <select class="deal-detail__select" formControlName="status" [disabled]="isStatusLocked()">
+              <select class="deal-detail__select" formControlName="status">
                 @for (opt of dealStatuses(); track opt.id + opt.name) {
                 <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
@@ -533,11 +536,15 @@
             }
             <label class="deal-detail__field">
               <span class="deal-detail__label">Deal owner<span class="deal-detail__req" aria-hidden="true">*</span></span>
-              <select class="deal-detail__select" formControlName="dealOwner">
-                @for (o of dealOwnerOptions(); track o.id) {
-                <option [value]="o.id">{{ o.label }}</option>
-                }
-              </select>
+              @if (canAssignDeals() && isAdminViewer()) {
+                <select class="deal-detail__select" formControlName="dealOwner">
+                  @for (o of dealOwnerOptions(); track o.id) {
+                  <option [value]="o.id">{{ o.label }}</option>
+                  }
+                </select>
+              } @else {
+                <span class="deal-detail__owner-readonly">{{ deal()?.assignedTo || '—' }}</span>
+              }
             </label>
             <label class="deal-detail__field">
               <span class="deal-detail__label">Website</span>
@@ -569,10 +576,19 @@
               <span class="deal-detail__label">Email</span>
               <input type="email" class="deal-detail__input" formControlName="email" />
             </label>
-            <label class="deal-detail__field">
+            <div class="deal-detail__field">
               <span class="deal-detail__label">Mobile No</span>
-              <input type="text" class="deal-detail__input" formControlName="mobile" autocomplete="tel" />
-            </label>
+              <div class="crm-intl-tel-field">
+                <intl-tel-input
+                  formControlName="mobile"
+                  [initOptions]="intlTelInitOptions"
+                  [inputProps]="intlTelDetailInputProps"
+                />
+              </div>
+              @if (intlTelFieldInvalid(dataForm.controls.mobile)) {
+                <span class="deal-detail__field-error">{{ intlTelMobileError(dataForm.controls.mobile.errors) }}</span>
+              }
+            </div>
           </div>
         </fieldset>
       </form>
@@ -648,36 +664,6 @@
               </svg>
             </button>
           </div>
-        </li>
-        }
-      </ul>
-      }
-      } @else if (activeTab() === 'Notes') {
-      <header class="deal-detail__main-head deal-detail__main-head--tasks">
-        <h2>Notes</h2>
-        <button type="button" class="deal-detail__btn deal-detail__btn--dark" (click)="openCreateNoteFromDeal()">+ New Note</button>
-      </header>
-      @if (dealNotes().length === 0) {
-      <div class="deal-detail__notes-empty">
-        <span class="deal-detail__notes-icon" aria-hidden="true">
-          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <path d="M12 18h-6M12 14h-6M16 14h2M16 18h2" />
-          </svg>
-        </span>
-        <p>No Notes</p>
-        <button type="button" class="deal-detail__btn deal-detail__btn--calls-muted" (click)="openCreateNoteFromDeal()">Create Note</button>
-      </div>
-      } @else {
-      <ul class="deal-detail__note-list" aria-label="Notes for this deal">
-        @for (note of dealNotes(); track note.id) {
-        <li class="deal-detail__note-row">
-          <p class="deal-detail__note-title">{{ note.title }}</p>
-          <p class="deal-detail__note-meta">{{ note.author }} · {{ note.when }}</p>
-          @if (note.bodyPreview?.trim()) {
-          <p class="deal-detail__note-preview">{{ note.bodyPreview }}</p>
-          }
         </li>
         }
       </ul>

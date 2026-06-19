@@ -2,8 +2,8 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin } from 'rxjs';
-import { take } from 'rxjs/operators';
+import { forkJoin, of } from 'rxjs';
+import { catchError, take } from 'rxjs/operators';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
@@ -21,14 +21,17 @@ import {
 } from '../../core/services/leads/lead-master-data.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import {
+  leadDateToFormInput,
+  todayIsoDateLocal,
+} from '../../core/services/leads/lead-api.mapper';
+import {
   buildLeadDisplayName,
   fullNameFromLeadParts,
   splitFullName,
 } from './lead-full-name.util';
 import { ToastService } from '../../core/toast/toast.service';
 import { TasksService } from '../../core/services/tasks.service';
-import { NotesService } from '../../core/services/notes.service';
-import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
+import { LeadOwnerOptionsService, isPersistedApiLeadRow } from '../../core/services/leads/lead-owner-options.service';
 import {
   buildLeadConversionActivityGroup,
   isLeadConverted,
@@ -36,13 +39,17 @@ import {
 } from '../../shared/utils/lead-conversion.util';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
+import { PermissionService } from '../../core/services/permission.service';
+import { resolveRecordOwnerIdForSubmit } from '../../shared/utils/record-owner-assignment.util';
 import { CrmPaginatedSelectComponent } from '../../shared/components/crm-paginated-select/crm-paginated-select.component';
 import { masterDataToPaginatedOptions } from '../../shared/components/crm-paginated-select/crm-paginated-select.model';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelFieldInvalid, intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
 import { leadRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
-import type { NoteRelatedType, NoteRow } from '../notes/notes.component';
 import type { TaskRow } from '../tasks/tasks.component';
 
 const FALLBACK_TERRITORY_NAMES = ['India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
@@ -56,7 +63,7 @@ const FALLBACK_INDUSTRY_NAMES = [
   'Other',
 ] as const;
 
-type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Tasks' | 'Notes' | 'Attachments';
+type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Tasks' | 'Attachments';
 
 interface LeadAttachmentItem {
   id: string;
@@ -75,6 +82,7 @@ interface LeadCommentItem extends EntityCommentItem {}
     EntityActivityTimelineComponent,
     CrmPaginatedSelectComponent,
     ConvertLeadModalComponent,
+    IntlTelInputComponent,
   ],
   templateUrl: './lead-detail.component.html',
   styleUrl: './lead-detail.component.scss',
@@ -90,7 +98,6 @@ export class LeadDetailComponent {
   private readonly toast = inject(ToastService);
   private readonly conversionStorage = inject(LeadConversionStorageService);
   private readonly tasksService = inject(TasksService);
-  private readonly notesService = inject(NotesService);
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly createFlow = inject(CreateFlowService);
@@ -104,8 +111,6 @@ export class LeadDetailComponent {
   protected readonly leadLoadError = signal<string | null>(null);
   /** Tasks where `relatedLeadId` matches the open lead (from lead-detail “+ New Task”). */
   protected readonly leadTasks = signal<TaskRow[]>([]);
-  /** Notes scoped to this lead (`relatedLeadId`) from lead-detail “Create note”. */
-  protected readonly leadNotes = signal<NoteRow[]>([]);
   /** Client-side attachments for this lead (sessionStorage until backend exists). */
   protected readonly leadAttachments = signal<LeadAttachmentItem[]>([]);
   /** Comments for this lead from the comments API. */
@@ -124,6 +129,11 @@ export class LeadDetailComponent {
     const row = this.lead();
     if (!row || isLeadConverted(row)) return false;
     return isLeadQualifiedForConversion(row);
+  });
+
+  protected readonly isLeadDataReadOnly = computed(() => {
+    const row = this.lead();
+    return row != null && isLeadConverted(row);
   });
   protected readonly commentComposerOpen = signal(false);
   protected readonly commentDraft = signal('');
@@ -154,7 +164,6 @@ export class LeadDetailComponent {
     'Comments',
     'Data',
     'Tasks',
-    'Notes',
     'Attachments',
   ];
 
@@ -236,16 +245,10 @@ export class LeadDetailComponent {
   );
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly userScope = inject(UserDataScopeService);
+  private readonly permissions = inject(PermissionService);
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
-  /** Only admins may change lead owner; users see read-only owner text. */
+  protected readonly canAssignLeads = computed(() => this.permissions.canAssignLeads());
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
-
-  private readonly noteRelatedTypeLabels: Record<NoteRelatedType, string> = {
-    lead: 'Lead',
-    deal: 'Deal',
-    contact: 'Contact',
-    organization: 'Organization',
-  };
 
   protected readonly dataForm = this.fb.nonNullable.group({
     organization: [''],
@@ -254,10 +257,18 @@ export class LeadDetailComponent {
     industry: [''],
     source: [''],
     owner: [''],
+    location: [''],
+    leadDate: [todayIsoDateLocal()],
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
     email: [''],
     mobile: [''],
   });
+
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelDetailInputProps = crmIntlTelInputProps('lead-detail__input');
+  protected readonly intlTelSideInputProps = crmIntlTelInputProps('lead-detail__side-field');
+  protected intlTelMobileError = intlTelMobileErrorMessage;
+  protected intlTelFieldInvalid = intlTelFieldInvalid;
 
   constructor() {
     this.leadOwnerOpts.load();
@@ -282,7 +293,6 @@ export class LeadDetailComponent {
         this.leadLoadError.set(null);
         this.leadInitialLoading.set(false);
         this.leadTasks.set([]);
-        this.leadNotes.set([]);
         this.leadAttachments.set([]);
         this.leadComments.set([]);
         this.leadActivityGroups.set([]);
@@ -299,7 +309,7 @@ export class LeadDetailComponent {
 
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((query) => {
       const tab = parseEntityDetailTab(query.get('tab'));
-      if (tab) this.setTab(tab);
+      if (tab && tab !== 'Notes') this.setTab(tab);
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
@@ -308,15 +318,20 @@ export class LeadDetailComponent {
         this.refreshLeadActivities();
       }
       if (e.kind === 'note') {
-        this.refreshLeadNotes();
         this.refreshLeadActivities();
+      }
+      if (e.kind === 'lead') {
+        const id = this.numericId();
+        const row = e.row as LeadRow;
+        if (id != null && String(row?.id ?? '') === String(id)) {
+          void this.hydrateLeadFromRoute(id);
+        }
       }
     });
   }
 
   private clearLeadSideState(): void {
     this.leadTasks.set([]);
-    this.leadNotes.set([]);
     this.leadAttachments.set([]);
     this.leadComments.set([]);
     this.leadActivityGroups.set([]);
@@ -335,7 +350,6 @@ export class LeadDetailComponent {
     this.emailSubjectText.set(`Mr ${row.name} (${this.leadCode()})`);
     this.emailBody.set('');
     this.refreshLeadTasks();
-    this.refreshLeadNotes();
     this.refreshLeadActivities();
     const lid = row.id.trim();
     if (lid) {
@@ -389,23 +403,6 @@ export class LeadDetailComponent {
         const idNorm = lid.trim();
         const forLead = rows.filter((r) => (r.relatedLeadId ?? '').trim() === idNorm);
         this.leadTasks.set(forLead);
-      });
-  }
-
-  private refreshLeadNotes(): void {
-    const l = this.lead();
-    const lid = l?.id;
-    if (lid == null || lid === '') {
-      this.leadNotes.set([]);
-      return;
-    }
-    this.notesService
-      .getAll()
-      .pipe(take(1))
-      .subscribe((rows) => {
-        const idNorm = lid.trim();
-        const forLead = rows.filter((r) => (r.relatedLeadId ?? '').trim() === idNorm);
-        this.leadNotes.set(forLead);
       });
   }
 
@@ -475,8 +472,10 @@ export class LeadDetailComponent {
       return;
     }
     const next = [...this.leadAttachments()];
+    const addedNames: string[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
+      addedNames.push(file.name);
       const id =
         typeof crypto !== 'undefined' && 'randomUUID' in crypto
           ? crypto.randomUUID()
@@ -493,6 +492,23 @@ export class LeadDetailComponent {
     input.value = '';
     const n = files.length;
     this.toast.success(n === 1 ? 'Attachment added.' : `${n} attachments added.`);
+    this.logAttachmentActivities('lead', addedNames);
+  }
+
+  private logAttachmentActivities(entityType: 'lead', fileNames: string[]): void {
+    const id = this.numericId();
+    if (id == null || !fileNames.length) return;
+
+    const actor = this.auth.user()?.name?.trim() || 'User';
+    const requests = fileNames.map((name) =>
+      this.activitiesService
+        .logAttachmentAdded(entityType, id, `${actor} added attachment: ${name}`)
+        .pipe(catchError(() => of(null))),
+    );
+
+    forkJoin(requests)
+      .pipe(take(1))
+      .subscribe(() => this.refreshLeadActivities());
   }
 
   private refreshLeadActivities(): void {
@@ -718,19 +734,6 @@ export class LeadDetailComponent {
     void this.router.navigate(['/tasks'], { queryParams: { edit: id } });
   }
 
-  protected openCreateNoteFromLead(): void {
-    const l = this.lead();
-    if (!l?.id) return;
-    const displayName = fullNameFromLeadParts(l) || 'Lead';
-    this.createFlow.selectEntity('note', {
-      noteFromLead: {
-        relatedLeadId: String(l.id),
-        leadRelatedName: displayName,
-        recordOwnerUserId: leadRecordOwnerUserId(l),
-      },
-    });
-  }
-
   /** First character for avatar chip (matches initials or assignee display name). */
   protected taskAssigneeChipInitial(task: TaskRow): string {
     const ini = task.assignedInitials?.trim();
@@ -792,6 +795,8 @@ export class LeadDetailComponent {
         industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
         source: row.source?.trim() || row.leadSource || '',
         owner: row.leadOwnerId ?? '',
+        location: row.location ?? '',
+        leadDate: leadDateToFormInput(row.leadDate) || todayIsoDateLocal(),
         fullName: fullNameFromLeadParts(row),
         email: row.email ?? '',
         mobile: row.mobile ?? '',
@@ -799,12 +804,11 @@ export class LeadDetailComponent {
       { emitEvent: false },
     );
     this.dataForm.markAsPristine();
-  }
-
-  protected noteRelatedLabel(note: NoteRow): string {
-    const label = this.noteRelatedTypeLabels[note.relatedType] ?? note.relatedType;
-    const suffix = note.visibility === 'private' ? ' · Private' : '';
-    return `${label} · ${note.relatedName}${suffix}`;
+    if (isLeadConverted(row)) {
+      this.dataForm.disable({ emitEvent: false });
+    } else {
+      this.dataForm.enable({ emitEvent: false });
+    }
   }
 
   protected setTab(tab: DetailTab): void {
@@ -840,6 +844,25 @@ export class LeadDetailComponent {
     if (row) this.patchDataForm(row);
   }
 
+  /** Same as Leads table action menu → Edit (`onRowEdit`). */
+  protected openLeadEditForm(): void {
+    const row = this.lead();
+    if (!row || !this.canEditLead(row)) return;
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { edit: row.id },
+      queryParamsHandling: 'merge',
+    });
+  }
+
+  protected canEditLead(row: LeadRow): boolean {
+    return (
+      !this.isAdminViewer() &&
+      isPersistedApiLeadRow(row.id) &&
+      !isLeadConverted(row)
+    );
+  }
+
   /** Sidebar name line — mirrors `saveDataTab` name computation. */
   protected sidebarLeadHeadline(row: LeadRow): string {
     const v = this.dataForm.getRawValue();
@@ -873,6 +896,11 @@ export class LeadDetailComponent {
     const idn = this.numericId();
     if (!row || idn == null) return;
 
+    if (this.isLeadDataReadOnly()) {
+      this.toast.error('Converted leads cannot be edited.');
+      return;
+    }
+
     if (this.dataForm.invalid) {
       this.dataForm.markAllAsTouched();
       return;
@@ -884,8 +912,16 @@ export class LeadDetailComponent {
     const { firstName, lastName } = splitFullName(v.fullName);
     const name = buildLeadDisplayName('', firstName, lastName) || v.fullName.trim() || row.name;
 
-    const ownerId = this.isAdminViewer() ? v.owner.trim() : (row.leadOwnerId ?? '').trim();
-    const opt = this.isAdminViewer() ? this.leadOwnerOpts.findById(ownerId) : null;
+    const ownerId = resolveRecordOwnerIdForSubmit({
+      canAssign: this.canAssignLeads(),
+      isAdminSession: this.isAdminViewer(),
+      rawOwnerId: v.owner.trim(),
+      existingOwnerId: row.leadOwnerId,
+      sessionOwnerId: this.leadOwnerOpts.sessionOwnerId(),
+      fallbackOwnerId: this.leadOwnerOpts.defaultOwnerId(),
+    });
+    const opt =
+      this.canAssignLeads() && this.isAdminViewer() ? this.leadOwnerOpts.findById(ownerId) : null;
     const leadOwnerName = opt?.label ?? row.leadOwnerName;
 
     this.dataSaving.set(true);
@@ -905,6 +941,8 @@ export class LeadDetailComponent {
       industry: indPick.label.trim() || undefined,
       industryId: indPick.masterId,
       source: v.source.trim() || undefined,
+      location: v.location.trim() || undefined,
+      leadDate: v.leadDate.trim() || todayIsoDateLocal(),
       leadOwnerId: ownerId || undefined,
       owner: opt?.initials ?? row.owner,
       leadOwnerName,
@@ -918,7 +956,8 @@ export class LeadDetailComponent {
         this.lead.set(enriched);
         this.patchDataForm(enriched);
         this.emailSubjectText.set(`Mr ${updated.name} (${this.leadCode()})`);
-        const ownerDirty = this.isAdminViewer() && this.dataForm.controls.owner.dirty;
+        const ownerDirty =
+          this.canAssignLeads() && this.isAdminViewer() && this.dataForm.controls.owner.dirty;
         const otherDirty =
           this.dataForm.controls.fullName.dirty ||
           this.dataForm.controls.email.dirty ||
@@ -927,7 +966,9 @@ export class LeadDetailComponent {
           this.dataForm.controls.website.dirty ||
           this.dataForm.controls.territory.dirty ||
           this.dataForm.controls.industry.dirty ||
-          this.dataForm.controls.source.dirty;
+          this.dataForm.controls.source.dirty ||
+          this.dataForm.controls.location.dirty ||
+          this.dataForm.controls.leadDate.dirty;
         if (ownerDirty && !otherDirty) {
           const name = enriched.leadOwnerName?.trim() || '—';
           this.toast.success(
@@ -985,18 +1026,5 @@ export class LeadDetailComponent {
 
   protected openCreatePicker(): void {
     this.createFlow.openPicker();
-  }
-
-  protected async confirmDeleteLead(): Promise<void> {
-    const idn = this.numericId();
-    if (idn == null) return;
-    if (!confirm('Delete this lead?')) return;
-    try {
-      await this.leadsService.deleteAsync(idn);
-      this.toast.success('Lead deleted.');
-      void this.router.navigateByUrl('/leads');
-    } catch (e) {
-      this.toast.error(leadsHttpErrorMessage(e));
-    }
   }
 }

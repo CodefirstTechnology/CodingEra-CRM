@@ -1,3 +1,5 @@
+import { normalizeGstin } from '../../../shared/utils/gstin.util';
+import { resolveImportNameParts } from './lead-import-name.util';
 import type { LeadImportParsedRow, LeadImportProgress } from './lead-import.models';
 import type { LeadImportRowDto } from './lead-import-api.models';
 import { LEAD_IMPORT_CHUNK_SIZE } from './lead-import.constants';
@@ -23,13 +25,16 @@ function optionalField(value: string): string | undefined {
 
 function mapParsedRowToImportDto(row: LeadImportParsedRow, columns: string[]): LeadImportRowDto {
   const v = row.values;
+  const { firstName, lastName } = resolveImportNameParts(v, columns, pickValue);
+
   return {
     rowNumber: row.rowNumber,
     salutation: optionalField(pickValue(v, columns, ['salutation'])),
-    firstName: optionalField(pickValue(v, columns, ['first name', 'firstname', 'first_name'])),
-    lastName: optionalField(pickValue(v, columns, ['last name', 'lastname', 'last_name'])),
+    firstName: optionalField(firstName),
+    lastName: optionalField(lastName),
     mobile: optionalField(pickValue(v, columns, ['mobile', 'phone', 'mobile number'])),
     email: optionalField(pickValue(v, columns, ['email', 'e-mail'])),
+    gender: optionalField(pickValue(v, columns, ['gender'])),
     organization: optionalField(pickValue(v, columns, ['organization', 'organisation', 'company'])),
     industry: optionalField(pickValue(v, columns, ['industry'])),
     noOfEmployees: optionalField(
@@ -39,10 +44,13 @@ function mapParsedRowToImportDto(row: LeadImportParsedRow, columns: string[]): L
       pickValue(v, columns, ['annual revenue', 'revenue', 'annual_revenue']),
     ),
     website: optionalField(pickValue(v, columns, ['website', 'web site', 'url'])),
+    gst: optionalField(normalizeGstin(pickValue(v, columns, ['gstin', 'gst', 'gst number']))),
     territory: optionalField(pickValue(v, columns, ['territory'])),
+    location: optionalField(pickValue(v, columns, ['location', 'address'])),
     status: optionalField(pickValue(v, columns, ['status', 'lead status'])),
     leadOwner: optionalField(pickValue(v, columns, ['lead owner', 'owner', 'assigned to'])),
     requestType: optionalField(pickValue(v, columns, ['request type', 'request_type'])),
+    leadDate: optionalField(pickValue(v, columns, ['lead date', 'lead_date', 'date'])),
     requirement: optionalField(pickValue(v, columns, ['requirement', 'requirements'])),
     additionalDetails: optionalField(
       pickValue(v, columns, ['additional details', 'notes', 'additional_details']),

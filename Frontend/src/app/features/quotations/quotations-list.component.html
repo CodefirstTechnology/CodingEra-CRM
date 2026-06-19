@@ -19,7 +19,6 @@
         </select>
       </label>
       <label class="quotations__search">
-        <span class="visually-hidden">Search quotations</span>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <circle cx="11" cy="11" r="8" />
           <path d="m21 21-4.3-4.3" />
@@ -62,7 +61,7 @@
               <td class="quotations__td quotations__td--empty" [attr.colspan]="tableColSpan()">No quotations found.</td>
             </tr>
           } @else {
-            @for (row of rows(); track row.id) {
+            @for (row of tablePagination.paginatedItems(); track row.id) {
               <tr class="quotations__row">
                 <td class="quotations__td quotations__td--number">
                   <a class="quotations__link" [routerLink]="['/quotations', row.id]">{{ row.quotationNumber || '—' }}</a>
@@ -117,7 +116,7 @@
                         <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                       </svg>
                     </button>
-                    @if (!row.dealClosed) {
+                    @if (!row.dealClosed && canDeleteQuotation()) {
                       <button
                         type="button"
                         class="quotations__action-btn quotations__action-btn--danger"
@@ -141,5 +140,15 @@
         </tbody>
       </table>
     </div>
+    @if (!loading() && rows().length > 0) {
+      <app-crm-pagination-footer
+        ariaLabel="Quotations table pages"
+        [page]="tablePagination.page()"
+        [pageSize]="tablePagination.pageSize()"
+        [totalItems]="tablePagination.totalItems()"
+        (pageChange)="tablePagination.setPage($event)"
+        (pageSizeChange)="tablePagination.setPageSize($event)"
+      />
+    }
   </div>
 </div>

@@ -1,3 +1,4 @@
+import type { ContactRow } from '../../contacts/contacts.component';
 import type { DealRow } from '../../deals/deals.component';
 import type { LeadRow } from '../../leads/lead-row.model';
 import type { NoteRow } from '../../notes/notes.component';
@@ -120,6 +121,15 @@ export function filterLeadsByLeadOwnerId(rows: LeadRow[], userId: string): LeadR
   const uid = parseSessionUserId(userId);
   if (uid == null) return [];
   return rows.filter((r) => isLeadOwnedByLeadOwnerFk(r, userId));
+}
+
+export function filterContactsByCreatedBy(rows: ContactRow[], userId: string): ContactRow[] {
+  const uid = parseSessionUserId(userId);
+  if (uid == null) return [];
+  return rows.filter((r) => {
+    const createdBy = parseSessionUserId(r.createdBy);
+    return createdBy != null && createdBy === uid;
+  });
 }
 
 export function filterLeadsForUser(

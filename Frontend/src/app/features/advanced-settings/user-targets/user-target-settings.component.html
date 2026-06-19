@@ -1,0 +1,252 @@
+<div class="utarget">
+  <header class="utarget__head">
+    <div>
+      <h2 class="utarget__title">User Targets</h2>
+      <p class="utarget__sub">
+        Assign sales targets and monitor achievement from qualifying deal milestones.
+      </p>
+    </div>
+    @if (canManage() && viewMode() === 'list' && activeTab() === 'manage') {
+      <button type="button" class="utarget__btn utarget__btn--solid" (click)="openCreate()">
+        + New Target
+      </button>
+    }
+  </header>
+
+  @if (viewMode() === 'list') {
+    <nav class="utarget__tabs" aria-label="User targets sections">
+      <button
+        type="button"
+        class="utarget__tab"
+        [class.utarget__tab--active]="activeTab() === 'manage'"
+        (click)="setTab('manage')"
+      >
+        Manage
+      </button>
+      @if (canManage()) {
+        <button
+          type="button"
+          class="utarget__tab"
+          [class.utarget__tab--active]="activeTab() === 'monitor'"
+          (click)="setTab('monitor')"
+        >
+          Monitoring Dashboard
+        </button>
+      }
+    </nav>
+  }
+
+  @if (loadError(); as err) {
+    <p class="utarget__err" role="alert">{{ err }}</p>
+  }
+
+  @if (viewMode() === 'create' || viewMode() === 'edit') {
+    <form class="utarget__form" [formGroup]="targetForm" (ngSubmit)="submitForm()">
+      <h3 class="utarget__form-title">{{ viewMode() === 'edit' ? 'Edit target' : 'Create target' }}</h3>
+      <div class="utarget__grid">
+        <label class="utarget__field">
+          <span>Sales User <span class="utarget__req">*</span></span>
+          <select formControlName="userId">
+            <option value="0" disabled>Select sales user</option>
+            @for (u of salesUsers(); track u.id) {
+              <option [value]="u.id">{{ u.fullName }} ({{ u.email }})</option>
+            }
+          </select>
+          @if (fieldInvalid('userId')) {
+            <span class="utarget__field-error">Sales user is required.</span>
+          }
+        </label>
+
+        <label class="utarget__field">
+          <span>Target Type <span class="utarget__req">*</span></span>
+          <select formControlName="targetTypeId">
+            <option value="0" disabled>Select type</option>
+            @for (t of targetTypes(); track t.id) {
+              <option [value]="t.id">{{ t.name }}</option>
+            }
+          </select>
+          @if (fieldInvalid('targetTypeId')) {
+            <span class="utarget__field-error">Target type is required.</span>
+          }
+        </label>
+
+        <label class="utarget__field">
+          <span>Target Amount <span class="utarget__req">*</span></span>
+          <input type="number" min="0" step="0.01" formControlName="targetAmount" />
+          @if (fieldInvalid('targetAmount')) {
+            <span class="utarget__field-error">Enter a valid amount.</span>
+          }
+        </label>
+
+        <label class="utarget__field">
+          <span>Start Date <span class="utarget__req">*</span></span>
+          <input type="date" formControlName="startDate" />
+        </label>
+
+        <label class="utarget__field">
+          <span>End Date <span class="utarget__req">*</span></span>
+          <input type="date" formControlName="endDate" />
+        </label>
+
+        <label class="utarget__field utarget__field--check">
+          <input type="checkbox" formControlName="isActive" />
+          <span>Active</span>
+        </label>
+      </div>
+
+      <div class="utarget__form-actions">
+        <button type="button" class="utarget__btn utarget__btn--ghost" (click)="cancelForm()">Cancel</button>
+        <button type="submit" class="utarget__btn utarget__btn--solid" [disabled]="saving()">
+          {{ saving() ? 'Saving…' : viewMode() === 'edit' ? 'Save changes' : 'Create target' }}
+        </button>
+      </div>
+    </form>
+  } @else if (activeTab() === 'manage') {
+    <div class="utarget__toolbar">
+      <label class="utarget__search">
+        <span class="visually-hidden">Search</span>
+        <input type="search" placeholder="Search user or target type…" (input)="onSearchInput($event)" />
+      </label>
+    </div>
+
+    @if (loading()) {
+      <p class="utarget__hint">Loading targets…</p>
+    } @else if (filteredManageRows().length === 0) {
+      <div class="utarget__empty">
+        <p>No targets configured yet.</p>
+        @if (canManage()) {
+          <button type="button" class="utarget__btn utarget__btn--solid" (click)="openCreate()">Create first target</button>
+        }
+      </div>
+    } @else {
+      <div class="utarget__table-wrap">
+        <table class="utarget__table">
+          <thead>
+            <tr>
+              <th>Sales User</th>
+              <th>Target Type</th>
+              <th>Target Amount</th>
+              <th>Achieved</th>
+              <th>Remaining</th>
+              <th>Progress</th>
+              <th>Period</th>
+              <th>Status</th>
+              @if (canManage()) {
+                <th>Actions</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of filteredManageRows(); track row.id) {
+              <tr>
+                <td>
+                  <span class="utarget__user">{{ row.userName }}</span>
+                  <span class="utarget__muted">{{ row.userEmail }}</span>
+                </td>
+                <td>{{ row.targetTypeName }}</td>
+                <td>{{ formatMoney(row.targetAmount) }}</td>
+                <td>{{ formatMoney(row.achievedAmount) }}</td>
+                <td>{{ formatMoney(row.remainingAmount) }}</td>
+                <td>
+                  <div class="utarget__progress">
+                    <div class="utarget__progress-bar" [style.width.%]="row.achievementPercent"></div>
+                    <span>{{ row.achievementPercent }}%</span>
+                  </div>
+                </td>
+                <td>{{ row.startDate | date: 'mediumDate' }} – {{ row.endDate | date: 'mediumDate' }}</td>
+                <td>
+                  <span class="utarget__badge" [class.utarget__badge--active]="row.isActive">
+                    {{ row.isActive ? 'Active' : 'Inactive' }}
+                  </span>
+                </td>
+                @if (canManage()) {
+                  <td class="utarget__actions">
+                    <button type="button" class="utarget__link" (click)="openEdit(row)">Edit</button>
+                    <button type="button" class="utarget__link" (click)="toggleStatus(row)">
+                      {{ row.isActive ? 'Deactivate' : 'Activate' }}
+                    </button>
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  } @else {
+    <div class="utarget__toolbar utarget__toolbar--monitor">
+      <label class="utarget__search">
+        <span class="visually-hidden">Search</span>
+        <input type="search" placeholder="Search…" (input)="onSearchInput($event)" />
+      </label>
+      <label class="utarget__filter">
+        <span class="visually-hidden">User filter</span>
+        <select (change)="onUserFilter($event)">
+          <option value="">All sales users</option>
+          @for (u of salesUsers(); track u.id) {
+            <option [value]="u.id">{{ u.fullName }}</option>
+          }
+        </select>
+      </label>
+      <label class="utarget__filter">
+        <span class="visually-hidden">Type filter</span>
+        <select (change)="onTypeFilter($event)">
+          <option value="">All target types</option>
+          @for (t of targetTypes(); track t.id) {
+            <option [value]="t.id">{{ t.name }}</option>
+          }
+        </select>
+      </label>
+      <label class="utarget__filter">
+        <span class="visually-hidden">Status filter</span>
+        <select (change)="onStatusFilter($event)">
+          <option value="all">All statuses</option>
+          <option value="active">Active only</option>
+          <option value="inactive">Inactive only</option>
+        </select>
+      </label>
+    </div>
+
+    @if (loading()) {
+      <p class="utarget__hint">Loading dashboard…</p>
+    } @else {
+      <div class="utarget__table-wrap">
+        <table class="utarget__table">
+          <thead>
+            <tr>
+              <th><button type="button" class="utarget__sort" (click)="setSort('userName')">Sales User</button></th>
+              <th><button type="button" class="utarget__sort" (click)="setSort('targetTypeName')">Target Type</button></th>
+              <th><button type="button" class="utarget__sort" (click)="setSort('targetAmount')">Target Amount</button></th>
+              <th><button type="button" class="utarget__sort" (click)="setSort('achievedAmount')">Achieved</button></th>
+              <th>Remaining</th>
+              <th><button type="button" class="utarget__sort" (click)="setSort('achievementPercent')">Achievement %</button></th>
+              <th><button type="button" class="utarget__sort" (click)="setSort('isActive')">Status</button></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of monitorRows(); track row.id) {
+              <tr>
+                <td>{{ row.userName }}</td>
+                <td>{{ row.targetTypeName }}</td>
+                <td>{{ formatMoney(row.targetAmount) }}</td>
+                <td>{{ formatMoney(row.achievedAmount) }}</td>
+                <td>{{ formatMoney(row.remainingAmount) }}</td>
+                <td>
+                  <div class="utarget__progress">
+                    <div class="utarget__progress-bar" [style.width.%]="row.achievementPercent"></div>
+                    <span>{{ row.achievementPercent }}%</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="utarget__badge" [class.utarget__badge--active]="row.isActive">
+                    {{ row.isActive ? 'Active' : 'Inactive' }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  }
+</div>

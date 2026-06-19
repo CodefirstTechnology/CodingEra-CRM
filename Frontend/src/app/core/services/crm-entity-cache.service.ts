@@ -1,6 +1,7 @@
 import { effect, inject, Injectable } from '@angular/core';
 import { Observable, shareReplay } from 'rxjs';
 import { isAdmin } from '../auth/auth-role.util';
+import { getModuleAccessScope } from '../auth/permission.util';
 import { AuthService } from '../auth/auth.service';
 import { CreateRowBusService } from '../create-flow/create-row-bus.service';
 import type { AdminUserRow } from './admin-users.service';
@@ -59,12 +60,15 @@ export class CrmEntityCacheService {
   private scopeKey(entity: string): string {
     const user = this.auth.user();
     const uid = user?.id?.trim() ?? 'anon';
-    return `${entity}:${isAdmin(user) ? 'all' : uid}`;
+    const mod = entity === 'leads' ? 'leads' : entity === 'deals' ? 'deals' : entity;
+    const scoped =
+      !user?.id?.trim() || isAdmin(user) || getModuleAccessScope(user, mod) === 'all' ? 'all' : uid;
+    return `${entity}:${scoped}`;
   }
 
   private loadLeads(): Observable<LeadRow[]> {
     const user = this.auth.user();
-    if (!user?.id?.trim() || isAdmin(user)) {
+    if (!user?.id?.trim() || isAdmin(user) || getModuleAccessScope(user, 'leads') === 'all') {
       return this.leadsService.getAll();
     }
     return this.leadsService.getAssignedToUser(user.id, user.name, user.email);
@@ -72,7 +76,7 @@ export class CrmEntityCacheService {
 
   private loadDeals(): Observable<DealRow[]> {
     const user = this.auth.user();
-    if (!user?.id?.trim() || isAdmin(user)) {
+    if (!user?.id?.trim() || isAdmin(user) || getModuleAccessScope(user, 'deals') === 'all') {
       return this.dealsService.getAll();
     }
     return this.dealsService.getAssignedToUser(user.id, user.name, user.email);

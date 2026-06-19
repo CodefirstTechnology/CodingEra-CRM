@@ -94,6 +94,16 @@ export function mapQuotationListItem(raw: unknown): QuotationListItem {
   };
 }
 
+function mapCustomCharge(raw: unknown, index: number) {
+  const o = asRecord(raw);
+  return {
+    id: pickNum(o, ['id', 'Id']) || undefined,
+    sortIndex: pickNum(o, ['sortIndex', 'sort_index']) || index,
+    chargeName: pickStr(o, ['chargeName', 'charge_name']),
+    amount: pickNum(o, ['amount', 'Amount']),
+  };
+}
+
 function mapLineItem(raw: unknown, index: number): QuotationLineItemDto {
   const o = asRecord(raw);
   const qty = pickNum(o, ['quantity', 'Quantity']) || 1;
@@ -113,6 +123,7 @@ function mapLineItem(raw: unknown, index: number): QuotationLineItemDto {
   return {
     id: pickNum(o, ['id', 'Id']) || undefined,
     lineIndex: pickNum(o, ['lineIndex', 'line_index']) || index,
+    itemId: pickNullableNum(o, ['itemId', 'item_id']),
     itemCode: pickStr(o, ['itemCode', 'item_code']),
     itemName: pickStr(o, ['itemName', 'item_name']),
     description: pickStr(o, ['description', 'Description']),
@@ -120,7 +131,9 @@ function mapLineItem(raw: unknown, index: number): QuotationLineItemDto {
     uom: pickStr(o, ['uom', 'Uom']),
     weight,
     unitWeight,
+    steelRate: pickNum(o, ['steelRate', 'steel_rate']),
     rate,
+    itemSnapshotJson: pickStr(o, ['itemSnapshotJson', 'item_snapshot_json']),
     discountPercent,
     gstPercent,
     amount: pickNum(o, ['amount', 'Amount']) || calc.amount,
@@ -134,6 +147,11 @@ export function mapQuotationDetail(raw: unknown): QuotationUpsertDto {
   const linesRaw = o['lineItems'] ?? o['line_items'] ?? o['LineItems'];
   const lines = Array.isArray(linesRaw)
     ? linesRaw.map((item, i) => mapLineItem(item, i))
+    : [];
+  const customRaw =
+    o['customCharges'] ?? o['custom_charges'] ?? o['CustomCharges'] ?? o['additionalCharges'];
+  const customCharges = Array.isArray(customRaw)
+    ? customRaw.map((item, i) => mapCustomCharge(item, i))
     : [];
 
   let firstName = pickStr(o, ['firstName', 'first_name']);
@@ -182,9 +200,14 @@ export function mapQuotationDetail(raw: unknown): QuotationUpsertDto {
     remarks: pickStr(o, ['remarks', 'Remarks']),
     subtotal: pickNum(o, ['subtotal', 'Subtotal']),
     taxTotal: pickNum(o, ['taxTotal', 'tax_total']),
+    gstPercent: pickNum(o, ['gstPercent', 'gst_percent']),
     grandTotal: pickNum(o, ['grandTotal', 'grand_total']),
     totalQuantity: pickNum(o, ['totalQuantity', 'total_quantity']),
     totalWeight: pickNum(o, ['totalWeight', 'total_weight']),
+    transportationCharges: pickNum(o, ['transportationCharges', 'transportation_charges']),
+    loadingCharges: pickNum(o, ['loadingCharges', 'loading_charges']),
+    serviceCharges: pickNum(o, ['serviceCharges', 'service_charges']),
+    customCharges,
     lineItems: lines,
   };
 }
@@ -261,12 +284,23 @@ export function toApiUpsertBody(dto: QuotationUpsertDto): Record<string, unknown
     remarks: dto.remarks,
     subtotal: dto.subtotal ?? 0,
     taxTotal: dto.taxTotal ?? 0,
+    gstPercent: dto.gstPercent ?? 0,
     grandTotal: dto.grandTotal ?? 0,
     totalQuantity: dto.totalQuantity ?? 0,
     totalWeight: dto.totalWeight ?? 0,
+    transportationCharges: dto.transportationCharges ?? 0,
+    loadingCharges: dto.loadingCharges ?? 0,
+    serviceCharges: dto.serviceCharges ?? 0,
+    customCharges: (dto.customCharges ?? []).map((c, i) => ({
+      id: c.id ?? 0,
+      sortIndex: c.sortIndex ?? i,
+      chargeName: c.chargeName,
+      amount: c.amount ?? 0,
+    })),
     lineItems: dto.lineItems.map((l, i) => ({
       id: l.id ?? 0,
       lineIndex: l.lineIndex ?? i,
+      itemId: l.itemId ?? null,
       itemCode: l.itemCode,
       itemName: l.itemName,
       description: l.description,
@@ -274,7 +308,9 @@ export function toApiUpsertBody(dto: QuotationUpsertDto): Record<string, unknown
       uom: l.uom,
       weight: l.weight,
       unitWeight: l.unitWeight,
+      steelRate: l.steelRate ?? 0,
       rate: l.rate,
+      itemSnapshotJson: l.itemSnapshotJson ?? '',
       discountPercent: l.discountPercent,
       gstPercent: l.gstPercent,
       amount: l.amount,

@@ -1,4 +1,5 @@
 import type { UserSession } from './auth.models';
+import { parsePermissionsFromApi } from './permission.util';
 
 /**
  * `users.role_id` in the database:
@@ -36,14 +37,12 @@ export function unwrapApiRecord(body: unknown): Record<string, unknown> {
   return o;
 }
 
-/** Parses `users.role_id` — only `1` or `2` are valid. */
+/** Parses `users.role_id` — any positive integer role FK is valid. */
 export function coerceUsersTableRoleId(value: unknown): number | null {
   if (value == null || value === '') return null;
   const n = typeof value === 'number' ? Math.trunc(value) : Math.trunc(Number(String(value).trim()));
-  if (!Number.isFinite(n)) return null;
-  if (n === ROLE_ID_ADMIN) return ROLE_ID_ADMIN;
-  if (n === ROLE_ID_USER) return ROLE_ID_USER;
-  return null;
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
 }
 
 /**
@@ -96,7 +95,8 @@ export function readRoleIdFromJwt(token: string): number | null {
   }
 }
 
-export function sessionRoleLabel(roleId: number): string {
+export function sessionRoleLabel(roleId: number, roleName?: string | null): string {
+  if (roleName?.trim()) return roleName.trim();
   return roleId === ROLE_ID_ADMIN ? 'Admin' : 'User';
 }
 
@@ -122,6 +122,12 @@ export function appRoleFromSession(user: UserSession | null | undefined): AppRol
 }
 
 export function isAdmin(user: UserSession | null | undefined): boolean {
+  if (!user) return false;
+  if ((user.permissions ?? []).some((p) => p.code === 'settings.manage' || p.code === 'roles.manage')) {
+    return true;
+  }
+  const label = (user.role ?? '').trim().toLowerCase();
+  if (label === 'admin' || label === 'administrator' || label.includes('admin')) return true;
   return roleIdFromSession(user) === ROLE_ID_ADMIN;
 }
 
@@ -189,11 +195,21 @@ export function buildSessionFromApiRecord(
       ? roleIdOverride
       : (readUsersTableRoleId(raw) ?? ROLE_ID_USER);
 
+  const roleName =
+    typeof raw['role'] === 'string'
+      ? raw['role']
+      : typeof raw['Role'] === 'string'
+        ? raw['Role']
+        : null;
+
+  const permissions = parsePermissionsFromApi(raw['permissions'] ?? raw['Permissions']);
+
   return {
     id: String(idVal),
     email,
     name,
-    role: sessionRoleLabel(roleId),
+    role: sessionRoleLabel(roleId, roleName),
     roleId,
+    permissions: permissions.length ? permissions : undefined,
   };
 }

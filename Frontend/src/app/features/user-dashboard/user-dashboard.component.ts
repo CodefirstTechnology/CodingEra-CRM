@@ -5,6 +5,9 @@ import { take } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { roleDisplayLabel } from '../../core/auth/auth-role.util';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
+import { PermissionService } from '../../core/services/permission.service';
+import type { UserTargetWidget } from '../../core/services/user-targets/user-target-api.models';
+import { UserTargetHttpService } from '../../core/services/user-targets/user-target-http.service';
 import type { UserDashboardSnapshot } from './models/user-dashboard.models';
 import { UserDashboardService } from './services/user-dashboard.service';
 
@@ -19,10 +22,18 @@ export class UserDashboardComponent {
   private readonly auth = inject(AuthService);
   private readonly dashboard = inject(UserDashboardService);
   private readonly createFlow = inject(CreateFlowService);
+  private readonly permissions = inject(PermissionService);
+  private readonly userTargets = inject(UserTargetHttpService);
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly snapshot = signal<UserDashboardSnapshot | null>(null);
+  protected readonly targetWidgets = signal<UserTargetWidget[]>([]);
+  protected readonly targetsLoading = signal(false);
+
+  protected readonly showTargets = computed(() =>
+    this.permissions.hasAny(['user_targets.view', 'user_targets.manage', 'settings.manage']),
+  );
 
   protected readonly user = this.auth.user;
   protected readonly roleLabel = computed(() => roleDisplayLabel(this.user()));
@@ -56,6 +67,25 @@ export class UserDashboardComponent {
           this.error.set('Could not load your dashboard.');
         },
       });
+    this.loadTargetWidgets();
+  }
+
+  private loadTargetWidgets(): void {
+    if (!this.showTargets()) {
+      this.targetWidgets.set([]);
+      return;
+    }
+    this.targetsLoading.set(true);
+    this.userTargets.listMyWidgets().pipe(take(1)).subscribe({
+      next: (rows) => {
+        this.targetWidgets.set(rows);
+        this.targetsLoading.set(false);
+      },
+      error: () => {
+        this.targetWidgets.set([]);
+        this.targetsLoading.set(false);
+      },
+    });
   }
 
   protected openCreate(kind: 'lead' | 'deal' | 'task'): void {

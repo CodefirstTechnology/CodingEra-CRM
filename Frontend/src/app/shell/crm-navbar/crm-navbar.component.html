@@ -1,10 +1,4 @@
 <header class="navbar">
-  <div class="navbar__left">
-    <span class="navbar__workspace" title="Workspace">Sales</span>
-    <span class="navbar__breadcrumb">CRM</span>
-    <span class="navbar__slash">/</span>
-    <span class="navbar__page">Workspace</span>
-  </div>
   <div class="navbar__right">
     <button type="button" class="navbar__icon-btn" aria-label="Search">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -13,9 +7,10 @@
       </svg>
     </button>
     <button
+      #notificationsTrigger
       type="button"
       class="navbar__icon-btn navbar__notify"
-      (click)="openNotifications()"
+      (click)="openNotifications(notificationsTrigger)"
       aria-label="Notifications"
       aria-haspopup="dialog"
       [attr.aria-expanded]="notificationsPanel.open()"
