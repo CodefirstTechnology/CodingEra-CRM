@@ -62,7 +62,7 @@ export class ContactDetailComponent {
   });
 
   protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
-  protected readonly intlTelDetailInputProps = crmIntlTelInputProps('contact-detail__input');
+  protected readonly intlTelDetailInputProps = crmIntlTelInputProps();
   protected intlTelMobileError = intlTelMobileErrorMessage;
   protected intlTelFieldInvalid = intlTelFieldInvalid;
 

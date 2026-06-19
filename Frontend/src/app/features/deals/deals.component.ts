@@ -791,8 +791,8 @@ export class DealsComponent {
   protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
   protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
   protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
-  protected readonly intlTelMobileInputProps = crmIntlTelInputProps('deals__control deals__control--soft');
-  protected readonly intlTelInlineInputProps = crmIntlTelInputProps('deals__inline-input');
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps();
+  protected readonly intlTelInlineInputProps = crmIntlTelInputProps();
   protected intlTelMobileError = intlTelMobileErrorMessage;
 
   protected fieldInvalid(name: string): boolean {

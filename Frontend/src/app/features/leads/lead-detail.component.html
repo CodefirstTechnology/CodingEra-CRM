@@ -489,11 +489,11 @@
             </label>
             <div class="lead-detail__field">
               <span class="lead-detail__label">Mobile No</span>
-              <div class="crm-intl-tel-field">
+              <div class="crm-intl-tel-field crm-intl-tel-field--detail">
                 <intl-tel-input
                   formControlName="mobile"
                   [initOptions]="intlTelInitOptions"
-                  [inputProps]="intlTelDetailInputProps"
+                  [inputProps]="intlTelMobileInputProps"
                 />
               </div>
               @if (intlTelFieldInvalid(dataForm.controls.mobile)) {
@@ -817,11 +817,11 @@
             </dd>
             <dt>Mobile No</dt>
             <dd class="lead-detail__kv-dd">
-              <div class="crm-intl-tel-field">
+              <div class="crm-intl-tel-field crm-intl-tel-field--side">
                 <intl-tel-input
                   [formControl]="dataForm.controls.mobile"
                   [initOptions]="intlTelInitOptions"
-                  [inputProps]="intlTelSideInputProps"
+                  [inputProps]="intlTelMobileInputProps"
                 />
               </div>
               @if (intlTelFieldInvalid(dataForm.controls.mobile)) {

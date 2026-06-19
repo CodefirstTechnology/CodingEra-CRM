@@ -1718,7 +1718,7 @@ export class LeadsComponent {
   protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
   protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
   protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
-  protected readonly intlTelMobileInputProps = crmIntlTelInputProps('leads__control leads__control--soft');
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps();
   protected intlTelMobileError = intlTelMobileErrorMessage;
 
   protected fieldInvalid(name: string): boolean {

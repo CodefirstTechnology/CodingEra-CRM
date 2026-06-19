@@ -61,7 +61,7 @@ export class CompanyProfileSettingsComponent implements OnInit {
   });
 
   protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
-  protected readonly intlTelMobileInputProps = crmIntlTelInputProps('');
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps();
   protected intlTelMobileError = intlTelMobileErrorMessage;
   protected intlTelFieldInvalid = intlTelFieldInvalid;
 

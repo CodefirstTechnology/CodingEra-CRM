@@ -265,8 +265,7 @@ export class LeadDetailComponent {
   });
 
   protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
-  protected readonly intlTelDetailInputProps = crmIntlTelInputProps('lead-detail__input');
-  protected readonly intlTelSideInputProps = crmIntlTelInputProps('lead-detail__side-field');
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps();
   protected intlTelMobileError = intlTelMobileErrorMessage;
   protected intlTelFieldInvalid = intlTelFieldInvalid;
 

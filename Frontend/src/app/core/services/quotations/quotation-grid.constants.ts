@@ -35,7 +35,7 @@ export const FIXED_QUOTATION_GRID_COLUMNS: QuotationGridColumn[] = [
   { key: 'itemName', label: 'Item Name', visible: true, order: 1, width: 180, editable: true, source: 'fixed' },
   { key: 'description', label: 'Description', visible: true, order: 2, width: 200, editable: true, source: 'fixed' },
   { key: 'quantity', label: 'Quantity', visible: true, order: 3, width: 96, editable: true, source: 'fixed' },
-  { key: 'unitRate', label: 'Rate', visible: true, order: 4, width: 104, editable: false, source: 'fixed' },
+  { key: 'unitRate', label: 'Rate', visible: true, order: 4, width: 104, editable: true, source: 'fixed' },
   { key: 'weight', label: 'Weight', visible: true, order: 40, width: 88, editable: false, source: 'fixed' },
   { key: 'amount', label: 'Total', visible: true, order: 50, width: 112, editable: false, source: 'fixed' },
   { key: 'unit', label: 'Unit', visible: false, order: 90, width: 72, editable: true, source: 'fixed' },

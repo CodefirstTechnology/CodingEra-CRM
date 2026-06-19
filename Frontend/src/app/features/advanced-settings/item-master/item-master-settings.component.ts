@@ -1,4 +1,4 @@
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { canManageSettings } from '../../../core/auth/permission.util';
@@ -25,7 +25,6 @@ type ViewMode = 'list' | 'create' | 'edit' | 'detail';
   imports: [
     ReactiveFormsModule,
     DatePipe,
-    DecimalPipe,
     ItemMasterGroupsPanelComponent,
     ItemMasterAttributesPanelComponent,
   ],
