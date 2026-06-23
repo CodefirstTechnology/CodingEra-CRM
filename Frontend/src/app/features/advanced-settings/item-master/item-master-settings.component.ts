@@ -1,7 +1,7 @@
 import { DatePipe } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormArray, FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { canManageSettings } from '../../../core/auth/permission.util';
+import { hasAnyPermission } from '../../../core/auth/permission.util';
 import { AuthService } from '../../../core/auth/auth.service';
 import type {
   ItemAttribute,
@@ -94,7 +94,7 @@ export class ItemMasterSettingsComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    this.canEdit.set(canManageSettings(this.auth.user()));
+    this.canEdit.set(hasAnyPermission(this.auth.user(), ['items.manage', 'settings.manage']));
     this.syncItemFormEditability();
     this.syncVariantGenerateFormEditability();
     this.loadMeta();
