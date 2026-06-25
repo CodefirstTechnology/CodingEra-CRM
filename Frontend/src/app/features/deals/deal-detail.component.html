@@ -31,7 +31,7 @@
           Create Quotation
         </button>
       }
-      @if (!isDealReadOnly()) {
+      @if (!isDealDataLocked()) {
         <button type="button" class="deal-detail__btn deal-detail__btn--light" (click)="setTab('Data')" title="Edit deal data">
           Edit Data
         </button>
@@ -53,7 +53,7 @@
         <span class="deal-detail__user-chip-name">{{ session.name }}</span>
       </span>
       }
-      <div class="deal-detail__hdr-status" [class.is-locked]="isStatusLocked()">
+      <div class="deal-detail__hdr-status" [class.is-locked]="isDealStatusLocked()">
         <span [class]="headerStatusDotClass()" aria-hidden="true"></span>
         <select
           class="deal-detail__hdr-status-select"
@@ -69,7 +69,7 @@
     </div>
   </header>
 
-  @if (isDealReadOnly()) {
+  @if (isDealDataLocked()) {
   <p class="deal-detail__status-lock-msg" role="status">{{ statusLockedMessage() }}</p>
   @if (row.lostReason?.trim()) {
   <p class="deal-detail__lost-reason"><strong>Lost reason:</strong> {{ row.lostReason }}</p>
@@ -464,7 +464,7 @@
       } @else if (activeTab() === 'Data') {
       <header class="deal-detail__main-head">
         <h2>Data</h2>
-        @if (!isDealReadOnly()) {
+        @if (!isDealDataLocked()) {
         <div class="deal-detail__data-actions">
           <button type="button" class="deal-detail__icon-btn" aria-label="Discard unsaved edits" title="Revert" (click)="discardDataEdits()">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -519,7 +519,7 @@
                 <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                 }
               </select>
-              @if (isStatusLocked()) {
+              @if (isDealStatusLocked()) {
               <span class="deal-detail__field-hint">{{ statusLockedMessage() }}</span>
               }
             </label>

@@ -531,7 +531,7 @@ export class QuotationFormComponent {
           }
           if (q.dealClosed) {
             this.loading.set(false);
-            this.toast.error('Quotations linked to closed deals cannot be modified.');
+            this.toast.error('Quotations linked to delivered or closed deals cannot be modified.');
             void this.router.navigate(['/quotations', id]);
             return;
           }

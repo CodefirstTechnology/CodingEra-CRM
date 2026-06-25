@@ -97,7 +97,7 @@
   [showFooter]="true"
   (dismiss)="closeModal()"
 >
-  <form [formGroup]="form" (ngSubmit)="submit()" id="master-form-panel-form">
+  <form [formGroup]="form" (ngSubmit)="submit()" id="master-form-panel-form" novalidate>
     <label class="mf-panel__field">
       <span>Name <span class="mf-panel__req">*</span></span>
       <input type="text" formControlName="name" autocomplete="off" />
@@ -118,8 +118,9 @@
     @if (isDealStatuses()) {
       <label class="mf-panel__field">
         <span>Sort order</span>
-        <input type="number" formControlName="sortOrder" min="1" step="1" />
+        <input type="number" formControlName="sortOrder" min="0" step="1" />
       </label>
+      <p class="mf-panel__hint">For final closed stages only. Deal data and linked quotations become read-only.</p>
       <label class="mf-panel__checkbox">
         <input type="checkbox" formControlName="isWon" />
         <span>Closed Won (terminal)</span>

@@ -16,6 +16,8 @@ import type { MasterDataOption } from '../leads/lead-master-data.service';
 
 export const DEAL_STAGE_CLOSED_MESSAGE = 'Closed deals cannot be modified.';
 
+export const DEAL_DATA_LOCKED_MESSAGE = 'Deal data cannot be modified at this stage.';
+
 export const DEAL_STAGE_WON_REQUIRES_MATERIAL_DELIVERED_MESSAGE =
   'Closed Won is allowed only after Material Delivered.';
 
@@ -27,6 +29,17 @@ export const QUOTATION_GENERATION_BLOCKED_MESSAGE =
 
 function nameMatches(a: string, b: string): boolean {
   return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/** Locks deal data fields and linked quotation edits (Material Delivered or closed). */
+export function isDealDataLockedStatus(
+  status: string,
+  pipeline: readonly DealPipelineStatusRow[] = [],
+): boolean {
+  const label = status.trim();
+  if (!label) return false;
+  if (pipeline.length > 0 && isClosedStatus(pipeline, label)) return true;
+  return nameMatches(label, DEAL_STAGE_MATERIAL_DELIVERED);
 }
 
 /** Blocks new quotation creation for delivered or lost deals. */
