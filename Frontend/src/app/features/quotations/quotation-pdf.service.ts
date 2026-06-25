@@ -316,8 +316,8 @@ export class QuotationPdfService {
     const subtotal = this.subtotal(q);
     const additionalTotal = this.additionalChargesTotal(q);
     const taxableAmount = subtotal + additionalTotal;
-    const taxTotal = this.taxTotal(q);
-    const grandTotal = this.grandTotal(q);
+    const taxTotal = this.resolveTaxTotal(q, taxableAmount);
+    const grandTotal = this.resolveGrandTotal(q, taxableAmount, taxTotal);
     const gstPercent = this.effectiveGstPercent(q, taxableAmount, taxTotal);
     const additionalLines = listAdditionalChargeLines({
       transportationCharges: q.transportationCharges ?? 0,
@@ -502,14 +502,19 @@ export class QuotationPdfService {
     return (q.lineItems ?? []).reduce((s, l) => s + (l.amount || 0), 0);
   }
 
-  private taxTotal(q: QuotationUpsertDto): number {
+  private resolveTaxTotal(q: QuotationUpsertDto, taxableAmount: number): number {
+    if (q.taxTotal != null && q.taxTotal > 0) return q.taxTotal;
+    const headerGst = q.gstPercent ?? 0;
+    if (headerGst > 0 && taxableAmount > 0) {
+      return Math.round(taxableAmount * (headerGst / 100) * 100) / 100;
+    }
     if (q.taxTotal != null) return q.taxTotal;
     return (q.lineItems ?? []).reduce((s, l) => s + (l.taxAmount || 0), 0);
   }
 
-  private grandTotal(q: QuotationUpsertDto): number {
+  private resolveGrandTotal(q: QuotationUpsertDto, taxableAmount: number, taxTotal: number): number {
     if (q.grandTotal != null && q.grandTotal > 0) return q.grandTotal;
-    return this.subtotal(q) + this.taxTotal(q);
+    return Math.round((taxableAmount + taxTotal) * 100) / 100;
   }
 
   private effectiveGstPercent(q: QuotationUpsertDto, taxableAmount: number, taxTotal: number): number {
@@ -600,12 +605,16 @@ export class QuotationPdfService {
       }
     }
 
+    let gstRowAdded = false;
+    let grandTotalRowAdded = false;
+
     if (!terms.length) {
       rows.push([
         { content: '—', colSpan: 3, styles: { fontStyle: 'italic' as const } },
         '',
         '',
       ]);
+      this.appendMissingTotalsRows(rows, taxTotal, grandTotal, gstPercent, gstRowAdded, grandTotalRowAdded);
       return rows;
     }
 
@@ -645,6 +654,7 @@ export class QuotationPdfService {
       if (/^taxes$/i.test(title)) {
         rows.push([String(termNum), title, body, '', this.formatMoney(0)]);
         rows.push(['', '', '', `Add. : GST @ ${gstPercent}%`, this.formatMoney(taxTotal)]);
+        gstRowAdded = true;
         continue;
       }
 
@@ -659,6 +669,7 @@ export class QuotationPdfService {
             styles: { fontStyle: 'bold' as const, halign: 'right' as const },
           },
         ]);
+        grandTotalRowAdded = true;
         continue;
       }
 
@@ -679,7 +690,37 @@ export class QuotationPdfService {
       rows.push([String(termNum), title, body, '', '']);
     }
 
+    this.appendMissingTotalsRows(rows, taxTotal, grandTotal, gstPercent, gstRowAdded, grandTotalRowAdded);
     return rows;
+  }
+
+  /** GST and grand total align with "Taxes" / "Payment Terms" when present; otherwise append after terms. */
+  private appendMissingTotalsRows(
+    rows: RowInput[],
+    taxTotal: number,
+    grandTotal: number,
+    gstPercent: number,
+    gstRowAdded: boolean,
+    grandTotalRowAdded: boolean,
+  ): void {
+    if (!gstRowAdded && (taxTotal > 0 || gstPercent > 0)) {
+      const label = gstPercent > 0 ? `GST @ ${gstPercent}%` : 'GST';
+      rows.push([
+        { content: '', colSpan: 3 },
+        label,
+        { content: this.formatMoney(taxTotal), styles: { halign: 'right' as const } },
+      ]);
+    }
+    if (!grandTotalRowAdded && grandTotal > 0) {
+      rows.push([
+        { content: '', colSpan: 3 },
+        { content: 'Grand total:', styles: { fontStyle: 'bold' as const } },
+        {
+          content: this.formatMoney(grandTotal),
+          styles: { fontStyle: 'bold' as const, halign: 'right' as const },
+        },
+      ]);
+    }
   }
 
   private resolveTermsWithBank(company: QuotationPdfCompanyConfig): { title: string; body: string }[] {
