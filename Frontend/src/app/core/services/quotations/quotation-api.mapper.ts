@@ -5,6 +5,7 @@ import type {
   QuotationListItem,
   QuotationNextNumber,
   QuotationSettings,
+  QuotationTerm,
   QuotationUpsertDto,
 } from './quotation-api.models';
 import { normalizeGstin } from '../../../shared/utils/gstin.util';
@@ -102,6 +103,40 @@ function mapCustomCharge(raw: unknown, index: number) {
     chargeName: pickStr(o, ['chargeName', 'charge_name']),
     amount: pickNum(o, ['amount', 'Amount']),
   };
+}
+
+function readTermsFromJson(raw: unknown): QuotationTerm[] {
+  if (typeof raw !== 'string' || !raw.trim()) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((item) => {
+        const o = asRecord(item);
+        const title = pickStr(o, ['title', 'Title']).trim();
+        const body = pickStr(o, ['body', 'Body', 'content', 'Content']).trim();
+        if (!title && !body) return null;
+        return { title, body };
+      })
+      .filter((t): t is QuotationTerm => t != null);
+  } catch {
+    return [];
+  }
+}
+
+function mapTerms(raw: unknown): QuotationTerm[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((item) => {
+        const o = asRecord(item);
+        const title = pickStr(o, ['title', 'Title']).trim();
+        const body = pickStr(o, ['body', 'Body', 'content', 'Content']).trim();
+        if (!title && !body) return null;
+        return { title, body };
+      })
+      .filter((t): t is QuotationTerm => t != null);
+  }
+  return readTermsFromJson(raw);
 }
 
 function mapLineItem(raw: unknown, index: number): QuotationLineItemDto {
@@ -207,6 +242,15 @@ export function mapQuotationDetail(raw: unknown): QuotationUpsertDto {
     transportationCharges: pickNum(o, ['transportationCharges', 'transportation_charges']),
     loadingCharges: pickNum(o, ['loadingCharges', 'loading_charges']),
     serviceCharges: pickNum(o, ['serviceCharges', 'service_charges']),
+    customizeTerms: pickBool(o, ['customizeTerms', 'customize_terms', 'CustomizeTerms']),
+    introText: pickStr(o, ['introText', 'intro_text', 'IntroText']),
+    transportationLabel: pickStr(o, ['transportationLabel', 'transportation_label', 'TransportationLabel']),
+    jurisdiction: pickStr(o, ['jurisdiction', 'Jurisdiction']),
+    terms: (() => {
+      const fromArray = mapTerms(o['terms'] ?? o['Terms']);
+      if (fromArray.length) return fromArray;
+      return readTermsFromJson(o['termsConditionsJson'] ?? o['terms_conditions_json'] ?? o['TermsConditionsJson']);
+    })(),
     customCharges,
     lineItems: lines,
   };
@@ -291,6 +335,11 @@ export function toApiUpsertBody(dto: QuotationUpsertDto): Record<string, unknown
     transportationCharges: dto.transportationCharges ?? 0,
     loadingCharges: dto.loadingCharges ?? 0,
     serviceCharges: dto.serviceCharges ?? 0,
+    customizeTerms: dto.customizeTerms ?? false,
+    introText: dto.introText ?? '',
+    transportationLabel: dto.transportationLabel ?? '',
+    jurisdiction: dto.jurisdiction ?? '',
+    terms: (dto.terms ?? []).map((t) => ({ title: t.title, body: t.body })),
     customCharges: (dto.customCharges ?? []).map((c, i) => ({
       id: c.id ?? 0,
       sortIndex: c.sortIndex ?? i,

@@ -201,6 +201,84 @@
         (addCustomCharge)="addCustomCharge()"
         (removeCustomCharge)="removeCustomCharge($event)"
       />
+
+      <hr class="qt-form__rule" />
+
+      <section class="qt-form__section quotations-card" aria-label="Terms and conditions">
+        <div class="qt-form__section-head">
+          <div>
+            <h2 class="qt-form__section-title">Terms &amp; conditions</h2>
+            @if (termsEditable()) {
+              <p class="qt-form__section-sub">
+                Customize terms for this quotation only. Company Profile defaults are not changed.
+              </p>
+            }
+          </div>
+          <label class="qt-form__toggle">
+            <input
+              type="checkbox"
+              formControlName="customizeTerms"
+              (change)="onCustomizeTermsChange()"
+            />
+            <span>Edit Terms &amp; Conditions for this Quotation</span>
+          </label>
+        </div>
+
+        @if (termsEditable()) {
+          <div class="qt-form__grid">
+            <label class="qt-form__field qt-form__field--full">
+              <span class="qt-form__label">Introduction text</span>
+              <textarea
+                class="qt-form__control qt-form__control--area"
+                rows="3"
+                formControlName="introText"
+              ></textarea>
+            </label>
+            <label class="qt-form__field">
+              <span class="qt-form__label">Transportation label</span>
+              <input type="text" class="qt-form__control" formControlName="transportationLabel" />
+            </label>
+            <label class="qt-form__field">
+              <span class="qt-form__label">Jurisdiction note</span>
+              <input type="text" class="qt-form__control" formControlName="jurisdiction" />
+            </label>
+          </div>
+
+          <div class="qt-form__terms" formArrayName="terms">
+            <div class="qt-form__terms-head">
+              <h3 class="qt-form__terms-title">Terms list</h3>
+              <button type="button" class="qt-form__btn qt-form__btn--outline qt-form__btn--sm" (click)="addTerm()">
+                + Add term
+              </button>
+            </div>
+            @for (term of termsArray().controls; track $index; let i = $index) {
+              <div class="qt-form__term-row" [formGroupName]="i">
+                <label class="qt-form__field">
+                  <span class="qt-form__label">Title</span>
+                  <input type="text" class="qt-form__control" formControlName="title" />
+                </label>
+                <label class="qt-form__field qt-form__field--full">
+                  <span class="qt-form__label">Content</span>
+                  <textarea
+                    class="qt-form__control qt-form__control--area"
+                    rows="2"
+                    formControlName="body"
+                  ></textarea>
+                </label>
+                @if (termsArray().length > 1) {
+                  <button
+                    type="button"
+                    class="qt-form__btn qt-form__btn--ghost qt-form__btn--sm qt-form__remove-term"
+                    (click)="removeTerm(i)"
+                  >
+                    Remove
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        }
+      </section>
     </form>
   }
 

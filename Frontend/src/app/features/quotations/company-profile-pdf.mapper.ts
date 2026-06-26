@@ -1,4 +1,5 @@
 import type { CompanyProfile } from '../../core/services/company-profile/company-profile-api.models';
+import type { QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
 import { QUOTATION_PDF_COMPANY } from './quotation-pdf.config';
 
 export type QuotationPdfCompanyConfig = typeof QUOTATION_PDF_COMPANY & {
@@ -62,5 +63,28 @@ export function mergeCompanyProfileForPdf(profile: CompanyProfile | null | undef
     accountNumber: pickStr(p.accountNumber),
     ifscCode: pickStr(p.ifscCode),
     branchName: pickStr(p.branchName),
+  };
+}
+
+/** Apply quotation-specific terms when customized; otherwise keep company profile defaults. */
+export function resolveQuotationPdfContent(
+  quotation: QuotationUpsertDto,
+  company: QuotationPdfCompanyConfig,
+): QuotationPdfCompanyConfig {
+  if (!quotation.customizeTerms) return company;
+
+  const terms = (quotation.terms ?? [])
+    .map((t) => ({
+      title: t.title?.trim() ?? '',
+      body: t.body?.trim() ?? '',
+    }))
+    .filter((t) => t.title || t.body);
+
+  return {
+    ...company,
+    introText: quotation.introText?.trim() ?? '',
+    transportationLabel: quotation.transportationLabel?.trim() ?? '',
+    jurisdiction: quotation.jurisdiction?.trim() ?? '',
+    terms,
   };
 }
