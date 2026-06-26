@@ -40,7 +40,9 @@ import {
 import type { DealStageHistoryRecord } from '../../core/services/deals/deal-http.service';
 import {
   canSelectDealStage,
+  DEAL_DATA_LOCKED_MESSAGE,
   DEAL_STAGE_CLOSED_MESSAGE,
+  isDealDataLockedStatus,
   isQuotationGenerationBlockedForDeal,
   QUOTATION_GENERATION_BLOCKED_MESSAGE,
   validateDealStageTransition,
@@ -194,7 +196,14 @@ export class DealDetailComponent {
 
   protected readonly dealOwnerOptions = this.ownerOpts.options;
 
-  protected readonly isDealReadOnly = computed(() => {
+  protected readonly isDealDataLocked = computed(() => {
+    const row = this.deal();
+    if (!row) return false;
+    const pipeline = toDealPipelineRows(this.dealStatuses());
+    return isDealDataLockedStatus(row.status, pipeline);
+  });
+
+  protected readonly isDealStatusLocked = computed(() => {
     const row = this.deal();
     if (!row) return false;
     const pipeline = toDealPipelineRows(this.dealStatuses());
@@ -202,23 +211,16 @@ export class DealDetailComponent {
     return isDealClosed(row.status);
   });
 
-  protected readonly isStatusLocked = this.isDealReadOnly;
-
   protected readonly canCreateQuotation = computed(() => {
     const row = this.deal();
-    if (!row || this.dealQuotationId() != null || this.isDealReadOnly()) return false;
+    if (!row || this.dealQuotationId() != null || this.isDealDataLocked()) return false;
     const pipeline = toDealPipelineRows(this.dealStatuses());
     return !isQuotationGenerationBlockedForDeal(row.status, pipeline);
   });
 
   protected readonly statusLockedMessage = computed(() => {
-    const row = this.deal();
-    if (!row) return '';
-    const pipeline = toDealPipelineRows(this.dealStatuses());
-    const closed =
-      pipeline.length > 0 ? isClosedStatus(pipeline, row.status) : isDealClosed(row.status);
-    if (!closed) return '';
-    return DEAL_STAGE_CLOSED_MESSAGE;
+    if (!this.isDealDataLocked()) return '';
+    return this.isDealStatusLocked() ? DEAL_STAGE_CLOSED_MESSAGE : DEAL_DATA_LOCKED_MESSAGE;
   });
 
   protected readonly currentProgressIndex = computed(() => {
@@ -275,7 +277,8 @@ export class DealDetailComponent {
   constructor() {
     effect(() => {
       this.deal();
-      this.isDealReadOnly();
+      this.isDealDataLocked();
+      this.isDealStatusLocked();
       this.dataSaving();
       this.progressUpdating();
       this.syncDataFormEditability();
@@ -773,7 +776,7 @@ export class DealDetailComponent {
   }
 
   protected isProgressStageDisabled(stage: DealDetailProgressStage, stageIndex: number): boolean {
-    if (this.isDealReadOnly() || this.progressUpdating() || this.progressStageState(stageIndex) === 'current') {
+    if (this.isDealStatusLocked() || this.progressUpdating() || this.progressStageState(stageIndex) === 'current') {
       return true;
     }
     const row = this.deal();
@@ -790,7 +793,7 @@ export class DealDetailComponent {
     const stageIndex = this.progressStages().findIndex((s) => s.dealStatusId === stage.dealStatusId);
     if (this.isProgressStageDisabled(stage, stageIndex)) {
       const row = this.deal();
-      if (!row || this.isDealReadOnly()) return;
+      if (!row || this.isDealStatusLocked()) return;
       const result = validateDealStageTransition({
         fromStatus: row.status,
         toStatus: stage.name,
@@ -885,8 +888,11 @@ export class DealDetailComponent {
   /** Keeps reactive-form disabled state in sync — do not use `[disabled]` on form controls in the template. */
   private syncDataFormEditability(): void {
     const row = this.deal();
-    if (!row || this.isDealReadOnly()) {
+    if (!row || this.isDealDataLocked()) {
       this.dataForm.disable({ emitEvent: false });
+      if (row && !this.isDealStatusLocked() && !this.dataSaving() && !this.progressUpdating()) {
+        this.dataForm.controls.status.enable({ emitEvent: false });
+      }
       return;
     }
 
@@ -942,7 +948,7 @@ export class DealDetailComponent {
     const row = this.deal();
     const idn = this.numericId();
     if (!row || idn == null || !this.dataForm.controls.status.dirty) return;
-    if (this.isDealReadOnly()) {
+    if (this.isDealStatusLocked()) {
       this.toast.error(this.statusLockedMessage());
       this.patchDataForm(row);
       return;
@@ -1047,7 +1053,7 @@ export class DealDetailComponent {
     const idn = this.numericId();
     if (!row || idn == null) return;
 
-    if (this.isDealReadOnly()) {
+    if (this.isDealDataLocked()) {
       this.toast.error(this.statusLockedMessage());
       return;
     }
@@ -1351,7 +1357,7 @@ export class DealDetailComponent {
   }
 
   protected confirmDeleteDeal(): void {
-    if (!this.isAdminViewer() || this.isDealReadOnly()) return;
+    if (!this.isAdminViewer() || this.isDealDataLocked()) return;
     const idn = this.numericId();
     if (idn == null) return;
     if (!confirm('Delete this deal?')) return;

@@ -171,6 +171,9 @@
           <label class="qt-form__field">
             <span class="qt-form__label">Quotation date <span class="qt-form__req">*</span></span>
             <input type="date" class="qt-form__control" formControlName="quotationDate" />
+            @if (fieldInvalid('quotationDate') && form.controls.quotationDate.errors?.['pastDate']) {
+              <span class="qt-form__err">Quotation date cannot be in the past.</span>
+            }
           </label>
           <label class="qt-form__field qt-form__field--full">
             <span class="qt-form__label">Office address</span>
