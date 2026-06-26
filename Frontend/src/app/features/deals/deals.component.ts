@@ -31,7 +31,6 @@ import { createClientTablePagination } from '../../shared/utils/crm-table-pagina
 import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
 import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
 import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
-import { DealPipelineBoardComponent } from './deal-pipeline-board.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import {
   GSTIN_ERROR_KEY,
@@ -142,7 +141,6 @@ interface DealColumnOption {
     RouterLink,
     CrmAssignPickerComponent,
     CrmPaginationFooterComponent,
-    DealPipelineBoardComponent,
     IntlTelInputComponent,
   ],
   templateUrl: './deals.component.html',
@@ -168,8 +166,6 @@ export class DealsComponent {
 
   protected readonly formOpen = signal(false);
   protected readonly columnMenuOpen = signal(false);
-  protected readonly listView = signal<'table' | 'pipeline'>('table');
-  protected readonly stageUpdatingId = signal<string | null>(null);
   protected readonly searchQuery = signal('');
   protected readonly statusFilter = signal<DealListStatusFilter>('all');
   protected readonly ownerFilter = signal<DealListOwnerFilter>('all');
@@ -925,13 +921,6 @@ export class DealsComponent {
     }
   }
 
-  protected setListView(view: 'table' | 'pipeline'): void {
-    this.listView.set(view);
-    if (view === 'table') {
-      this.sel.clear();
-    }
-  }
-
   private rowMatchesStatusFilter(row: DealRow, filter: DealListStatusFilter): boolean {
     if (filter === 'all') return true;
     const filterLabel = resolveDealStatusLabel(filter);
@@ -962,33 +951,6 @@ export class DealsComponent {
 
   protected dealDisplayTitle(row: DealRow): string {
     return row.dealTitle?.trim() || `${row.organizationName} — ${this.dealContactName(row)}`;
-  }
-
-  protected onPipelineStageChange(ev: {
-    dealId: string;
-    status: string;
-    dealStatusId?: number | null;
-  }): void {
-    const idn = Number(ev.dealId);
-    if (!Number.isFinite(idn) || idn <= 0) return;
-
-    const status = resolveDealStatusLabel(ev.status);
-    this.stageUpdatingId.set(ev.dealId);
-    this.dealsService
-      .updateStatus(idn, { status, dealStatusId: ev.dealStatusId ?? undefined })
-      .pipe(take(1))
-      .subscribe({
-        next: (updated) => {
-          this.stageUpdatingId.set(null);
-          if (!updated) return;
-          this.rows.update((rows) => rows.map((r) => (r.id === ev.dealId ? updated : r)));
-          this.toast.success(`Stage updated to ${status}.`);
-        },
-        error: (e: unknown) => {
-          this.stageUpdatingId.set(null);
-          this.toast.error(leadsHttpErrorMessage(e));
-        },
-      });
   }
 
   private titleizeColumnId(id: string): string {
