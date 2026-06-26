@@ -44,7 +44,11 @@ import {
   normalizeGstin,
   syncGstinInputFromEvent,
 } from '../../shared/utils/gstin.util';
-import { gstFormValidators, optionalEmailValidator } from '../../shared/validators/crm-validators';
+import {
+  gstFormValidators,
+  notPastIsoDateValidator,
+  optionalEmailValidator,
+} from '../../shared/validators/crm-validators';
 import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
 import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
 import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
@@ -71,6 +75,8 @@ function parseDealIdFromQuery(qpm: ParamMap): number | null {
   styleUrl: './quotation-form.component.scss',
 })
 export class QuotationFormComponent {
+  private initialQuotationDate: string | null = null;
+
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
@@ -114,7 +120,10 @@ export class QuotationFormComponent {
     fiscalYearLabel: ['', Validators.maxLength(16)],
     sequenceNumber: [0],
     quotationNumber: ['', Validators.maxLength(64)],
-    quotationDate: [todayIsoDate(), Validators.required],
+    quotationDate: [
+      todayIsoDate(),
+      [Validators.required, notPastIsoDateValidator(() => this.initialQuotationDate)],
+    ],
     status: ['Draft', Validators.required],
     remarks: [''],
     gstPercent: [0, [Validators.min(0)]],
@@ -379,6 +388,7 @@ export class QuotationFormComponent {
   }
 
   private initNew(queryParams: ParamMap): void {
+    this.initialQuotationDate = null;
     this.loading.set(true);
     const cached = consumeDealQuotationPrefill() ?? readDealQuotationPrefillFromNavigation();
     const dealIdFromQuery = parseDealIdFromQuery(queryParams);
@@ -521,7 +531,7 @@ export class QuotationFormComponent {
           }
           if (q.dealClosed) {
             this.loading.set(false);
-            this.toast.error('Quotations linked to closed deals cannot be modified.');
+            this.toast.error('Quotations linked to delivered or closed deals cannot be modified.');
             void this.router.navigate(['/quotations', id]);
             return;
           }
@@ -537,6 +547,7 @@ export class QuotationFormComponent {
   }
 
   private patchFromDto(q: QuotationUpsertDto): void {
+    this.initialQuotationDate = q.quotationDate?.slice(0, 10) ?? null;
     const annualRevenue =
       q.annualRevenue != null && Number.isFinite(q.annualRevenue) && q.annualRevenue > 0
         ? q.annualRevenue.toLocaleString('en-IN', {
