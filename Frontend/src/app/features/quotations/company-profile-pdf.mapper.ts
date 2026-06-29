@@ -82,7 +82,7 @@ export function resolveQuotationPdfContent(
 
   return {
     ...company,
-    introText: quotation.introText?.trim() ?? '',
+    businessLine: quotation.introText?.trim() ?? company.businessLine,
     transportationLabel: quotation.transportationLabel?.trim() ?? '',
     jurisdiction: quotation.jurisdiction?.trim() ?? '',
     terms,

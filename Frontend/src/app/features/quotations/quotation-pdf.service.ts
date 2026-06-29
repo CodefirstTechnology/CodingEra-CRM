@@ -143,9 +143,11 @@ export class QuotationPdfService {
       const nameLines = doc.splitTextToSize(C.legalName, blueWidth - 4);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(L.fontSize.headerSub + 0.5);
-      const bizLines = doc.splitTextToSize(C.businessLine, blueWidth - 4);
+      const taglineLines = C.brandTagline?.trim()
+        ? doc.splitTextToSize(C.brandTagline, blueWidth - 4)
+        : [];
 
-      const taxY = padTop + nameLines.length * lineH + bizLines.length * lineH + 0.5;
+      const taxY = padTop + nameLines.length * lineH + taglineLines.length * lineH + 0.5;
       const textBlockBottom = taxY + lineH * 0.85 + padBottom;
 
       const logoFormat = this.logoImageFormat(C.logoContentType);
@@ -189,9 +191,11 @@ export class QuotationPdfService {
       doc.text(nameLines, centerX + blueWidth / 2, textY, { align: 'center' });
       textY += nameLines.length * lineH;
 
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(L.fontSize.headerSub + 0.5);
-      doc.text(bizLines, centerX + blueWidth / 2, textY, { align: 'center' });
+      if (taglineLines.length) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(L.fontSize.headerSub + 0.5);
+        doc.text(taglineLines, centerX + blueWidth / 2, textY, { align: 'center' });
+      }
 
       doc.setFontSize(L.fontSize.headerSub);
       doc.text(`GSTIN : ${C.gstin}`, centerX + 2, taxY);
@@ -279,7 +283,40 @@ export class QuotationPdfService {
 
     y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 28;
 
+    const businessLineBody = C.businessLine?.trim() ?? '';
     const introBody = C.introText?.trim() || QUOTATION_PDF_COMPANY.defaultIntroText;
+    const quotationSectionRows: RowInput[] = [
+      [
+        {
+          content: 'Quotation',
+          styles: { fontStyle: 'bold' as const, halign: 'center' as const, fontSize: 11 },
+        },
+      ],
+    ];
+    if (businessLineBody) {
+      quotationSectionRows.push([
+        {
+          content: businessLineBody,
+          styles: {
+            fontStyle: 'normal' as const,
+            halign: 'left' as const,
+            valign: 'top' as const,
+            fontSize: L.fontSize.intro,
+          },
+        },
+      ]);
+    }
+    quotationSectionRows.push([
+      {
+        content: introBody,
+        styles: {
+          fontStyle: 'bold' as const,
+          halign: 'left' as const,
+          valign: 'top' as const,
+          fontSize: L.fontSize.intro,
+        },
+      },
+    ]);
     autoTable(doc, {
       startY: y,
       margin: { left: margin, right: margin },
@@ -289,25 +326,7 @@ export class QuotationPdfService {
         ...tableStyles,
         cellPadding: L.introCellPaddingMm,
       },
-      body: [
-        [
-          {
-            content: 'Quotation',
-            styles: { fontStyle: 'bold' as const, halign: 'center' as const, fontSize: 11 },
-          },
-        ],
-        [
-          {
-            content: introBody,
-            styles: {
-              fontStyle: 'bold' as const,
-              halign: 'left' as const,
-              valign: 'top' as const,
-              fontSize: L.fontSize.intro,
-            },
-          },
-        ],
-      ],
+      body: quotationSectionRows,
     });
 
     y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 16;

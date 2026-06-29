@@ -64,12 +64,22 @@
           }
         </label>
         <label class="co-profile__field co-profile__field--wide">
-          <span>Tagline / description</span>
-          <input type="text" formControlName="tagline" [readonly]="!canEdit()" />
+          <span>Header tagline</span>
+          <input
+            type="text"
+            formControlName="tagline"
+            placeholder="Shown below company name in quotation PDF header"
+            [readonly]="!canEdit()"
+          />
         </label>
         <label class="co-profile__field co-profile__field--full">
-          <span>Business line</span>
-          <textarea rows="2" formControlName="businessLine" [readonly]="!canEdit()"></textarea>
+          <span>Quotation business line</span>
+          <textarea
+            rows="2"
+            formControlName="businessLine"
+            placeholder="Shown below the Quotation heading in quotation PDF"
+            [readonly]="!canEdit()"
+          ></textarea>
         </label>
       </div>
     </section>
