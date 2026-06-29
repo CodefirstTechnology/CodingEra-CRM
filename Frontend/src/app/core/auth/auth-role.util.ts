@@ -100,6 +100,25 @@ export function sessionRoleLabel(roleId: number, roleName?: string | null): stri
   return roleId === ROLE_ID_ADMIN ? 'Admin' : 'User';
 }
 
+/** Reads dynamic role display name from API user payloads (`crm_roles.name`). */
+export function readRoleDisplayNameFromApiRecord(raw: Record<string, unknown>): string | null {
+  for (const key of ['roleName', 'RoleName', 'role', 'Role'] as const) {
+    const val = raw[key];
+    if (typeof val === 'string' && val.trim()) return val.trim();
+  }
+
+  const roleVal = raw['role'] ?? raw['Role'];
+  if (roleVal != null && typeof roleVal === 'object' && !Array.isArray(roleVal)) {
+    const nested = roleVal as Record<string, unknown>;
+    for (const key of ['name', 'Name', 'roleName', 'RoleName']) {
+      const val = nested[key];
+      if (typeof val === 'string' && val.trim()) return val.trim();
+    }
+  }
+
+  return null;
+}
+
 export function homeUrlForRoleId(roleId: number): string {
   return roleId === ROLE_ID_ADMIN ? '/dashboard' : '/user-dashboard';
 }
@@ -157,7 +176,8 @@ export function defaultHomeUrl(user: UserSession | null | undefined): string {
 }
 
 export function roleDisplayLabel(user: UserSession | null | undefined): string {
-  return sessionRoleLabel(roleIdFromSession(user));
+  if (!user) return 'User';
+  return sessionRoleLabel(roleIdFromSession(user), user.role);
 }
 
 /** Builds session; `roleId` always comes from `users.role_id` when present on the payload. */
@@ -195,12 +215,7 @@ export function buildSessionFromApiRecord(
       ? roleIdOverride
       : (readUsersTableRoleId(raw) ?? ROLE_ID_USER);
 
-  const roleName =
-    typeof raw['role'] === 'string'
-      ? raw['role']
-      : typeof raw['Role'] === 'string'
-        ? raw['Role']
-        : null;
+  const roleName = readRoleDisplayNameFromApiRecord(raw);
 
   const permissions = parsePermissionsFromApi(raw['permissions'] ?? raw['Permissions']);
 

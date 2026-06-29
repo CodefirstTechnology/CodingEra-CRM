@@ -13,6 +13,7 @@ import { maskEmail, writeLoginLog } from './login-log';
 import {
   buildSessionFromApiRecord,
   homeUrlForRoleId,
+  readRoleDisplayNameFromApiRecord,
   readRoleIdFromJwt,
   readUsersTableRoleId,
   roleIdFromSession,
@@ -236,15 +237,11 @@ export class AuthService {
               );
 
               const roleName =
-                typeof profile?.['role'] === 'string'
-                  ? profile['role']
-                  : typeof profile?.['Role'] === 'string'
-                    ? profile['Role']
-                    : typeof loginRoot['role'] === 'string'
-                      ? loginRoot['role']
-                      : typeof loginRoot['Role'] === 'string'
-                        ? loginRoot['Role']
-                        : null;
+                readRoleDisplayNameFromApiRecord(profile ?? {}) ??
+                readRoleDisplayNameFromApiRecord(loginRoot) ??
+                (u && typeof u === 'object'
+                  ? readRoleDisplayNameFromApiRecord(u as Record<string, unknown>)
+                  : null);
 
               const loginPayload: Record<string, unknown> = {
                 ...loginRoot,
@@ -631,7 +628,7 @@ export class AuthService {
     return {
       ...user,
       roleId,
-      role: sessionRoleLabel(roleId),
+      role: sessionRoleLabel(roleId, user.role),
     };
   }
 
@@ -656,15 +653,33 @@ export class AuthService {
                 ...profile,
                 id,
                 email: user.email,
-                roleId: user.roleId,
                 permissions: user.permissions,
               },
               user.email,
-              user.roleId,
             ) ?? null;
-          const name = rebuilt?.name?.trim();
-          if (!name || name === user.name?.trim()) return;
-          const updated: UserSession = { ...user, name };
+          if (!rebuilt) return;
+
+          const updated: UserSession = { ...user };
+          let changed = false;
+
+          const name = rebuilt.name?.trim();
+          if (name && name !== user.name?.trim()) {
+            updated.name = name;
+            changed = true;
+          }
+
+          const role = rebuilt.role?.trim();
+          if (role && role !== user.role?.trim()) {
+            updated.role = role;
+            changed = true;
+          }
+
+          if (rebuilt.roleId != null && rebuilt.roleId !== user.roleId) {
+            updated.roleId = rebuilt.roleId;
+            changed = true;
+          }
+
+          if (!changed) return;
           this._user.set(updated);
           localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
         },

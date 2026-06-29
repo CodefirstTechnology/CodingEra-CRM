@@ -19,7 +19,9 @@ import { DealsService } from '../../core/services/deals.service';
 import {
   masterOptionFormValue,
 } from '../../core/services/organizations/organization-master-select.util';
-import type { QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
+import type { CompanyProfileTerm } from '../../core/services/company-profile/company-profile-api.models';
+import { CompanyProfileHttpService } from '../../core/services/company-profile/company-profile-http.service';
+import type { QuotationTerm, QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
 import { QUOTATION_STATUSES } from '../../core/services/quotations/quotation-api.models';
 import { QuotationDealPrefillService } from '../../core/services/quotations/quotation-deal-prefill.service';
 import {
@@ -68,6 +70,13 @@ function parseDealIdFromQuery(qpm: ParamMap): number | null {
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
+interface QuotationTermsDefaults {
+  introText: string;
+  transportationLabel: string;
+  jurisdiction: string;
+  terms: QuotationTerm[];
+}
+
 @Component({
   selector: 'app-quotation-form',
   imports: [ReactiveFormsModule, RouterLink, QuotationItemGridComponent, IntlTelInputComponent],
@@ -83,6 +92,7 @@ export class QuotationFormComponent {
   private readonly quotationsService = inject(QuotationsService);
   private readonly prefillService = inject(QuotationDealPrefillService);
   private readonly dealsService = inject(DealsService);
+  private readonly companyProfileApi = inject(CompanyProfileHttpService);
   protected readonly dealMaster = inject(DealMasterSelectService);
   private readonly toast = inject(ToastService);
 
@@ -96,6 +106,13 @@ export class QuotationFormComponent {
   protected readonly pageTitle = computed(() =>
     this.editId() ? 'Edit Quotation' : 'New Quotation',
   );
+
+  private companyTermsDefaults: QuotationTermsDefaults = {
+    introText: '',
+    transportationLabel: '',
+    jurisdiction: '',
+    terms: [],
+  };
 
   protected readonly form = this.fb.nonNullable.group({
     dealId: [null as number | null],
@@ -132,6 +149,11 @@ export class QuotationFormComponent {
     serviceCharges: [0],
     customCharges: this.fb.array([]),
     lineItems: this.fb.array([this.createLineGroup()]),
+    customizeTerms: [false],
+    introText: [''],
+    transportationLabel: ['', [Validators.maxLength(128)]],
+    jurisdiction: ['', [Validators.maxLength(256)]],
+    terms: this.fb.array([] as ReturnType<typeof this.createTermGroup>[]),
   });
 
   protected readonly grandTotal = computed(() => {
@@ -186,6 +208,32 @@ export class QuotationFormComponent {
 
   protected get customCharges(): FormArray {
     return this.form.controls.customCharges;
+  }
+
+  protected termsArray(): FormArray {
+    return this.form.controls.terms;
+  }
+
+  protected termsEditable(): boolean {
+    return this.form.controls.customizeTerms.value;
+  }
+
+  protected addTerm(prefill?: QuotationTerm): void {
+    this.termsArray().push(this.createTermGroup(prefill));
+  }
+
+  protected removeTerm(index: number): void {
+    this.termsArray().removeAt(index);
+  }
+
+  protected onCustomizeTermsChange(): void {
+    if (this.form.controls.customizeTerms.value) {
+      if (!this.termsArray().length) {
+        this.applyCompanyTermsDefaults();
+      }
+      return;
+    }
+    this.applyCompanyTermsDefaults();
   }
 
   protected addCustomCharge(): void {
@@ -287,6 +335,12 @@ export class QuotationFormComponent {
     const contactPerson = v.contactPerson.trim() || customerName;
 
     const headerGst = Number(v.gstPercent) || 0;
+    const customizeTerms = !!v.customizeTerms;
+    const terms = customizeTerms
+      ? (v.terms ?? [])
+          .map((t) => ({ title: t.title.trim(), body: t.body.trim() }))
+          .filter((t) => t.title || t.body)
+      : [];
     const customChargeRows = (v.customCharges as { chargeName: string; amount: number }[]).map(
       (c, i) => ({
         sortIndex: i,
@@ -379,12 +433,84 @@ export class QuotationFormComponent {
       loadingCharges: normalizeChargeAmount(v.loadingCharges),
       serviceCharges: normalizeChargeAmount(v.serviceCharges),
       customCharges: customChargeRows.filter((c) => c.chargeName || c.amount > 0),
+      customizeTerms,
+      introText: customizeTerms ? v.introText.trim() : '',
+      transportationLabel: customizeTerms ? v.transportationLabel.trim() : '',
+      jurisdiction: customizeTerms ? v.jurisdiction.trim() : '',
+      terms,
       lineItems: lineRows,
     };
   }
 
   private createLineGroup() {
     return createQuotationLineGroup(this.fb);
+  }
+
+  private createTermGroup(prefill?: QuotationTerm) {
+    return this.fb.nonNullable.group({
+      title: [prefill?.title ?? '', [Validators.maxLength(128)]],
+      body: [prefill?.body ?? ''],
+    });
+  }
+
+  private loadCompanyTermsDefaults() {
+    return this.companyProfileApi.get().pipe(
+      catchError(() => of(null)),
+      take(1),
+    );
+  }
+
+  private setCompanyTermsDefaults(profile: {
+    introText: string;
+    transportationLabel: string;
+    jurisdiction: string;
+    terms: CompanyProfileTerm[];
+  } | null): void {
+    this.companyTermsDefaults = {
+      introText: profile?.introText?.trim() ?? '',
+      transportationLabel: profile?.transportationLabel?.trim() ?? '',
+      jurisdiction: profile?.jurisdiction?.trim() ?? '',
+      terms: (profile?.terms ?? [])
+        .map((t) => ({ title: t.title?.trim() ?? '', body: t.body?.trim() ?? '' }))
+        .filter((t) => t.title || t.body),
+    };
+  }
+
+  private clearTermsArray(): void {
+    while (this.termsArray().length) {
+      this.termsArray().removeAt(0);
+    }
+  }
+
+  private applyTermsToForm(values: QuotationTermsDefaults): void {
+    this.clearTermsArray();
+    const terms = values.terms.length ? values.terms : [{ title: '', body: '' }];
+    terms.forEach((t) => this.addTerm(t));
+    this.form.patchValue({
+      introText: values.introText,
+      transportationLabel: values.transportationLabel,
+      jurisdiction: values.jurisdiction,
+    });
+  }
+
+  private applyCompanyTermsDefaults(): void {
+    this.applyTermsToForm(this.companyTermsDefaults);
+  }
+
+  private applyQuotationTermsFromDto(q: QuotationUpsertDto): void {
+    this.form.patchValue({ customizeTerms: q.customizeTerms ?? false });
+    if (q.customizeTerms) {
+      this.applyTermsToForm({
+        introText: q.introText?.trim() ?? '',
+        transportationLabel: q.transportationLabel?.trim() ?? '',
+        jurisdiction: q.jurisdiction?.trim() ?? '',
+        terms: (q.terms ?? [])
+          .map((t) => ({ title: t.title?.trim() ?? '', body: t.body?.trim() ?? '' }))
+          .filter((t) => t.title || t.body),
+      });
+      return;
+    }
+    this.applyCompanyTermsDefaults();
   }
 
   private initNew(queryParams: ParamMap): void {
@@ -402,10 +528,11 @@ export class QuotationFormComponent {
           ? this.dealsService.getById(dealIdFromQuery).pipe(catchError(() => of(null)))
           : of(null),
       statuses: this.dealMaster.ensureStatusesLoaded().pipe(take(1)),
+      companyProfile: this.loadCompanyTermsDefaults(),
     })
       .pipe(take(1))
       .subscribe({
-        next: ({ settings, next, dealPatch, dealRow }) => {
+        next: ({ settings, next, dealPatch, dealRow, companyProfile }) => {
           if (dealRow && dealIdFromQuery != null) {
             const pipeline = toDealPipelineRows(this.dealMaster.statusSelectOptions());
             if (isQuotationGenerationBlockedForDeal(dealRow.status, pipeline)) {
@@ -445,6 +572,9 @@ export class QuotationFormComponent {
             serviceCharges: 0,
           };
           this.applyNewFormPatch({ ...base, ...(dealPatch ?? {}) });
+          this.setCompanyTermsDefaults(companyProfile);
+          this.form.patchValue({ customizeTerms: false });
+          this.applyCompanyTermsDefaults();
           this.syncQuotationNumberDisplay();
           this.loading.set(false);
         },
@@ -518,11 +648,13 @@ export class QuotationFormComponent {
 
   private loadQuotation(id: number): void {
     this.loading.set(true);
-    this.quotationsService
-      .getById(id)
+    forkJoin({
+      quotation: this.quotationsService.getById(id).pipe(take(1)),
+      companyProfile: this.loadCompanyTermsDefaults(),
+    })
       .pipe(take(1))
       .subscribe({
-        next: (q) => {
+        next: ({ quotation: q, companyProfile }) => {
           if (!q) {
             this.loading.set(false);
             this.toast.error('Quotation not found.');
@@ -535,6 +667,7 @@ export class QuotationFormComponent {
             void this.router.navigate(['/quotations', id]);
             return;
           }
+          this.setCompanyTermsDefaults(companyProfile);
           this.patchFromDto(q);
           this.loading.set(false);
         },
@@ -641,6 +774,7 @@ export class QuotationFormComponent {
       });
       this.customCharges.push(g);
     }
+    this.applyQuotationTermsFromDto(q);
     this.syncQuotationNumberDisplay();
   }
 }

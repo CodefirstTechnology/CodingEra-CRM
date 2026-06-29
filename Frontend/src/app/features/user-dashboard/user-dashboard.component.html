@@ -73,9 +73,14 @@
 
     <section class="udash__grid udash__grid--main">
       <div class="udash__col udash__col--wide">
-        <article class="udash__panel">
+        <article class="udash__panel udash__panel--table">
           <header class="udash__panel-head">
-            <h2 class="udash__panel-title">My assigned leads</h2>
+            <div class="udash__panel-heading">
+              <h2 class="udash__panel-title">My assigned leads</h2>
+              @if (data.assignedLeads.length > 0) {
+                <span class="udash__count-badge">{{ data.assignedLeads.length }}</span>
+              }
+            </div>
             <a routerLink="/leads" class="udash__link">View all</a>
           </header>
           @if (data.assignedLeads.length === 0) {
@@ -93,42 +98,62 @@
                     <th>Status</th>
                     <th>Priority</th>
                     <th>Assigned Date</th>
-                    <th>Next Follow-up</th>
                     <th>Source</th>
                   </tr>
                 </thead>
                 <tbody>
-                  @for (row of data.assignedLeads; track row.id) {
+                  @for (row of assignedLeadsPagination.paginatedItems(); track row.id) {
                     <tr>
                       <td>
                         <a [routerLink]="['/leads', row.id]" class="udash__row-link">{{ row.leadName }}</a>
                       </td>
                       <td>{{ row.company }}</td>
-                      <td><span class="udash__status">{{ row.status }}</span></td>
-                      <td>{{ row.priority }}</td>
+                      <td>
+                        <span class="udash__status" [attr.data-status]="row.status">{{ row.status }}</span>
+                      </td>
+                      <td>
+                        <span class="udash__priority" [attr.data-priority]="row.priority">{{ row.priority }}</span>
+                      </td>
                       <td>{{ row.assignedDate }}</td>
-                      <td>{{ row.nextFollowUp }}</td>
                       <td>{{ row.source }}</td>
                     </tr>
                   }
                 </tbody>
               </table>
             </div>
+            @if (assignedLeadsPagination.totalItems() > assignedLeadsPagination.pageSize()) {
+              <div class="udash__pagination">
+                <app-crm-pagination-footer
+                  ariaLabel="Assigned leads pages"
+                  [page]="assignedLeadsPagination.page()"
+                  [pageSize]="assignedLeadsPagination.pageSize()"
+                  [pageSizeOptions]="dashboardPageSizeOptions"
+                  [totalItems]="assignedLeadsPagination.totalItems()"
+                  (pageChange)="assignedLeadsPagination.setPage($event)"
+                  (pageSizeChange)="assignedLeadsPagination.setPageSize($event)"
+                />
+              </div>
+            }
           }
         </article>
 
         <article class="udash__panel udash__panel--timeline">
           <header class="udash__panel-head">
-            <h2 class="udash__panel-title">Recent activity</h2>
+            <div class="udash__panel-heading">
+              <h2 class="udash__panel-title">Recent activity</h2>
+              @if (data.activities.length > 0) {
+                <span class="udash__count-badge">{{ data.activities.length }}</span>
+              }
+            </div>
           </header>
           @if (data.activities.length === 0) {
-            <p class="udash__muted">No recent activity on your records.</p>
+            <p class="udash__muted udash__empty-inline">No recent activity on your records.</p>
           } @else {
             <ul class="udash__timeline">
-              @for (item of data.activities; track item.id) {
+              @for (item of activitiesPagination.paginatedItems(); track item.id) {
                 <li class="udash__timeline-item" [attr.data-type]="item.type">
                   <span class="udash__timeline-dot" aria-hidden="true"></span>
-                  <div>
+                  <div class="udash__timeline-body">
                     <p class="udash__timeline-title">{{ item.title }}</p>
                     <p class="udash__timeline-sub">{{ item.subtitle }}</p>
                     <time class="udash__timeline-time">{{ item.timeLabel }}</time>
@@ -136,6 +161,19 @@
                 </li>
               }
             </ul>
+            @if (activitiesPagination.totalItems() > activitiesPagination.pageSize()) {
+              <div class="udash__pagination">
+                <app-crm-pagination-footer
+                  ariaLabel="Recent activity pages"
+                  [page]="activitiesPagination.page()"
+                  [pageSize]="activitiesPagination.pageSize()"
+                  [pageSizeOptions]="dashboardPageSizeOptions"
+                  [totalItems]="activitiesPagination.totalItems()"
+                  (pageChange)="activitiesPagination.setPage($event)"
+                  (pageSizeChange)="activitiesPagination.setPageSize($event)"
+                />
+              </div>
+            }
           }
         </article>
       </div>
@@ -149,7 +187,7 @@
             @if (targetsLoading()) {
               <p class="udash__muted">Loading targets…</p>
             } @else if (targetWidgets().length === 0) {
-              <p class="udash__muted">No active targets assigned for the current period.</p>
+              <p class="udash__muted udash__empty-inline">No active targets assigned for the current period.</p>
             } @else {
               <div class="udash__target-grid">
                 @for (t of targetWidgets(); track t.targetId) {
@@ -179,20 +217,38 @@
 
         <article class="udash__panel">
           <header class="udash__panel-head">
-            <h2 class="udash__panel-title">Follow-ups &amp; meetings</h2>
+            <div class="udash__panel-heading">
+              <h2 class="udash__panel-title">Follow-ups &amp; meetings</h2>
+              @if (data.followUps.length > 0) {
+                <span class="udash__count-badge">{{ data.followUps.length }}</span>
+              }
+            </div>
           </header>
           @if (data.followUps.length === 0) {
-            <p class="udash__muted">Nothing due today — great job staying on top of work.</p>
+            <p class="udash__muted udash__empty-inline">Nothing due today — great job staying on top of work.</p>
           } @else {
             <ul class="udash__follow-list">
-              @for (f of data.followUps; track f.id) {
+              @for (f of followUpsPagination.paginatedItems(); track f.id) {
                 <li class="udash__follow" [class.udash__follow--overdue]="f.kind === 'overdue'">
-                  <span class="udash__follow-badge">{{ f.kind }}</span>
+                  <span class="udash__follow-badge" [attr.data-kind]="f.kind">{{ f.kind }}</span>
                   <p class="udash__follow-title">{{ f.title }}</p>
                   <p class="udash__follow-due">{{ f.dueLabel }}</p>
                 </li>
               }
             </ul>
+            @if (followUpsPagination.totalItems() > followUpsPagination.pageSize()) {
+              <div class="udash__pagination">
+                <app-crm-pagination-footer
+                  ariaLabel="Follow-ups and meetings pages"
+                  [page]="followUpsPagination.page()"
+                  [pageSize]="followUpsPagination.pageSize()"
+                  [pageSizeOptions]="dashboardPageSizeOptions"
+                  [totalItems]="followUpsPagination.totalItems()"
+                  (pageChange)="followUpsPagination.setPage($event)"
+                  (pageSizeChange)="followUpsPagination.setPageSize($event)"
+                />
+              </div>
+            }
           }
         </article>
 
@@ -251,16 +307,32 @@
         @if (data.todaysLeads.length > 0) {
           <article class="udash__panel">
             <header class="udash__panel-head">
-              <h2 class="udash__panel-title">Today&apos;s leads</h2>
+              <div class="udash__panel-heading">
+                <h2 class="udash__panel-title">Today&apos;s leads</h2>
+                <span class="udash__count-badge">{{ data.todaysLeads.length }}</span>
+              </div>
             </header>
             <ul class="udash__mini-list">
-              @for (l of data.todaysLeads; track l.id) {
+              @for (l of todaysLeadsPagination.paginatedItems(); track l.id) {
                 <li>
                   <a [routerLink]="['/leads', l.id]" class="udash__row-link">{{ l.leadName }}</a>
                   <span class="udash__muted">{{ l.company }}</span>
                 </li>
               }
             </ul>
+            @if (todaysLeadsPagination.totalItems() > todaysLeadsPagination.pageSize()) {
+              <div class="udash__pagination">
+                <app-crm-pagination-footer
+                  ariaLabel="Today's leads pages"
+                  [page]="todaysLeadsPagination.page()"
+                  [pageSize]="todaysLeadsPagination.pageSize()"
+                  [pageSizeOptions]="dashboardPageSizeOptions"
+                  [totalItems]="todaysLeadsPagination.totalItems()"
+                  (pageChange)="todaysLeadsPagination.setPage($event)"
+                  (pageSizeChange)="todaysLeadsPagination.setPageSize($event)"
+                />
+              </div>
+            }
           </article>
         }
       </div>

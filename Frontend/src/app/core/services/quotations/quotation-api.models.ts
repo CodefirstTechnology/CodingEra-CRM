@@ -59,6 +59,11 @@ export interface QuotationAdditionalChargeDto {
   amount: number;
 }
 
+export interface QuotationTerm {
+  title: string;
+  body: string;
+}
+
 export interface QuotationUpsertDto {
   id?: number;
   dealId?: number | null;
@@ -100,6 +105,11 @@ export interface QuotationUpsertDto {
   transportationCharges?: number;
   loadingCharges?: number;
   serviceCharges?: number;
+  customizeTerms?: boolean;
+  introText?: string;
+  transportationLabel?: string;
+  jurisdiction?: string;
+  terms?: QuotationTerm[];
   customCharges?: QuotationAdditionalChargeDto[];
   lineItems: QuotationLineItemDto[];
 }

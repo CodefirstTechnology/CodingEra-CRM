@@ -11,7 +11,7 @@ import {
   additionalChargesTotal,
   listAdditionalChargeLines,
 } from '../../core/services/quotations/quotation-additional-charges.util';
-import { mergeCompanyProfileForPdf, type QuotationPdfCompanyConfig } from './company-profile-pdf.mapper';
+import { mergeCompanyProfileForPdf, resolveQuotationPdfContent, type QuotationPdfCompanyConfig } from './company-profile-pdf.mapper';
 import { QUOTATION_PDF_COMPANY, QUOTATION_PDF_LAYOUT } from './quotation-pdf.config';
 import { formatIntlTelDisplay } from '../../shared/utils/intl-tel.util';
 
@@ -33,7 +33,7 @@ export class QuotationPdfService {
       this.resolveGeneratorInfo(),
       this.resolveCompanyProfile(),
     ]);
-    const doc = this.buildDocument(quotation, generator, company);
+    const doc = this.buildDocument(quotation, generator, resolveQuotationPdfContent(quotation, company));
     doc.save(this.pdfFilename(quotation.quotationNumber));
   }
 

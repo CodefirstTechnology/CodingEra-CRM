@@ -143,9 +143,7 @@ export class UserDashboardService {
         monthlyRevenue,
       } satisfies UserDashboardKpis,
       assignedLeads: tableRows,
-      todaysLeads: todaysLeads
-        .slice(0, 8)
-        .map((l) => this.toLeadTableRow(l, undefined)),
+      todaysLeads: todaysLeads.map((l) => this.toLeadTableRow(l, undefined)),
       followUps: followUpsToday,
       activities: activities.map((row) => this.toDashboardActivityItem(row, entityNames)),
       performance: {
@@ -197,12 +195,10 @@ export class UserDashboardService {
       });
     }
 
-    return items
-      .sort((a, b) => {
-        const order = { overdue: 0, upcoming: 1, meeting: 2 };
-        return order[a.kind] - order[b.kind];
-      })
-      .slice(0, 10);
+    return items.sort((a, b) => {
+      const order = { overdue: 0, upcoming: 1, meeting: 2 };
+      return order[a.kind] - order[b.kind];
+    });
   }
 
   private toDashboardActivityItem(
