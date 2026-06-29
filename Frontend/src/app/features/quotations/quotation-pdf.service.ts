@@ -33,7 +33,8 @@ export class QuotationPdfService {
       this.resolveGeneratorInfo(),
       this.resolveCompanyProfile(),
     ]);
-    const doc = this.buildDocument(quotation, generator, resolveQuotationPdfContent(quotation, company));
+    const pdfCompany = await this.withPdfOptimizedLogo(resolveQuotationPdfContent(quotation, company));
+    const doc = this.buildDocument(quotation, generator, pdfCompany);
     doc.save(this.pdfFilename(quotation.quotationNumber));
   }
 
@@ -787,6 +788,79 @@ export class QuotationPdfService {
     const formattedFirst = first.startsWith(':') ? first : `: ${first}`;
     if (lines.length === 1) return formattedFirst;
     return [formattedFirst, ...lines.slice(1)].join('\n');
+  }
+
+  /** Downscale large logos for PDF only; falls back to the original when optimization is skipped or fails. */
+  private async withPdfOptimizedLogo(
+    company: QuotationPdfCompanyConfig,
+  ): Promise<QuotationPdfCompanyConfig> {
+    const base64 = company.logoBase64?.trim();
+    const contentType = company.logoContentType?.trim();
+    if (!base64 || !contentType || !this.logoImageFormat(contentType)) {
+      return company;
+    }
+
+    const optimized = await this.optimizeLogoForPdf(base64, contentType, QUOTATION_PDF_LAYOUT.logoMaxPx);
+    if (!optimized) {
+      return company;
+    }
+
+    return {
+      ...company,
+      logoBase64: optimized.base64,
+      logoContentType: optimized.contentType,
+    };
+  }
+
+  private optimizeLogoForPdf(
+    base64: string,
+    contentType: string,
+    maxPx: number,
+  ): Promise<{ base64: string; contentType: string } | null> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const longest = Math.max(img.width, img.height);
+        if (!longest) {
+          resolve(null);
+          return;
+        }
+
+        const scale = longest > maxPx ? maxPx / longest : 1;
+        if (scale >= 1) {
+          resolve(null);
+          return;
+        }
+
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const isPng = contentType.toLowerCase().includes('png');
+        const dataUrl = isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85);
+        const comma = dataUrl.indexOf(',');
+        if (comma < 0) {
+          resolve(null);
+          return;
+        }
+
+        resolve({
+          base64: dataUrl.slice(comma + 1),
+          contentType: isPng ? 'image/png' : 'image/jpeg',
+        });
+      };
+      img.onerror = () => resolve(null);
+      img.src = `data:${contentType};base64,${base64}`;
+    });
   }
 
   private logoImageFormat(contentType: string | undefined): 'PNG' | 'JPEG' | 'WEBP' | '' {

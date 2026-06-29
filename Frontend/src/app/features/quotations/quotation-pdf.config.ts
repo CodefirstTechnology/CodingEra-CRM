@@ -23,7 +23,7 @@ export const QUOTATION_PDF_COMPANY = {
   ifscCode: '',
   branchName: '',
   /** Header/footer fill RGB */
-  brandBlue: [30, 64, 120] as [number, number, number],
+  brandBlue: [0, 64, 133] as [number, number, number],
   /** Line-items table footer (total row) */
   tableFootFill: [45, 125, 125] as [number, number, number],
   tableHeadFill: [230, 236, 245] as [number, number, number],
@@ -39,6 +39,8 @@ export const QUOTATION_PDF_LAYOUT = {
   introGapMm: 4,
   /** Left header brand block — company text starts after this */
   brandBlockWidthMm: 46,
+  /** Max logo pixel dimension before PDF embed (avoids huge PNG decode in jsPDF) */
+  logoMaxPx: 400,
   /** Customer / quotation meta grid */
   metaLabelWidthMm: 30,
   metaValueRightLabelWidthMm: 24,
