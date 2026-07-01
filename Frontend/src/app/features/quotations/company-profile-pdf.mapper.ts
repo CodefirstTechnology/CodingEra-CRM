@@ -5,6 +5,8 @@ import { QUOTATION_PDF_COMPANY } from './quotation-pdf.config';
 export type QuotationPdfCompanyConfig = typeof QUOTATION_PDF_COMPANY & {
   logoContentType?: string;
   logoBase64?: string | null;
+  logoPixelWidth?: number;
+  logoPixelHeight?: number;
   signatoryName?: string;
   signatoryMobile?: string;
 };

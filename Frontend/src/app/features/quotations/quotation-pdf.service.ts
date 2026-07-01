@@ -127,25 +127,28 @@ export class QuotationPdfService {
       valign: 'middle' as const,
     };
 
-    let y = margin;
+    let y = 0;
 
     const drawHeader = (): void => {
       const brandW = L.brandBlockWidthMm;
+      const headerTop = margin;
       const headerLeft = margin;
       const headerRight = margin + contentW;
-      const centerX = headerLeft + brandW;
-      const blueWidth = contentW - brandW;
+      const textLeft = headerLeft + brandW;
+      const textWidth = contentW - brandW;
+      const textPad = L.headerTextPadMm;
+      const textInnerW = textWidth - textPad * 2;
       const lineH = 3.4;
       const padTop = 5;
       const padBottom = 1.5;
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(L.fontSize.headerLegal);
-      const nameLines = doc.splitTextToSize(C.legalName, blueWidth - 4);
+      const nameLines = doc.splitTextToSize(C.legalName, textInnerW);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(L.fontSize.headerSub + 0.5);
       const taglineLines = C.brandTagline?.trim()
-        ? doc.splitTextToSize(C.brandTagline, blueWidth - 4)
+        ? doc.splitTextToSize(C.brandTagline, textInnerW)
         : [];
 
       const taxY = padTop + nameLines.length * lineH + taglineLines.length * lineH + 0.5;
@@ -153,57 +156,64 @@ export class QuotationPdfService {
 
       const logoFormat = this.logoImageFormat(C.logoContentType);
       const hasLogo = !!(C.logoBase64 && logoFormat);
-      const logoSize = hasLogo ? 16 : 0;
-      const logoBlockBottom = hasLogo ? logoSize + 3 : 0;
-      const headerH = Math.max(textBlockBottom, logoBlockBottom);
+      const logoPad = L.logoBoxPaddingMm;
+      const logoAspect =
+        C.logoPixelWidth && C.logoPixelHeight && C.logoPixelHeight > 0
+          ? C.logoPixelWidth / C.logoPixelHeight
+          : 1;
 
-      doc.setFillColor(255, 255, 255);
-      doc.rect(headerLeft, 0, contentW, headerH, 'F');
+      const headerH = textBlockBottom;
 
       doc.setFillColor(...C.brandBlue);
-      doc.rect(centerX, 0, blueWidth, headerH, 'F');
-
-      doc.setDrawColor(0, 0, 0);
-      doc.setLineWidth(0.15);
-      doc.rect(headerLeft, 0, brandW, headerH, 'S');
-      doc.rect(headerLeft, 0, contentW, headerH, 'S');
+      doc.rect(headerLeft, headerTop, contentW, headerH, 'F');
 
       if (hasLogo) {
+        const availH = headerH - logoPad * 2;
+        const availW = brandW - logoPad * 2;
+        let fitH = availH;
+        let fitW = fitH * logoAspect;
+        if (fitW > availW) {
+          fitW = availW;
+          fitH = fitW / logoAspect;
+        }
+        const logoX = headerLeft + brandW - logoPad - fitW;
+        const logoY = headerTop + logoPad + (availH - fitH) / 2;
+
         try {
-          const fitLogo = Math.min(logoSize, headerH - 3);
           doc.addImage(
             `data:${C.logoContentType};base64,${C.logoBase64}`,
             logoFormat,
-            headerLeft + (brandW - fitLogo) / 2,
-            (headerH - fitLogo) / 2,
-            fitLogo,
-            fitLogo,
+            logoX,
+            logoY,
+            fitW,
+            fitH,
           );
         } catch {
-          // Logo block stays empty when image decode fails.
+          // Logo omitted when image decode fails.
         }
       }
 
       doc.setTextColor(255, 255, 255);
-      let textY = padTop;
+      const textCenterX = textLeft + textWidth / 2;
+      let textY = headerTop + padTop;
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(L.fontSize.headerLegal);
-      doc.text(nameLines, centerX + blueWidth / 2, textY, { align: 'center' });
+      doc.text(nameLines, textCenterX, textY, { align: 'center' });
       textY += nameLines.length * lineH;
 
       if (taglineLines.length) {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(L.fontSize.headerSub + 0.5);
-        doc.text(taglineLines, centerX + blueWidth / 2, textY, { align: 'center' });
+        doc.text(taglineLines, textCenterX, textY, { align: 'center' });
       }
 
       doc.setFontSize(L.fontSize.headerSub);
-      doc.text(`GSTIN : ${C.gstin}`, centerX + 2, taxY);
-      doc.text(`CIN : ${C.cin}`, headerRight - 2, taxY, { align: 'right' });
+      doc.text(`GSTIN : ${C.gstin}`, textLeft + textPad, headerTop + taxY);
+      doc.text(`CIN : ${C.cin}`, headerRight - textPad, headerTop + taxY, { align: 'right' });
 
       doc.setTextColor(0, 0, 0);
-      y = headerH;
+      y = headerTop + headerH + L.sectionGapMm;
     };
 
     const drawFooter = (pageNumber: number, totalPages: number): void => {
@@ -285,7 +295,9 @@ export class QuotationPdfService {
     y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 28;
 
     const businessLineBody = C.businessLine?.trim() ?? '';
-    const introBody = C.introText?.trim() || QUOTATION_PDF_COMPANY.defaultIntroText;
+    const introBody = C.introText?.trim() ?? '';
+    const introContent = businessLineBody || introBody;
+
     const quotationSectionRows: RowInput[] = [
       [
         {
@@ -294,12 +306,12 @@ export class QuotationPdfService {
         },
       ],
     ];
-    if (businessLineBody) {
+    if (introContent) {
       quotationSectionRows.push([
         {
-          content: businessLineBody,
+          content: introContent,
           styles: {
-            fontStyle: 'normal' as const,
+            fontStyle: 'bold' as const,
             halign: 'left' as const,
             valign: 'top' as const,
             fontSize: L.fontSize.intro,
@@ -307,17 +319,7 @@ export class QuotationPdfService {
         },
       ]);
     }
-    quotationSectionRows.push([
-      {
-        content: introBody,
-        styles: {
-          fontStyle: 'bold' as const,
-          halign: 'left' as const,
-          valign: 'top' as const,
-          fontSize: L.fontSize.intro,
-        },
-      },
-    ]);
+
     autoTable(doc, {
       startY: y,
       margin: { left: margin, right: margin },
@@ -326,6 +328,7 @@ export class QuotationPdfService {
       styles: {
         ...tableStyles,
         cellPadding: L.introCellPaddingMm,
+        overflow: 'linebreak',
       },
       body: quotationSectionRows,
     });
@@ -800,46 +803,49 @@ export class QuotationPdfService {
       return company;
     }
 
-    const optimized = await this.optimizeLogoForPdf(base64, contentType, QUOTATION_PDF_LAYOUT.logoMaxPx);
-    if (!optimized) {
+    const prepared = await this.prepareLogoForPdf(base64, contentType, QUOTATION_PDF_LAYOUT.logoMaxPx);
+    if (!prepared) {
       return company;
     }
 
     return {
       ...company,
-      logoBase64: optimized.base64,
-      logoContentType: optimized.contentType,
+      logoBase64: prepared.base64,
+      logoContentType: prepared.contentType,
+      logoPixelWidth: prepared.width,
+      logoPixelHeight: prepared.height,
     };
   }
 
-  private optimizeLogoForPdf(
+  private prepareLogoForPdf(
     base64: string,
     contentType: string,
     maxPx: number,
-  ): Promise<{ base64: string; contentType: string } | null> {
+  ): Promise<{ base64: string; contentType: string; width: number; height: number } | null> {
     return new Promise((resolve) => {
       const img = new Image();
       img.onload = () => {
+        if (!img.width || !img.height) {
+          resolve(null);
+          return;
+        }
+
         const longest = Math.max(img.width, img.height);
-        if (!longest) {
-          resolve(null);
-          return;
-        }
-
         const scale = longest > maxPx ? maxPx / longest : 1;
-        if (scale >= 1) {
-          resolve(null);
-          return;
-        }
-
         const w = Math.max(1, Math.round(img.width * scale));
         const h = Math.max(1, Math.round(img.height * scale));
+
+        if (scale >= 1) {
+          resolve({ base64, contentType, width: img.width, height: img.height });
+          return;
+        }
+
         const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d');
         if (!ctx) {
-          resolve(null);
+          resolve({ base64, contentType, width: img.width, height: img.height });
           return;
         }
 
@@ -849,13 +855,15 @@ export class QuotationPdfService {
         const dataUrl = isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85);
         const comma = dataUrl.indexOf(',');
         if (comma < 0) {
-          resolve(null);
+          resolve({ base64, contentType, width: img.width, height: img.height });
           return;
         }
 
         resolve({
           base64: dataUrl.slice(comma + 1),
           contentType: isPng ? 'image/png' : 'image/jpeg',
+          width: w,
+          height: h,
         });
       };
       img.onerror = () => resolve(null);
