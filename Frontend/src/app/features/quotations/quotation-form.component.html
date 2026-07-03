@@ -227,11 +227,12 @@
         @if (termsEditable()) {
           <div class="qt-form__grid">
             <label class="qt-form__field qt-form__field--full">
-              <span class="qt-form__label">Introduction text</span>
+              <span class="qt-form__label">Quotation business line</span>
               <textarea
                 class="qt-form__control qt-form__control--area"
                 rows="3"
-                formControlName="introText"
+                formControlName="businessLine"
+                placeholder="Shown below the Quotation heading in PDF"
               ></textarea>
             </label>
             <label class="qt-form__field">
@@ -251,31 +252,51 @@
                 + Add term
               </button>
             </div>
-            @for (term of termsArray().controls; track $index; let i = $index) {
-              <div class="qt-form__term-row" [formGroupName]="i">
-                <label class="qt-form__field">
-                  <span class="qt-form__label">Title</span>
-                  <input type="text" class="qt-form__control" formControlName="title" />
-                </label>
-                <label class="qt-form__field qt-form__field--full">
-                  <span class="qt-form__label">Content</span>
-                  <textarea
-                    class="qt-form__control qt-form__control--area"
-                    rows="2"
-                    formControlName="body"
-                  ></textarea>
-                </label>
-                @if (termsArray().length > 1) {
-                  <button
-                    type="button"
-                    class="qt-form__btn qt-form__btn--ghost qt-form__btn--sm qt-form__remove-term"
-                    (click)="removeTerm(i)"
-                  >
-                    Remove
-                  </button>
-                }
-              </div>
-            }
+            <div class="qt-form__terms-scroll">
+              <table class="qt-form__lines-table qt-form__terms-table">
+                <thead>
+                  <tr>
+                    <th class="qt-form__lines-th qt-form__lines-th--idx" scope="col">#</th>
+                    <th class="qt-form__lines-th qt-form__terms-th--title" scope="col">Title</th>
+                    <th class="qt-form__lines-th" scope="col">Content</th>
+                    <th class="qt-form__lines-th qt-form__lines-th--act" scope="col"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (term of termsArray().controls; track $index; let i = $index) {
+                    <tr [formGroupName]="i">
+                      <td class="qt-form__lines-td qt-form__lines-td--idx">{{ i + 1 }}</td>
+                      <td class="qt-form__lines-td qt-form__terms-td--title">
+                        <input
+                          type="text"
+                          class="qt-form__control qt-form__control--compact"
+                          formControlName="title"
+                        />
+                      </td>
+                      <td class="qt-form__lines-td">
+                        <textarea
+                          class="qt-form__control qt-form__control--compact qt-form__terms-content"
+                          rows="1"
+                          formControlName="body"
+                        ></textarea>
+                      </td>
+                      <td class="qt-form__lines-td qt-form__lines-td--act">
+                        @if (termsArray().length > 1) {
+                          <button
+                            type="button"
+                            class="qt-form__line-remove"
+                            (click)="removeTerm(i)"
+                            aria-label="Remove term"
+                          >
+                            ×
+                          </button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
           </div>
         }
       </section>

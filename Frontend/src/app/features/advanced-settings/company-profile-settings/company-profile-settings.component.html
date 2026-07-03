@@ -64,12 +64,13 @@
           }
         </label>
         <label class="co-profile__field co-profile__field--wide">
-          <span>Tagline / description</span>
-          <input type="text" formControlName="tagline" [readonly]="!canEdit()" />
-        </label>
-        <label class="co-profile__field co-profile__field--full">
-          <span>Business line</span>
-          <textarea rows="2" formControlName="businessLine" [readonly]="!canEdit()"></textarea>
+          <span>Header tagline</span>
+          <input
+            type="text"
+            formControlName="tagline"
+            placeholder="Shown below company name in quotation PDF header"
+            [readonly]="!canEdit()"
+          />
         </label>
       </div>
     </section>
@@ -140,39 +141,18 @@
 
     <section class="co-profile__card">
       <header class="co-profile__card-head">
-        <h3 class="co-profile__section-title">Authorized signatory</h3>
-      </header>
-      <div class="co-profile__grid">
-        <label class="co-profile__field">
-          <span>Signatory name</span>
-          <input type="text" formControlName="signatoryName" [readonly]="!canEdit()" />
-        </label>
-        <div class="co-profile__field">
-          <span>Signatory mobile</span>
-          <div class="crm-intl-tel-field crm-intl-tel-field--settings">
-            <intl-tel-input
-              formControlName="signatoryMobile"
-              [initOptions]="intlTelInitOptions"
-              [inputProps]="intlTelMobileInputProps"
-              [disabled]="!canEdit()"
-            />
-          </div>
-          @if (intlTelFieldInvalid(form.controls.signatoryMobile)) {
-            <small class="co-profile__field-error">{{ intlTelMobileError(form.controls.signatoryMobile.errors) }}</small>
-          }
-        </div>
-      </div>
-    </section>
-
-    <section class="co-profile__card">
-      <header class="co-profile__card-head">
         <h3 class="co-profile__section-title">Quotation PDF content</h3>
         <p class="co-profile__section-sub">Default text and terms included on generated quotation PDFs.</p>
       </header>
       <div class="co-profile__grid">
         <label class="co-profile__field co-profile__field--full">
-          <span>Introduction text</span>
-          <textarea rows="3" formControlName="introText" [readonly]="!canEdit()"></textarea>
+          <span>Quotation business line</span>
+          <textarea
+            rows="3"
+            formControlName="businessLine"
+            placeholder="Shown below the Quotation heading in quotation PDF"
+            [readonly]="!canEdit()"
+          ></textarea>
         </label>
         <label class="co-profile__field">
           <span>Transportation label</span>
@@ -195,23 +175,47 @@
             <button type="button" class="co-profile__add-term" (click)="addTerm()">+ Add term</button>
           }
         </div>
-        @for (term of termsArray().controls; track $index; let i = $index) {
-          <div class="co-profile__term-row" [formGroupName]="i">
-            <label class="co-profile__field">
-              <span>Title</span>
-              <input type="text" formControlName="title" [readonly]="!canEdit()" />
-            </label>
-            <label class="co-profile__field co-profile__field--wide">
-              <span>Content</span>
-              <textarea rows="2" formControlName="body" [readonly]="!canEdit()"></textarea>
-            </label>
-            @if (canEdit() && termsArray().length > 1) {
-              <button type="button" class="co-profile__remove-term" (click)="removeTerm(i)" aria-label="Remove term">
-                Remove
-              </button>
-            }
-          </div>
-        }
+        <div class="co-profile__terms-scroll">
+          <table class="co-profile__terms-table">
+            <thead>
+              <tr>
+                <th class="co-profile__terms-th co-profile__terms-th--idx" scope="col">#</th>
+                <th class="co-profile__terms-th co-profile__terms-th--title" scope="col">Title</th>
+                <th class="co-profile__terms-th" scope="col">Content</th>
+                @if (canEdit()) {
+                  <th class="co-profile__terms-th co-profile__terms-th--act" scope="col"></th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (term of termsArray().controls; track $index; let i = $index) {
+                <tr [formGroupName]="i">
+                  <td class="co-profile__terms-td co-profile__terms-td--idx">{{ i + 1 }}</td>
+                  <td class="co-profile__terms-td co-profile__terms-td--title">
+                    <input type="text" formControlName="title" [readonly]="!canEdit()" />
+                  </td>
+                  <td class="co-profile__terms-td">
+                    <textarea rows="1" formControlName="body" [readonly]="!canEdit()"></textarea>
+                  </td>
+                  @if (canEdit()) {
+                    <td class="co-profile__terms-td co-profile__terms-td--act">
+                      @if (termsArray().length > 1) {
+                        <button
+                          type="button"
+                          class="co-profile__remove-term"
+                          (click)="removeTerm(i)"
+                          aria-label="Remove term"
+                        >
+                          ×
+                        </button>
+                      }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
 

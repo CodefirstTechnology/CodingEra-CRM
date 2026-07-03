@@ -228,10 +228,20 @@
 
 .co-profile__clear-btn,
 .co-profile__remove-term {
-  padding: 0.5rem 0.85rem;
-  border: 1px solid var(--card-border);
-  background: transparent;
-  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: color-mix(in srgb, #b91c1c 10%, transparent);
+  color: #b91c1c;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  font-family: inherit;
+
+  &:hover {
+    background: color-mix(in srgb, #b91c1c 18%, transparent);
+  }
 }
 
 .co-profile__terms {
@@ -262,15 +272,90 @@
   font-weight: 600;
 }
 
-.co-profile__term-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
-  gap: 0.75rem;
-  align-items: end;
-  padding: 0.85rem;
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--body-bg, #f8fafc) 40%, var(--surface));
+.co-profile__terms-scroll {
+  overflow-x: auto;
+  margin: 0 -0.15rem;
+}
+
+.co-profile__terms-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.8125rem;
+  font-family: inherit;
+}
+
+.co-profile__terms-th {
+  text-align: left;
+  padding: 0.55rem 0.5rem;
+  font-weight: 600;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--card-border);
+  background: color-mix(in srgb, var(--text-muted) 6%, var(--body-bg));
+}
+
+.co-profile__terms-th--idx {
+  width: 2.5rem;
+  text-align: center;
+}
+
+.co-profile__terms-th--title {
+  width: 12rem;
+}
+
+.co-profile__terms-th--act {
+  width: 2.25rem;
+}
+
+.co-profile__terms-td {
+  padding: 0.45rem 0.35rem;
+  border-bottom: 1px solid var(--card-border);
+  vertical-align: middle;
+  font-family: inherit;
+
+  input,
+  textarea {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--card-border);
+    border-radius: var(--radius-sm);
+    padding: 0.4rem 0.55rem;
+    font-size: 0.8125rem;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--body-bg);
+    transition: var(--transition-theme);
+
+    &:focus {
+      outline: 2px solid color-mix(in srgb, var(--tertiary-color) 45%, transparent);
+      outline-offset: 1px;
+    }
+
+    &:read-only {
+      background: color-mix(in srgb, var(--text-muted) 6%, var(--body-bg));
+      cursor: default;
+    }
+  }
+
+  textarea {
+    min-height: 2.75rem;
+    resize: vertical;
+  }
+}
+
+.co-profile__terms-td--idx {
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.co-profile__terms-td--title {
+  width: 12rem;
+}
+
+.co-profile__terms-td--act {
+  text-align: center;
 }
 
 .co-profile__actions {
@@ -312,9 +397,5 @@
   .co-profile__field--wide,
   .co-profile__field--full {
     grid-column: auto;
-  }
-
-  .co-profile__term-row {
-    grid-template-columns: 1fr;
   }
 }

@@ -51,6 +51,39 @@ export interface UserDashboardLeadStatusSummary {
   pct: number;
 }
 
+export type UserDashboardKpiDetailKind =
+  | 'leads'
+  | 'deals'
+  | 'followUps'
+  | 'followUpsAll'
+  | 'tasks'
+  | 'meetings'
+  | 'revenue';
+
+export interface UserDashboardDealDetail {
+  id: string;
+  dealName: string;
+  company: string;
+  status: string;
+  value: number;
+}
+
+export interface UserDashboardTaskDetail {
+  id: string;
+  title: string;
+  status: string;
+  priority: string;
+  dueDate: string;
+}
+
+export interface UserDashboardRevenueDealDetail {
+  id: string;
+  dealName: string;
+  company: string;
+  value: number;
+  closedDate: string;
+}
+
 export interface UserDashboardSnapshot {
   kpis: UserDashboardKpis;
   assignedLeads: UserDashboardLeadTableRow[];
@@ -59,4 +92,7 @@ export interface UserDashboardSnapshot {
   activities: UserDashboardActivityItem[];
   performance: UserDashboardPerformance;
   statusSummary: UserDashboardLeadStatusSummary[];
+  activeDealDetails: UserDashboardDealDetail[];
+  pendingTaskDetails: UserDashboardTaskDetail[];
+  monthlyRevenueDeals: UserDashboardRevenueDealDetail[];
 }

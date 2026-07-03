@@ -1,10 +1,11 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { take } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { roleDisplayLabel } from '../../core/auth/auth-role.util';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
+import { CrmModalComponent } from '../../core/modal/crm-modal.component';
 import { PermissionService } from '../../core/services/permission.service';
 import type { UserTargetWidget } from '../../core/services/user-targets/user-target-api.models';
 import { UserTargetHttpService } from '../../core/services/user-targets/user-target-http.service';
@@ -14,13 +15,13 @@ import {
   CRM_TABLE_PAGE_SIZE_OPTIONS,
 } from '../../shared/components/crm-pagination-footer/crm-table-pagination.model';
 import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
-import type { UserDashboardSnapshot } from './models/user-dashboard.models';
+import type { UserDashboardFollowUpItem, UserDashboardKpiDetailKind, UserDashboardSnapshot } from './models/user-dashboard.models';
 import { UserDashboardService } from './services/user-dashboard.service';
 
 @Component({
   selector: 'app-user-dashboard',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe, CrmPaginationFooterComponent],
+  imports: [RouterLink, DatePipe, DecimalPipe, CrmPaginationFooterComponent, CrmModalComponent],
   templateUrl: './user-dashboard.component.html',
   styleUrl: './user-dashboard.component.scss',
 })
@@ -30,6 +31,7 @@ export class UserDashboardComponent {
   private readonly createFlow = inject(CreateFlowService);
   private readonly permissions = inject(PermissionService);
   private readonly userTargets = inject(UserTargetHttpService);
+  private readonly router = inject(Router);
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -67,6 +69,18 @@ export class UserDashboardComponent {
   });
 
   protected readonly dashboardPageSizeOptions = CRM_TABLE_PAGE_SIZE_OPTIONS;
+
+  protected readonly kpiDetailOpen = signal(false);
+  protected readonly kpiDetailKind = signal<UserDashboardKpiDetailKind>('leads');
+  protected readonly kpiDetailTitle = signal('');
+
+  protected readonly kpiFollowUpsToday = computed(() =>
+    (this.snapshot()?.followUps ?? []).filter((f) => f.kind !== 'meeting'),
+  );
+
+  protected readonly kpiMeetingsToday = computed(() =>
+    (this.snapshot()?.followUps ?? []).filter((f) => f.kind === 'meeting'),
+  );
 
   constructor() {
     this.refresh();
@@ -122,5 +136,56 @@ export class UserDashboardComponent {
     if (value >= 1_000_000) return `₹${(value / 1_000_000).toFixed(1)}M`;
     if (value >= 1_000) return `₹${(value / 1_000).toFixed(1)}k`;
     return `₹${Math.round(value)}`;
+  }
+
+  protected openKpiDetail(kind: UserDashboardKpiDetailKind): void {
+    const data = this.snapshot();
+    if (!data) return;
+
+    const titles: Record<UserDashboardKpiDetailKind, string> = {
+      leads: `My leads (${data.kpis.myLeads})`,
+      deals: `Active deals (${data.kpis.activeDeals})`,
+      followUps: `Follow-ups today (${data.kpis.followUpsToday})`,
+      followUpsAll: `Follow-ups & meetings (${data.followUps.length})`,
+      tasks: `Tasks pending (${data.kpis.tasksPending})`,
+      meetings: `Meetings today (${data.kpis.meetingsToday})`,
+      revenue: `Monthly revenue (${this.formatRevenue(data.kpis.monthlyRevenue)})`,
+    };
+
+    this.kpiDetailKind.set(kind);
+    this.kpiDetailTitle.set(titles[kind]);
+    this.kpiDetailOpen.set(true);
+  }
+
+  protected closeKpiDetail(): void {
+    this.kpiDetailOpen.set(false);
+  }
+
+  protected openFollowUpsPanel(): void {
+    const data = this.snapshot();
+    if (!data) return;
+    this.kpiDetailKind.set('followUpsAll');
+    this.kpiDetailTitle.set(`Follow-ups & meetings (${data.followUps.length})`);
+    this.kpiDetailOpen.set(true);
+  }
+
+  protected openFollowUp(item: UserDashboardFollowUpItem, ev?: Event): void {
+    ev?.stopPropagation();
+    const taskId = item.id?.trim();
+    if (!taskId) return;
+    this.closeKpiDetail();
+    void this.router.navigate(['/tasks'], {
+      queryParams: { edit: taskId },
+    });
+  }
+
+  protected openTaskById(taskId: string, ev?: Event): void {
+    ev?.stopPropagation();
+    const id = taskId?.trim();
+    if (!id) return;
+    this.closeKpiDetail();
+    void this.router.navigate(['/tasks'], {
+      queryParams: { edit: id },
+    });
   }
 }
