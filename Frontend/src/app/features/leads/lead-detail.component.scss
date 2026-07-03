@@ -139,6 +139,16 @@
   color: var(--text-muted);
 }
 
+.lead-detail__btn--danger {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #b91c1c;
+}
+
+.lead-detail__btn--danger:hover {
+  background: #fee2e2;
+}
+
 .lead-detail__tabs-bar {
   display: flex;
   align-items: flex-end;

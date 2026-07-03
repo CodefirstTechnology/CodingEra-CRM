@@ -38,6 +38,17 @@
           Convert to Deal
         </button>
       }
+      @if (canDeleteCurrentLead()) {
+        <button
+          type="button"
+          class="lead-detail__btn lead-detail__btn--danger"
+          aria-label="Delete lead"
+          title="Delete lead"
+          (click)="confirmDeleteLead()"
+        >
+          Delete
+        </button>
+      }
     </div>
   </header>
 
