@@ -4,7 +4,7 @@
       <h1 class="quotations__title">Quotations</h1>
       <p class="quotations__sub">Create and manage customer quotations from draft through approval.</p>
     </div>
-    <button type="button" class="quotations__btn" (click)="createQuotation()">+ Create quotation</button>
+    <app-create-quotation-menu label="+ Create quotation" (templateSelect)="createQuotation($event)" />
   </header>
 
   <div class="quotations__toolbar quotations-card">

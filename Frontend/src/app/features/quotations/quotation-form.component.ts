@@ -23,6 +23,14 @@ import type { CompanyProfileTerm } from '../../core/services/company-profile/com
 import { CompanyProfileHttpService } from '../../core/services/company-profile/company-profile-http.service';
 import type { QuotationTerm, QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
 import { QUOTATION_STATUSES } from '../../core/services/quotations/quotation-api.models';
+import {
+  DEFAULT_QUOTATION_CURRENCY,
+  isTechnicalProposalTemplate,
+  parseQuotationTemplateFromQuery,
+  QuotationTemplateType,
+  QUOTATION_CURRENCY_OPTIONS,
+  type QuotationTemplateType as QuotationTemplateTypeValue,
+} from '../../core/services/quotations/quotation-template.constants';
 import { QuotationDealPrefillService } from '../../core/services/quotations/quotation-deal-prefill.service';
 import {
   aggregateQuotationLines,
@@ -102,10 +110,18 @@ export class QuotationFormComponent {
   protected readonly saving = signal(false);
   protected readonly loading = signal(true);
   protected readonly editId = signal<number | null>(null);
+  protected readonly templateType = signal<QuotationTemplateTypeValue>(QuotationTemplateType.Standard);
   protected readonly statusOptions = QUOTATION_STATUSES;
-  protected readonly pageTitle = computed(() =>
-    this.editId() ? 'Edit Quotation' : 'New Quotation',
+  protected readonly currencyOptions = QUOTATION_CURRENCY_OPTIONS;
+  protected readonly isTechnicalProposal = computed(() =>
+    isTechnicalProposalTemplate(this.templateType()),
   );
+  protected readonly pageTitle = computed(() => {
+    if (this.editId()) {
+      return this.isTechnicalProposal() ? 'Edit Technical Proposal' : 'Edit Quotation';
+    }
+    return this.isTechnicalProposal() ? 'New Technical Proposal' : 'New Quotation';
+  });
 
   private companyTermsDefaults: QuotationTermsDefaults = {
     businessLine: '',
@@ -154,6 +170,18 @@ export class QuotationFormComponent {
     transportationLabel: ['', [Validators.maxLength(128)]],
     jurisdiction: ['', [Validators.maxLength(256)]],
     terms: this.fb.array([] as ReturnType<typeof this.createTermGroup>[]),
+    projectName: [''],
+    kindAttnDesignation: ['', Validators.maxLength(256)],
+    commercialTerms: [''],
+    taxLabel: ['', Validators.maxLength(128)],
+    paymentTerms: [''],
+    hsnCode: ['', Validators.maxLength(64)],
+    incoterms: ['', Validators.maxLength(128)],
+    dispatchLeadTime: ['', Validators.maxLength(128)],
+    currencyCode: [DEFAULT_QUOTATION_CURRENCY, Validators.maxLength(8)],
+    proposalIntro: [''],
+    technicalSections: this.fb.array([] as ReturnType<typeof this.createTermGroup>[]),
+    commercialSections: this.fb.array([] as ReturnType<typeof this.createTermGroup>[]),
   });
 
   protected readonly grandTotal = computed(() => {
@@ -214,12 +242,36 @@ export class QuotationFormComponent {
     return this.form.controls.terms;
   }
 
+  protected technicalSectionsArray(): FormArray {
+    return this.form.controls.technicalSections;
+  }
+
+  protected commercialSectionsArray(): FormArray {
+    return this.form.controls.commercialSections;
+  }
+
   protected termsEditable(): boolean {
     return this.form.controls.customizeTerms.value;
   }
 
   protected addTerm(prefill?: QuotationTerm): void {
     this.termsArray().push(this.createTermGroup(prefill));
+  }
+
+  protected addTechnicalSection(prefill?: QuotationTerm): void {
+    this.technicalSectionsArray().push(this.createTermGroup(prefill));
+  }
+
+  protected removeTechnicalSection(index: number): void {
+    this.technicalSectionsArray().removeAt(index);
+  }
+
+  protected addCommercialSection(prefill?: QuotationTerm): void {
+    this.commercialSectionsArray().push(this.createTermGroup(prefill));
+  }
+
+  protected removeCommercialSection(index: number): void {
+    this.commercialSectionsArray().removeAt(index);
   }
 
   protected removeTerm(index: number): void {
@@ -393,7 +445,8 @@ export class QuotationFormComponent {
       additional,
     );
 
-    return {
+    const template = this.templateType();
+    const dto: QuotationUpsertDto = {
       id: this.editId() ?? undefined,
       dealId: v.dealId,
       salutation: '',
@@ -439,6 +492,33 @@ export class QuotationFormComponent {
       jurisdiction: customizeTerms ? v.jurisdiction.trim() : '',
       terms,
       lineItems: lineRows,
+      quotationTemplate: template,
+      technicalProposal: isTechnicalProposalTemplate(template)
+        ? this.buildTechnicalProposalPayload(v)
+        : null,
+    };
+    return dto;
+  }
+
+  private buildTechnicalProposalPayload(v: ReturnType<typeof this.form.getRawValue>) {
+    const mapSections = (rows: { title: string; body: string }[]) =>
+      rows
+        .map((t) => ({ title: t.title.trim(), body: t.body.trim() }))
+        .filter((t) => t.title || t.body);
+
+    return {
+      projectName: v.projectName.trim(),
+      kindAttnDesignation: v.kindAttnDesignation.trim(),
+      commercialTerms: v.commercialTerms.trim(),
+      taxLabel: v.taxLabel.trim(),
+      paymentTerms: v.paymentTerms.trim(),
+      hsnCode: v.hsnCode.trim(),
+      incoterms: v.incoterms.trim(),
+      dispatchLeadTime: v.dispatchLeadTime.trim(),
+      currencyCode: (v.currencyCode.trim() || DEFAULT_QUOTATION_CURRENCY).toUpperCase(),
+      proposalIntro: v.proposalIntro.trim(),
+      technicalSections: mapSections(v.technicalSections ?? []),
+      commercialSections: mapSections(v.commercialSections ?? []),
     };
   }
 
@@ -515,6 +595,7 @@ export class QuotationFormComponent {
 
   private initNew(queryParams: ParamMap): void {
     this.initialQuotationDate = null;
+    this.templateType.set(parseQuotationTemplateFromQuery(queryParams.get('template')));
     this.loading.set(true);
     const cached = consumeDealQuotationPrefill() ?? readDealQuotationPrefillFromNavigation();
     const dealIdFromQuery = parseDealIdFromQuery(queryParams);
@@ -573,8 +654,14 @@ export class QuotationFormComponent {
           };
           this.applyNewFormPatch({ ...base, ...(dealPatch ?? {}) });
           this.setCompanyTermsDefaults(companyProfile);
-          this.form.patchValue({ customizeTerms: false });
-          this.applyCompanyTermsDefaults();
+          if (this.isTechnicalProposal()) {
+            this.form.patchValue({ customizeTerms: false });
+            this.applyTechnicalProposalDefaults();
+            this.syncProjectFromSiteAddress();
+          } else {
+            this.form.patchValue({ customizeTerms: false });
+            this.applyCompanyTermsDefaults();
+          }
           this.syncQuotationNumberDisplay();
           this.loading.set(false);
         },
@@ -680,6 +767,11 @@ export class QuotationFormComponent {
   }
 
   private patchFromDto(q: QuotationUpsertDto): void {
+    this.templateType.set(
+      isTechnicalProposalTemplate(q.quotationTemplate)
+        ? QuotationTemplateType.TechnicalProposal
+        : QuotationTemplateType.Standard,
+    );
     this.initialQuotationDate = q.quotationDate?.slice(0, 10) ?? null;
     const annualRevenue =
       q.annualRevenue != null && Number.isFinite(q.annualRevenue) && q.annualRevenue > 0
@@ -774,7 +866,49 @@ export class QuotationFormComponent {
       });
       this.customCharges.push(g);
     }
-    this.applyQuotationTermsFromDto(q);
+    if (this.isTechnicalProposal()) {
+      this.patchTechnicalProposalFromDto(q);
+    } else {
+      this.applyQuotationTermsFromDto(q);
+    }
     this.syncQuotationNumberDisplay();
+  }
+
+  private patchTechnicalProposalFromDto(q: QuotationUpsertDto): void {
+    const tp = q.technicalProposal ?? {};
+    this.form.patchValue({
+      projectName: tp.projectName ?? q.siteAddress?.trim() ?? '',
+      kindAttnDesignation: tp.kindAttnDesignation ?? '',
+      commercialTerms: tp.commercialTerms ?? '',
+      taxLabel: tp.taxLabel ?? '',
+      paymentTerms: tp.paymentTerms ?? '',
+      hsnCode: tp.hsnCode ?? '',
+      incoterms: tp.incoterms ?? '',
+      dispatchLeadTime: tp.dispatchLeadTime ?? '',
+      currencyCode: tp.currencyCode?.trim() || DEFAULT_QUOTATION_CURRENCY,
+      proposalIntro: tp.proposalIntro ?? '',
+    });
+    this.applySectionsToForm(this.technicalSectionsArray(), tp.technicalSections ?? []);
+    this.applySectionsToForm(this.commercialSectionsArray(), tp.commercialSections ?? []);
+  }
+
+  private applySectionsToForm(array: FormArray, values: QuotationTerm[]): void {
+    while (array.length) {
+      array.removeAt(0);
+    }
+    const rows = values.length ? values : [{ title: '', body: '' }];
+    rows.forEach((t) => array.push(this.createTermGroup(t)));
+  }
+
+  private applyTechnicalProposalDefaults(): void {
+    this.applySectionsToForm(this.technicalSectionsArray(), [{ title: '', body: '' }]);
+    this.applySectionsToForm(this.commercialSectionsArray(), [{ title: '', body: '' }]);
+  }
+
+  private syncProjectFromSiteAddress(): void {
+    const site = this.form.controls.siteAddress.value.trim();
+    if (!this.form.controls.projectName.value.trim() && site) {
+      this.form.controls.projectName.setValue(site);
+    }
   }
 }

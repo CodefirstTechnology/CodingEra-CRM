@@ -64,6 +64,21 @@ export interface QuotationTerm {
   body: string;
 }
 
+export interface TechnicalProposalPayload {
+  projectName?: string;
+  kindAttnDesignation?: string;
+  commercialTerms?: string;
+  taxLabel?: string;
+  paymentTerms?: string;
+  hsnCode?: string;
+  incoterms?: string;
+  dispatchLeadTime?: string;
+  currencyCode?: string;
+  proposalIntro?: string;
+  technicalSections?: QuotationTerm[];
+  commercialSections?: QuotationTerm[];
+}
+
 export interface QuotationUpsertDto {
   id?: number;
   dealId?: number | null;
@@ -112,6 +127,8 @@ export interface QuotationUpsertDto {
   terms?: QuotationTerm[];
   customCharges?: QuotationAdditionalChargeDto[];
   lineItems: QuotationLineItemDto[];
+  quotationTemplate?: string;
+  technicalProposal?: TechnicalProposalPayload | null;
 }
 
 export interface QuotationListItem {
@@ -134,6 +151,7 @@ export interface QuotationListItem {
   createdByName?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  quotationTemplate?: string;
 }
 
 export interface QuotationNextNumber {

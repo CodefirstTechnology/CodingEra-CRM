@@ -2,19 +2,17 @@
 <div class="deal-detail">
   <header class="deal-detail__top">
     <div class="deal-detail__top-left">
-      <p class="deal-detail__crumb"><a routerLink="/deals">Deals</a> / {{ row.organizationName }}</p>
+      <p class="deal-detail__crumb">
+        <a routerLink="/deals">Deals</a>
+        @if (dealCrumbDealName(row); as dealName) {
+        / {{ dealName }}
+        }
+        @if (dealCrumbOwnerName(); as ownerName) {
+        / {{ ownerName }}
+        }
+      </p>
       <div class="deal-detail__essentials">
         <span class="deal-detail__essentials-code">{{ dealCode() }}</span>
-        <span class="deal-detail__essentials-divider" aria-hidden="true">·</span>
-        <span class="deal-detail__avatar deal-detail__avatar--sm">{{ sidebarDealAvatarLetter(row) }}</span>
-        <span class="deal-detail__essentials-org">{{ sidebarDealHeadline(row) }}</span>
-        <span class="deal-detail__essentials-divider" aria-hidden="true">·</span>
-        <span class="deal-detail__essentials-contact">{{ dealPrimaryContactName() }}</span>
-        <span class="deal-detail__essentials-divider" aria-hidden="true">·</span>
-        <span class="deal-detail__essentials-owner">
-          <span class="deal-detail__owner-badge">{{ sidebarOwnerChipInitial() }}</span>
-          {{ row.assignedTo || 'Unassigned' }}
-        </span>
       </div>
     </div>
     <div class="deal-detail__top-actions">
@@ -27,9 +25,11 @@
           View Quotation
         </button>
       } @else if (canCreateQuotation()) {
-        <button type="button" class="deal-detail__btn deal-detail__btn--quotation" (click)="onCreateQuotation()">
-          Create Quotation
-        </button>
+        <app-create-quotation-menu
+          label="Create Quotation"
+          variant="surface"
+          (templateSelect)="onCreateQuotation($event)"
+        />
       }
       @if (!isDealDataLocked()) {
         <button type="button" class="deal-detail__btn deal-detail__btn--light" (click)="setTab('Data')" title="Edit deal data">

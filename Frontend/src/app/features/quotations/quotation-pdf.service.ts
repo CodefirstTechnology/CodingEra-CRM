@@ -14,6 +14,8 @@ import {
 import { mergeCompanyProfileForPdf, resolveQuotationPdfContent, type QuotationPdfCompanyConfig } from './company-profile-pdf.mapper';
 import { QUOTATION_PDF_COMPANY, QUOTATION_PDF_LAYOUT } from './quotation-pdf.config';
 import { formatIntlTelDisplay } from '../../shared/utils/intl-tel.util';
+import { isTechnicalProposalTemplate } from '../../core/services/quotations/quotation-template.constants';
+import { TechnicalProposalPdfService } from './technical-proposal-pdf.service';
 
 export interface QuotationPdfGeneratorInfo {
   fullName: string;
@@ -27,8 +29,14 @@ type DocWithTable = jsPDF & { lastAutoTable?: { finalY: number } };
 export class QuotationPdfService {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
+  private readonly technicalProposalPdf = inject(TechnicalProposalPdfService);
 
   async download(quotation: QuotationUpsertDto): Promise<void> {
+    if (isTechnicalProposalTemplate(quotation.quotationTemplate)) {
+      await this.technicalProposalPdf.download(quotation);
+      return;
+    }
+
     const [generator, company] = await Promise.all([
       this.resolveGeneratorInfo(),
       this.resolveCompanyProfile(),
@@ -307,11 +315,13 @@ export class QuotationPdfService {
       ],
     ];
     if (introContent) {
+      const introPad = L.introCellPaddingMm;
+      const introInnerW = contentW - introPad.left - introPad.right;
       quotationSectionRows.push([
         {
-          content: introContent,
+          content: this.wrapBusinessLineForCell(doc, introContent, introInnerW, L.fontSize.intro),
           styles: {
-            fontStyle: 'bold' as const,
+            fontStyle: 'normal' as const,
             halign: 'left' as const,
             valign: 'top' as const,
             fontSize: L.fontSize.intro,
@@ -779,6 +789,28 @@ export class QuotationPdfService {
     if (company.accountNumber?.trim()) lines.push(`A/c No. ${company.accountNumber.trim()}`);
     if (company.ifscCode?.trim()) lines.push(`IFSC : ${company.ifscCode.trim()}`);
     if (company.branchName?.trim()) lines.push(`Branch: ${company.branchName.trim()}`);
+    return lines.join('\n');
+  }
+
+  /** Preserve textarea line breaks; wrap each paragraph to the intro cell width. */
+  private wrapBusinessLineForCell(
+    doc: jsPDF,
+    text: string,
+    maxWidthMm: number,
+    fontSize: number,
+  ): string {
+    const normalized = text.replace(/^(Dear\s+[^,\n]+,)\s+(?=\S)/i, '$1\n\n');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(fontSize);
+    const lines: string[] = [];
+    for (const part of normalized.split(/\r?\n/)) {
+      if (!part.trim()) {
+        lines.push('');
+        continue;
+      }
+      lines.push(...(doc.splitTextToSize(part.trim(), maxWidthMm) as string[]));
+    }
+    while (lines.length && lines[lines.length - 1] === '') lines.pop();
     return lines.join('\n');
   }
 

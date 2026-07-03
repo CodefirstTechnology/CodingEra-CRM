@@ -7,7 +7,9 @@ import type {
   QuotationSettings,
   QuotationTerm,
   QuotationUpsertDto,
+  TechnicalProposalPayload,
 } from './quotation-api.models';
+import { normalizeQuotationTemplateType } from './quotation-template.constants';
 import { normalizeGstin } from '../../../shared/utils/gstin.util';
 import { recalcLineGroupValues } from './quotation-line-calc.util';
 
@@ -40,6 +42,17 @@ function pickBool(o: Record<string, unknown>, keys: string[]): boolean {
     if (v === 'false' || v === 0) return false;
   }
   return false;
+}
+
+function pickBoolOrDefault(o: Record<string, unknown>, keys: string[], defaultValue: boolean): boolean {
+  for (const k of keys) {
+    if (!(k in o)) continue;
+    const v = o[k];
+    if (typeof v === 'boolean') return v;
+    if (v === 'true' || v === 1) return true;
+    if (v === 'false' || v === 0) return false;
+  }
+  return defaultValue;
 }
 
 function pickNullableNum(o: Record<string, unknown>, keys: string[]): number | null {
@@ -92,6 +105,9 @@ export function mapQuotationListItem(raw: unknown): QuotationListItem {
       pickStr(o, ['createdByName', 'created_by_name', 'CreatedByName']) || undefined,
     createdAt: pickStr(o, ['createdAt', 'created_at']) || undefined,
     updatedAt: pickStr(o, ['updatedAt', 'updated_at']) || undefined,
+    quotationTemplate: normalizeQuotationTemplateType(
+      pickStr(o, ['quotationTemplate', 'quotation_template', 'QuotationTemplate']),
+    ),
   };
 }
 
@@ -122,6 +138,32 @@ function readTermsFromJson(raw: unknown): QuotationTerm[] {
   } catch {
     return [];
   }
+}
+
+function mapTechnicalProposal(raw: unknown): TechnicalProposalPayload | null {
+  if (raw == null) return null;
+  const o = asRecord(raw);
+  const currency = pickStr(o, ['currencyCode', 'currency_code', 'CurrencyCode']).trim() || 'INR';
+  return {
+    projectName: pickStr(o, ['projectName', 'project_name', 'ProjectName']),
+    kindAttnDesignation: pickStr(o, [
+      'kindAttnDesignation',
+      'kind_attn_designation',
+      'KindAttnDesignation',
+    ]),
+    commercialTerms: pickStr(o, ['commercialTerms', 'commercial_terms', 'CommercialTerms']),
+    taxLabel: pickStr(o, ['taxLabel', 'tax_label', 'TaxLabel']),
+    paymentTerms: pickStr(o, ['paymentTerms', 'payment_terms', 'PaymentTerms']),
+    hsnCode: pickStr(o, ['hsnCode', 'hsn_code', 'HsnCode']),
+    incoterms: pickStr(o, ['incoterms', 'Incoterms']),
+    dispatchLeadTime: pickStr(o, ['dispatchLeadTime', 'dispatch_lead_time', 'DispatchLeadTime']),
+    currencyCode: currency,
+    proposalIntro: pickStr(o, ['proposalIntro', 'proposal_intro', 'ProposalIntro']),
+    technicalSections: mapTerms(o['technicalSections'] ?? o['technical_sections'] ?? o['TechnicalSections']),
+    commercialSections: mapTerms(
+      o['commercialSections'] ?? o['commercial_sections'] ?? o['CommercialSections'],
+    ),
+  };
 }
 
 function mapTerms(raw: unknown): QuotationTerm[] {
@@ -253,6 +295,12 @@ export function mapQuotationDetail(raw: unknown): QuotationUpsertDto {
     })(),
     customCharges,
     lineItems: lines,
+    quotationTemplate: normalizeQuotationTemplateType(
+      pickStr(o, ['quotationTemplate', 'quotation_template', 'QuotationTemplate']),
+    ),
+    technicalProposal: mapTechnicalProposal(
+      o['technicalProposal'] ?? o['technical_proposal'] ?? o['TechnicalProposal'],
+    ),
   };
 }
 
@@ -285,10 +333,10 @@ export function mapGridColumns(raw: unknown): QuotationGridColumnsDto {
         return {
           key: pickStr(col, ['key', 'Key']),
           label: pickStr(col, ['label', 'Label']),
-          visible: col['visible'] !== false && col['Visible'] !== false,
+          visible: pickBoolOrDefault(col, ['visible', 'Visible'], true),
           order: pickNum(col, ['order', 'Order']),
           width: pickNum(col, ['width', 'Width']) || 100,
-          editable: col['editable'] !== false && col['Editable'] !== false,
+          editable: pickBoolOrDefault(col, ['editable', 'Editable'], true),
         };
       })
     : [];
@@ -366,5 +414,7 @@ export function toApiUpsertBody(dto: QuotationUpsertDto): Record<string, unknown
       taxAmount: l.taxAmount,
       lineTotal: l.lineTotal,
     })),
+    quotationTemplate: dto.quotationTemplate ?? 'Standard',
+    technicalProposal: dto.technicalProposal ?? null,
   };
 }
