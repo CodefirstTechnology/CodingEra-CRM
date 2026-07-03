@@ -64,4 +64,8 @@ export class PermissionService {
   canSelfAssignDeals(): boolean {
     return this.has('deals.self_assign');
   }
+
+  canDeleteLeads(): boolean {
+    return this.has('leads.delete');
+  }
 }

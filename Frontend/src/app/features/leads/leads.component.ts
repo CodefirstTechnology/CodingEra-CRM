@@ -477,6 +477,7 @@ export class LeadsComponent {
   /** Row menu assign — any user with leads.assign (e.g. Sales). */
   protected readonly canShowRowAssignActions = computed(() => this.canAssignLeads());
   protected readonly canSelfAssignLeads = computed(() => this.permissions.canSelfAssignLeads());
+  protected readonly canDeleteLeads = computed(() => this.permissions.canDeleteLeads());
   protected readonly showLeadOwnerPicker = computed(() =>
     showOwnerPickerOnCreate(this.canAssignLeads(), this.isAdminViewer()),
   );
@@ -700,6 +701,10 @@ export class LeadsComponent {
   /** User may see Convert in the menu but it stays disabled until status is Qualified. */
   protected showConvertLeadDisabled(row: LeadRow): boolean {
     return this.canEditLead(row) && !this.canConvertLead(row);
+  }
+
+  protected canDeleteLead(row: LeadRow): boolean {
+    return this.canDeleteLeads() && isPersistedApiLeadRow(row.id);
   }
 
   protected readonly createForm = this.fb.nonNullable.group({
@@ -1130,6 +1135,29 @@ export class LeadsComponent {
     this.openRowMenuId.set(null);
     if (!this.canConvertLead(row)) return;
     this.openConvertModal([row]);
+  }
+
+  protected deleteLead(row: LeadRow, ev?: Event): void {
+    ev?.stopPropagation();
+    this.closeRowMenus();
+    if (!this.canDeleteLead(row)) {
+      this.toast.error('You do not have permission to perform this action.');
+      return;
+    }
+    const idn = Number(row.id);
+    if (!Number.isFinite(idn)) return;
+    if (!confirm('Delete this lead? This action cannot be undone.')) return;
+    this.leadsService
+      .delete(idn)
+      .pipe(take(1))
+      .subscribe({
+        next: () => {
+          this.sel.removeId(row.id);
+          this.manualRows.update((rows) => rows.filter((r) => r.id !== row.id));
+          this.toast.success('Lead deleted.');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+      });
   }
 
   protected openConvertModal(leads: LeadRow[]): void {
