@@ -8,13 +8,19 @@ import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { PermissionService } from '../../core/services/permission.service';
 import type { UserTargetWidget } from '../../core/services/user-targets/user-target-api.models';
 import { UserTargetHttpService } from '../../core/services/user-targets/user-target-http.service';
+import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import {
+  CRM_TABLE_DEFAULT_PAGE_SIZE,
+  CRM_TABLE_PAGE_SIZE_OPTIONS,
+} from '../../shared/components/crm-pagination-footer/crm-table-pagination.model';
+import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import type { UserDashboardSnapshot } from './models/user-dashboard.models';
 import { UserDashboardService } from './services/user-dashboard.service';
 
 @Component({
   selector: 'app-user-dashboard',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe],
+  imports: [RouterLink, DatePipe, DecimalPipe, CrmPaginationFooterComponent],
   templateUrl: './user-dashboard.component.html',
   styleUrl: './user-dashboard.component.scss',
 })
@@ -45,6 +51,22 @@ export class UserDashboardComponent {
     if (hour < 17) return 'Keep momentum on follow-ups and deals.';
     return 'Close the day with one more meaningful touchpoint.';
   });
+
+  private readonly assignedLeadsData = computed(() => this.snapshot()?.assignedLeads ?? []);
+  private readonly activitiesData = computed(() => this.snapshot()?.activities ?? []);
+  private readonly followUpsData = computed(() => this.snapshot()?.followUps ?? []);
+  private readonly todaysLeadsData = computed(() => this.snapshot()?.todaysLeads ?? []);
+
+  protected readonly assignedLeadsPagination = createClientTablePagination(this.assignedLeadsData);
+  protected readonly activitiesPagination = createClientTablePagination(this.activitiesData);
+  protected readonly followUpsPagination = createClientTablePagination(this.followUpsData, {
+    defaultPageSize: CRM_TABLE_DEFAULT_PAGE_SIZE,
+  });
+  protected readonly todaysLeadsPagination = createClientTablePagination(this.todaysLeadsData, {
+    defaultPageSize: CRM_TABLE_DEFAULT_PAGE_SIZE,
+  });
+
+  protected readonly dashboardPageSizeOptions = CRM_TABLE_PAGE_SIZE_OPTIONS;
 
   constructor() {
     this.refresh();

@@ -5,24 +5,6 @@
       <p class="deals__sub">Track opportunities from quotation to close.</p>
     </div>
     <div class="deals__head-actions">
-      <div class="deals__view-toggle" role="group" aria-label="Deal list view">
-        <button
-          type="button"
-          class="deals__view-btn"
-          [class.is-active]="listView() === 'table'"
-          (click)="setListView('table')"
-        >
-          Table view
-        </button>
-        <button
-          type="button"
-          class="deals__view-btn"
-          [class.is-active]="listView() === 'pipeline'"
-          (click)="setListView('pipeline')"
-        >
-          Pipeline view
-        </button>
-      </div>
       <button type="button" class="deals__btn deals__btn--solid" (click)="openForm()">+ New deal</button>
     </div>
   </header>
@@ -306,14 +288,6 @@
     </div>
   }
 
-  @if (listView() === 'pipeline') {
-    <app-deal-pipeline-board
-      [deals]="filtered()"
-      [statusOptions]="dealStatuses()"
-      [updatingDealId]="stageUpdatingId()"
-      (stageChange)="onPipelineStageChange($event)"
-    />
-  } @else {
   <div class="deals__table-card card">
     <div class="deals__table-head">
       <span class="deals__count">
@@ -451,5 +425,4 @@
       />
     }
   </div>
-  }
 </div>
