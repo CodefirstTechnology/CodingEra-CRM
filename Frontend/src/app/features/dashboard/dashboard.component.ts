@@ -351,6 +351,8 @@ export class DashboardComponent {
         return 'Lead';
       case 'deal':
         return 'Deal';
+      case 'item':
+        return 'Item Master';
       case 'task':
         return 'Task';
       case 'call':
@@ -367,6 +369,7 @@ export class DashboardComponent {
   protected activityKindClass(item: AdminActivityStreamItem): string {
     if (item.kind === 'lead') return 'sales-dash__entity-tag sales-dash__entity-tag--lead';
     if (item.kind === 'deal') return 'sales-dash__entity-tag sales-dash__entity-tag--deal';
+    if (item.kind === 'item') return 'sales-dash__entity-tag sales-dash__entity-tag--item';
     return 'sales-dash__entity-tag';
   }
 }

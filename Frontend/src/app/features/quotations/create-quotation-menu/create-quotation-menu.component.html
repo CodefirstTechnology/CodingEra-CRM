@@ -1,0 +1,14 @@
+<label class="create-qtn-menu">
+  <span class="create-qtn-menu__sr-only">{{ label() }}</span>
+  <select
+    class="create-qtn-menu__select"
+    [class.create-qtn-menu__select--surface]="variant() === 'surface'"
+    [disabled]="disabled()"
+    [attr.aria-label]="label()"
+    (change)="onSelect($event)"
+  >
+    <option value="" selected disabled hidden>{{ label() }}</option>
+    <option [value]="standardTemplate">Standard Quotation</option>
+    <option [value]="technicalTemplate">Technical Proposal</option>
+  </select>
+</label>

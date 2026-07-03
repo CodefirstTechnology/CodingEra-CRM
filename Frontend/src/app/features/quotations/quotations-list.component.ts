@@ -9,16 +9,29 @@ import {
   type QuotationListItem,
   type QuotationStatus,
 } from '../../core/services/quotations/quotation-api.models';
+import {
+  QuotationTemplateType,
+  quotationTemplateQueryParam,
+  type QuotationTemplateType as QuotationTemplateTypeValue,
+} from '../../core/services/quotations/quotation-template.constants';
 import { PermissionService } from '../../core/services/permission.service';
 import { QuotationsService, quotationHttpErrorMessage } from '../../core/services/quotations.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
 import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
+import { CreateQuotationMenuComponent } from './create-quotation-menu/create-quotation-menu.component';
 
 @Component({
   selector: 'app-quotations-list',
-  imports: [ReactiveFormsModule, RouterLink, DatePipe, DecimalPipe, CrmPaginationFooterComponent],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    DatePipe,
+    DecimalPipe,
+    CrmPaginationFooterComponent,
+    CreateQuotationMenuComponent,
+  ],
   templateUrl: './quotations-list.component.html',
   styleUrl: './quotations-list.component.scss',
 })
@@ -81,8 +94,11 @@ export class QuotationsListComponent {
       });
   }
 
-  protected createQuotation(): void {
-    void this.router.navigate(['/quotations/new']);
+  protected createQuotation(template: QuotationTemplateTypeValue): void {
+    const qp = quotationTemplateQueryParam(template);
+    void this.router.navigate(['/quotations/new'], {
+      queryParams: qp ? { template: qp } : {},
+    });
   }
 
   protected viewRow(id: number): void {

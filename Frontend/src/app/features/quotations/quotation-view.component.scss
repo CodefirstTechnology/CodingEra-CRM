@@ -70,6 +70,12 @@
   color: var(--text-muted);
 }
 
+.qt-view__template {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
 .qt-view__actions {
   display: flex;
   flex-wrap: wrap;

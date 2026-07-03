@@ -26,7 +26,9 @@ import {
 } from '../../../core/services/quotations/quotation-grid.constants';
 import {
   parseItemSnapshot,
+  setSnapshotFieldValue,
   snapshotFieldValue,
+  stringifyItemSnapshot,
 } from '../../../core/services/quotations/quotation-item-snapshot.util';
 import {
   additionalChargesTotal,
@@ -83,7 +85,9 @@ export class QuotationItemGridComponent implements OnDestroy {
     null,
   );
 
-  private itemPickerInputEl: HTMLInputElement | null = null;
+  private itemPickerTriggerEl: HTMLElement | null = null;
+  private itemPickerScrollHandler: (() => void) | null = null;
+  private itemPickerScrollTargets: Array<Window | Element> = [];
 
   protected readonly filteredCatalogItems = computed(() => {
     const q = this.itemPickerQuery().trim().toLowerCase();
@@ -167,6 +171,7 @@ export class QuotationItemGridComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.unbindItemPickerScrollTracking();
     this.clearSubs();
   }
 
@@ -218,7 +223,10 @@ export class QuotationItemGridComponent implements OnDestroy {
     req$.pipe(take(1)).subscribe({
       next: (res) => {
         this.columns.set(
-          mergeQuotationGridColumns(res.columns as QuotationGridColumn[], this.dynamicGridCols()),
+          mergeQuotationGridColumns(
+            (res.columns?.length ? res.columns : merged) as QuotationGridColumn[],
+            this.dynamicGridCols(),
+          ),
         );
         this.savingConfig.set(false);
         this.configOpen.set(false);
@@ -261,10 +269,14 @@ export class QuotationItemGridComponent implements OnDestroy {
     this.dragColIndex.set(null);
     if (from == null || from === targetIndex) return;
     this.draftColumns.update((cols) => {
-      const sorted = [...cols].sort((a, b) => a.order - b.order);
+      const srNo = cols.find((c) => c.key === 'srNo');
+      const sorted = cols
+        .filter((c) => c.key !== 'srNo')
+        .sort((a, b) => a.order - b.order);
       const [moved] = sorted.splice(from, 1);
       sorted.splice(targetIndex, 0, moved);
-      return sorted.map((c, i) => ({ ...c, order: i }));
+      const reordered = sorted.map((c, i) => ({ ...c, order: i + 1 }));
+      return srNo ? [{ ...srNo, order: 0 }, ...reordered] : reordered;
     });
   }
 
@@ -290,24 +302,39 @@ export class QuotationItemGridComponent implements OnDestroy {
     return snapshotFieldValue(snapshot, columnKey);
   }
 
+  protected onDynamicCellInput(index: number, column: QuotationGridColumn, event: Event): void {
+    const value = (event.target as HTMLInputElement).value;
+    const g = this.lineItems().at(index) as FormGroup;
+    const snapshot = parseItemSnapshot(String(g.controls['itemSnapshotJson']?.value ?? ''));
+    const updated = setSnapshotFieldValue(snapshot, column.key, value, column.label);
+    const patch: Record<string, unknown> = {
+      itemSnapshotJson: stringifyItemSnapshot(updated),
+    };
+    if (updated.unitWeight !== snapshot.unitWeight) {
+      patch['unitWeight'] = updated.unitWeight;
+    }
+    g.patchValue(patch);
+    this.recalcRow(index);
+    this.bumpRecalc();
+  }
+
   @HostListener('document:keydown', ['$event'])
   protected onDocumentKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') this.closeItemPicker();
   }
 
-  @HostListener('window:scroll')
+  @HostListener('document:click')
+  protected onDocumentClick(): void {
+    this.closeItemPicker();
+  }
+
   @HostListener('window:resize')
   protected repositionItemPicker(): void {
-    if (this.itemPickerInputEl) this.syncItemPickerRect(this.itemPickerInputEl);
+    if (this.itemPickerTriggerEl) this.syncItemPickerRect(this.itemPickerTriggerEl);
   }
 
   protected isItemPickerOpen(index: number): boolean {
     return this.itemPickerRow() === index;
-  }
-
-  protected itemPickerInputValue(index: number): string {
-    if (this.isItemPickerOpen(index)) return this.itemPickerQuery();
-    return this.selectedItemLabel(index);
   }
 
   protected selectedItemLabel(index: number): string {
@@ -320,38 +347,33 @@ export class QuotationItemGridComponent implements OnDestroy {
     return String(g.controls['itemName']?.value ?? '').trim();
   }
 
-  protected openItemPicker(index: number, event: Event): void {
-    const input = event.target as HTMLInputElement;
+  protected toggleItemPicker(index: number, event: Event): void {
+    event.stopPropagation();
+    if (this.itemPickerRow() === index) {
+      this.closeItemPicker();
+      return;
+    }
+    const trigger = event.currentTarget as HTMLElement;
     this.itemPickerRow.set(index);
-    this.itemPickerQuery.set(this.selectedItemLabel(index));
-    this.itemPickerInputEl = input;
-    this.syncItemPickerRect(input);
+    this.itemPickerQuery.set('');
+    this.itemPickerTriggerEl = trigger;
+    this.syncItemPickerRect(trigger);
+    this.bindItemPickerScrollTracking(trigger);
+    window.setTimeout(() => {
+      (document.querySelector('.qt-item-picker__panel--fixed .qt-item-picker__search') as HTMLInputElement | null)?.focus();
+    }, 0);
   }
 
   protected closeItemPicker(): void {
+    this.unbindItemPickerScrollTracking();
     this.itemPickerRow.set(null);
     this.itemPickerQuery.set('');
     this.itemPickerRect.set(null);
-    this.itemPickerInputEl = null;
+    this.itemPickerTriggerEl = null;
   }
 
-  protected onItemPickerInput(index: number, event: Event): void {
-    const input = event.target as HTMLInputElement;
-    this.itemPickerRow.set(index);
-    this.itemPickerQuery.set(input.value);
-    this.itemPickerInputEl = input;
-    this.syncItemPickerRect(input);
-  }
-
-  protected onItemPickerBlur(index: number): void {
-    window.setTimeout(() => {
-      if (this.itemPickerRow() !== index) return;
-      const query = this.itemPickerQuery().trim();
-      if (!query) {
-        this.clearCatalogSelection(index);
-      }
-      this.closeItemPicker();
-    }, 150);
+  protected onItemPickerSearchInput(event: Event): void {
+    this.itemPickerQuery.set((event.target as HTMLInputElement).value);
   }
 
   protected selectCatalogItem(index: number, item: QuotationCatalogItem, event: Event): void {
@@ -363,29 +385,75 @@ export class QuotationItemGridComponent implements OnDestroy {
     this.closeItemPicker();
   }
 
-  private syncItemPickerRect(input: HTMLInputElement | null): void {
-    if (!input) return;
-    const r = input.getBoundingClientRect();
-    const width = Math.max(r.width, 400);
-    const maxHeight = 320;
+  private syncItemPickerRect(trigger: HTMLElement): void {
+    const r = trigger.getBoundingClientRect();
+    const width = Math.max(r.width, 240);
+    const maxHeight = 280;
     const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
-    let top = r.bottom + 4;
+    let top = r.bottom + 2;
     if (top + maxHeight > window.innerHeight - 8) {
-      top = Math.max(8, r.top - maxHeight - 4);
+      top = Math.max(8, r.top - maxHeight - 2);
     }
     this.itemPickerRect.set({ top, left, width });
   }
 
-  protected clearCatalogSelection(index: number): void {
-    const g = this.lineItems().at(index) as FormGroup;
-    g.patchValue({
-      itemId: null,
-      itemCode: '',
-      itemName: '',
-      steelRate: 0,
-      itemSnapshotJson: '',
-    });
-    this.onLineInput(index);
+  private bindItemPickerScrollTracking(trigger: HTMLElement): void {
+    this.unbindItemPickerScrollTracking();
+    const handler = () => this.onItemPickerScroll();
+    this.itemPickerScrollHandler = handler;
+
+    window.addEventListener('scroll', handler, { passive: true });
+    this.itemPickerScrollTargets.push(window);
+
+    const scrollingElement = document.scrollingElement;
+    if (scrollingElement) {
+      scrollingElement.addEventListener('scroll', handler, { passive: true });
+      this.itemPickerScrollTargets.push(scrollingElement);
+    }
+
+    let el: HTMLElement | null = trigger.parentElement;
+    while (el) {
+      if (this.isScrollContainer(el)) {
+        el.addEventListener('scroll', handler, { passive: true });
+        this.itemPickerScrollTargets.push(el);
+      }
+      el = el.parentElement;
+    }
+  }
+
+  private unbindItemPickerScrollTracking(): void {
+    if (!this.itemPickerScrollHandler) return;
+    for (const target of this.itemPickerScrollTargets) {
+      target.removeEventListener('scroll', this.itemPickerScrollHandler);
+    }
+    this.itemPickerScrollTargets = [];
+    this.itemPickerScrollHandler = null;
+  }
+
+  private onItemPickerScroll(): void {
+    const trigger = this.itemPickerTriggerEl;
+    if (!trigger) return;
+
+    const r = trigger.getBoundingClientRect();
+    if (r.bottom < 0 || r.top > window.innerHeight || r.right < 0 || r.left > window.innerWidth) {
+      this.closeItemPicker();
+      return;
+    }
+
+    this.syncItemPickerRect(trigger);
+  }
+
+  private isScrollContainer(el: HTMLElement): boolean {
+    const style = getComputedStyle(el);
+    const overflowY = style.overflowY;
+    const overflowX = style.overflowX;
+    const scrollableY =
+      (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
+      el.scrollHeight > el.clientHeight;
+    const scrollableX =
+      (overflowX === 'auto' || overflowX === 'scroll' || overflowX === 'overlay') &&
+      el.scrollWidth > el.clientWidth;
+    return scrollableY || scrollableX;
   }
 
   protected selectedItemId(index: number): number | null {
@@ -444,6 +512,12 @@ export class QuotationItemGridComponent implements OnDestroy {
     return [...this.draftColumns()]
       .filter((c) => c.key !== 'srNo')
       .sort((a, b) => a.order - b.order);
+  }
+
+  protected columnConfigLabel(col: QuotationGridColumn): string {
+    if (col.key === 'weight' && col.source === 'fixed') return 'Weight (line total)';
+    if (col.key === 'unitWeight') return 'Unit weight';
+    return col.label;
   }
 
   private moveRow(from: number, to: number): void {
