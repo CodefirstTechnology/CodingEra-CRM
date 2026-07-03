@@ -1,4 +1,4 @@
-import { Component, input, output, signal } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 import {
   QuotationTemplateType,
   type QuotationTemplateType as QuotationTemplateTypeValue,
@@ -12,28 +12,18 @@ import {
 export class CreateQuotationMenuComponent {
   readonly disabled = input(false);
   readonly label = input('Create Quotation');
+  /** `surface` matches neutral header buttons on deal detail. */
+  readonly variant = input<'primary' | 'surface'>('primary');
   readonly templateSelect = output<QuotationTemplateTypeValue>();
-
-  protected readonly menuOpen = signal(false);
 
   protected readonly standardTemplate = QuotationTemplateType.Standard;
   protected readonly technicalTemplate = QuotationTemplateType.TechnicalProposal;
 
-  protected toggleMenu(event: Event): void {
-    event.preventDefault();
-    event.stopPropagation();
-    if (this.disabled()) return;
-    this.menuOpen.update((v) => !v);
-  }
-
-  protected closeMenu(): void {
-    this.menuOpen.set(false);
-  }
-
-  protected pickTemplate(template: QuotationTemplateTypeValue, event: Event): void {
-    event.preventDefault();
-    event.stopPropagation();
-    this.closeMenu();
-    this.templateSelect.emit(template);
+  protected onSelect(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    const value = select.value as QuotationTemplateTypeValue;
+    select.value = '';
+    if (!value) return;
+    this.templateSelect.emit(value);
   }
 }

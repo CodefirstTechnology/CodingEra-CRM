@@ -1,34 +1,14 @@
-<div class="create-qtn-menu">
-  <button
-    type="button"
-    class="create-qtn-menu__trigger"
+<label class="create-qtn-menu">
+  <span class="create-qtn-menu__sr-only">{{ label() }}</span>
+  <select
+    class="create-qtn-menu__select"
+    [class.create-qtn-menu__select--surface]="variant() === 'surface'"
     [disabled]="disabled()"
-    [attr.aria-expanded]="menuOpen()"
-    aria-haspopup="menu"
-    (click)="toggleMenu($event)"
+    [attr.aria-label]="label()"
+    (change)="onSelect($event)"
   >
-    <span>{{ label() }}</span>
-    <span class="create-qtn-menu__caret" aria-hidden="true">▼</span>
-  </button>
-  @if (menuOpen()) {
-    <div class="create-qtn-menu__backdrop" (click)="closeMenu()" aria-hidden="true"></div>
-    <div class="create-qtn-menu__panel" role="menu">
-      <button
-        type="button"
-        role="menuitem"
-        class="create-qtn-menu__item"
-        (click)="pickTemplate(standardTemplate, $event)"
-      >
-        Standard Quotation
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        class="create-qtn-menu__item"
-        (click)="pickTemplate(technicalTemplate, $event)"
-      >
-        Technical Proposal
-      </button>
-    </div>
-  }
-</div>
+    <option value="" selected disabled hidden>{{ label() }}</option>
+    <option [value]="standardTemplate">Standard Quotation</option>
+    <option [value]="technicalTemplate">Technical Proposal</option>
+  </select>
+</label>
