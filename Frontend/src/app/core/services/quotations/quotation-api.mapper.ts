@@ -7,7 +7,9 @@ import type {
   QuotationSettings,
   QuotationTerm,
   QuotationUpsertDto,
+  TechnicalProposalPayload,
 } from './quotation-api.models';
+import { normalizeQuotationTemplateType } from './quotation-template.constants';
 import { normalizeGstin } from '../../../shared/utils/gstin.util';
 import { recalcLineGroupValues } from './quotation-line-calc.util';
 
@@ -92,6 +94,9 @@ export function mapQuotationListItem(raw: unknown): QuotationListItem {
       pickStr(o, ['createdByName', 'created_by_name', 'CreatedByName']) || undefined,
     createdAt: pickStr(o, ['createdAt', 'created_at']) || undefined,
     updatedAt: pickStr(o, ['updatedAt', 'updated_at']) || undefined,
+    quotationTemplate: normalizeQuotationTemplateType(
+      pickStr(o, ['quotationTemplate', 'quotation_template', 'QuotationTemplate']),
+    ),
   };
 }
 
@@ -122,6 +127,32 @@ function readTermsFromJson(raw: unknown): QuotationTerm[] {
   } catch {
     return [];
   }
+}
+
+function mapTechnicalProposal(raw: unknown): TechnicalProposalPayload | null {
+  if (raw == null) return null;
+  const o = asRecord(raw);
+  const currency = pickStr(o, ['currencyCode', 'currency_code', 'CurrencyCode']).trim() || 'INR';
+  return {
+    projectName: pickStr(o, ['projectName', 'project_name', 'ProjectName']),
+    kindAttnDesignation: pickStr(o, [
+      'kindAttnDesignation',
+      'kind_attn_designation',
+      'KindAttnDesignation',
+    ]),
+    commercialTerms: pickStr(o, ['commercialTerms', 'commercial_terms', 'CommercialTerms']),
+    taxLabel: pickStr(o, ['taxLabel', 'tax_label', 'TaxLabel']),
+    paymentTerms: pickStr(o, ['paymentTerms', 'payment_terms', 'PaymentTerms']),
+    hsnCode: pickStr(o, ['hsnCode', 'hsn_code', 'HsnCode']),
+    incoterms: pickStr(o, ['incoterms', 'Incoterms']),
+    dispatchLeadTime: pickStr(o, ['dispatchLeadTime', 'dispatch_lead_time', 'DispatchLeadTime']),
+    currencyCode: currency,
+    proposalIntro: pickStr(o, ['proposalIntro', 'proposal_intro', 'ProposalIntro']),
+    technicalSections: mapTerms(o['technicalSections'] ?? o['technical_sections'] ?? o['TechnicalSections']),
+    commercialSections: mapTerms(
+      o['commercialSections'] ?? o['commercial_sections'] ?? o['CommercialSections'],
+    ),
+  };
 }
 
 function mapTerms(raw: unknown): QuotationTerm[] {
@@ -253,6 +284,12 @@ export function mapQuotationDetail(raw: unknown): QuotationUpsertDto {
     })(),
     customCharges,
     lineItems: lines,
+    quotationTemplate: normalizeQuotationTemplateType(
+      pickStr(o, ['quotationTemplate', 'quotation_template', 'QuotationTemplate']),
+    ),
+    technicalProposal: mapTechnicalProposal(
+      o['technicalProposal'] ?? o['technical_proposal'] ?? o['TechnicalProposal'],
+    ),
   };
 }
 
@@ -366,5 +403,7 @@ export function toApiUpsertBody(dto: QuotationUpsertDto): Record<string, unknown
       taxAmount: l.taxAmount,
       lineTotal: l.lineTotal,
     })),
+    quotationTemplate: dto.quotationTemplate ?? 'Standard',
+    technicalProposal: dto.technicalProposal ?? null,
   };
 }

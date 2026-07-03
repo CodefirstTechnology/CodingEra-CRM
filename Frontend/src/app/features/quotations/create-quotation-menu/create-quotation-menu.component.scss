@@ -1,0 +1,71 @@
+.create-qtn-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.create-qtn-menu__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: var(--tertiary-color);
+  color: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.08);
+  transition: var(--transition-theme);
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.06);
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.create-qtn-menu__caret {
+  font-size: 0.65rem;
+  opacity: 0.9;
+}
+
+.create-qtn-menu__backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+
+.create-qtn-menu__panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 50;
+  min-width: 12.5rem;
+  padding: 0.35rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.12);
+}
+
+.create-qtn-menu__item {
+  display: block;
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  border: none;
+  border-radius: calc(var(--radius-sm) - 2px);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--surface-muted, rgb(0 0 0 / 0.04));
+  }
+}

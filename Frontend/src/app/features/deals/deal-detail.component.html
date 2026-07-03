@@ -27,9 +27,10 @@
           View Quotation
         </button>
       } @else if (canCreateQuotation()) {
-        <button type="button" class="deal-detail__btn deal-detail__btn--quotation" (click)="onCreateQuotation()">
-          Create Quotation
-        </button>
+        <app-create-quotation-menu
+          label="Create Quotation"
+          (templateSelect)="onCreateQuotation($event)"
+        />
       }
       @if (!isDealDataLocked()) {
         <button type="button" class="deal-detail__btn deal-detail__btn--light" (click)="setTab('Data')" title="Edit deal data">

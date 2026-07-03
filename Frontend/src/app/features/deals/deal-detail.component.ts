@@ -55,6 +55,11 @@ import { EmailsService, emailSendErrorMessage } from '../../core/services/emails
 import type { EntityEmailItem } from '../../core/services/emails/email-api.models';
 import { ToastService } from '../../core/toast/toast.service';
 import { QuotationsService } from '../../core/services/quotations.service';
+import {
+  quotationTemplateQueryParam,
+  type QuotationTemplateType as QuotationTemplateTypeValue,
+} from '../../core/services/quotations/quotation-template.constants';
+import { CreateQuotationMenuComponent } from '../quotations/create-quotation-menu/create-quotation-menu.component';
 import { EntityActivityTimelineComponent } from '../../shared/components/entity-activity-timeline/entity-activity-timeline.component';
 import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
 import { intlTelFieldInvalid, intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
@@ -90,7 +95,13 @@ interface DealCommentItem extends EntityCommentItem {}
 
 @Component({
   selector: 'app-deal-detail',
-  imports: [RouterLink, ReactiveFormsModule, EntityActivityTimelineComponent, IntlTelInputComponent],
+  imports: [
+    RouterLink,
+    ReactiveFormsModule,
+    EntityActivityTimelineComponent,
+    IntlTelInputComponent,
+    CreateQuotationMenuComponent,
+  ],
   templateUrl: './deal-detail.component.html',
   styleUrl: './deal-detail.component.scss',
 })
@@ -1230,7 +1241,7 @@ export class DealDetailComponent {
     }
   }
 
-  protected onCreateQuotation(): void {
+  protected onCreateQuotation(template: QuotationTemplateTypeValue): void {
     const idn = this.numericId();
     const row = this.deal();
     if (idn == null || !row) {
@@ -1269,8 +1280,12 @@ export class DealDetailComponent {
       this.dealCode(),
     );
     storeDealQuotationPrefill(prefill);
+    const templateParam = quotationTemplateQueryParam(template);
     void this.router.navigate(['/quotations/new'], {
-      queryParams: { dealId: idn },
+      queryParams: {
+        dealId: idn,
+        ...(templateParam ? { template: templateParam } : {}),
+      },
       state: { dealPrefill: prefill },
     });
   }

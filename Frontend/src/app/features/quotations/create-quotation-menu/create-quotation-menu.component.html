@@ -1,0 +1,34 @@
+<div class="create-qtn-menu">
+  <button
+    type="button"
+    class="create-qtn-menu__trigger"
+    [disabled]="disabled()"
+    [attr.aria-expanded]="menuOpen()"
+    aria-haspopup="menu"
+    (click)="toggleMenu($event)"
+  >
+    <span>{{ label() }}</span>
+    <span class="create-qtn-menu__caret" aria-hidden="true">▼</span>
+  </button>
+  @if (menuOpen()) {
+    <div class="create-qtn-menu__backdrop" (click)="closeMenu()" aria-hidden="true"></div>
+    <div class="create-qtn-menu__panel" role="menu">
+      <button
+        type="button"
+        role="menuitem"
+        class="create-qtn-menu__item"
+        (click)="pickTemplate(standardTemplate, $event)"
+      >
+        Standard Quotation
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        class="create-qtn-menu__item"
+        (click)="pickTemplate(technicalTemplate, $event)"
+      >
+        Technical Proposal
+      </button>
+    </div>
+  }
+</div>

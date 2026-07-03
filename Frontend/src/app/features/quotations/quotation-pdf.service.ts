@@ -14,6 +14,8 @@ import {
 import { mergeCompanyProfileForPdf, resolveQuotationPdfContent, type QuotationPdfCompanyConfig } from './company-profile-pdf.mapper';
 import { QUOTATION_PDF_COMPANY, QUOTATION_PDF_LAYOUT } from './quotation-pdf.config';
 import { formatIntlTelDisplay } from '../../shared/utils/intl-tel.util';
+import { isTechnicalProposalTemplate } from '../../core/services/quotations/quotation-template.constants';
+import { TechnicalProposalPdfService } from './technical-proposal-pdf.service';
 
 export interface QuotationPdfGeneratorInfo {
   fullName: string;
@@ -27,8 +29,14 @@ type DocWithTable = jsPDF & { lastAutoTable?: { finalY: number } };
 export class QuotationPdfService {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
+  private readonly technicalProposalPdf = inject(TechnicalProposalPdfService);
 
   async download(quotation: QuotationUpsertDto): Promise<void> {
+    if (isTechnicalProposalTemplate(quotation.quotationTemplate)) {
+      await this.technicalProposalPdf.download(quotation);
+      return;
+    }
+
     const [generator, company] = await Promise.all([
       this.resolveGeneratorInfo(),
       this.resolveCompanyProfile(),

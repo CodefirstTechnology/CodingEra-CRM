@@ -1951,6 +1951,24 @@
   }
 }
 
+.deal-detail__top-actions app-create-quotation-menu {
+  .create-qtn-menu__trigger {
+    border: 1px solid var(--card-border);
+    background: var(--surface);
+    color: var(--text-primary);
+    font-weight: 600;
+    font-family: inherit;
+    font-size: 0.82rem;
+    box-shadow: none;
+
+    &:hover:not(:disabled) {
+      filter: none;
+      border-color: color-mix(in srgb, var(--text-muted) 35%, var(--card-border));
+      background: color-mix(in srgb, var(--text-muted) 5%, var(--surface));
+    }
+  }
+}
+
 .deal-detail__btn--quotation-view {
   color: var(--tertiary-color);
   border-color: color-mix(in srgb, var(--tertiary-color) 40%, var(--card-border));

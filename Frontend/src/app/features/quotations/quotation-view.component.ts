@@ -20,6 +20,10 @@ import { QuotationsService, quotationHttpErrorMessage } from '../../core/service
 import { ToastService } from '../../core/toast/toast.service';
 import { QuotationPdfService } from './quotation-pdf.service';
 import { IntlTelDisplayPipe } from '../../shared/pipes/intl-tel-display.pipe';
+import {
+  isTechnicalProposalTemplate,
+  quotationTemplateLabel,
+} from '../../core/services/quotations/quotation-template.constants';
 
 @Component({
   selector: 'app-quotation-view',
@@ -39,6 +43,14 @@ export class QuotationViewComponent {
   protected readonly loading = signal(true);
   protected readonly pdfGenerating = signal(false);
   protected readonly quotation = signal<QuotationUpsertDto | null>(null);
+
+  protected readonly templateLabel = computed(() =>
+    quotationTemplateLabel(this.quotation()?.quotationTemplate),
+  );
+
+  protected readonly isTechnicalProposal = computed(() =>
+    isTechnicalProposalTemplate(this.quotation()?.quotationTemplate),
+  );
 
   protected readonly dynamicColumns = computed((): SnapshotColumnDef[] => {
     const q = this.quotation();
