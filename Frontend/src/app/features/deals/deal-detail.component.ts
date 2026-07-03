@@ -1045,6 +1045,29 @@ export class DealDetailComponent {
     return org || row.organizationName.trim() || 'Deal';
   }
 
+  /** Breadcrumb deal name segment (organization), omitted when empty. */
+  protected dealCrumbDealName(row: DealRow): string {
+    const name = this.sidebarDealHeadline(row).trim();
+    return name && name !== 'Deal' ? name : '';
+  }
+
+  /** Breadcrumb owner segment: contact name, then CRM deal owner when present. */
+  protected dealCrumbOwnerName(): string {
+    const d = this.deal();
+    if (!d) return '';
+
+    const contact = [d.firstName?.trim(), d.lastName?.trim()].filter(Boolean).join(' ');
+    if (contact) return contact;
+
+    const id = this.dataForm.controls.dealOwner.value?.trim();
+    const opt = this.dealOwnerOptions().find((o) => o.id === id);
+    const ownerLabel = opt?.label?.trim();
+    if (ownerLabel) return ownerLabel;
+
+    const assigned = d.assignedTo?.trim();
+    return assigned && assigned !== 'Unassigned' ? assigned : '';
+  }
+
   protected sidebarDealAvatarLetter(row: DealRow): string {
     const org = this.dataForm.controls.organization.value?.trim() || row.organizationName.trim() || 'D';
     return org.charAt(0).toUpperCase();
