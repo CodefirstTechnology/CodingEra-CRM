@@ -71,7 +71,7 @@ function parseDealIdFromQuery(qpm: ParamMap): number | null {
 }
 
 interface QuotationTermsDefaults {
-  introText: string;
+  businessLine: string;
   transportationLabel: string;
   jurisdiction: string;
   terms: QuotationTerm[];
@@ -108,7 +108,7 @@ export class QuotationFormComponent {
   );
 
   private companyTermsDefaults: QuotationTermsDefaults = {
-    introText: '',
+    businessLine: '',
     transportationLabel: '',
     jurisdiction: '',
     terms: [],
@@ -150,7 +150,7 @@ export class QuotationFormComponent {
     customCharges: this.fb.array([]),
     lineItems: this.fb.array([this.createLineGroup()]),
     customizeTerms: [false],
-    introText: [''],
+    businessLine: [''],
     transportationLabel: ['', [Validators.maxLength(128)]],
     jurisdiction: ['', [Validators.maxLength(256)]],
     terms: this.fb.array([] as ReturnType<typeof this.createTermGroup>[]),
@@ -434,7 +434,7 @@ export class QuotationFormComponent {
       serviceCharges: normalizeChargeAmount(v.serviceCharges),
       customCharges: customChargeRows.filter((c) => c.chargeName || c.amount > 0),
       customizeTerms,
-      introText: customizeTerms ? v.introText.trim() : '',
+      introText: customizeTerms ? v.businessLine.trim() : '',
       transportationLabel: customizeTerms ? v.transportationLabel.trim() : '',
       jurisdiction: customizeTerms ? v.jurisdiction.trim() : '',
       terms,
@@ -461,13 +461,13 @@ export class QuotationFormComponent {
   }
 
   private setCompanyTermsDefaults(profile: {
-    introText: string;
+    businessLine: string;
     transportationLabel: string;
     jurisdiction: string;
     terms: CompanyProfileTerm[];
   } | null): void {
     this.companyTermsDefaults = {
-      introText: profile?.introText?.trim() ?? '',
+      businessLine: profile?.businessLine?.trim() ?? '',
       transportationLabel: profile?.transportationLabel?.trim() ?? '',
       jurisdiction: profile?.jurisdiction?.trim() ?? '',
       terms: (profile?.terms ?? [])
@@ -487,7 +487,7 @@ export class QuotationFormComponent {
     const terms = values.terms.length ? values.terms : [{ title: '', body: '' }];
     terms.forEach((t) => this.addTerm(t));
     this.form.patchValue({
-      introText: values.introText,
+      businessLine: values.businessLine,
       transportationLabel: values.transportationLabel,
       jurisdiction: values.jurisdiction,
     });
@@ -501,7 +501,7 @@ export class QuotationFormComponent {
     this.form.patchValue({ customizeTerms: q.customizeTerms ?? false });
     if (q.customizeTerms) {
       this.applyTermsToForm({
-        introText: q.introText?.trim() ?? '',
+        businessLine: q.introText?.trim() ?? '',
         transportationLabel: q.transportationLabel?.trim() ?? '',
         jurisdiction: q.jurisdiction?.trim() ?? '',
         terms: (q.terms ?? [])

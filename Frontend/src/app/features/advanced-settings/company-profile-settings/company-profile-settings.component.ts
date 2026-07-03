@@ -6,16 +6,13 @@ import type { CompanyProfile, CompanyProfileTerm } from '../../../core/services/
 import { CompanyProfileHttpService } from '../../../core/services/company-profile/company-profile-http.service';
 import { CompanyBrandingService } from '../../../core/services/company-branding.service';
 import { ToastService } from '../../../core/toast/toast.service';
-import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../../shared/config/crm-intl-tel.config';
-import { intlTelFieldInvalid, intlTelMobileErrorMessage } from '../../../shared/utils/intl-tel.util';
-import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { optionalPhoneValidator } from '../../../shared/validators/crm-validators';
 
 const MAX_LOGO_BYTES = 2_100_000;
 
 @Component({
   selector: 'app-company-profile-settings',
-  imports: [ReactiveFormsModule, IntlTelInputComponent],
+  imports: [ReactiveFormsModule],
   templateUrl: './company-profile-settings.component.html',
   styleUrl: './company-profile-settings.component.scss',
 })
@@ -52,18 +49,13 @@ export class CompanyProfileSettingsComponent implements OnInit {
     ifscCode: ['', [Validators.maxLength(32)]],
     branchName: ['', [Validators.maxLength(256)]],
     signatoryName: ['', [Validators.maxLength(256)]],
-    signatoryMobile: [''],
+    signatoryMobile: ['', [optionalPhoneValidator()]],
     introText: [''],
     transportationLabel: ['', [Validators.maxLength(128)]],
     jurisdiction: ['', [Validators.maxLength(256)]],
     defaultGstPercent: [18, [Validators.required, Validators.min(0), Validators.max(100)]],
     terms: this.fb.array([] as ReturnType<typeof this.createTermGroup>[]),
   });
-
-  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
-  protected readonly intlTelMobileInputProps = crmIntlTelInputProps();
-  protected intlTelMobileError = intlTelMobileErrorMessage;
-  protected intlTelFieldInvalid = intlTelFieldInvalid;
 
   ngOnInit(): void {
     this.canEdit.set(canManageSettings(this.auth.user()));

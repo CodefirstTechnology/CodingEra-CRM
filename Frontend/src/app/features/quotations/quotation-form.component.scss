@@ -228,25 +228,29 @@
   color: var(--text-primary);
 }
 
-.qt-form__term-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto;
-  gap: 0.75rem;
-  align-items: end;
+.qt-form__terms-scroll {
+  overflow-x: auto;
+  margin: 0 -0.15rem;
+}
+
+.qt-form__terms-table {
+  min-width: 640px;
+}
+
+.qt-form__terms-th--title {
+  width: 12rem;
+}
+
+.qt-form__terms-td--title {
+  width: 12rem;
+}
+
+.qt-form__terms-content {
+  min-height: 2.75rem;
+  resize: vertical;
 }
 
 .qt-form__btn--sm {
   padding: 0.35rem 0.65rem;
   font-size: 0.8125rem;
-}
-
-.qt-form__remove-term {
-  align-self: end;
-  margin-bottom: 0.15rem;
-}
-
-@media (max-width: 900px) {
-  .qt-form__term-row {
-    grid-template-columns: 1fr;
-  }
 }

@@ -9,6 +9,7 @@ import { UserDataScopeService } from '../../../core/services/user-data-scope.ser
 import { isDealClosed, isDealClosedWon } from '../../../core/services/deals/deal-pipeline.constants';
 import { LeadOwnerOptionsService } from '../../../core/services/leads/lead-owner-options.service';
 import { leadsHttpErrorMessage } from '../../../core/services/leads.service';
+import { dealDisplayName } from '../../dashboard/utils/admin-dashboard.util';
 import type { DealRow } from '../../deals/deals.component';
 import type { LeadRow } from '../../leads/lead-row.model';
 import type { TaskRow } from '../../tasks/tasks.component';
@@ -19,12 +20,15 @@ import {
 import { parseSessionUserId } from '../utils/user-ownership.util';
 import type {
   UserDashboardActivityItem,
+  UserDashboardDealDetail,
   UserDashboardFollowUpItem,
   UserDashboardKpis,
   UserDashboardLeadStatusSummary,
   UserDashboardLeadTableRow,
   UserDashboardPerformance,
+  UserDashboardRevenueDealDetail,
   UserDashboardSnapshot,
+  UserDashboardTaskDetail,
 } from '../models/user-dashboard.models';
 
 @Injectable({ providedIn: 'root' })
@@ -155,6 +159,39 @@ export class UserDashboardService {
         pendingCalls: pendingTasks.filter((t) => /call/i.test(t.title)).length,
       } satisfies UserDashboardPerformance,
       statusSummary: this.buildStatusSummary(myLeads),
+      activeDealDetails: activeDeals.map((d) => this.toDealDetail(d)),
+      pendingTaskDetails: pendingTasks.map((t) => this.toTaskDetail(t)),
+      monthlyRevenueDeals: monthlyClosed.map((d) => this.toRevenueDealDetail(d)),
+    };
+  }
+
+  private toDealDetail(deal: DealRow): UserDashboardDealDetail {
+    return {
+      id: deal.id,
+      dealName: dealDisplayName(deal),
+      company: deal.organizationName?.trim() || '—',
+      status: deal.status,
+      value: Number.isFinite(deal.dealAmount) ? deal.dealAmount : deal.annualRevenue,
+    };
+  }
+
+  private toTaskDetail(task: TaskRow): UserDashboardTaskDetail {
+    return {
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      priority: task.priority,
+      dueDate: task.dueDate?.trim() || '—',
+    };
+  }
+
+  private toRevenueDealDetail(deal: DealRow): UserDashboardRevenueDealDetail {
+    return {
+      id: deal.id,
+      dealName: dealDisplayName(deal),
+      company: deal.organizationName?.trim() || '—',
+      value: Number.isFinite(deal.annualRevenue) ? deal.annualRevenue : deal.dealAmount,
+      closedDate: deal.lastModified?.trim() || '—',
     };
   }
 

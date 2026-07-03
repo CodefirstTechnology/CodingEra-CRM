@@ -6,7 +6,7 @@
       <div class="udash__hero-copy">
         <p class="udash__eyebrow">{{ today | date: 'EEEE, MMMM d, y' }}</p>
         <h1 class="udash__title">
-          Welcome back,
+          Welcome,
           <span class="udash__title-name">{{ user()?.name ?? 'there' }}</span>
         </h1>
         <p class="udash__sub">
@@ -38,30 +38,30 @@
     </section>
   } @else if (snapshot(); as data) {
     <section class="udash__kpis" aria-label="Key metrics">
-      <article class="udash__kpi udash__kpi--leads">
+      <button type="button" class="udash__kpi udash__kpi--leads udash__kpi--click" (click)="openKpiDetail('leads')">
         <p class="udash__kpi-label">My Leads</p>
         <p class="udash__kpi-value">{{ data.kpis.myLeads }}</p>
-      </article>
-      <article class="udash__kpi udash__kpi--deals">
+      </button>
+      <button type="button" class="udash__kpi udash__kpi--deals udash__kpi--click" (click)="openKpiDetail('deals')">
         <p class="udash__kpi-label">Active Deals</p>
         <p class="udash__kpi-value">{{ data.kpis.activeDeals }}</p>
-      </article>
-      <article class="udash__kpi udash__kpi--follow">
+      </button>
+      <button type="button" class="udash__kpi udash__kpi--follow udash__kpi--click" (click)="openKpiDetail('followUps')">
         <p class="udash__kpi-label">Follow-ups Today</p>
         <p class="udash__kpi-value">{{ data.kpis.followUpsToday }}</p>
-      </article>
-      <article class="udash__kpi udash__kpi--tasks">
+      </button>
+      <button type="button" class="udash__kpi udash__kpi--tasks udash__kpi--click" (click)="openKpiDetail('tasks')">
         <p class="udash__kpi-label">Tasks Pending</p>
         <p class="udash__kpi-value">{{ data.kpis.tasksPending }}</p>
-      </article>
-      <article class="udash__kpi udash__kpi--meet">
+      </button>
+      <button type="button" class="udash__kpi udash__kpi--meet udash__kpi--click" (click)="openKpiDetail('meetings')">
         <p class="udash__kpi-label">Meetings</p>
         <p class="udash__kpi-value">{{ data.kpis.meetingsToday }}</p>
-      </article>
-      <article class="udash__kpi udash__kpi--rev">
+      </button>
+      <button type="button" class="udash__kpi udash__kpi--rev udash__kpi--click" (click)="openKpiDetail('revenue')">
         <p class="udash__kpi-label">Monthly Revenue</p>
         <p class="udash__kpi-value">{{ formatRevenue(data.kpis.monthlyRevenue) }}</p>
-      </article>
+      </button>
     </section>
 
     <section class="udash__quick" aria-label="Quick actions">
@@ -215,7 +215,15 @@
           </article>
         }
 
-        <article class="udash__panel">
+        <article
+          class="udash__panel udash__panel--click"
+          role="button"
+          tabindex="0"
+          aria-label="Follow-ups and meetings — click to view all"
+          (click)="openFollowUpsPanel()"
+          (keydown.enter)="openFollowUpsPanel()"
+          (keydown.space)="openFollowUpsPanel(); $event.preventDefault()"
+        >
           <header class="udash__panel-head">
             <div class="udash__panel-heading">
               <h2 class="udash__panel-title">Follow-ups &amp; meetings</h2>
@@ -237,7 +245,7 @@
               }
             </ul>
             @if (followUpsPagination.totalItems() > followUpsPagination.pageSize()) {
-              <div class="udash__pagination">
+              <div class="udash__pagination" (click)="$event.stopPropagation()">
                 <app-crm-pagination-footer
                   ariaLabel="Follow-ups and meetings pages"
                   [page]="followUpsPagination.page()"
@@ -338,4 +346,182 @@
       </div>
     </section>
   }
+
+  <app-crm-modal [open]="kpiDetailOpen()" [title]="kpiDetailTitle()" size="lg" (dismiss)="closeKpiDetail()">
+    @if (snapshot(); as data) {
+      @if (kpiDetailKind() === 'leads') {
+        @if (data.assignedLeads.length === 0) {
+          <p class="udash__detail-empty">No leads assigned to you yet.</p>
+        } @else {
+          <div class="udash__detail-scroll">
+            <table class="udash__detail-table">
+              <thead>
+                <tr>
+                  <th scope="col">Lead</th>
+                  <th scope="col">Company</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Priority</th>
+                  <th scope="col">Assigned</th>
+                  <th scope="col"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of data.assignedLeads; track row.id) {
+                  <tr>
+                    <td>{{ row.leadName }}</td>
+                    <td>{{ row.company }}</td>
+                    <td>
+                      <span class="udash__status" [attr.data-status]="row.status">{{ row.status }}</span>
+                    </td>
+                    <td>
+                      <span class="udash__priority" [attr.data-priority]="row.priority">{{ row.priority }}</span>
+                    </td>
+                    <td>{{ row.assignedDate }}</td>
+                    <td>
+                      <a class="udash__detail-link" [routerLink]="['/leads', row.id]" (click)="closeKpiDetail()">Open</a>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      } @else if (kpiDetailKind() === 'deals') {
+        @if (data.activeDealDetails.length === 0) {
+          <p class="udash__detail-empty">No active deals assigned to you.</p>
+        } @else {
+          <div class="udash__detail-scroll">
+            <table class="udash__detail-table">
+              <thead>
+                <tr>
+                  <th scope="col">Deal</th>
+                  <th scope="col">Company</th>
+                  <th scope="col">Stage</th>
+                  <th scope="col">Value</th>
+                  <th scope="col"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (deal of data.activeDealDetails; track deal.id) {
+                  <tr>
+                    <td>{{ deal.dealName }}</td>
+                    <td>{{ deal.company }}</td>
+                    <td>{{ deal.status }}</td>
+                    <td>{{ formatRevenue(deal.value) }}</td>
+                    <td>
+                      <a class="udash__detail-link" [routerLink]="['/deals', deal.id]" (click)="closeKpiDetail()">Open</a>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      } @else if (kpiDetailKind() === 'followUps' || kpiDetailKind() === 'followUpsAll' || kpiDetailKind() === 'meetings') {
+        @if (
+          (kpiDetailKind() === 'followUps' && kpiFollowUpsToday().length === 0) ||
+          (kpiDetailKind() === 'followUpsAll' && data.followUps.length === 0) ||
+          (kpiDetailKind() === 'meetings' && kpiMeetingsToday().length === 0)
+        ) {
+          <p class="udash__detail-empty">
+            @if (kpiDetailKind() === 'meetings') {
+              No meetings scheduled for today.
+            } @else if (kpiDetailKind() === 'followUpsAll') {
+              Nothing due today — great job staying on top of work.
+            } @else {
+              No follow-ups due today.
+            }
+          </p>
+        } @else {
+          <ul class="udash__detail-list">
+            @for (
+              f of kpiDetailKind() === 'followUps'
+                ? kpiFollowUpsToday()
+                : kpiDetailKind() === 'meetings'
+                  ? kpiMeetingsToday()
+                  : data.followUps;
+              track f.id
+            ) {
+              <li>
+                <button
+                  type="button"
+                  class="udash__follow udash__follow--click"
+                  [class.udash__follow--overdue]="f.kind === 'overdue'"
+                  (click)="openFollowUp(f)"
+                >
+                  <span class="udash__follow-badge" [attr.data-kind]="f.kind">{{ f.kind }}</span>
+                  <p class="udash__follow-title">{{ f.title }}</p>
+                  <p class="udash__follow-due">{{ f.dueLabel }}</p>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      } @else if (kpiDetailKind() === 'tasks') {
+        @if (data.pendingTaskDetails.length === 0) {
+          <p class="udash__detail-empty">No pending tasks.</p>
+        } @else {
+          <div class="udash__detail-scroll">
+            <table class="udash__detail-table">
+              <thead>
+                <tr>
+                  <th scope="col">Task</th>
+                  <th scope="col">Status</th>
+                  <th scope="col">Priority</th>
+                  <th scope="col">Due</th>
+                  <th scope="col"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (task of data.pendingTaskDetails; track task.id) {
+                  <tr>
+                    <td>{{ task.title }}</td>
+                    <td>{{ task.status }}</td>
+                    <td>{{ task.priority }}</td>
+                    <td>{{ task.dueDate }}</td>
+                    <td>
+                      <button type="button" class="udash__detail-link udash__detail-link--btn" (click)="openTaskById(task.id)">
+                        Open
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      } @else if (kpiDetailKind() === 'revenue') {
+        @if (data.monthlyRevenueDeals.length === 0) {
+          <p class="udash__detail-empty">No closed deals this month yet.</p>
+        } @else {
+          <div class="udash__detail-scroll">
+            <table class="udash__detail-table">
+              <thead>
+                <tr>
+                  <th scope="col">Deal</th>
+                  <th scope="col">Company</th>
+                  <th scope="col">Closed</th>
+                  <th scope="col">Revenue</th>
+                  <th scope="col"></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (deal of data.monthlyRevenueDeals; track deal.id) {
+                  <tr>
+                    <td>{{ deal.dealName }}</td>
+                    <td>{{ deal.company }}</td>
+                    <td>{{ deal.closedDate }}</td>
+                    <td>{{ formatRevenue(deal.value) }}</td>
+                    <td>
+                      <a class="udash__detail-link" [routerLink]="['/deals', deal.id]" (click)="closeKpiDetail()">Open</a>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      }
+    }
+  </app-crm-modal>
 </div>
