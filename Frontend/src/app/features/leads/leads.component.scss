@@ -905,3 +905,11 @@ select.leads__control {
   color: var(--text-muted);
   cursor: default;
 }
+
+.leads__row-menu-danger {
+  color: #b91c1c;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, #b91c1c 10%, transparent);
+  }
+}

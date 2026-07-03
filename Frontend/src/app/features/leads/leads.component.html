@@ -568,6 +568,16 @@
                           </a>
                         }
                       }
+                      @if (canDeleteLead(row)) {
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="leads__row-menu-danger"
+                          (click)="deleteLead(row, $event)"
+                        >
+                          Delete
+                        </button>
+                      }
                     </div>
                   </details>
                 </td>

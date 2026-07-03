@@ -18,9 +18,12 @@
 .login__brand {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
   gap: 0.35rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
 }
 
 .login__logo {
@@ -32,17 +35,12 @@
 
 .login__logo-img {
   display: block;
-  max-width: 180px;
-  max-height: 56px;
+  max-width: 280px;
+  max-height: 72px;
   width: auto;
   height: auto;
   object-fit: contain;
-}
-
-.login__tagline {
-  font-size: 0.8125rem;
-  color: var(--text-muted, #64748b);
-  line-height: 1.4;
+  margin-inline: auto;
 }
 
 .login__title {

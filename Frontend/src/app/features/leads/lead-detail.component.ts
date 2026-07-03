@@ -131,6 +131,11 @@ export class LeadDetailComponent {
     return isLeadQualifiedForConversion(row);
   });
 
+  protected readonly canDeleteCurrentLead = computed(() => {
+    const row = this.lead();
+    return !!row && this.permissions.canDeleteLeads() && isPersistedApiLeadRow(row.id);
+  });
+
   protected readonly isLeadDataReadOnly = computed(() => {
     const row = this.lead();
     return row != null && isLeadConverted(row);
@@ -988,6 +993,26 @@ export class LeadDetailComponent {
     const row = this.lead();
     if (!row || !this.canConvertCurrentLead()) return;
     this.convertModalOpen.set(true);
+  }
+
+  protected confirmDeleteLead(): void {
+    if (!this.canDeleteCurrentLead()) {
+      this.toast.error('You do not have permission to perform this action.');
+      return;
+    }
+    const idn = this.numericId();
+    if (idn == null) return;
+    if (!confirm('Delete this lead? This action cannot be undone.')) return;
+    this.leadsService
+      .delete(idn)
+      .pipe(take(1))
+      .subscribe({
+        next: () => {
+          this.toast.success('Lead deleted.');
+          void this.router.navigateByUrl('/leads');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+      });
   }
 
   protected closeConvertModal(): void {
