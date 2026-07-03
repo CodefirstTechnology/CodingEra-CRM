@@ -315,11 +315,13 @@ export class QuotationPdfService {
       ],
     ];
     if (introContent) {
+      const introPad = L.introCellPaddingMm;
+      const introInnerW = contentW - introPad.left - introPad.right;
       quotationSectionRows.push([
         {
-          content: introContent,
+          content: this.wrapBusinessLineForCell(doc, introContent, introInnerW, L.fontSize.intro),
           styles: {
-            fontStyle: 'bold' as const,
+            fontStyle: 'normal' as const,
             halign: 'left' as const,
             valign: 'top' as const,
             fontSize: L.fontSize.intro,
@@ -787,6 +789,28 @@ export class QuotationPdfService {
     if (company.accountNumber?.trim()) lines.push(`A/c No. ${company.accountNumber.trim()}`);
     if (company.ifscCode?.trim()) lines.push(`IFSC : ${company.ifscCode.trim()}`);
     if (company.branchName?.trim()) lines.push(`Branch: ${company.branchName.trim()}`);
+    return lines.join('\n');
+  }
+
+  /** Preserve textarea line breaks; wrap each paragraph to the intro cell width. */
+  private wrapBusinessLineForCell(
+    doc: jsPDF,
+    text: string,
+    maxWidthMm: number,
+    fontSize: number,
+  ): string {
+    const normalized = text.replace(/^(Dear\s+[^,\n]+,)\s+(?=\S)/i, '$1\n\n');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(fontSize);
+    const lines: string[] = [];
+    for (const part of normalized.split(/\r?\n/)) {
+      if (!part.trim()) {
+        lines.push('');
+        continue;
+      }
+      lines.push(...(doc.splitTextToSize(part.trim(), maxWidthMm) as string[]));
+    }
+    while (lines.length && lines[lines.length - 1] === '') lines.pop();
     return lines.join('\n');
   }
 

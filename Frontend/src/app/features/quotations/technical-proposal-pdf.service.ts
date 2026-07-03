@@ -388,7 +388,7 @@ export class TechnicalProposalPdfService {
     return lineH * linesUsed;
   }
 
-  /** "Respected Sir," + intro paragraph at full content width. */
+  /** Intro paragraph at full content width (from quotation proposal intro field). */
   private drawSalutationIntro(
     doc: jsPDF,
     margin: number,
@@ -399,18 +399,12 @@ export class TechnicalProposalPdfService {
     pageH: number,
     contentStartY: () => number,
   ): number {
+    if (!intro.trim()) return y;
+
     doc.setFont('times', 'normal');
     doc.setFontSize(L.fontSize.salutation);
-    doc.setTextColor(...L.brandBlue);
-    doc.text('Respected Sir,', margin, y + 4);
-    y += L.bodyLineHeightMm + 1;
-
-    if (intro.trim()) {
-      doc.setTextColor(...L.bodyText);
-      y = this.drawParagraphBlock(doc, margin, y, contentW, intro, L, pageH, contentStartY, 'times');
-    }
-
-    return y;
+    doc.setTextColor(...L.bodyText);
+    return this.drawParagraphBlock(doc, margin, y, contentW, intro, L, pageH, contentStartY, 'times');
   }
 
   private measureLogoSize(

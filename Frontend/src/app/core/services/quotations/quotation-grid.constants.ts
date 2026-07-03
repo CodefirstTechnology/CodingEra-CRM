@@ -57,7 +57,7 @@ export function catalogColumnsToGridColumns(
     visible: true,
     order: baseOrder + (c.sortOrder > 0 ? c.sortOrder : i),
     width: 110,
-    editable: false,
+    editable: true,
     source: c.source === 'specification' ? 'specification' : 'attribute',
   }));
 }
@@ -68,23 +68,35 @@ export function mergeQuotationGridColumns(
 ): QuotationGridColumn[] {
   const defs = [...FIXED_QUOTATION_GRID_COLUMNS];
   const dynamicKeys = new Set(dynamicCols.map((c) => c.key));
+  const savedDynamicExtras = saved.filter(
+    (c) => isDynamicColumnKey(c.key) && !dynamicKeys.has(c.key),
+  );
   const allDefs = [
     ...defs,
     ...dynamicCols.filter((d) => !defs.some((f) => f.key === d.key)),
+    ...savedDynamicExtras.map((c) => ({
+      key: c.key,
+      label: c.label,
+      visible: c.visible,
+      order: c.order,
+      width: c.width > 0 ? c.width : 110,
+      editable: true,
+      source: (c.key.startsWith('spec:') ? 'specification' : 'attribute') as QuotationGridColumn['source'],
+    })),
   ];
   const map = new Map(saved.map((c) => [c.key, c]));
 
   return allDefs
     .map((def, i) => {
       const user = map.get(def.key);
-      const isDynamic = dynamicKeys.has(def.key);
+      const isDynamic = dynamicKeys.has(def.key) || isDynamicColumnKey(def.key);
       if (!user) {
         return { ...def, order: isDynamic ? def.order : i };
       }
       return {
         key: def.key,
         label: user.label?.trim() || def.label,
-        visible: isDynamic ? user.visible !== false : user.visible,
+        visible: user.visible,
         order: user.order ?? def.order ?? i,
         width: user.width > 0 ? user.width : def.width,
         editable: def.editable,

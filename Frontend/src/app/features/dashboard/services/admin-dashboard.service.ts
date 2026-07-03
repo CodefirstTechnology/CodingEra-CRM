@@ -447,8 +447,16 @@ export class AdminDashboardService {
     entityNames: Map<string, string>,
   ): AdminActivityStreamItem {
     const entityTypeRaw = String(row.entityType).toLowerCase();
+    const isItemMasterEntity =
+      entityTypeRaw === 'item' ||
+      entityTypeRaw === 'item_group' ||
+      entityTypeRaw === 'item_attribute';
     const entityType: AdminActivityStreamItem['entityType'] =
-      entityTypeRaw === 'lead' ? 'lead' : entityTypeRaw === 'deal' ? 'deal' : 'other';
+      entityTypeRaw === 'lead'
+        ? 'lead'
+        : entityTypeRaw === 'deal'
+          ? 'deal'
+          : 'other';
 
     const entityId = String(row.entityId);
     let recordRoute: string | null = null;
@@ -456,12 +464,15 @@ export class AdminDashboardService {
       recordRoute = `/leads/${entityId}`;
     } else if (entityType === 'deal' && entityId) {
       recordRoute = `/deals/${entityId}`;
+    } else if (isItemMasterEntity) {
+      recordRoute = '/advanced-settings';
     }
 
     const action = row.actionType.toLowerCase();
     let kind: AdminActivityStreamItem['kind'] = 'other';
     if (entityType === 'lead') kind = 'lead';
     else if (entityType === 'deal') kind = 'deal';
+    else if (isItemMasterEntity) kind = 'item';
     else if (action.includes('task')) kind = 'task';
     else if (action.includes('call')) kind = 'call';
     else if (action.includes('meeting')) kind = 'meeting';
@@ -476,6 +487,10 @@ export class AdminDashboardService {
       ? formatRelativeTime(row.createdAt)
       : row.whenLabel;
 
+    const company = isItemMasterEntity
+      ? 'Item Master'
+      : activityEntityDisplayLabel(row.entityType, row.entityId, entityNames);
+
     return {
       id: `activity-${row.id}`,
       kind,
@@ -483,7 +498,7 @@ export class AdminDashboardService {
       entityId,
       recordRoute,
       title: row.message,
-      company: activityEntityDisplayLabel(row.entityType, row.entityId, entityNames),
+      company,
       description,
       timeLabel,
       rep: row.actorName || 'System',

@@ -9,7 +9,7 @@ export type AdminTeamSortKey =
 
 export type AdminDashboardPeriodKey = 'this_month' | 'last_month' | 'this_quarter' | 'this_year';
 
-export type AdminActivityStreamKind = 'lead' | 'deal' | 'task' | 'email' | 'call' | 'meeting' | 'other';
+export type AdminActivityStreamKind = 'lead' | 'deal' | 'item' | 'task' | 'email' | 'call' | 'meeting' | 'other';
 
 export interface AdminDashboardPeriod {
   key: AdminDashboardPeriodKey;

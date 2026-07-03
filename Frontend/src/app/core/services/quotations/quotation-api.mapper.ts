@@ -44,6 +44,17 @@ function pickBool(o: Record<string, unknown>, keys: string[]): boolean {
   return false;
 }
 
+function pickBoolOrDefault(o: Record<string, unknown>, keys: string[], defaultValue: boolean): boolean {
+  for (const k of keys) {
+    if (!(k in o)) continue;
+    const v = o[k];
+    if (typeof v === 'boolean') return v;
+    if (v === 'true' || v === 1) return true;
+    if (v === 'false' || v === 0) return false;
+  }
+  return defaultValue;
+}
+
 function pickNullableNum(o: Record<string, unknown>, keys: string[]): number | null {
   for (const k of keys) {
     const v = o[k];
@@ -322,10 +333,10 @@ export function mapGridColumns(raw: unknown): QuotationGridColumnsDto {
         return {
           key: pickStr(col, ['key', 'Key']),
           label: pickStr(col, ['label', 'Label']),
-          visible: col['visible'] !== false && col['Visible'] !== false,
+          visible: pickBoolOrDefault(col, ['visible', 'Visible'], true),
           order: pickNum(col, ['order', 'Order']),
           width: pickNum(col, ['width', 'Width']) || 100,
-          editable: col['editable'] !== false && col['Editable'] !== false,
+          editable: pickBoolOrDefault(col, ['editable', 'Editable'], true),
         };
       })
     : [];

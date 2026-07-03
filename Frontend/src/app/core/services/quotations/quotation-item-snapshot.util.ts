@@ -40,6 +40,39 @@ export function snapshotFieldValue(snapshot: QuotationItemSnapshot, columnKey: s
   return hit?.value ?? '';
 }
 
+export function setSnapshotFieldValue(
+  snapshot: QuotationItemSnapshot,
+  columnKey: string,
+  value: string,
+  label?: string,
+): QuotationItemSnapshot {
+  if (!columnKey.startsWith('attr:') && !columnKey.startsWith('spec:')) {
+    return snapshot;
+  }
+
+  const fieldKey = columnKey.split(':').slice(1).join(':');
+  const isAttr = columnKey.startsWith('attr:');
+  const pool = isAttr ? snapshot.attributes.map((f) => ({ ...f })) : snapshot.specifications.map((f) => ({ ...f }));
+  const idx = pool.findIndex((f) => f.key === fieldKey);
+  const trimmed = value.trim();
+
+  if (idx >= 0) {
+    pool[idx] = { ...pool[idx], value: trimmed };
+  } else {
+    pool.push({
+      key: fieldKey,
+      label: label?.trim() || fieldKey,
+      value: trimmed,
+    });
+  }
+
+  const next: QuotationItemSnapshot = isAttr
+    ? { ...snapshot, attributes: pool }
+    : { ...snapshot, specifications: pool };
+  next.unitWeight = resolveUnitWeightFromSnapshot(next);
+  return next;
+}
+
 export function resolveUnitWeightFromSnapshot(snapshot: QuotationItemSnapshot): number {
   if (snapshot.unitWeight > 0) return snapshot.unitWeight;
   const fromSpec = snapshot.specifications.find((s) => isWeightKey(s.key) || isWeightKey(s.label));
