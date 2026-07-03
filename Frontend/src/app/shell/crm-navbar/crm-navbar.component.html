@@ -1,4 +1,11 @@
 <header class="navbar">
+  <div class="navbar__brand">
+    @if (branding.logoUrl(); as logoSrc) {
+      <img class="navbar__logo" [src]="logoSrc" [alt]="branding.brandLabel()" />
+    } @else {
+      <span class="navbar__brand-text">{{ branding.brandLabel() }}</span>
+    }
+  </div>
   <div class="navbar__right">
     <button type="button" class="navbar__icon-btn" aria-label="Search">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

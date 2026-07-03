@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { AuthService } from '../../core/auth/auth.service';
 import { NotificationsPanelService } from '../../core/notifications/notifications-panel.service';
 import { ProfilePanelService } from '../../core/profile/profile-panel.service';
+import { CompanyBrandingService } from '../../core/services/company-branding.service';
 import { ThemePanelService } from '../../core/theme/theme-panel.service';
 
 @Component({
@@ -15,6 +16,7 @@ export class CrmNavbarComponent {
   protected readonly profilePanel = inject(ProfilePanelService);
   protected readonly notificationsPanel = inject(NotificationsPanelService);
   protected readonly auth = inject(AuthService);
+  protected readonly branding = inject(CompanyBrandingService);
 
   protected openTheme(): void {
     this.profilePanel.close();
