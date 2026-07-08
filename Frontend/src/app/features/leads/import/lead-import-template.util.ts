@@ -6,7 +6,7 @@ import {
 } from './lead-import.constants';
 import { loadLeadImportXlsx } from './lead-import-xlsx.lib';
 
-/** Builds and triggers download of the lead import `.xlsx` template (headers + hint row). */
+/** Builds and triggers download of the  port `.xlsx` template (headers + hint row). */
 export async function downloadLeadImportTemplate(): Promise<void> {
   const XLSX = await loadLeadImportXlsx();
   const sheet = XLSX.utils.aoa_to_sheet([

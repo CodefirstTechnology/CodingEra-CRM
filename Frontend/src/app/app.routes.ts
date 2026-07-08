@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, guestGuard } from './core/auth/auth.guard';
+import { permissionGuard } from './core/guards/permission.guard';
 import { roleGuard } from './core/guards/role.guard';
 
 export const routes: Routes = [
@@ -47,37 +48,46 @@ export const routes: Routes = [
       },
       {
         path: 'leads',
-        data: { preload: true },
+        canMatch: [permissionGuard],
+        data: { preload: true, permissions: ['leads.view'] },
         loadChildren: () => import('./features/leads/leads.routes').then((m) => m.LEADS_ROUTES),
       },
       {
         path: 'deals',
-        data: { preload: true },
+        canMatch: [permissionGuard],
+        data: { preload: true, permissions: ['deals.view'] },
         loadChildren: () => import('./features/deals/deals.routes').then((m) => m.DEALS_ROUTES),
       },
       {
         path: 'contacts',
-        data: { preload: true },
+        canMatch: [permissionGuard],
+        data: { preload: true, permissions: ['contacts.view'] },
         loadChildren: () =>
           import('./features/contacts/contacts.routes').then((m) => m.CONTACTS_ROUTES),
       },
       {
         path: 'organizations',
-        data: { preload: true },
+        canMatch: [permissionGuard],
+        data: { preload: true, permissions: ['organizations.view'] },
         loadChildren: () =>
           import('./features/organizations/organizations.routes').then((m) => m.ORGANIZATIONS_ROUTES),
       },
       {
         path: 'tasks',
-        data: { preload: true },
+        canMatch: [permissionGuard],
+        data: { preload: true, permissions: ['tasks.view'] },
         loadChildren: () => import('./features/tasks/tasks.routes').then((m) => m.TASKS_ROUTES),
       },
       {
         path: 'notes',
+        canMatch: [permissionGuard],
+        data: { permissions: ['notes.view'] },
         loadChildren: () => import('./features/notes/notes.routes').then((m) => m.NOTES_ROUTES),
       },
       {
         path: 'quotations',
+        canMatch: [permissionGuard],
+        data: { permissions: ['quotations.view'] },
         loadChildren: () =>
           import('./features/quotations/quotations.module').then((m) => m.QuotationsModule),
       },

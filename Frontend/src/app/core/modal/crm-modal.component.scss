@@ -1,11 +1,17 @@
+:host {
+  display: block;
+}
+
 .crm-modal__root {
   position: fixed;
   inset: 0;
   z-index: 1200;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 1.25rem;
   pointer-events: none;
+  overflow: hidden;
 }
 
 .crm-modal__backdrop {
@@ -24,10 +30,13 @@
 .crm-modal__panel {
   position: relative;
   z-index: 1;
-  width: min(100%, 560px);
+  width: min(calc(100vw - 2.5rem), 560px);
+  max-width: 100%;
+  min-width: 0;
   max-height: min(88vh, 900px);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   background: var(--surface, #fff);
   color: var(--text-primary, #0f172a);
   border: 1px solid var(--card-border, #e2e8f0);
@@ -41,16 +50,16 @@
 }
 
 .crm-modal__panel--sm {
-  width: min(100%, 400px);
+  width: min(calc(100vw - 2.5rem), 400px);
   max-height: min(80vh, 640px);
 }
 
 .crm-modal__panel--md {
-  width: min(100%, 560px);
+  width: min(calc(100vw - 2.5rem), 560px);
 }
 
 .crm-modal__panel--lg {
-  width: min(100%, 720px);
+  width: min(calc(100vw - 2.5rem), 720px);
   max-height: min(90vh, 920px);
 }
 
@@ -97,8 +106,10 @@
 .crm-modal__body {
   padding: 1rem 1.125rem 1.125rem;
   overflow: auto;
+  overflow-x: hidden;
   flex: 1;
   min-height: 0;
+  min-width: 0;
 }
 
 .crm-modal__foot {

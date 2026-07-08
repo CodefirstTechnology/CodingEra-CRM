@@ -1,87 +1,9 @@
 <div class="leads">
-  <header class="leads__head">
-    <div>
-      <h1 class="leads__title">Leads</h1>
-      <p class="leads__sub">Capture and qualify prospects before they become deals.</p>
-    </div>
-    <div class="leads__actions">
-      @if (enableIndiamartLead) {
-        <button
-          type="button"
-          class="leads__btn leads__btn--ghost"
-          [disabled]="indiamartPullLoading() || !!indiamartConfigError()"
-          [title]="indiamartConfigError() ?? ''"
-          (click)="syncIndiaMartFromApi()"
-        >
-          @if (indiamartPullLoading()) {
-            Syncing IndiaMART…
-          } @else {
-            Sync IndiaMART
-          }
-        </button>
-      }
-      @if (justdialEnabled) {
-        <button
-          type="button"
-          class="leads__btn leads__btn--ghost"
-          [disabled]="justdialLoading()"
-          (click)="syncJustdialFromApi()"
-        >
-          @if (justdialLoading()) {
-            Syncing Justdial...
-          } @else {
-            Sync Justdial
-          }
-        </button>
-      }
-      @if (tradeindiaEnabled) {
-        <button
-          type="button"
-          class="leads__btn leads__btn--ghost"
-          [disabled]="tradeindiaLoading()"
-          (click)="syncTradeIndiaFromApi()"
-        >
-          @if (tradeindiaLoading()) {
-            Syncing TradeIndia...
-          } @else {
-            Sync TradeIndia
-          }
-        </button>
-      }
-      <button type="button" class="leads__btn leads__btn--ghost" (click)="openImportModal()">
-        Import leads
-      </button>
-      <button type="button" class="leads__btn leads__btn--solid" (click)="openForm()">+ New lead</button>
-    </div>
-  </header>
-
-  @if (enableIndiamartLead && indiamartConfigError(); as imErr) {
-    <p class="leads__config-warn" role="status">{{ imErr }}</p>
-  }
-
-  <app-crm-selection-bar
-    [selectionCount]="sel.selectedCount()"
-    [canEdit]="bulkCanEditSingle()"
-    [assignActionsEnabled]="bulkAssignEnabled()"
-    [convertLeadEnabled]="bulkConvertEnabled()"
-    [showEdit]="!isAdminViewer()"
-    [showAssignActions]="isAdminViewer()"
-    [showConvertLead]="!isAdminViewer()"
-    [showDelete]="false"
-    (edit)="onBulkEdit()"
-    (assignTo)="onAssignToMenu()"
-    (clearAssignment)="onClearAssignmentBulk()"
-    (convertToDeal)="convertToDeal()"
-    (dismiss)="onBulkDismiss()"
-  />
-
   @if (importModalOpen() && importModalLazyComponent(); as importCmp) {
+    <!-- Angular 20 NgComponentOutlet has inputs only — callbacks wired via importModalOutletInputs(). -->
     <ng-container
-      *ngComponentOutlet="
-        importCmp;
-        inputs: importModalOutletInputs();
-        outputs: importModalOutletOutputs
-      "
+      [ngComponentOutlet]="importCmp"
+      [ngComponentOutletInputs]="importModalOutletInputs()"
     />
   }
 
@@ -147,13 +69,19 @@
                   <span class="leads__err">Full name is required.</span>
                 }
               </label>
-              <label class="leads__field">
+              <div class="leads__field">
                 <span class="leads__label">Mobile no.</span>
-                <input class="leads__control leads__control--soft" type="tel" formControlName="mobile" autocomplete="tel" inputmode="numeric" />
-                @if (fieldInvalid('mobile') && createForm.get('mobile')?.errors?.['pattern']) {
-                  <span class="leads__err">Enter exactly 10 digits.</span>
+                <div class="crm-intl-tel-field crm-intl-tel-field--soft">
+                  <intl-tel-input
+                    formControlName="mobile"
+                    [initOptions]="intlTelInitOptions"
+                    [inputProps]="intlTelMobileInputProps"
+                  />
+                </div>
+                @if (fieldInvalid('mobile')) {
+                  <span class="leads__err">{{ intlTelMobileError(createForm.get('mobile')?.errors) }}</span>
                 }
-              </label>
+              </div>
               <label class="leads__field">
                 <span class="leads__label">Email</span>
                 <input
@@ -254,6 +182,10 @@
                   <span class="leads__err">Select an industry.</span>
                 }
               </label>
+              <label class="leads__field">
+                <span class="leads__label">Location</span>
+                <input class="leads__control leads__control--soft" type="text" formControlName="location" />
+              </label>
             </div>
           </section>
 
@@ -281,13 +213,13 @@
               </label>
               <label class="leads__field leads__field--span2-md">
                 <span class="leads__label">Lead owner</span>
-                @if (isAdminViewer()) {
+                @if (showLeadOwnerPicker()) {
                   <select class="leads__control leads__control--soft leads__control--owner" formControlName="leadOwner">
                     @for (o of leadOwnerOptions(); track o.id) {
                       <option [value]="o.id">{{ o.label }}</option>
                     }
                   </select>
-                } @else {
+                } @else if (showSelfAssignedLeadOwner()) {
                   <span class="leads__owner-readonly">
                     @if (createFormLeadOwnerDisplay().initials) {
                       <span class="leads__avatar">{{ createFormLeadOwnerDisplay().initials }}</span>
@@ -307,6 +239,10 @@
                   </select>
                 </label>
               }
+              <label class="leads__field">
+                <span class="leads__label">Lead date</span>
+                <input class="leads__control leads__control--soft" type="date" formControlName="leadDate" />
+              </label>
               <label class="leads__field leads__field--full">
                 <span class="leads__label">Requirement <span class="leads__req">*</span></span>
                 <input
@@ -335,6 +271,59 @@
         </form>
       </div>
     </div>
+  }
+
+
+  @if (detailChildActive()) {
+    <router-outlet />
+  } @else {
+  <header class="leads__head">
+    <div>
+      <h1 class="leads__title">Leads</h1>
+      <p class="leads__sub">Capture and qualify prospects before they become deals.</p>
+    </div>
+    <div class="leads__actions">
+      @for (src of visibleSyncSources(); track src.sourceId) {
+        <button
+          type="button"
+          class="leads__btn leads__btn--ghost"
+          [disabled]="syncSourceLoading(src.code) || !!syncSourceConfigError(src.code)"
+          [title]="syncSourceConfigError(src.code) ?? ''"
+          (click)="syncMarketplaceSource(src)"
+        >
+          @if (syncSourceLoading(src.code)) {
+            Syncing {{ src.displayName }}…
+          } @else {
+            {{ src.syncButtonLabel }}
+          }
+        </button>
+      }
+      <button type="button" class="leads__btn leads__btn--ghost" (click)="openImportModal()">
+        Import leads
+      </button>
+      <button type="button" class="leads__btn leads__btn--solid" (click)="openForm()">+ New lead</button>
+    </div>
+  </header>
+
+  @if (leadSyncAccess().length > 0) {
+    <aside class="leads__sync-status" aria-label="Lead sync status">
+      @for (src of leadSyncAccess(); track src.sourceId) {
+        <div class="leads__sync-status-row">
+          <strong>{{ src.displayName }}</strong>
+          <span>
+            Auto sync: {{ src.autoSyncEnabled ? 'On' : 'Off' }}
+            · Last: {{ src.lastSyncAt ? (src.lastSyncAt | date: 'short') : '—' }}
+            · Next: {{ src.autoSyncEnabled ? 'Continuous' : '—' }}
+          </span>
+        </div>
+      }
+    </aside>
+  }
+
+  @for (src of visibleSyncSources(); track src.sourceId) {
+    @if (syncSourceConfigError(src.code); as cfgErr) {
+      <p class="leads__config-warn" role="status">{{ cfgErr }}</p>
+    }
   }
 
   <div class="leads__toolbar card">
@@ -455,7 +444,7 @@
             </tr>
           </thead>
           <tbody>
-            @for (row of paginatedFiltered(); track row.id) {
+            @for (row of tablePagination.paginatedItems(); track row.id) {
               <tr>
                 @for (column of visibleColumns(); track column.id) {
                   <td
@@ -468,10 +457,10 @@
                         <a [routerLink]="['/leads', row.id]" class="leads__name-link">{{ row.name }}</a>
                       }
                       @case ('status') {
-                        @if (isLeadConverted(row)) {
+                        @if (isLeadConvertedInTable(row)) {
                           <span class="leads__tag leads__tag--converted">Converted</span>
                         } @else if (isAdminViewer()) {
-                          <span [class]="statusClass(row.status)">{{ row.status }}</span>
+                          <span [class]="statusClass(leadTableStatusLabel(row))">{{ leadTableStatusLabel(row) }}</span>
                         } @else if (canEditLeadStatusInTable(row)) {
                           <select
                             class="leads__status-select"
@@ -491,11 +480,11 @@
                             }
                           </select>
                         } @else {
-                          <span [class]="statusClass(row.status)">{{ row.status }}</span>
+                          <span [class]="statusClass(leadStatusLabel(row))">{{ leadStatusLabel(row) }}</span>
                         }
                       }
                       @case ('owner') {
-                        @if (isAdminViewer() && isPersistedApiLeadRow(row.id) && leadOwnerOptions().length > 0) {
+                        @if (canManageLeadAssignment() && isPersistedApiLeadRow(row.id) && leadOwnerOptions().length > 0) {
                           <select
                             class="leads__owner-select"
                             [ngModel]="resolveOwnerSelectValue(row)"
@@ -540,45 +529,54 @@
                       ⋯
                     </summary>
                     <div class="leads__row-menu-panel" role="menu">
-                      @if (isAdminViewer()) {
-                        @if (canAssignLead(row)) {
-                          <button type="button" role="menuitem" (click)="onRowAssignTo(row, $event)">
-                            Assign to…
-                          </button>
-                          <button type="button" role="menuitem" (click)="onRowClearAssignment(row, $event)">
-                            Clear assignment
-                          </button>
-                        }
-                      } @else {
-                        @if (canEditLead(row)) {
-                          <button type="button" role="menuitem" (click)="onRowEdit(row, $event)">Edit</button>
-                        }
-                        @if (canConvertLead(row)) {
-                          <button type="button" role="menuitem" (click)="openConvertModalForRow(row, $event)">
-                            Convert to deal
-                          </button>
-                        } @else if (showConvertLeadDisabled(row)) {
-                          <button
-                            type="button"
+                      @if (canShowRowAssignActions() && canAssignLead(row)) {
+                        <button type="button" role="menuitem" (click)="onRowAssignTo(row, $event)">
+                          Assign to…
+                        </button>
+                      }
+                      @if (canManageLeadAssignment() && canAssignLead(row)) {
+                        <button type="button" role="menuitem" (click)="onRowClearAssignment(row, $event)">
+                          Clear assignment
+                        </button>
+                      }
+                      @if (canEditLead(row)) {
+                        <button type="button" role="menuitem" (click)="onRowEdit(row, $event)">Edit</button>
+                      }
+                      @if (canConvertLead(row)) {
+                        <button type="button" role="menuitem" (click)="openConvertModalForRow(row, $event)">
+                          Convert to deal
+                        </button>
+                      } @else if (showConvertLeadDisabled(row)) {
+                        <button
+                          type="button"
+                          role="menuitem"
+                          disabled
+                          title="Only Qualified leads can be converted"
+                        >
+                          Convert to deal
+                        </button>
+                      } @else if (isLeadConvertedInTable(row)) {
+                        <span class="leads__row-menu-muted" role="menuitem">Already converted</span>
+                        @if (leadRowForTableStatus(row).convertedDealId; as dealId) {
+                          <a
                             role="menuitem"
-                            disabled
-                            title="Only Qualified leads can be converted"
+                            class="leads__row-menu-link"
+                            [routerLink]="['/deals', dealId]"
+                            (click)="closeRowMenus()"
                           >
-                            Convert to deal
-                          </button>
-                        } @else if (isLeadConverted(row)) {
-                          <span class="leads__row-menu-muted" role="menuitem">Already converted</span>
-                          @if (row.convertedDealId) {
-                            <a
-                              role="menuitem"
-                              class="leads__row-menu-link"
-                              [routerLink]="['/deals', row.convertedDealId]"
-                              (click)="closeRowMenus()"
-                            >
-                              View deal
-                            </a>
-                          }
+                            View deal
+                          </a>
                         }
+                      }
+                      @if (canDeleteLead(row)) {
+                        <button
+                          type="button"
+                          role="menuitem"
+                          class="leads__row-menu-danger"
+                          (click)="deleteLead(row, $event)"
+                        >
+                          Delete
+                        </button>
                       }
                     </div>
                   </details>
@@ -589,13 +587,16 @@
         </table>
       }
     </div>
-    @if (filtered().length > tablePageSize) {
+    @if (filtered().length > 0) {
       <app-crm-pagination-footer
         ariaLabel="Leads table pages"
-        [page]="tablePage()"
-        [totalPages]="tableTotalPages()"
-        (pageChange)="setTablePage($event)"
+        [page]="tablePagination.page()"
+        [pageSize]="tablePagination.pageSize()"
+        [totalItems]="tablePagination.totalItems()"
+        (pageChange)="tablePagination.setPage($event)"
+        (pageSizeChange)="tablePagination.setPageSize($event)"
       />
     }
   </div>
+  }
 </div>

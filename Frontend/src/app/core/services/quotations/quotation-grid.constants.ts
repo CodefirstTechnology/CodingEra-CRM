@@ -9,50 +9,110 @@ export type QuotationGridColumnKey =
   | 'unitRate'
   | 'discountPercent'
   | 'gstPercent'
-  | 'amount';
+  | 'amount'
+  | `attr:${string}`
+  | `spec:${string}`;
 
 export interface QuotationGridColumn {
-  key: QuotationGridColumnKey;
+  key: string;
   label: string;
   visible: boolean;
   order: number;
   width: number;
   editable: boolean;
+  source?: 'fixed' | 'attribute' | 'specification';
 }
 
-export const DEFAULT_QUOTATION_GRID_COLUMNS: QuotationGridColumn[] = [
-  { key: 'srNo', label: 'Sr No', visible: true, order: 0, width: 56, editable: false },
-  { key: 'itemName', label: 'Item Name', visible: true, order: 1, width: 160, editable: true },
-  { key: 'description', label: 'Description', visible: true, order: 2, width: 200, editable: true },
-  { key: 'quantity', label: 'Quantity', visible: true, order: 3, width: 96, editable: true },
-  { key: 'unit', label: 'Unit', visible: true, order: 4, width: 72, editable: true },
-  { key: 'weight', label: 'Weight', visible: true, order: 5, width: 88, editable: true },
-  { key: 'unitWeight', label: 'Unit Weight', visible: true, order: 6, width: 96, editable: true },
-  { key: 'unitRate', label: 'Unit Rate', visible: true, order: 7, width: 104, editable: true },
-  { key: 'discountPercent', label: 'Discount %', visible: true, order: 8, width: 96, editable: true },
-  { key: 'gstPercent', label: 'GST %', visible: true, order: 9, width: 80, editable: true },
-  { key: 'amount', label: 'Amount', visible: true, order: 10, width: 112, editable: false },
+export interface QuotationCatalogColumn {
+  key: string;
+  label: string;
+  source: string;
+  sortOrder: number;
+}
+
+export const FIXED_QUOTATION_GRID_COLUMNS: QuotationGridColumn[] = [
+  { key: 'srNo', label: 'Sr No', visible: true, order: 0, width: 56, editable: false, source: 'fixed' },
+  { key: 'itemName', label: 'Item Name', visible: true, order: 1, width: 180, editable: true, source: 'fixed' },
+  { key: 'description', label: 'Description', visible: true, order: 2, width: 200, editable: true, source: 'fixed' },
+  { key: 'quantity', label: 'Quantity', visible: true, order: 3, width: 96, editable: true, source: 'fixed' },
+  { key: 'unitRate', label: 'Rate', visible: true, order: 4, width: 104, editable: true, source: 'fixed' },
+  { key: 'weight', label: 'Weight', visible: true, order: 40, width: 88, editable: false, source: 'fixed' },
+  { key: 'amount', label: 'Total', visible: true, order: 50, width: 112, editable: false, source: 'fixed' },
+  { key: 'unit', label: 'Unit', visible: false, order: 90, width: 72, editable: true, source: 'fixed' },
+  { key: 'unitWeight', label: 'Unit Weight', visible: false, order: 92, width: 96, editable: false, source: 'fixed' },
+  { key: 'discountPercent', label: 'Discount %', visible: false, order: 93, width: 96, editable: true, source: 'fixed' },
+  { key: 'gstPercent', label: 'GST % (line)', visible: false, order: 94, width: 80, editable: false, source: 'fixed' },
 ];
 
-export function mergeGridColumns(saved: QuotationGridColumn[]): QuotationGridColumn[] {
+/** @deprecated use mergeQuotationGridColumns */
+export const DEFAULT_QUOTATION_GRID_COLUMNS = FIXED_QUOTATION_GRID_COLUMNS;
+
+export function catalogColumnsToGridColumns(
+  catalogCols: QuotationCatalogColumn[],
+): QuotationGridColumn[] {
+  const baseOrder = 10;
+  return catalogCols.map((c, i) => ({
+    key: c.key,
+    label: c.label,
+    visible: true,
+    order: baseOrder + (c.sortOrder > 0 ? c.sortOrder : i),
+    width: 110,
+    editable: true,
+    source: c.source === 'specification' ? 'specification' : 'attribute',
+  }));
+}
+
+export function mergeQuotationGridColumns(
+  saved: QuotationGridColumn[],
+  dynamicCols: QuotationGridColumn[] = [],
+): QuotationGridColumn[] {
+  const defs = [...FIXED_QUOTATION_GRID_COLUMNS];
+  const dynamicKeys = new Set(dynamicCols.map((c) => c.key));
+  const savedDynamicExtras = saved.filter(
+    (c) => isDynamicColumnKey(c.key) && !dynamicKeys.has(c.key),
+  );
+  const allDefs = [
+    ...defs,
+    ...dynamicCols.filter((d) => !defs.some((f) => f.key === d.key)),
+    ...savedDynamicExtras.map((c) => ({
+      key: c.key,
+      label: c.label,
+      visible: c.visible,
+      order: c.order,
+      width: c.width > 0 ? c.width : 110,
+      editable: true,
+      source: (c.key.startsWith('spec:') ? 'specification' : 'attribute') as QuotationGridColumn['source'],
+    })),
+  ];
   const map = new Map(saved.map((c) => [c.key, c]));
-  return DEFAULT_QUOTATION_GRID_COLUMNS.map((def, i) => {
-    const user = map.get(def.key);
-    if (!user) return { ...def, order: i };
-    return {
-      key: def.key,
-      label: user.label?.trim() || def.label,
-      visible: user.visible,
-      order: user.order ?? i,
-      width: user.width > 0 ? user.width : def.width,
-      editable: def.editable,
-    };
-  })
+
+  return allDefs
+    .map((def, i) => {
+      const user = map.get(def.key);
+      const isDynamic = dynamicKeys.has(def.key) || isDynamicColumnKey(def.key);
+      if (!user) {
+        return { ...def, order: isDynamic ? def.order : i };
+      }
+      return {
+        key: def.key,
+        label: user.label?.trim() || def.label,
+        visible: user.visible,
+        order: user.order ?? def.order ?? i,
+        width: user.width > 0 ? user.width : def.width,
+        editable: def.editable,
+        source: def.source,
+      };
+    })
     .sort((a, b) => a.order - b.order)
     .map((c, i) => ({ ...c, order: i }));
 }
 
-export const NUMERIC_GRID_COLUMN_KEYS = new Set<QuotationGridColumnKey>([
+/** @deprecated */
+export function mergeGridColumns(saved: QuotationGridColumn[]): QuotationGridColumn[] {
+  return mergeQuotationGridColumns(saved);
+}
+
+export const NUMERIC_GRID_COLUMN_KEYS = new Set<string>([
   'quantity',
   'weight',
   'unitWeight',
@@ -62,7 +122,11 @@ export const NUMERIC_GRID_COLUMN_KEYS = new Set<QuotationGridColumnKey>([
   'amount',
 ]);
 
-export function gridColumnFormControl(key: QuotationGridColumnKey): string | null {
+export function isDynamicColumnKey(key: string): boolean {
+  return key.startsWith('attr:') || key.startsWith('spec:');
+}
+
+export function gridColumnFormControl(key: string): string | null {
   switch (key) {
     case 'itemName':
       return 'itemName';
@@ -85,6 +149,6 @@ export function gridColumnFormControl(key: QuotationGridColumnKey): string | nul
     case 'amount':
       return 'amount';
     default:
-      return null;
+      return isDynamicColumnKey(key) ? null : null;
   }
 }

@@ -86,6 +86,14 @@ export function buildLeadPutJson(dto: LeadUpsertDto, previous: LeadNormalized): 
     body['createdAt'] = previous.createdAt;
   }
 
+  const location = dto.location?.trim() || previous.location?.trim() || '';
+  body['location'] = location;
+
+  const leadDate = dto.leadDate?.trim() || previous.leadDate?.trim() || '';
+  if (leadDate) {
+    body['leadDate'] = leadDate;
+  }
+
   return body;
 }
 
@@ -128,6 +136,16 @@ export function stripLeadUpsertForPost(dto: LeadUpsertDto): Record<string, unkno
     body['salutationId'] = dto.salutationId;
   }
   body['gender'] = dto.gender?.trim() || DEFAULT_LEAD_GENDER;
+
+  const location = dto.location?.trim() || '';
+  if (location) {
+    body['location'] = location;
+  }
+
+  const leadDate = dto.leadDate?.trim() || '';
+  if (leadDate) {
+    body['leadDate'] = leadDate;
+  }
 
   return body;
 }

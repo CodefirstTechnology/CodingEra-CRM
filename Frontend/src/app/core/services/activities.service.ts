@@ -7,6 +7,7 @@ import type {
   ActivityGroup,
   ActivityListQuery,
   ActivityRow,
+  CreateActivityBody,
 } from './activities/activity-api.models';
 import { ActivityHttpService } from './activities/activity-http.service';
 
@@ -112,5 +113,19 @@ export class ActivitiesService {
 
   getForEntity(entityType: ActivityEntityType, entityId: number): Observable<ActivityGroup[]> {
     return this.activityHttp.getForEntity(entityType, entityId).pipe(map((rows) => groupActivities(rows)));
+  }
+
+  logAttachmentAdded(
+    entityType: 'lead' | 'deal',
+    entityId: number,
+    message: string,
+  ): Observable<ActivityRow> {
+    const body: CreateActivityBody = {
+      actionType: 'attachment_added',
+      message,
+    };
+    return entityType === 'deal'
+      ? this.activityHttp.createForDeal(entityId, body)
+      : this.activityHttp.createForLead(entityId, body);
   }
 }

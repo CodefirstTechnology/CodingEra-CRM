@@ -62,6 +62,12 @@ export class LeadOwnerOptionsService {
     this.ensureLoaded().pipe(take(1)).subscribe();
   }
 
+  /** Clears cached owner list and fetches again (e.g. after permission/session change). */
+  reload(): void {
+    this.reset();
+    this.load();
+  }
+
   /** Resolves when owner options are in memory (required before marketplace bulk save + round robin). */
   ensureLoaded(): Observable<readonly LeadOwnerOption[]> {
     if (this.loadedSignal()) {
@@ -112,12 +118,26 @@ export class LeadOwnerOptionsService {
   }
 
   defaultOwnerId(): string {
-    const opts = this.optionsSignal();
     const sessionId = this.auth.user()?.id?.trim();
-    if (sessionId && opts.some((o) => o.id === sessionId)) {
+    if (sessionId) {
       return sessionId;
     }
-    return opts[0]?.id ?? '';
+    return this.optionsSignal()[0]?.id ?? '';
+  }
+
+  sessionOwnerId(): string {
+    return this.auth.user()?.id?.trim() ?? '';
+  }
+
+  sessionOwnerDisplay(): { id: string; label: string; initials: string } {
+    const id = this.sessionOwnerId();
+    const opt = id ? this.findById(id) : undefined;
+    if (opt) {
+      return { id: opt.id, label: opt.label, initials: opt.initials };
+    }
+    const user = this.auth.user();
+    const label = user?.name?.trim() || user?.email?.trim() || 'You';
+    return { id, label, initials: initialsFromDisplayName(label) };
   }
 
   applyOwnerToRow(row: LeadRow): LeadRow {
@@ -135,8 +155,12 @@ export class LeadOwnerOptionsService {
         owner: opt.initials,
       };
     }
-    if (row.leadOwnerId && row.leadOwnerName.startsWith('User #')) {
-      return { ...row, leadOwnerName: '', owner: '' };
+    const name = row.leadOwnerName?.trim() ?? '';
+    if (name && !name.startsWith('User #')) {
+      return {
+        ...row,
+        owner: row.owner?.trim() || initialsFromDisplayName(name),
+      };
     }
     return row;
   }
@@ -150,7 +174,6 @@ export class LeadOwnerOptionsService {
   }
 
   enrichRows(rows: readonly LeadRow[]): LeadRow[] {
-    if (this.optionsSignal().length === 0) return [...rows];
     return rows.map((r) => this.applyOwnerToRow(r));
   }
 
@@ -170,8 +193,12 @@ export class LeadOwnerOptionsService {
         assignedInitials: opt.initials,
       };
     }
-    if (row.dealOwnerId && row.assignedTo.startsWith('User #')) {
-      return { ...row, assignedTo: '', assignedInitials: '' };
+    const name = row.assignedTo?.trim() ?? '';
+    if (name && !name.startsWith('User #')) {
+      return {
+        ...row,
+        assignedInitials: row.assignedInitials?.trim() || initialsFromDisplayName(name),
+      };
     }
     return row;
   }
@@ -184,7 +211,6 @@ export class LeadOwnerOptionsService {
   }
 
   enrichDealRows(rows: readonly DealRow[]): DealRow[] {
-    if (this.optionsSignal().length === 0) return [...rows];
     return rows.map((r) => this.applyOwnerToDealRow(r));
   }
 }

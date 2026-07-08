@@ -16,11 +16,44 @@ import type { MasterDataOption } from '../leads/lead-master-data.service';
 
 export const DEAL_STAGE_CLOSED_MESSAGE = 'Closed deals cannot be modified.';
 
+export const DEAL_DATA_LOCKED_MESSAGE = 'Deal data cannot be modified at this stage.';
+
 export const DEAL_STAGE_WON_REQUIRES_MATERIAL_DELIVERED_MESSAGE =
   'Closed Won is allowed only after Material Delivered.';
 
 export const DEAL_STAGE_LOST_REASON_REQUIRED_MESSAGE =
   'Lost reason is required when closing a deal as lost.';
+
+export const QUOTATION_GENERATION_BLOCKED_MESSAGE =
+  'Quotations cannot be created when the deal is Material Delivered or Lead Closed - Lost.';
+
+function nameMatches(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
+/** Locks deal data fields and linked quotation edits (Material Delivered or closed). */
+export function isDealDataLockedStatus(
+  status: string,
+  pipeline: readonly DealPipelineStatusRow[] = [],
+): boolean {
+  const label = status.trim();
+  if (!label) return false;
+  if (pipeline.length > 0 && isClosedStatus(pipeline, label)) return true;
+  return nameMatches(label, DEAL_STAGE_MATERIAL_DELIVERED);
+}
+
+/** Blocks new quotation creation for delivered or lost deals. */
+export function isQuotationGenerationBlockedForDeal(
+  status: string,
+  pipeline: readonly DealPipelineStatusRow[] = [],
+): boolean {
+  const label = status.trim();
+  if (!label) return false;
+  if (pipeline.length > 0 && isClosedLostStatus(pipeline, label)) return true;
+  if (nameMatches(label, DEAL_STAGE_MATERIAL_DELIVERED)) return true;
+  if (nameMatches(label, 'Lead Closed - Lost')) return true;
+  return false;
+}
 
 export interface DealStageHistoryLike {
   newStage: string;

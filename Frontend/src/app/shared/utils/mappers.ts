@@ -2,6 +2,7 @@ import type { DealPipelineStatus } from '../../core/services/deals/deal-pipeline
 import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
 import type { DealRow } from '../../features/deals/deals.component';
 import type { LeadRow, LeadStatus } from '../../features/leads/lead-row.model';
+import { LEAD_CONVERSION_DEAL_SOURCE } from '../../core/services/leads/lead-conversion.types';
 import { leadContactName } from './lead-conversion.util';
 import { normalizeGstin } from './gstin.util';
 
@@ -85,6 +86,7 @@ export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
     employees: (lead.employees ?? '').trim() || '1-10',
     employeeCountId: lead.employeeCountId ?? undefined,
     annualRevenue: parseLeadNumericValue(lead),
+    dealAmount: 0,
     website: (lead.website ?? '').trim(),
     gst: normalizeGstin(lead.gst),
     territory: (lead.territory ?? '').trim(),
@@ -107,7 +109,7 @@ export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
     createdAt,
     requirement: (lead.requirement ?? lead.notes ?? '').trim(),
     notes: (lead.notes ?? '').trim() || undefined,
-    source: 'lead_conversion',
+    source: LEAD_CONVERSION_DEAL_SOURCE,
     sourceLeadId: lead.id,
     organizationId: orgId,
     relatedOrganizationId: orgId,

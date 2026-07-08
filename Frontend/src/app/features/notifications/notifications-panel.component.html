@@ -1,14 +1,12 @@
 @if (panel.open()) {
   <div class="np-backdrop" role="presentation" (click)="onBackdropClick()"></div>
-}
 
-<div
-  class="np-popover"
-  [class.np-popover--open]="panel.open()"
-  role="dialog"
-  aria-label="Notifications"
-  [attr.aria-hidden]="!panel.open()"
->
+  <div
+    class="np-popover np-popover--open"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Notifications"
+  >
   <header class="np-head">
     <div>
       <h2 class="np-title">Notifications</h2>
@@ -18,7 +16,13 @@
       @if (panel.unreadCount() > 0) {
         <button type="button" class="np-text-btn" (click)="markAllRead()">Mark all read</button>
       }
-      <button type="button" class="np-icon-btn" (click)="close()" aria-label="Close notifications">
+      <button
+        #closeBtn
+        type="button"
+        class="np-icon-btn"
+        (click)="close()"
+        aria-label="Close notifications"
+      >
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M18 6 6 18M6 6l12 12" />
         </svg>
@@ -89,4 +93,5 @@
   <footer class="np-foot">
     <button type="button" class="np-foot-link">View all activity</button>
   </footer>
-</div>
+  </div>
+}

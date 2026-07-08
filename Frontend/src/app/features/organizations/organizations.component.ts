@@ -14,10 +14,14 @@ import {
   masterSelectControlValue,
   resolveOrgMasterPick,
 } from '../../core/services/organizations/organization-master-select.util';
-import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
 import { optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
+import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { createIdSelection } from '../../shared/utils/selection-manager';
+
+export type OrganizationIndustryFilter = 'all' | string;
+export type OrganizationTerritoryFilter = 'all' | string;
 
 export interface OrganizationRow {
   id: string;
@@ -40,7 +44,7 @@ export interface OrganizationRow {
 
 @Component({
   selector: 'app-organizations',
-  imports: [ReactiveFormsModule, RouterLink, CrmSelectionBarComponent],
+  imports: [ReactiveFormsModule, RouterLink, CrmPaginationFooterComponent],
   templateUrl: './organizations.component.html',
   styleUrl: './organizations.component.scss',
 })
@@ -60,6 +64,96 @@ export class OrganizationsComponent {
   protected readonly formOpen = signal(false);
 
   protected readonly rows = signal<OrganizationRow[]>([]);
+  protected readonly searchQuery = signal('');
+  protected readonly industryFilter = signal<OrganizationIndustryFilter>('all');
+  protected readonly territoryFilter = signal<OrganizationTerritoryFilter>('all');
+
+  protected readonly industryFilterOptions = computed(() => {
+    const items: { id: OrganizationIndustryFilter; label: string }[] = [
+      { id: 'all', label: 'All industries' },
+    ];
+    const seen = new Set<string>();
+    for (const row of this.rows()) {
+      const label = row.industry?.trim();
+      if (!label || seen.has(label)) continue;
+      seen.add(label);
+      items.push({ id: label, label });
+    }
+    return items.sort((a, b) => (a.id === 'all' ? -1 : b.id === 'all' ? 1 : a.label.localeCompare(b.label)));
+  });
+
+  protected readonly territoryFilterOptions = computed(() => {
+    const items: { id: OrganizationTerritoryFilter; label: string }[] = [
+      { id: 'all', label: 'All territories' },
+    ];
+    const seen = new Set<string>();
+    for (const row of this.rows()) {
+      const label = row.territory?.trim();
+      if (!label || seen.has(label)) continue;
+      seen.add(label);
+      items.push({ id: label, label });
+    }
+    return items.sort((a, b) => (a.id === 'all' ? -1 : b.id === 'all' ? 1 : a.label.localeCompare(b.label)));
+  });
+
+  protected readonly filtered = computed(() => {
+    const q = this.searchQuery().trim().toLowerCase();
+    const industry = this.industryFilter();
+    const territory = this.territoryFilter();
+    return this.rows().filter((row) => {
+      if (industry !== 'all' && (row.industry?.trim() || '') !== industry) return false;
+      if (territory !== 'all' && (row.territory?.trim() || '') !== territory) return false;
+      if (!q) return true;
+      const rev = this.formatOrgRevenue(row.annualRevenue).toLowerCase();
+      return (
+        row.name.toLowerCase().includes(q) ||
+        (row.website?.toLowerCase().includes(q) ?? false) ||
+        row.industry.toLowerCase().includes(q) ||
+        (row.territory?.toLowerCase().includes(q) ?? false) ||
+        (row.employees?.toLowerCase().includes(q) ?? false) ||
+        (row.address?.toLowerCase().includes(q) ?? false) ||
+        rev.includes(q) ||
+        String(row.annualRevenue).includes(q)
+      );
+    });
+  });
+
+  protected readonly tablePagination = createClientTablePagination(this.filtered);
+
+  protected hasActiveFilters(): boolean {
+    return (
+      this.industryFilter() !== 'all' ||
+      this.territoryFilter() !== 'all' ||
+      this.searchQuery().trim().length > 0
+    );
+  }
+
+  protected onSearchInput(ev: Event): void {
+    this.searchQuery.set((ev.target as HTMLInputElement).value);
+    this.tablePagination.resetPage();
+  }
+
+  protected clearSearch(): void {
+    this.searchQuery.set('');
+    this.tablePagination.resetPage();
+  }
+
+  protected resetFilters(): void {
+    this.searchQuery.set('');
+    this.industryFilter.set('all');
+    this.territoryFilter.set('all');
+    this.tablePagination.resetPage();
+  }
+
+  protected onIndustryFilterSelect(ev: Event): void {
+    this.industryFilter.set((ev.target as HTMLSelectElement).value);
+    this.tablePagination.resetPage();
+  }
+
+  protected onTerritoryFilterSelect(ev: Event): void {
+    this.territoryFilter.set((ev.target as HTMLSelectElement).value);
+    this.tablePagination.resetPage();
+  }
 
   protected masterOptValue(opt: MasterDataOption): string {
     return masterOptionFormValue(opt);
@@ -73,6 +167,16 @@ export class OrganizationsComponent {
       this.refreshOrganizations();
     });
     this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
+      if (q['create'] === '1') {
+        this.openForm();
+        void this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { create: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
+        return;
+      }
       const edit = q['edit'];
       if (edit != null && edit !== '') {
         this.beginEditFromRoute(String(edit));
@@ -88,7 +192,7 @@ export class OrganizationsComponent {
   }
 
   protected readonly allSelected = computed(() =>
-    this.sel.allSelectedIn(this.rows().map((r) => r.id)),
+    this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
   );
 
   protected readonly createForm = this.fb.nonNullable.group({
@@ -119,7 +223,7 @@ export class OrganizationsComponent {
   }
 
   protected toggleSelectAll(): void {
-    this.sel.toggleSelectAll(this.rows().map((r) => r.id));
+    this.sel.toggleSelectAll(this.filtered().map((r) => r.id));
   }
 
   private defaultIndustryFormValue(): string {

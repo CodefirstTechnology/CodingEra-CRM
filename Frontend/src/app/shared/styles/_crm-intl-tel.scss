@@ -1,0 +1,144 @@
+.crm-intl-tel-field {
+  width: 100%;
+
+  .iti {
+    display: block;
+    width: 100%;
+  }
+
+  .iti__country-container {
+    border-radius: var(--crm-intl-radius, var(--radius-sm, 10px)) 0 0 var(--crm-intl-radius, var(--radius-sm, 10px));
+  }
+
+  .iti__selected-country {
+    border-radius: var(--crm-intl-radius, var(--radius-sm, 10px)) 0 0 var(--crm-intl-radius, var(--radius-sm, 10px));
+  }
+
+  .iti__tel-input,
+  .iti input[type='tel'] {
+    width: 100%;
+    min-height: 2.35rem;
+    font-size: var(--crm-intl-font-size, 0.875rem);
+    color: var(--text-primary);
+    font-family: inherit;
+    box-sizing: border-box;
+    border: 1px solid var(--card-border);
+    border-radius: var(--crm-intl-radius, var(--radius-sm, 10px));
+    padding: var(--crm-intl-padding-y, 0.55rem) var(--crm-intl-padding-x, 0.75rem);
+    background: var(--crm-intl-bg, var(--body-bg));
+    transition: var(--transition-theme, border-color 0.15s ease, box-shadow 0.15s ease);
+
+    &:focus {
+      outline: 2px solid color-mix(in srgb, var(--tertiary-color, var(--primary-color)) 45%, transparent);
+      outline-offset: 1px;
+    }
+
+    &::placeholder {
+      color: color-mix(in srgb, var(--text-muted) 75%, var(--text-primary));
+    }
+  }
+
+  &.crm-intl-tel-field--soft {
+    --crm-intl-bg: color-mix(in srgb, var(--text-muted) 9%, var(--body-bg));
+
+    .iti__tel-input,
+    .iti input[type='tel'] {
+      border: none;
+
+      &:focus {
+        outline-offset: 0;
+      }
+    }
+  }
+
+  &.crm-intl-tel-field--detail {
+    --crm-intl-radius: 8px;
+    --crm-intl-padding-y: 0.55rem;
+    --crm-intl-padding-x: 0.68rem;
+    --crm-intl-font-size: 0.84375rem;
+    --crm-intl-bg: var(--surface);
+  }
+
+  &.crm-intl-tel-field--contact-detail {
+    --crm-intl-radius: 6px;
+    --crm-intl-padding-y: 0.4rem;
+    --crm-intl-padding-x: 0.55rem;
+    --crm-intl-font-size: 0.8125rem;
+    --crm-intl-bg: rgb(255 255 255 / 0.55);
+
+    .iti__tel-input,
+    .iti input[type='tel'] {
+      border-color: color-mix(in srgb, var(--card-border) 55%, transparent);
+
+      &:focus {
+        outline: none;
+        border-color: color-mix(in srgb, var(--tertiary-color) 45%, var(--card-border));
+        box-shadow: 0 0 0 2px color-mix(in srgb, var(--tertiary-color) 15%, transparent);
+        background: var(--surface);
+      }
+    }
+  }
+
+  &.crm-intl-tel-field--side {
+    .iti__tel-input,
+    .iti input[type='tel'] {
+      min-height: auto;
+      border: none;
+      border-radius: 6px;
+      padding: 0.2rem 0.05rem;
+      background: transparent;
+      font-size: 0.8125rem;
+      font-weight: 600;
+
+      &:focus {
+        outline: none;
+        background: color-mix(in srgb, var(--text-muted) 7%, transparent);
+      }
+    }
+  }
+
+  &.crm-intl-tel-field--settings {
+    --crm-intl-radius: 10px;
+    --crm-intl-padding-y: 0.58rem;
+    --crm-intl-padding-x: 0.7rem;
+    --crm-intl-bg: color-mix(in srgb, var(--body-bg, #f8fafc) 35%, var(--surface));
+
+    .iti__tel-input,
+    .iti input[type='tel'] {
+      &:focus {
+        outline: none;
+        border-color: color-mix(in srgb, var(--tertiary-color) 45%, var(--card-border));
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--tertiary-color) 12%, transparent);
+      }
+    }
+  }
+
+  &.crm-intl-tel-field--inline {
+    .iti__tel-input,
+    .iti input[type='tel'] {
+      min-height: 1.85rem;
+      min-width: 10rem;
+      max-width: 16rem;
+      font-size: inherit;
+      padding: 0.35rem 0.5rem;
+      border-radius: 6px;
+      background: #fff;
+      border: 1px solid var(--deals-border, #e5e7eb);
+
+      &:hover {
+        border-color: #cbd5e1;
+      }
+
+      &:focus {
+        outline: none;
+        border-color: var(--deals-action-blue, #2563eb);
+        box-shadow: 0 0 0 2px rgb(37 99 235 / 0.15);
+      }
+    }
+  }
+}
+
+/* Country list rendered on document.body inside modals (z-index above CRM modals). */
+.iti--container {
+  z-index: 10000 !important;
+}

@@ -9,19 +9,36 @@ import {
   type QuotationListItem,
   type QuotationStatus,
 } from '../../core/services/quotations/quotation-api.models';
+import {
+  QuotationTemplateType,
+  quotationTemplateQueryParam,
+  type QuotationTemplateType as QuotationTemplateTypeValue,
+} from '../../core/services/quotations/quotation-template.constants';
+import { PermissionService } from '../../core/services/permission.service';
 import { QuotationsService, quotationHttpErrorMessage } from '../../core/services/quotations.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { ToastService } from '../../core/toast/toast.service';
+import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
+import { CreateQuotationMenuComponent } from './create-quotation-menu/create-quotation-menu.component';
 
 @Component({
   selector: 'app-quotations-list',
-  imports: [ReactiveFormsModule, RouterLink, DatePipe, DecimalPipe],
+  imports: [
+    ReactiveFormsModule,
+    RouterLink,
+    DatePipe,
+    DecimalPipe,
+    CrmPaginationFooterComponent,
+    CreateQuotationMenuComponent,
+  ],
   templateUrl: './quotations-list.component.html',
   styleUrl: './quotations-list.component.scss',
 })
 export class QuotationsListComponent {
   private readonly userScope = inject(UserDataScopeService);
   private readonly quotationsService = inject(QuotationsService);
+  private readonly permissions = inject(PermissionService);
   private readonly toast = inject(ToastService);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
@@ -29,8 +46,10 @@ export class QuotationsListComponent {
   protected readonly rows = signal<QuotationListItem[]>([]);
   protected readonly loading = signal(false);
   protected readonly statusOptions = QUOTATION_STATUSES;
+  protected readonly canDeleteQuotation = computed(() => this.permissions.has('quotations.delete'));
   protected readonly showCreatedByColumn = computed(() => this.userScope.canViewAllQuotations());
   protected readonly tableColSpan = computed(() => (this.showCreatedByColumn() ? 8 : 7));
+  protected readonly tablePagination = createClientTablePagination(this.rows);
 
   protected readonly filterForm = this.fb.nonNullable.group({
     status: [''],
@@ -41,10 +60,16 @@ export class QuotationsListComponent {
     this.refresh();
     this.filterForm.controls.status.valueChanges
       .pipe(takeUntilDestroyed())
-      .subscribe(() => this.refresh());
+      .subscribe(() => {
+        this.tablePagination.resetPage();
+        this.refresh();
+      });
     this.filterForm.controls.search.valueChanges
       .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
-      .subscribe(() => this.refresh());
+      .subscribe(() => {
+        this.tablePagination.resetPage();
+        this.refresh();
+      });
   }
 
   protected refresh(): void {
@@ -69,8 +94,11 @@ export class QuotationsListComponent {
       });
   }
 
-  protected createQuotation(): void {
-    void this.router.navigate(['/quotations/new']);
+  protected createQuotation(template: QuotationTemplateTypeValue): void {
+    const qp = quotationTemplateQueryParam(template);
+    void this.router.navigate(['/quotations/new'], {
+      queryParams: qp ? { template: qp } : {},
+    });
   }
 
   protected viewRow(id: number): void {
@@ -96,6 +124,10 @@ export class QuotationsListComponent {
   }
 
   protected deleteRow(id: number, number: string): void {
+    if (!this.canDeleteQuotation()) {
+      this.toast.error('You do not have permission to perform this action.');
+      return;
+    }
     if (!confirm(`Delete quotation ${number || id}?`)) return;
     this.quotationsService
       .delete(id)

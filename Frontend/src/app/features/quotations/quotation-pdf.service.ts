@@ -1,12 +1,21 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { jsPDF } from 'jspdf';
 import autoTable, { type RowInput } from 'jspdf-autotable';
 import { firstValueFrom, timeout } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { AuthService } from '../../core/auth/auth.service';
+import { mapCompanyProfile } from '../../core/services/company-profile/company-profile-api.mapper';
 import type { QuotationLineItemDto, QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
+import {
+  additionalChargesTotal,
+  listAdditionalChargeLines,
+} from '../../core/services/quotations/quotation-additional-charges.util';
+import { mergeCompanyProfileForPdf, resolveQuotationPdfContent, type QuotationPdfCompanyConfig } from './company-profile-pdf.mapper';
 import { QUOTATION_PDF_COMPANY, QUOTATION_PDF_LAYOUT } from './quotation-pdf.config';
+import { formatIntlTelDisplay } from '../../shared/utils/intl-tel.util';
+import { isTechnicalProposalTemplate } from '../../core/services/quotations/quotation-template.constants';
+import { TechnicalProposalPdfService } from './technical-proposal-pdf.service';
 
 export interface QuotationPdfGeneratorInfo {
   fullName: string;
@@ -20,11 +29,37 @@ type DocWithTable = jsPDF & { lastAutoTable?: { finalY: number } };
 export class QuotationPdfService {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
+  private readonly technicalProposalPdf = inject(TechnicalProposalPdfService);
 
   async download(quotation: QuotationUpsertDto): Promise<void> {
-    const generator = await this.resolveGeneratorInfo();
-    const doc = this.buildDocument(quotation, generator);
+    if (isTechnicalProposalTemplate(quotation.quotationTemplate)) {
+      await this.technicalProposalPdf.download(quotation);
+      return;
+    }
+
+    const [generator, company] = await Promise.all([
+      this.resolveGeneratorInfo(),
+      this.resolveCompanyProfile(),
+    ]);
+    const pdfCompany = await this.withPdfOptimizedLogo(resolveQuotationPdfContent(quotation, company));
+    const doc = this.buildDocument(quotation, generator, pdfCompany);
     doc.save(this.pdfFilename(quotation.quotationNumber));
+  }
+
+  private async resolveCompanyProfile(): Promise<QuotationPdfCompanyConfig> {
+    const base = environment.apiUrl?.replace(/\/$/, '');
+    const token = this.auth.token();
+    if (!base || !token) return mergeCompanyProfileForPdf(null);
+
+    try {
+      const headers = new HttpHeaders({ Authorization: `Bearer ${token}` });
+      const body = await firstValueFrom(
+        this.http.get<unknown>(`${base}/company-profile`, { headers }).pipe(timeout(8000)),
+      );
+      return mergeCompanyProfileForPdf(mapCompanyProfile(body));
+    } catch {
+      return mergeCompanyProfileForPdf(null);
+    }
   }
 
   private async resolveGeneratorInfo(): Promise<QuotationPdfGeneratorInfo> {
@@ -45,13 +80,27 @@ export class QuotationPdfService {
 
     try {
       const headers = new HttpHeaders({ Authorization: `Bearer ${token}` });
+      const params = new HttpParams().set('userId', id);
       const body = await firstValueFrom(
-        this.http.get<unknown>(`${base}/auth/users/${encodeURIComponent(id)}`, { headers }).pipe(timeout(8000)),
+        this.http
+          .get<unknown>(`${base}/auth/users/${encodeURIComponent(id)}`, { headers, params })
+          .pipe(timeout(8000)),
       );
       const row = this.unwrapRecord(body);
       const fullName =
-        this.pickStr(row, ['fullName', 'FullName', 'name', 'Name']) || fallback.fullName;
-      const phone = this.pickStr(row, ['phone', 'Phone']) || '—';
+        this.pickStr(row, ['fullName', 'FullName', 'name', 'Name', 'userName', 'UserName']) ||
+        fallback.fullName;
+      const phoneRaw = this.pickStr(row, [
+        'phone',
+        'Phone',
+        'mobile',
+        'Mobile',
+        'mobileNumber',
+        'MobileNumber',
+        'contactNumber',
+        'ContactNumber',
+      ]);
+      const phone = phoneRaw ? formatIntlTelDisplay(phoneRaw) || phoneRaw : '—';
       const email = this.pickStr(row, ['email', 'Email']) || fallback.email;
       return { fullName, phone, email };
     } catch {
@@ -59,9 +108,13 @@ export class QuotationPdfService {
     }
   }
 
-  private buildDocument(q: QuotationUpsertDto, generator: QuotationPdfGeneratorInfo): jsPDF {
+  private buildDocument(
+    q: QuotationUpsertDto,
+    generator: QuotationPdfGeneratorInfo,
+    company: QuotationPdfCompanyConfig,
+  ): jsPDF {
     const L = QUOTATION_PDF_LAYOUT;
-    const C = QUOTATION_PDF_COMPANY;
+    const C = company;
     const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
@@ -72,9 +125,6 @@ export class QuotationPdfService {
       contentW - L.metaLabelWidthMm - L.metaValueRightLabelWidthMm - L.metaValueRightWidthMm;
     const lineDescW =
       contentW - L.lineSrWidthMm - L.lineQtyWidthMm - L.lineRateWidthMm - L.lineAmountWidthMm;
-    const amountColRight = pageW - margin;
-    const totalsTableW = L.totalsLabelWidthMm + L.lineAmountWidthMm;
-    const totalsTableLeft = amountColRight - totalsTableW;
 
     const tableStyles = {
       fontSize: L.fontSize.body,
@@ -85,44 +135,93 @@ export class QuotationPdfService {
       valign: 'middle' as const,
     };
 
-    let y = margin;
+    let y = 0;
 
     const drawHeader = (): void => {
-      const headerH = L.headerHeightMm;
       const brandW = L.brandBlockWidthMm;
-      const centerX = margin + brandW + 2;
-      const centerW = pageW - margin - centerX;
-
-      doc.setFillColor(...C.brandBlue);
-      doc.rect(0, 0, pageW, headerH, 'F');
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(L.fontSize.headerBrand);
-      doc.text(C.brandName, margin + 1, 11);
-
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(L.fontSize.headerSub);
-      const tagLines = doc.splitTextToSize(C.brandTagline, brandW - 2);
-      doc.text(tagLines, margin + 1, 15);
+      const headerTop = margin;
+      const headerLeft = margin;
+      const headerRight = margin + contentW;
+      const textLeft = headerLeft + brandW;
+      const textWidth = contentW - brandW;
+      const textPad = L.headerTextPadMm;
+      const textInnerW = textWidth - textPad * 2;
+      const lineH = 3.4;
+      const padTop = 5;
+      const padBottom = 1.5;
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(L.fontSize.headerLegal);
-      const nameLines = doc.splitTextToSize(C.legalName, centerW - 4);
-      doc.text(nameLines, centerX + centerW / 2, 10, { align: 'center' });
-
+      const nameLines = doc.splitTextToSize(C.legalName, textInnerW);
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(L.fontSize.headerSub + 0.5);
-      const bizLines = doc.splitTextToSize(C.businessLine, centerW - 4);
-      const bizY = 14 + (nameLines.length - 1) * 3.8;
-      doc.text(bizLines, centerX + centerW / 2, bizY, { align: 'center' });
+      const taglineLines = C.brandTagline?.trim()
+        ? doc.splitTextToSize(C.brandTagline, textInnerW)
+        : [];
+
+      const taxY = padTop + nameLines.length * lineH + taglineLines.length * lineH + 0.5;
+      const textBlockBottom = taxY + lineH * 0.85 + padBottom;
+
+      const logoFormat = this.logoImageFormat(C.logoContentType);
+      const hasLogo = !!(C.logoBase64 && logoFormat);
+      const logoPad = L.logoBoxPaddingMm;
+      const logoAspect =
+        C.logoPixelWidth && C.logoPixelHeight && C.logoPixelHeight > 0
+          ? C.logoPixelWidth / C.logoPixelHeight
+          : 1;
+
+      const headerH = textBlockBottom;
+
+      doc.setFillColor(...C.brandBlue);
+      doc.rect(headerLeft, headerTop, contentW, headerH, 'F');
+
+      if (hasLogo) {
+        const availH = headerH - logoPad * 2;
+        const availW = brandW - logoPad * 2;
+        let fitH = availH;
+        let fitW = fitH * logoAspect;
+        if (fitW > availW) {
+          fitW = availW;
+          fitH = fitW / logoAspect;
+        }
+        const logoX = headerLeft + brandW - logoPad - fitW;
+        const logoY = headerTop + logoPad + (availH - fitH) / 2;
+
+        try {
+          doc.addImage(
+            `data:${C.logoContentType};base64,${C.logoBase64}`,
+            logoFormat,
+            logoX,
+            logoY,
+            fitW,
+            fitH,
+          );
+        } catch {
+          // Logo omitted when image decode fails.
+        }
+      }
+
+      doc.setTextColor(255, 255, 255);
+      const textCenterX = textLeft + textWidth / 2;
+      let textY = headerTop + padTop;
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(L.fontSize.headerLegal);
+      doc.text(nameLines, textCenterX, textY, { align: 'center' });
+      textY += nameLines.length * lineH;
+
+      if (taglineLines.length) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(L.fontSize.headerSub + 0.5);
+        doc.text(taglineLines, textCenterX, textY, { align: 'center' });
+      }
 
       doc.setFontSize(L.fontSize.headerSub);
-      const taxY = headerH - 5;
-      doc.text(`GSTIN : ${C.gstin}    CIN : ${C.cin}`, pageW / 2, taxY, { align: 'center' });
+      doc.text(`GSTIN : ${C.gstin}`, textLeft + textPad, headerTop + taxY);
+      doc.text(`CIN : ${C.cin}`, headerRight - textPad, headerTop + taxY, { align: 'right' });
 
       doc.setTextColor(0, 0, 0);
-      y = headerH + L.sectionGapMm;
+      y = headerTop + headerH + L.sectionGapMm;
     };
 
     const drawFooter = (pageNumber: number, totalPages: number): void => {
@@ -161,7 +260,14 @@ export class QuotationPdfService {
           { content: 'M/s. :', styles: { fontStyle: 'bold' } },
           this.display(q.companyName || q.customerName),
           { content: 'Qtn No. :', styles: { fontStyle: 'bold' } },
-          this.display(q.quotationNumber),
+          {
+            content: this.display(q.quotationNumber),
+            styles: {
+              fillColor: L.qtnHighlightFill,
+              textColor: L.qtnHighlightText,
+              fontStyle: 'bold',
+            },
+          },
         ],
         [
           { content: 'Office Addr:', styles: { fontStyle: 'bold' } },
@@ -195,27 +301,67 @@ export class QuotationPdfService {
     });
 
     y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 28;
-    y += L.sectionGapMm;
 
-    doc.setDrawColor(0);
-    doc.setLineWidth(0.2);
-    doc.rect(margin, y, contentW, 7);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text('Quotation', pageW / 2, y + 4.8, { align: 'center' });
-    y += 9;
+    const businessLineBody = C.businessLine?.trim() ?? '';
+    const introBody = C.introText?.trim() ?? '';
+    const introContent = businessLineBody || introBody;
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(L.fontSize.intro);
-    const introLines = doc.splitTextToSize(C.introText, contentW);
-    doc.text(introLines, margin, y);
-    y += introLines.length * 3.8 + L.introGapMm;
+    const quotationSectionRows: RowInput[] = [
+      [
+        {
+          content: 'Quotation',
+          styles: { fontStyle: 'bold' as const, halign: 'center' as const, fontSize: 11 },
+        },
+      ],
+    ];
+    if (introContent) {
+      const introPad = L.introCellPaddingMm;
+      const introInnerW = contentW - introPad.left - introPad.right;
+      quotationSectionRows.push([
+        {
+          content: this.wrapBusinessLineForCell(doc, introContent, introInnerW, L.fontSize.intro),
+          styles: {
+            fontStyle: 'normal' as const,
+            halign: 'left' as const,
+            valign: 'top' as const,
+            fontSize: L.fontSize.intro,
+          },
+        },
+      ]);
+    }
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      tableWidth: contentW,
+      theme: 'grid',
+      styles: {
+        ...tableStyles,
+        cellPadding: L.introCellPaddingMm,
+        overflow: 'linebreak',
+      },
+      body: quotationSectionRows,
+    });
+
+    y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 16;
 
     const lineRows = this.lineItemRows(q.lineItems ?? []);
     const subtotal = this.subtotal(q);
-    const taxTotal = this.taxTotal(q);
-    const grandTotal = this.grandTotal(q);
-    const gstPercent = this.effectiveGstPercent(q, subtotal, taxTotal);
+    const additionalTotal = this.additionalChargesTotal(q);
+    const taxableAmount = subtotal + additionalTotal;
+    const taxTotal = this.resolveTaxTotal(q, taxableAmount);
+    const grandTotal = this.resolveGrandTotal(q, taxableAmount, taxTotal);
+    const gstPercent = this.effectiveGstPercent(q, taxableAmount, taxTotal);
+    const additionalLines = listAdditionalChargeLines({
+      transportationCharges: q.transportationCharges ?? 0,
+      loadingCharges: q.loadingCharges ?? 0,
+      serviceCharges: q.serviceCharges ?? 0,
+      customCharges: (q.customCharges ?? []).map((c, i) => ({
+        sortIndex: c.sortIndex ?? i,
+        chargeName: c.chargeName,
+        amount: c.amount,
+      })),
+    });
 
     autoTable(doc, {
       startY: y,
@@ -255,7 +401,6 @@ export class QuotationPdfService {
     });
 
     y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 20;
-    y += L.sectionGapMm + 1;
 
     if (y > pageH - L.footerReserveMm - 55) {
       doc.addPage();
@@ -263,80 +408,86 @@ export class QuotationPdfService {
     }
 
     const termsW = contentW * L.termsWidthRatio;
-    const termsStartY = y;
-
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(L.fontSize.intro);
-    doc.text('Terms & Conditions', margin, y);
-    y += 5;
-
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(L.fontSize.terms);
-    C.terms.forEach((term, i) => {
-      const prefix = `${i + 1}. ${term.title}: `;
-      const block = doc.splitTextToSize(prefix + term.body, termsW);
-      if (y > pageH - L.footerReserveMm - 8) {
-        doc.addPage();
-        y = margin;
-      }
-      doc.text(block, margin, y);
-      y += block.length * 3.1 + 1.2;
-    });
+    const totalsW = contentW - termsW;
+    const termsDetailW = termsW - L.termsIndexWidthMm - L.termsTitleWidthMm;
+    const totalsLabelW = totalsW * 0.55;
+    const totalsValueW = totalsW - totalsLabelW;
+    const footerStartY = y;
+    const footerRows = this.buildUnifiedFooterRows(
+      C,
+      subtotal,
+      additionalLines,
+      taxTotal,
+      grandTotal,
+      gstPercent,
+    );
+    const footerBlockStyles = {
+      ...tableStyles,
+      fontSize: L.fontSize.terms,
+      cellPadding: L.termsDetailCellPaddingMm,
+    };
 
     autoTable(doc, {
-      startY: termsStartY,
-      margin: { left: totalsTableLeft, right: margin },
-      tableWidth: totalsTableW,
-      theme: 'plain',
+      startY: footerStartY,
+      margin: { left: margin, right: margin },
+      tableWidth: contentW,
+      theme: 'grid',
+      styles: footerBlockStyles,
+      body: footerRows,
+      columnStyles: {
+        0: { cellWidth: L.termsIndexWidthMm, halign: 'center', valign: 'top' },
+        1: { cellWidth: L.termsTitleWidthMm, valign: 'top' },
+        2: { cellWidth: termsDetailW, valign: 'top', cellPadding: L.termsDetailCellPaddingMm },
+        3: {
+          cellWidth: totalsLabelW,
+          halign: 'left',
+          valign: 'middle',
+          cellPadding: L.totalsCellPaddingMm,
+        },
+        4: {
+          cellWidth: totalsValueW,
+          halign: 'right',
+          valign: 'middle',
+          cellPadding: L.totalsCellPaddingMm,
+        },
+      },
+    });
+
+    y = (doc as DocWithTable).lastAutoTable?.finalY ?? footerStartY + 40;
+
+    const sigName = generator.fullName !== '—' ? generator.fullName : '';
+    const sigPhone = generator.phone !== '—' ? generator.phone : '';
+    const sigBlock = [sigName, sigPhone].filter(Boolean).join('\n');
+
+    autoTable(doc, {
+      startY: y,
+      margin: { left: margin, right: margin },
+      tableWidth: contentW,
+      theme: 'grid',
       styles: {
         ...tableStyles,
         fontSize: L.fontSize.body,
-        cellPadding: { top: 1.2, right: 1, bottom: 1.2, left: 1 },
+        cellPadding: L.signatureCellPaddingMm,
       },
       body: [
-        ['Total', this.formatMoney(subtotal)],
-        ['Transportation', C.transportationLabel],
-        [`Add. : GST @ ${gstPercent}%`, this.formatMoney(taxTotal)],
-        [{ content: 'Total Amount (Rs):', styles: { fontStyle: 'bold' } }, { content: this.formatMoney(grandTotal), styles: { fontStyle: 'bold' } }],
+        [
+          {
+            content: `" ${C.jurisdiction} "`,
+            styles: { halign: 'center', fontStyle: 'italic', valign: 'middle' },
+          },
+          {
+            content: sigBlock,
+            styles: { halign: 'center', fontStyle: 'bold', valign: 'middle' },
+          },
+        ],
       ],
       columnStyles: {
-        0: { cellWidth: L.totalsLabelWidthMm, halign: 'left' },
-        1: { cellWidth: L.lineAmountWidthMm, halign: 'right' },
+        0: { cellWidth: termsW },
+        1: { cellWidth: totalsW },
       },
     });
 
-    const totalsEndY = (doc as DocWithTable).lastAutoTable?.finalY ?? termsStartY + 24;
-    y = Math.max(y, totalsEndY) + L.sectionGapMm + 2;
-
-    if (y > pageH - L.footerReserveMm - 24) {
-      doc.addPage();
-      y = margin;
-    }
-
-    doc.setFont('helvetica', 'italic');
-    doc.setFontSize(L.fontSize.body);
-    doc.text(C.jurisdiction, pageW / 2, y, { align: 'center' });
-    y += 7;
-
-    const sigX = amountColRight;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(L.fontSize.body);
-    doc.text(`For ${C.signatureEntity}`, sigX, y, { align: 'right' });
-    y += 4.5;
-    doc.setFont('helvetica', 'bold');
-    doc.text('Authorized Signatory', sigX, y, { align: 'right' });
-    y += 7;
-    doc.text(generator.fullName, sigX, y, { align: 'right' });
-    y += 4;
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(L.fontSize.terms);
-    if (generator.phone !== '—') {
-      doc.text(generator.phone, sigX, y, { align: 'right' });
-      y += 3.8;
-    }
-    if (generator.email !== '—') {
-      doc.text(generator.email, sigX, y, { align: 'right' });
-    }
+    y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 18;
 
     const totalPages = doc.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
@@ -366,22 +517,41 @@ export class QuotationPdfService {
     });
   }
 
+  private additionalChargesTotal(q: QuotationUpsertDto): number {
+    return additionalChargesTotal({
+      transportationCharges: q.transportationCharges ?? 0,
+      loadingCharges: q.loadingCharges ?? 0,
+      serviceCharges: q.serviceCharges ?? 0,
+      customCharges: (q.customCharges ?? []).map((c, i) => ({
+        sortIndex: c.sortIndex ?? i,
+        chargeName: c.chargeName,
+        amount: c.amount,
+      })),
+    });
+  }
+
   private subtotal(q: QuotationUpsertDto): number {
     if (q.subtotal != null && q.subtotal > 0) return q.subtotal;
     return (q.lineItems ?? []).reduce((s, l) => s + (l.amount || 0), 0);
   }
 
-  private taxTotal(q: QuotationUpsertDto): number {
+  private resolveTaxTotal(q: QuotationUpsertDto, taxableAmount: number): number {
+    if (q.taxTotal != null && q.taxTotal > 0) return q.taxTotal;
+    const headerGst = q.gstPercent ?? 0;
+    if (headerGst > 0 && taxableAmount > 0) {
+      return Math.round(taxableAmount * (headerGst / 100) * 100) / 100;
+    }
     if (q.taxTotal != null) return q.taxTotal;
     return (q.lineItems ?? []).reduce((s, l) => s + (l.taxAmount || 0), 0);
   }
 
-  private grandTotal(q: QuotationUpsertDto): number {
+  private resolveGrandTotal(q: QuotationUpsertDto, taxableAmount: number, taxTotal: number): number {
     if (q.grandTotal != null && q.grandTotal > 0) return q.grandTotal;
-    return this.subtotal(q) + this.taxTotal(q);
+    return Math.round((taxableAmount + taxTotal) * 100) / 100;
   }
 
-  private effectiveGstPercent(q: QuotationUpsertDto, subtotal: number, taxTotal: number): number {
+  private effectiveGstPercent(q: QuotationUpsertDto, taxableAmount: number, taxTotal: number): number {
+    if ((q.gstPercent ?? 0) > 0) return q.gstPercent ?? 0;
     const lines = q.lineItems ?? [];
     if (lines.length) {
       const withGst = lines.filter((l) => (l.gstPercent ?? 0) > 0);
@@ -390,15 +560,15 @@ export class QuotationPdfService {
         return Math.round(avg * 100) / 100;
       }
     }
-    if (subtotal > 0 && taxTotal > 0) {
-      return Math.round((taxTotal / subtotal) * 10000) / 100;
+    if (taxableAmount > 0 && taxTotal > 0) {
+      return Math.round((taxTotal / taxableAmount) * 10000) / 100;
     }
     return QUOTATION_PDF_COMPANY.defaultGstPercent;
   }
 
   private contactLine(q: QuotationUpsertDto): string {
     const email = q.emailAddress?.trim();
-    const phone = q.mobileNumber?.trim();
+    const phone = formatIntlTelDisplay(q.mobileNumber?.trim());
     if (email && phone) return `${email} / ${phone}`;
     return email || phone || '—';
   }
@@ -431,6 +601,314 @@ export class QuotationPdfService {
   private formatQty(value: number): string {
     if (!Number.isFinite(value)) return '—';
     return value.toLocaleString('en-IN', { maximumFractionDigits: 4 });
+  }
+
+  /** Single 5-column table: terms (70%) + totals (30%), row-aligned like reference PDF. */
+  private buildUnifiedFooterRows(
+    company: QuotationPdfCompanyConfig,
+    subtotal: number,
+    additionalLines: { label: string; amount: number }[],
+    taxTotal: number,
+    grandTotal: number,
+    gstPercent: number,
+  ): RowInput[] {
+    const terms = this.resolveTermsWithBank(company);
+    const transportLabel = company.transportationLabel?.trim() || 'Extra At Actual';
+    const transportPad = QUOTATION_PDF_LAYOUT.transportCellPaddingMm;
+    const rows: RowInput[] = [
+      [
+        { content: 'Terms & Conditions:', colSpan: 3, styles: { fontStyle: 'bold' as const } },
+        { content: 'Subtotal:', styles: { fontStyle: 'bold' as const } },
+        { content: this.formatMoney(subtotal), styles: { halign: 'right' as const } },
+      ],
+    ];
+
+    if (additionalLines.length) {
+      rows.push([
+        { content: '', colSpan: 3 },
+        { content: 'Additional Charges:', styles: { fontStyle: 'bold' as const } },
+        '',
+      ]);
+      for (const line of additionalLines) {
+        rows.push([
+          { content: '', colSpan: 3 },
+          line.label,
+          { content: this.formatMoney(line.amount), styles: { halign: 'right' as const } },
+        ]);
+      }
+    }
+
+    let gstRowAdded = false;
+    let grandTotalRowAdded = false;
+
+    if (!terms.length) {
+      rows.push([
+        { content: '—', colSpan: 3, styles: { fontStyle: 'italic' as const } },
+        '',
+        '',
+      ]);
+      this.appendMissingTotalsRows(rows, taxTotal, grandTotal, gstPercent, gstRowAdded, grandTotalRowAdded);
+      return rows;
+    }
+
+    let termNum = 0;
+    for (const term of terms) {
+      termNum += 1;
+      const title = term.title.trim();
+      const body = this.formatTermBody(term.body);
+      const isOrderPayment = /order\s*&\s*payment|order and payment/i.test(title);
+
+      if (isOrderPayment) {
+        rows.push([
+          String(termNum),
+          title,
+          body,
+          {
+            content: 'Transportation',
+            styles: {
+              fontStyle: 'bold' as const,
+              valign: 'middle' as const,
+              halign: 'left' as const,
+              cellPadding: transportPad,
+            },
+          },
+          {
+            content: transportLabel,
+            styles: {
+              valign: 'middle' as const,
+              halign: 'center' as const,
+              cellPadding: transportPad,
+            },
+          },
+        ]);
+        continue;
+      }
+
+      if (/^taxes$/i.test(title)) {
+        rows.push([String(termNum), title, body, '', this.formatMoney(0)]);
+        rows.push(['', '', '', `Add. : GST @ ${gstPercent}%`, this.formatMoney(taxTotal)]);
+        gstRowAdded = true;
+        continue;
+      }
+
+      if (/payment terms/i.test(title)) {
+        rows.push([
+          String(termNum),
+          title,
+          body,
+          { content: 'Total Amount (Rs):', styles: { fontStyle: 'bold' as const } },
+          {
+            content: this.formatMoney(grandTotal),
+            styles: { fontStyle: 'bold' as const, halign: 'right' as const },
+          },
+        ]);
+        grandTotalRowAdded = true;
+        continue;
+      }
+
+      if (/^transportation$/i.test(title) && company.signatureEntity) {
+        rows.push([
+          String(termNum),
+          title,
+          body,
+          {
+            content: `For ${company.signatureEntity}`,
+            colSpan: 2,
+            styles: { fontStyle: 'bold' as const, halign: 'center' as const, valign: 'middle' as const },
+          },
+        ]);
+        continue;
+      }
+
+      rows.push([String(termNum), title, body, '', '']);
+    }
+
+    this.appendMissingTotalsRows(rows, taxTotal, grandTotal, gstPercent, gstRowAdded, grandTotalRowAdded);
+    return rows;
+  }
+
+  /** GST and grand total align with "Taxes" / "Payment Terms" when present; otherwise append after terms. */
+  private appendMissingTotalsRows(
+    rows: RowInput[],
+    taxTotal: number,
+    grandTotal: number,
+    gstPercent: number,
+    gstRowAdded: boolean,
+    grandTotalRowAdded: boolean,
+  ): void {
+    if (!gstRowAdded && (taxTotal > 0 || gstPercent > 0)) {
+      const label = gstPercent > 0 ? `GST @ ${gstPercent}%` : 'GST';
+      rows.push([
+        { content: '', colSpan: 3 },
+        label,
+        { content: this.formatMoney(taxTotal), styles: { halign: 'right' as const } },
+      ]);
+    }
+    if (!grandTotalRowAdded && grandTotal > 0) {
+      rows.push([
+        { content: '', colSpan: 3 },
+        { content: 'Grand total:', styles: { fontStyle: 'bold' as const } },
+        {
+          content: this.formatMoney(grandTotal),
+          styles: { fontStyle: 'bold' as const, halign: 'right' as const },
+        },
+      ]);
+    }
+  }
+
+  private resolveTermsWithBank(company: QuotationPdfCompanyConfig): { title: string; body: string }[] {
+    const terms = company.terms.map((t) => ({ title: t.title, body: t.body }));
+    const bankBlock = this.formatBankForOrderPayment(company);
+    if (!bankBlock && !company.signatureEntity) return terms;
+
+    const orderIdx = terms.findIndex((t) => /order\s*&\s*payment|order and payment/i.test(t.title));
+    const favorLine = company.signatureEntity ? `In favor of "${company.signatureEntity}"` : '';
+
+    if (orderIdx >= 0) {
+      const body = terms[orderIdx].body.trim();
+      const parts: string[] = [];
+      if (favorLine && !/in favor of/i.test(body)) parts.push(favorLine);
+      if (body) parts.push(body);
+      if (bankBlock && !/bank details|a\/c no|ifsc/i.test(body)) parts.push(bankBlock);
+      terms[orderIdx].body = parts.join('\n');
+      return terms;
+    }
+
+    if (bankBlock || favorLine) {
+      terms.unshift({
+        title: 'Order & Payment',
+        body: [favorLine, bankBlock].filter(Boolean).join('\n'),
+      });
+    }
+    return terms;
+  }
+
+  private formatBankForOrderPayment(company: QuotationPdfCompanyConfig): string {
+    const lines: string[] = [];
+    if (company.bankName?.trim()) lines.push(`Bank Details : ${company.bankName.trim()}`);
+    if (company.accountNumber?.trim()) lines.push(`A/c No. ${company.accountNumber.trim()}`);
+    if (company.ifscCode?.trim()) lines.push(`IFSC : ${company.ifscCode.trim()}`);
+    if (company.branchName?.trim()) lines.push(`Branch: ${company.branchName.trim()}`);
+    return lines.join('\n');
+  }
+
+  /** Preserve textarea line breaks; wrap each paragraph to the intro cell width. */
+  private wrapBusinessLineForCell(
+    doc: jsPDF,
+    text: string,
+    maxWidthMm: number,
+    fontSize: number,
+  ): string {
+    const normalized = text.replace(/^(Dear\s+[^,\n]+,)\s+(?=\S)/i, '$1\n\n');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(fontSize);
+    const lines: string[] = [];
+    for (const part of normalized.split(/\r?\n/)) {
+      if (!part.trim()) {
+        lines.push('');
+        continue;
+      }
+      lines.push(...(doc.splitTextToSize(part.trim(), maxWidthMm) as string[]));
+    }
+    while (lines.length && lines[lines.length - 1] === '') lines.pop();
+    return lines.join('\n');
+  }
+
+  private formatTermBody(body: string): string {
+    const text = body?.trim() ?? '';
+    if (!text) return '';
+    const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+    if (!lines.length) return '';
+    const first = lines[0];
+    const formattedFirst = first.startsWith(':') ? first : `: ${first}`;
+    if (lines.length === 1) return formattedFirst;
+    return [formattedFirst, ...lines.slice(1)].join('\n');
+  }
+
+  /** Downscale large logos for PDF only; falls back to the original when optimization is skipped or fails. */
+  private async withPdfOptimizedLogo(
+    company: QuotationPdfCompanyConfig,
+  ): Promise<QuotationPdfCompanyConfig> {
+    const base64 = company.logoBase64?.trim();
+    const contentType = company.logoContentType?.trim();
+    if (!base64 || !contentType || !this.logoImageFormat(contentType)) {
+      return company;
+    }
+
+    const prepared = await this.prepareLogoForPdf(base64, contentType, QUOTATION_PDF_LAYOUT.logoMaxPx);
+    if (!prepared) {
+      return company;
+    }
+
+    return {
+      ...company,
+      logoBase64: prepared.base64,
+      logoContentType: prepared.contentType,
+      logoPixelWidth: prepared.width,
+      logoPixelHeight: prepared.height,
+    };
+  }
+
+  private prepareLogoForPdf(
+    base64: string,
+    contentType: string,
+    maxPx: number,
+  ): Promise<{ base64: string; contentType: string; width: number; height: number } | null> {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        if (!img.width || !img.height) {
+          resolve(null);
+          return;
+        }
+
+        const longest = Math.max(img.width, img.height);
+        const scale = longest > maxPx ? maxPx / longest : 1;
+        const w = Math.max(1, Math.round(img.width * scale));
+        const h = Math.max(1, Math.round(img.height * scale));
+
+        if (scale >= 1) {
+          resolve({ base64, contentType, width: img.width, height: img.height });
+          return;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          resolve({ base64, contentType, width: img.width, height: img.height });
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, w, h);
+
+        const isPng = contentType.toLowerCase().includes('png');
+        const dataUrl = isPng ? canvas.toDataURL('image/png') : canvas.toDataURL('image/jpeg', 0.85);
+        const comma = dataUrl.indexOf(',');
+        if (comma < 0) {
+          resolve({ base64, contentType, width: img.width, height: img.height });
+          return;
+        }
+
+        resolve({
+          base64: dataUrl.slice(comma + 1),
+          contentType: isPng ? 'image/png' : 'image/jpeg',
+          width: w,
+          height: h,
+        });
+      };
+      img.onerror = () => resolve(null);
+      img.src = `data:${contentType};base64,${base64}`;
+    });
+  }
+
+  private logoImageFormat(contentType: string | undefined): 'PNG' | 'JPEG' | 'WEBP' | '' {
+    const t = contentType?.trim().toLowerCase() ?? '';
+    if (t.includes('png')) return 'PNG';
+    if (t.includes('jpeg') || t.includes('jpg')) return 'JPEG';
+    if (t.includes('webp')) return 'WEBP';
+    return '';
   }
 
   private unwrapRecord(body: unknown): Record<string, unknown> {

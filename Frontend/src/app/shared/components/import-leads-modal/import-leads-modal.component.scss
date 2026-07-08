@@ -1,3 +1,8 @@
+:host {
+  display: block;
+  min-width: 0;
+}
+
 .import-leads-modal__intro {
   margin: 0 0 1rem;
   font-size: 0.875rem;
@@ -227,6 +232,8 @@
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.65rem;
   margin: 0.65rem 0 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .import-leads-modal__stat {
@@ -273,6 +280,8 @@
 
 .import-leads-modal__preview {
   margin-top: 1.25rem;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .import-leads-modal__preview-head {
@@ -299,10 +308,14 @@
 }
 
 .import-leads-modal__table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow: auto;
   max-height: min(42vh, 360px);
   border: 1px solid var(--card-border, #e2e8f0);
   border-radius: var(--radius-sm, 8px);
+  -webkit-overflow-scrolling: touch;
 }
 
 .import-leads-modal__table {
@@ -310,6 +323,7 @@
   min-width: 100%;
   border-collapse: collapse;
   font-size: 0.8125rem;
+  table-layout: auto;
 }
 
 .import-leads-modal__th,

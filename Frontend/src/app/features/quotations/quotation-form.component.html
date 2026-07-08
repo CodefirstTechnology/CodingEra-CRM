@@ -27,37 +27,30 @@
         <h2 class="qt-form__section-title">Personal information</h2>
         <div class="qt-form__grid qt-form__grid--3">
           <label class="qt-form__field">
-            <span class="qt-form__label">Salutation</span>
-            <select class="qt-form__control" formControlName="salutation">
-              <option value="">— Select —</option>
-              @for (opt of dealMaster.salutationSelectOptions(); track opt.id + opt.name) {
-                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-              }
-            </select>
-          </label>
-          <label class="qt-form__field">
-            <span class="qt-form__label">First name <span class="qt-form__req">*</span></span>
-            <input class="qt-form__control" formControlName="firstName" autocomplete="given-name" />
-            @if (fieldInvalid('firstName')) {
-              <span class="qt-form__err">First name is required.</span>
+            <span class="qt-form__label">Full name <span class="qt-form__req">*</span></span>
+            <input class="qt-form__control" formControlName="fullName" autocomplete="name" />
+            @if (fieldInvalid('fullName')) {
+              <span class="qt-form__err">Full name is required.</span>
             }
           </label>
-          <label class="qt-form__field">
-            <span class="qt-form__label">Last name <span class="qt-form__req">*</span></span>
-            <input class="qt-form__control" formControlName="lastName" autocomplete="family-name" />
-            @if (fieldInvalid('lastName')) {
-              <span class="qt-form__err">Last name is required.</span>
-            }
-          </label>
-          <label class="qt-form__field">
+          <div class="qt-form__field">
             <span class="qt-form__label">Mobile no.</span>
-            <input class="qt-form__control" type="tel" formControlName="mobileNumber" autocomplete="tel" />
-          </label>
+            <div class="crm-intl-tel-field">
+              <intl-tel-input
+                formControlName="mobileNumber"
+                [initOptions]="intlTelInitOptions"
+                [inputProps]="intlTelMobileInputProps"
+              />
+            </div>
+            @if (fieldInvalid('mobileNumber')) {
+              <span class="qt-form__err">{{ intlTelMobileError(form.get('mobileNumber')?.errors) }}</span>
+            }
+          </div>
           <label class="qt-form__field">
-            <span class="qt-form__label">Email <span class="qt-form__req">*</span></span>
+            <span class="qt-form__label">Email</span>
             <input type="email" class="qt-form__control" formControlName="emailAddress" autocomplete="email" />
-            @if (fieldInvalid('emailAddress')) {
-              <span class="qt-form__err">A valid email address is required.</span>
+            @if (fieldInvalid('emailAddress') && form.get('emailAddress')?.errors?.['email']) {
+              <span class="qt-form__err">Use a valid email address.</span>
             }
           </label>
           <label class="qt-form__field">
@@ -143,24 +136,11 @@
       <hr class="qt-form__rule" />
 
       <section class="qt-form__section quotations-card" aria-label="Quotation details">
-        <div class="qt-form__section-head">
-          <h2 class="qt-form__section-title">Quotation details</h2>
-          <button type="button" class="qt-form__btn qt-form__btn--outline qt-form__btn--sm" (click)="refreshQuotationNumber()">
-            Regenerate number
-          </button>
-        </div>
+        <h2 class="qt-form__section-title">Quotation details</h2>
         <div class="qt-form__grid qt-form__grid--3">
           <label class="qt-form__field">
             <span class="qt-form__label">Contact person</span>
             <input class="qt-form__control" formControlName="contactPerson" autocomplete="off" />
-          </label>
-          <label class="qt-form__field">
-            <span class="qt-form__label">Reference number</span>
-            <input class="qt-form__control" formControlName="referenceNumber" autocomplete="off" />
-          </label>
-          <label class="qt-form__field">
-            <span class="qt-form__label">Reference date</span>
-            <input type="date" class="qt-form__control" formControlName="referenceDate" />
           </label>
           <label class="qt-form__field">
             <span class="qt-form__label">Status</span>
@@ -175,24 +155,25 @@
             <input class="qt-form__control" formControlName="companyCode" placeholder="e.g. BCEPL" />
           </label> -->
           <label class="qt-form__field">
-            <span class="qt-form__label">Doc type</span>
-            <input class="qt-form__control" formControlName="documentTypeCode" />
-          </label>
-          <label class="qt-form__field">
             <span class="qt-form__label">Fiscal year</span>
             <input class="qt-form__control" formControlName="fiscalYearLabel" />
           </label>
           <label class="qt-form__field">
-            <span class="qt-form__label">Sequence</span>
-            <input type="number" class="qt-form__control" formControlName="sequenceNumber" />
-          </label>
-          <label class="qt-form__field">
             <span class="qt-form__label">Quotation number</span>
-            <input class="qt-form__control qt-form__control--mono" formControlName="quotationNumber" />
+            <input
+              class="qt-form__control qt-form__control--mono"
+              formControlName="quotationNumber"
+              readonly
+              aria-readonly="true"
+              tabindex="-1"
+            />
           </label>
           <label class="qt-form__field">
             <span class="qt-form__label">Quotation date <span class="qt-form__req">*</span></span>
             <input type="date" class="qt-form__control" formControlName="quotationDate" />
+            @if (fieldInvalid('quotationDate') && form.controls.quotationDate.errors?.['pastDate']) {
+              <span class="qt-form__err">Quotation date cannot be in the past.</span>
+            }
           </label>
           <label class="qt-form__field qt-form__field--full">
             <span class="qt-form__label">Office address</span>
@@ -209,7 +190,253 @@
         </div>
       </section>
 
-      <app-quotation-item-grid [lineItems]="lineItems" />
+      <app-quotation-item-grid
+        [lineItems]="lineItems"
+        [gstPercent]="form.controls.gstPercent.value"
+        [transportationCharges]="form.controls.transportationCharges"
+        [loadingCharges]="form.controls.loadingCharges"
+        [serviceCharges]="form.controls.serviceCharges"
+        [customCharges]="customCharges"
+        (gstPercentChange)="form.controls.gstPercent.setValue($event)"
+        (addCustomCharge)="addCustomCharge()"
+        (removeCustomCharge)="removeCustomCharge($event)"
+      />
+
+      @if (isTechnicalProposal()) {
+        <hr class="qt-form__rule" />
+
+        <section class="qt-form__section quotations-card" aria-label="Technical proposal details">
+          <h2 class="qt-form__section-title">Technical proposal details</h2>
+          <p class="qt-form__section-sub">
+            Project name is prefilled from the site address when available. Currency defaults to INR and can be changed per proposal.
+          </p>
+          <div class="qt-form__grid qt-form__grid--3">
+            <label class="qt-form__field">
+              <span class="qt-form__label">Project name</span>
+              <input class="qt-form__control" formControlName="projectName" />
+            </label>
+            <label class="qt-form__field">
+              <span class="qt-form__label">Kind attn. designation</span>
+              <input class="qt-form__control" formControlName="kindAttnDesignation" placeholder="e.g. Manager – Projects" />
+            </label>
+            <label class="qt-form__field">
+              <span class="qt-form__label">Currency</span>
+              <select class="qt-form__control" formControlName="currencyCode">
+                @for (code of currencyOptions; track code) {
+                  <option [value]="code">{{ code }}</option>
+                }
+              </select>
+            </label>
+            <label class="qt-form__field">
+              <span class="qt-form__label">Commercial terms</span>
+              <input class="qt-form__control" formControlName="commercialTerms" placeholder="e.g. As mentioned in offer" />
+            </label>
+            <label class="qt-form__field">
+              <span class="qt-form__label">Tax</span>
+              <input class="qt-form__control" formControlName="taxLabel" placeholder="e.g. Exempted" />
+            </label>
+            <label class="qt-form__field">
+              <span class="qt-form__label">Payment terms</span>
+              <input class="qt-form__control" formControlName="paymentTerms" placeholder="e.g. 100% Advance" />
+            </label>
+            <label class="qt-form__field">
+              <span class="qt-form__label">HSN code</span>
+              <input class="qt-form__control" formControlName="hsnCode" />
+            </label>
+            <label class="qt-form__field">
+              <span class="qt-form__label">Incoterms</span>
+              <input class="qt-form__control" formControlName="incoterms" placeholder="e.g. Ex-factory" />
+            </label>
+            <label class="qt-form__field">
+              <span class="qt-form__label">Dispatch lead time</span>
+              <input class="qt-form__control" formControlName="dispatchLeadTime" placeholder="e.g. 3 - 5 weeks" />
+            </label>
+            <label class="qt-form__field qt-form__field--full">
+              <span class="qt-form__label">Proposal introduction</span>
+              <textarea class="qt-form__control qt-form__control--area" rows="3" formControlName="proposalIntro"></textarea>
+            </label>
+          </div>
+
+          <div class="qt-form__terms" formArrayName="technicalSections">
+            <div class="qt-form__terms-head">
+              <h3 class="qt-form__terms-title">Technical sections</h3>
+              <button type="button" class="qt-form__btn qt-form__btn--outline qt-form__btn--sm" (click)="addTechnicalSection()">
+                + Add section
+              </button>
+            </div>
+            <div class="qt-form__terms-scroll">
+              <table class="qt-form__lines-table qt-form__terms-table">
+                <thead>
+                  <tr>
+                    <th class="qt-form__lines-th qt-form__lines-th--idx" scope="col">#</th>
+                    <th class="qt-form__lines-th qt-form__terms-th--title" scope="col">Title</th>
+                    <th class="qt-form__lines-th" scope="col">Content</th>
+                    <th class="qt-form__lines-th qt-form__lines-th--act" scope="col"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (term of technicalSectionsArray().controls; track $index; let i = $index) {
+                    <tr [formGroupName]="i">
+                      <td class="qt-form__lines-td qt-form__lines-td--idx">{{ i + 1 }}</td>
+                      <td class="qt-form__lines-td qt-form__terms-td--title">
+                        <input type="text" class="qt-form__control qt-form__control--compact" formControlName="title" />
+                      </td>
+                      <td class="qt-form__lines-td">
+                        <textarea class="qt-form__control qt-form__control--compact qt-form__terms-content" rows="2" formControlName="body"></textarea>
+                      </td>
+                      <td class="qt-form__lines-td qt-form__lines-td--act">
+                        @if (technicalSectionsArray().length > 1) {
+                          <button type="button" class="qt-form__line-remove" (click)="removeTechnicalSection(i)" aria-label="Remove section">×</button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="qt-form__terms" formArrayName="commercialSections">
+            <div class="qt-form__terms-head">
+              <h3 class="qt-form__terms-title">Commercial &amp; legal sections</h3>
+              <button type="button" class="qt-form__btn qt-form__btn--outline qt-form__btn--sm" (click)="addCommercialSection()">
+                + Add section
+              </button>
+            </div>
+            <div class="qt-form__terms-scroll">
+              <table class="qt-form__lines-table qt-form__terms-table">
+                <thead>
+                  <tr>
+                    <th class="qt-form__lines-th qt-form__lines-th--idx" scope="col">#</th>
+                    <th class="qt-form__lines-th qt-form__terms-th--title" scope="col">Title</th>
+                    <th class="qt-form__lines-th" scope="col">Content</th>
+                    <th class="qt-form__lines-th qt-form__lines-th--act" scope="col"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (term of commercialSectionsArray().controls; track $index; let i = $index) {
+                    <tr [formGroupName]="i">
+                      <td class="qt-form__lines-td qt-form__lines-td--idx">{{ i + 1 }}</td>
+                      <td class="qt-form__lines-td qt-form__terms-td--title">
+                        <input type="text" class="qt-form__control qt-form__control--compact" formControlName="title" />
+                      </td>
+                      <td class="qt-form__lines-td">
+                        <textarea class="qt-form__control qt-form__control--compact qt-form__terms-content" rows="2" formControlName="body"></textarea>
+                      </td>
+                      <td class="qt-form__lines-td qt-form__lines-td--act">
+                        @if (commercialSectionsArray().length > 1) {
+                          <button type="button" class="qt-form__line-remove" (click)="removeCommercialSection(i)" aria-label="Remove section">×</button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      }
+
+      @if (!isTechnicalProposal()) {
+      <hr class="qt-form__rule" />
+
+      <section class="qt-form__section quotations-card" aria-label="Terms and conditions">
+        <div class="qt-form__section-head">
+          <div>
+            <h2 class="qt-form__section-title">Terms &amp; conditions</h2>
+            @if (termsEditable()) {
+              <p class="qt-form__section-sub">
+                Customize terms for this quotation only. Company Profile defaults are not changed.
+              </p>
+            }
+          </div>
+          <label class="qt-form__toggle">
+            <input
+              type="checkbox"
+              formControlName="customizeTerms"
+              (change)="onCustomizeTermsChange()"
+            />
+            <span>Edit Terms &amp; Conditions for this Quotation</span>
+          </label>
+        </div>
+
+        @if (termsEditable()) {
+          <div class="qt-form__grid">
+            <label class="qt-form__field qt-form__field--full">
+              <span class="qt-form__label">Quotation business line</span>
+              <textarea
+                class="qt-form__control qt-form__control--area"
+                rows="3"
+                formControlName="businessLine"
+                placeholder="Shown below the Quotation heading in PDF"
+              ></textarea>
+            </label>
+            <label class="qt-form__field">
+              <span class="qt-form__label">Transportation label</span>
+              <input type="text" class="qt-form__control" formControlName="transportationLabel" />
+            </label>
+            <label class="qt-form__field">
+              <span class="qt-form__label">Jurisdiction note</span>
+              <input type="text" class="qt-form__control" formControlName="jurisdiction" />
+            </label>
+          </div>
+
+          <div class="qt-form__terms" formArrayName="terms">
+            <div class="qt-form__terms-head">
+              <h3 class="qt-form__terms-title">Terms list</h3>
+              <button type="button" class="qt-form__btn qt-form__btn--outline qt-form__btn--sm" (click)="addTerm()">
+                + Add term
+              </button>
+            </div>
+            <div class="qt-form__terms-scroll">
+              <table class="qt-form__lines-table qt-form__terms-table">
+                <thead>
+                  <tr>
+                    <th class="qt-form__lines-th qt-form__lines-th--idx" scope="col">#</th>
+                    <th class="qt-form__lines-th qt-form__terms-th--title" scope="col">Title</th>
+                    <th class="qt-form__lines-th" scope="col">Content</th>
+                    <th class="qt-form__lines-th qt-form__lines-th--act" scope="col"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  @for (term of termsArray().controls; track $index; let i = $index) {
+                    <tr [formGroupName]="i">
+                      <td class="qt-form__lines-td qt-form__lines-td--idx">{{ i + 1 }}</td>
+                      <td class="qt-form__lines-td qt-form__terms-td--title">
+                        <input
+                          type="text"
+                          class="qt-form__control qt-form__control--compact"
+                          formControlName="title"
+                        />
+                      </td>
+                      <td class="qt-form__lines-td">
+                        <textarea
+                          class="qt-form__control qt-form__control--compact qt-form__terms-content"
+                          rows="1"
+                          formControlName="body"
+                        ></textarea>
+                      </td>
+                      <td class="qt-form__lines-td qt-form__lines-td--act">
+                        @if (termsArray().length > 1) {
+                          <button
+                            type="button"
+                            class="qt-form__line-remove"
+                            (click)="removeTerm(i)"
+                            aria-label="Remove term"
+                          >
+                            ×
+                          </button>
+                        }
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          </div>
+        }
+      </section>
+      }
     </form>
   }
 

@@ -1,12 +1,12 @@
 .deals {
-  /* Deals list — text colors aligned with dashboard reference */
-  --deals-text-primary: #1f2937;
-  --deals-text-secondary: #6b7280;
-  --deals-action-blue: #2563eb;
+  --deals-text-primary: var(--text-primary);
+  --deals-text-secondary: var(--text-muted);
+  --deals-action-blue: var(--tertiary-color);
 
   max-width: 1280px;
   margin: 0 auto;
   padding-bottom: 2rem;
+  color: var(--text-primary);
 }
 
 .deals__head {
@@ -23,30 +23,6 @@
   align-items: center;
   gap: 0.75rem;
   flex-wrap: wrap;
-}
-
-.deals__view-toggle {
-  display: inline-flex;
-  padding: 0.2rem;
-  border: 1px solid var(--card-border);
-  border-radius: var(--radius-sm);
-  background: #fff;
-}
-
-.deals__view-btn {
-  border: 0;
-  background: transparent;
-  color: var(--deals-text-secondary);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  padding: 0.4rem 0.75rem;
-  border-radius: calc(var(--radius-sm) - 2px);
-  cursor: pointer;
-}
-
-.deals__view-btn.is-active {
-  background: color-mix(in srgb, var(--tertiary-color) 12%, #fff);
-  color: var(--tertiary-color);
 }
 
 .deals__title {
@@ -110,6 +86,7 @@
   border-radius: var(--radius-sm);
   border: 1px solid var(--card-border);
   color: var(--deals-text-secondary);
+  background: var(--surface);
 }
 
 .deals__filter-selects {
@@ -291,7 +268,7 @@
 }
 
 .deals__thead-row {
-  background: color-mix(in srgb, var(--text-muted) 8%, var(--body-bg));
+  background: color-mix(in srgb, var(--text-muted) 10%, var(--surface));
 }
 
 .deals__th {
@@ -375,21 +352,21 @@
   min-width: 10rem;
   max-width: 16rem;
   padding: 0.35rem 0.5rem;
-  border: 1px solid var(--deals-border, #e5e7eb);
+  border: 1px solid var(--card-border);
   border-radius: 6px;
   font-size: inherit;
   font-family: inherit;
   color: var(--deals-text-primary);
-  background: #fff;
+  background: var(--surface);
 
   &:hover {
-    border-color: #cbd5e1;
+    border-color: color-mix(in srgb, var(--text-muted) 45%, var(--card-border));
   }
 
   &:focus {
     outline: none;
-    border-color: var(--deals-action-blue, #2563eb);
-    box-shadow: 0 0 0 2px rgb(37 99 235 / 0.15);
+    border-color: var(--deals-action-blue);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--tertiary-color) 22%, transparent);
   }
 }
 
@@ -407,8 +384,8 @@
   place-items: center;
   font-size: 0.65rem;
   font-weight: 800;
-  background: #e5e7eb;
-  color: #374151;
+  background: color-mix(in srgb, var(--text-muted) 18%, var(--surface));
+  color: var(--text-primary);
   flex-shrink: 0;
 }
 
@@ -432,29 +409,29 @@
 }
 
 .deals__tag--ok {
-  background: #dcfce7;
+  background: color-mix(in srgb, #22c55e 18%, var(--surface));
   color: #15803d;
 }
 
 .deals__tag--accent {
-  background: #dbeafe;
-  color: #2563eb;
+  background: color-mix(in srgb, var(--tertiary-color) 16%, var(--surface));
+  color: var(--tertiary-color);
 }
 
 .deals__tag--bad {
-  background: #fee2e2;
+  background: color-mix(in srgb, #ef4444 16%, var(--surface));
   color: #b91c1c;
 }
 
 .deals__tag--demo {
-  background: #fff7ed;
+  background: color-mix(in srgb, #f97316 14%, var(--surface));
   color: #c2410c;
-  box-shadow: inset 0 0 0 1px #fb923c;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #fb923c 35%, transparent);
 }
 
 .deals__tag--muted {
-  background: #f3f4f6;
-  color: #4b5563;
+  background: color-mix(in srgb, var(--text-muted) 14%, var(--surface));
+  color: var(--text-primary);
 }
 
 /* —— Create deal modal (aligned with leads modal) —— */

@@ -13,6 +13,7 @@ import { maskEmail, writeLoginLog } from './login-log';
 import {
   buildSessionFromApiRecord,
   homeUrlForRoleId,
+  readRoleDisplayNameFromApiRecord,
   readRoleIdFromJwt,
   readUsersTableRoleId,
   roleIdFromSession,
@@ -21,6 +22,7 @@ import {
   sessionRoleLabel,
   unwrapApiRecord,
 } from './auth-role.util';
+import { parsePermissionsFromApi } from './permission.util';
 import type { RegisterApiRequest, RegisterPayload, UserSession } from './auth.models';
 import { SKIP_USER_ID_QUERY } from '../http/skip-user-id-query.context';
 
@@ -151,6 +153,10 @@ export class AuthService {
       const normalized = this.normalizeStoredSession(user);
       this._user.set(normalized);
       localStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized));
+      if (!(normalized.permissions?.length)) {
+        this.refreshSessionPermissions();
+      }
+      this.refreshSessionProfile();
       writeLoginLog('session_restored', {
         maskedEmail: maskEmail(user.email),
         userId: user.id,
@@ -203,9 +209,12 @@ export class AuthService {
             return of({ ok: false as const, error: 'No token in response.' });
           }
 
+          const loginRoot = unwrapApiRecord(res);
           const u = res.user;
-          const rawUserId = u?.['id'] ?? res.userId;
-          const emailResolved = String(u?.['email'] ?? trimmed);
+          const rawUserId = u?.['id'] ?? res.userId ?? loginRoot['id'] ?? loginRoot['Id'];
+          const emailResolved = String(
+            u?.['email'] ?? loginRoot['email'] ?? loginRoot['Email'] ?? trimmed,
+          );
           const numericFromLogin = pickNumericFromLoginResponse(res);
           const serverUserId =
             pickNumericDbUserId(rawUserId) ??
@@ -219,13 +228,30 @@ export class AuthService {
                 pickNumericDbUserId(serverUserId) ??
                 numericFromLogin;
 
+              const resRecord = res as Record<string, unknown>;
+              const perms = parsePermissionsFromApi(
+                profile?.['permissions'] ??
+                  profile?.['Permissions'] ??
+                  resRecord['permissions'] ??
+                  resRecord['Permissions'],
+              );
+
+              const roleName =
+                readRoleDisplayNameFromApiRecord(profile ?? {}) ??
+                readRoleDisplayNameFromApiRecord(loginRoot) ??
+                (u && typeof u === 'object'
+                  ? readRoleDisplayNameFromApiRecord(u as Record<string, unknown>)
+                  : null);
+
               const loginPayload: Record<string, unknown> = {
+                ...loginRoot,
                 ...(u && typeof u === 'object' ? u : {}),
                 ...(profile ?? {}),
                 ...(numericUserId ? { id: numericUserId } : {}),
                 email: emailResolved,
                 role_id: roleId,
                 roleId,
+                permissions: perms,
               };
 
               const session =
@@ -236,8 +262,9 @@ export class AuthService {
                   name: String(
                     u?.['name'] ?? u?.['fullName'] ?? profile?.['fullName'] ?? this.displayNameFromEmail(trimmed),
                   ),
-                  role: sessionRoleLabel(roleId),
+                  role: sessionRoleLabel(roleId, roleName),
                   roleId,
+                  permissions: perms.length ? perms : undefined,
                 } satisfies UserSession);
 
               if (numericUserId) {
@@ -245,8 +272,10 @@ export class AuthService {
               }
 
               session.roleId = roleId;
-              session.role = sessionRoleLabel(roleId);
+              session.role = sessionRoleLabel(roleId, roleName);
+              if (perms.length) session.permissions = perms;
               this.setSession(token, session);
+              this.refreshSessionProfile();
 
               const redirectTo = homeUrlForRoleId(roleId);
               writeLoginLog('login_success', {
@@ -521,8 +550,9 @@ export class AuthService {
       return of({ roleId, profile: loginRes.user ?? null });
     }
 
+    const params = new HttpParams().set('userId', userId);
     return this.http
-      .get<unknown>(`${base}/auth/users/${encodeURIComponent(userId)}`, { headers })
+      .get<unknown>(`${base}/auth/users/${encodeURIComponent(userId)}`, { headers, params })
       .pipe(
         timeout(15000),
         switchMap((body) => {
@@ -598,8 +628,83 @@ export class AuthService {
     return {
       ...user,
       roleId,
-      role: sessionRoleLabel(roleId),
+      role: sessionRoleLabel(roleId, user.role),
     };
+  }
+
+  /** Syncs display name from GET /auth/users/{id} (fixes stale email-derived names in session). */
+  refreshSessionProfile(): void {
+    const token = this._token();
+    const user = this._user();
+    const base = environment.apiUrl?.replace(/\/$/, '');
+    const id = user?.id?.trim();
+    if (!token || !user || !base || !pickNumericDbUserId(id)) return;
+
+    const headers = new HttpHeaders({ Authorization: `Bearer ${token}` });
+    const params = new HttpParams().set('userId', id!);
+    this.http
+      .get<unknown>(`${base}/auth/users/${encodeURIComponent(id!)}`, { headers, params })
+      .subscribe({
+        next: (body) => {
+          const profile = unwrapApiRecord(body);
+          const rebuilt =
+            buildSessionFromApiRecord(
+              {
+                ...profile,
+                id,
+                email: user.email,
+                permissions: user.permissions,
+              },
+              user.email,
+            ) ?? null;
+          if (!rebuilt) return;
+
+          const updated: UserSession = { ...user };
+          let changed = false;
+
+          const name = rebuilt.name?.trim();
+          if (name && name !== user.name?.trim()) {
+            updated.name = name;
+            changed = true;
+          }
+
+          const role = rebuilt.role?.trim();
+          if (role && role !== user.role?.trim()) {
+            updated.role = role;
+            changed = true;
+          }
+
+          if (rebuilt.roleId != null && rebuilt.roleId !== user.roleId) {
+            updated.roleId = rebuilt.roleId;
+            changed = true;
+          }
+
+          if (!changed) return;
+          this._user.set(updated);
+          localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
+        },
+        error: () => {},
+      });
+  }
+
+  /** Loads effective permissions from API and updates the stored session. */
+  refreshSessionPermissions(): void {
+    const token = this._token();
+    const user = this._user();
+    const base = environment.apiUrl?.replace(/\/$/, '');
+    if (!token || !user?.id || !base || !pickNumericDbUserId(user.id)) return;
+
+    const headers = new HttpHeaders({ Authorization: `Bearer ${token}` });
+    this.http.get<unknown>(`${base}/rbac/me/permissions`, { headers }).subscribe({
+      next: (body) => {
+        const perms = parsePermissionsFromApi(body);
+        if (!perms.length) return;
+        const updated: UserSession = { ...user, permissions: perms };
+        this._user.set(updated);
+        localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
+      },
+      error: () => {},
+    });
   }
 
   private displayNameFromEmail(email: string): string {

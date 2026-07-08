@@ -7,16 +7,6 @@
     <button type="button" class="org__btn org__btn--solid" (click)="openForm()">+ New organization</button>
   </header>
 
-  <app-crm-selection-bar
-    [selectionCount]="sel.selectedCount()"
-    [canEdit]="sel.selectedCount() === 1"
-    [showAssignActions]="false"
-    [showConvertLead]="false"
-    (edit)="onBulkEdit()"
-    (delete)="onBulkDelete()"
-    (dismiss)="onBulkDismiss()"
-  />
-
   @if (formOpen()) {
     <div class="org__modal-root" aria-modal="true" role="dialog" aria-labelledby="create-org-title">
       <div class="org__modal-backdrop" (click)="closeForm()"></div>
@@ -121,20 +111,74 @@
     </div>
   }
 
+  <div class="org__toolbar card">
+    <label class="org__search">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="8" />
+        <path d="m21 21-4.3-4.3" />
+      </svg>
+      <input
+        type="search"
+        class="org__input"
+        placeholder="Search name, website, industry, territory, revenue…"
+        [value]="searchQuery()"
+        (input)="onSearchInput($event)"
+      />
+      @if (searchQuery()) {
+        <button type="button" class="org__clear" (click)="clearSearch()" aria-label="Clear search">×</button>
+      }
+    </label>
+    <div class="org__filter-selects">
+      <label class="org__filter-field">
+        <select
+          class="org__filter-select org__filter-select--industry"
+          [value]="industryFilter()"
+          (change)="onIndustryFilterSelect($event)"
+        >
+          @for (opt of industryFilterOptions(); track opt.id) {
+            <option [value]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+      @if (territoryFilterOptions().length > 1) {
+        <label class="org__filter-field">
+          <select
+            class="org__filter-select org__filter-select--territory"
+            [value]="territoryFilter()"
+            (change)="onTerritoryFilterSelect($event)"
+          >
+            @for (opt of territoryFilterOptions(); track opt.id) {
+              <option [value]="opt.id">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+      }
+    </div>
+  </div>
+
   <div class="org__table-card card">
+    <div class="org__table-head">
+      <span class="org__count">
+        <strong>{{ filtered().length }}</strong>
+        @if (hasActiveFilters() && filtered().length !== rows().length) {
+          <span class="org__count-muted">of {{ rows().length }} organizations</span>
+        } @else {
+          <span class="org__count-muted">organizations</span>
+        }
+      </span>
+    </div>
     <div class="org__table-scroll">
+      @if (filtered().length === 0) {
+        <p class="org__empty">
+          No organizations match your filters.
+          @if (hasActiveFilters()) {
+            <button type="button" class="org__linkish org__linkish--inline" (click)="resetFilters()">Clear filters</button>
+          }
+        </p>
+      } @else {
       <table class="org__table">
         <thead>
           <tr class="org__thead-row">
-            <th class="org__th org__th--check">
-              <input
-                type="checkbox"
-                class="org__checkbox"
-                [checked]="allSelected()"
-                (change)="toggleSelectAll()"
-                aria-label="Select all organizations"
-              />
-            </th>
             <th class="org__th">Organization</th>
             <th class="org__th">Website</th>
             <th class="org__th">Industry</th>
@@ -142,17 +186,8 @@
           </tr>
         </thead>
         <tbody>
-          @for (row of rows(); track row.id) {
+          @for (row of tablePagination.paginatedItems(); track row.id) {
             <tr class="org__row">
-              <td class="org__td org__td--check">
-                <input
-                  type="checkbox"
-                  class="org__checkbox"
-                  [checked]="isRowSelected(row.id)"
-                  (change)="toggleRow(row.id, $event)"
-                  [attr.aria-label]="'Select ' + row.name"
-                />
-              </td>
               <td class="org__td org__td--strong">
                 <a class="org__name-link" [routerLink]="['/organizations', row.id]">{{ row.name }}</a>
               </td>
@@ -163,6 +198,17 @@
           }
         </tbody>
       </table>
+      }
     </div>
+    @if (filtered().length > 0) {
+      <app-crm-pagination-footer
+        ariaLabel="Organizations table pages"
+        [page]="tablePagination.page()"
+        [pageSize]="tablePagination.pageSize()"
+        [totalItems]="tablePagination.totalItems()"
+        (pageChange)="tablePagination.setPage($event)"
+        (pageSizeChange)="tablePagination.setPageSize($event)"
+      />
+    }
   </div>
 </div>

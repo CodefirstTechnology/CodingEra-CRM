@@ -1,0 +1,230 @@
+<div class="co-profile">
+  <header class="co-profile__hero">
+    <div class="co-profile__hero-copy">
+      <h2 class="co-profile__title">Company Profile</h2>
+      <p class="co-profile__sub">
+        Manage company details used on quotation PDFs — header, footer, bank details, terms, and signatory.
+      </p>
+    </div>
+
+    <aside class="co-profile__logo-card">
+      <div class="co-profile__logo-card-head">
+        <div>
+          <h3 class="co-profile__logo-title">Company logo</h3>
+          <p class="co-profile__logo-note">Shown in the sidebar, login page, and browser tab.</p>
+        </div>
+      </div>
+      <div class="co-profile__logo-stage">
+        @if (logoPreviewUrl(); as src) {
+          <img class="co-profile__logo-preview" [src]="src" alt="Company logo preview" />
+        } @else {
+          <div class="co-profile__logo-placeholder">
+            <span class="co-profile__logo-placeholder-icon" aria-hidden="true">◌</span>
+            <span>No logo uploaded</span>
+          </div>
+        }
+      </div>
+      @if (canEdit()) {
+        <div class="co-profile__logo-actions">
+          <label class="co-profile__upload-btn">
+            Upload logo
+            <input type="file" accept="image/png,image/jpeg,image/webp" (change)="onLogoSelected($event)" hidden />
+          </label>
+          @if (logoPreviewUrl()) {
+            <button type="button" class="co-profile__clear-btn" (click)="clearLogo()">Remove</button>
+          }
+        </div>
+      }
+    </aside>
+  </header>
+
+  @if (loading()) {
+    <p class="co-profile__hint">Loading company profile…</p>
+  }
+  @if (loadError(); as err) {
+    <p class="co-profile__err" role="alert">{{ err }}</p>
+  }
+
+  <form class="co-profile__form" [formGroup]="form" (ngSubmit)="submit()">
+    <section class="co-profile__card">
+      <header class="co-profile__card-head">
+        <h3 class="co-profile__section-title">Company identity</h3>
+        <p class="co-profile__section-sub">Legal and marketing names shown on documents.</p>
+      </header>
+      <div class="co-profile__grid">
+        <label class="co-profile__field">
+          <span>Brand name</span>
+          <input type="text" formControlName="brandName" placeholder="BUILDRICH" [readonly]="!canEdit()" />
+        </label>
+        <label class="co-profile__field co-profile__field--wide">
+          <span>Company name <span class="co-profile__req">*</span></span>
+          <input type="text" formControlName="companyName" [readonly]="!canEdit()" />
+          @if (fieldInvalid('companyName')) {
+            <small class="co-profile__field-error">Company name is required.</small>
+          }
+        </label>
+        <label class="co-profile__field co-profile__field--wide">
+          <span>Header tagline</span>
+          <input
+            type="text"
+            formControlName="tagline"
+            placeholder="Shown below company name in quotation PDF header"
+            [readonly]="!canEdit()"
+          />
+        </label>
+      </div>
+    </section>
+
+    <section class="co-profile__card">
+      <header class="co-profile__card-head">
+        <h3 class="co-profile__section-title">Tax & registration</h3>
+      </header>
+      <div class="co-profile__grid">
+        <label class="co-profile__field">
+          <span>GSTIN</span>
+          <input type="text" formControlName="gstin" [readonly]="!canEdit()" />
+        </label>
+        <label class="co-profile__field">
+          <span>CIN number</span>
+          <input type="text" formControlName="cinNumber" [readonly]="!canEdit()" />
+        </label>
+      </div>
+    </section>
+
+    <section class="co-profile__card">
+      <header class="co-profile__card-head">
+        <h3 class="co-profile__section-title">Contact</h3>
+      </header>
+      <div class="co-profile__grid">
+        <label class="co-profile__field co-profile__field--full">
+          <span>Address</span>
+          <textarea rows="2" formControlName="address" [readonly]="!canEdit()"></textarea>
+        </label>
+        <label class="co-profile__field">
+          <span>Contact number</span>
+          <input type="tel" formControlName="contactNumber" [readonly]="!canEdit()" />
+        </label>
+        <label class="co-profile__field">
+          <span>Email</span>
+          <input type="text" formControlName="email" placeholder="info@example.com, sales@example.com" [readonly]="!canEdit()" />
+        </label>
+        <label class="co-profile__field">
+          <span>Website</span>
+          <input type="text" formControlName="website" [readonly]="!canEdit()" />
+        </label>
+      </div>
+    </section>
+
+    <section class="co-profile__card">
+      <header class="co-profile__card-head">
+        <h3 class="co-profile__section-title">Bank details</h3>
+      </header>
+      <div class="co-profile__grid">
+        <label class="co-profile__field">
+          <span>Bank name</span>
+          <input type="text" formControlName="bankName" [readonly]="!canEdit()" />
+        </label>
+        <label class="co-profile__field">
+          <span>Account number</span>
+          <input type="text" formControlName="accountNumber" [readonly]="!canEdit()" />
+        </label>
+        <label class="co-profile__field">
+          <span>IFSC code</span>
+          <input type="text" formControlName="ifscCode" [readonly]="!canEdit()" />
+        </label>
+        <label class="co-profile__field">
+          <span>Branch name</span>
+          <input type="text" formControlName="branchName" [readonly]="!canEdit()" />
+        </label>
+      </div>
+    </section>
+
+    <section class="co-profile__card">
+      <header class="co-profile__card-head">
+        <h3 class="co-profile__section-title">Quotation PDF content</h3>
+        <p class="co-profile__section-sub">Default text and terms included on generated quotation PDFs.</p>
+      </header>
+      <div class="co-profile__grid">
+        <label class="co-profile__field co-profile__field--full">
+          <span>Quotation business line</span>
+          <textarea
+            rows="3"
+            formControlName="businessLine"
+            placeholder="Shown below the Quotation heading in quotation PDF"
+            [readonly]="!canEdit()"
+          ></textarea>
+        </label>
+        <label class="co-profile__field">
+          <span>Transportation label</span>
+          <input type="text" formControlName="transportationLabel" [readonly]="!canEdit()" />
+        </label>
+        <label class="co-profile__field">
+          <span>Jurisdiction note</span>
+          <input type="text" formControlName="jurisdiction" [readonly]="!canEdit()" />
+        </label>
+        <label class="co-profile__field">
+          <span>Default GST %</span>
+          <input type="number" formControlName="defaultGstPercent" min="0" max="100" step="0.01" [readonly]="!canEdit()" />
+        </label>
+      </div>
+
+      <div class="co-profile__terms" formArrayName="terms">
+        <div class="co-profile__terms-head">
+          <h4>Terms &amp; conditions</h4>
+          @if (canEdit()) {
+            <button type="button" class="co-profile__add-term" (click)="addTerm()">+ Add term</button>
+          }
+        </div>
+        <div class="co-profile__terms-scroll">
+          <table class="co-profile__terms-table">
+            <thead>
+              <tr>
+                <th class="co-profile__terms-th co-profile__terms-th--idx" scope="col">#</th>
+                <th class="co-profile__terms-th co-profile__terms-th--title" scope="col">Title</th>
+                <th class="co-profile__terms-th" scope="col">Content</th>
+                @if (canEdit()) {
+                  <th class="co-profile__terms-th co-profile__terms-th--act" scope="col"></th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (term of termsArray().controls; track $index; let i = $index) {
+                <tr [formGroupName]="i">
+                  <td class="co-profile__terms-td co-profile__terms-td--idx">{{ i + 1 }}</td>
+                  <td class="co-profile__terms-td co-profile__terms-td--title">
+                    <input type="text" formControlName="title" [readonly]="!canEdit()" />
+                  </td>
+                  <td class="co-profile__terms-td">
+                    <textarea rows="1" formControlName="body" [readonly]="!canEdit()"></textarea>
+                  </td>
+                  @if (canEdit()) {
+                    <td class="co-profile__terms-td co-profile__terms-td--act">
+                      @if (termsArray().length > 1) {
+                        <button
+                          type="button"
+                          class="co-profile__remove-term"
+                          (click)="removeTerm(i)"
+                          aria-label="Remove term"
+                        >
+                          ×
+                        </button>
+                      }
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    @if (canEdit()) {
+      <footer class="co-profile__actions">
+        <button type="submit" class="co-profile__save-btn" [disabled]="saving() || loading()">
+          {{ saving() ? 'Saving…' : 'Save company profile' }}
+        </button>
+      </footer>
+    }
+  </form>
+</div>

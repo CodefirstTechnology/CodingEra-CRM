@@ -59,6 +59,9 @@ export interface LeadNormalized {
   territoryId: number | null;
   employeeCountId: number | null;
   industryId: number | null;
+  location: string;
+  /** ISO date from API (`lead_date` / `leadDate`). */
+  leadDate: string;
 }
 
 /** Body for `POST` / `PUT /api/leads` per Swagger `LeadUpsertDto`. */
@@ -80,6 +83,8 @@ export interface LeadUpsertDto {
   requirement?: string | null;
   leadOwnerId?: number | null;
   leadSource?: string | null;
+  location?: string | null;
+  leadDate?: string | null;
   createdAt?: string | null;
 }
 

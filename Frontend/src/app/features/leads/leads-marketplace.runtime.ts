@@ -1,4 +1,4 @@
-import { inject, Injector, runInInjectionContext, type Signal } from '@angular/core';
+import { Injector, type Signal } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import type { LeadRow } from './lead-row.model';
@@ -38,12 +38,12 @@ export function resetLeadsMarketplaceRuntimeForTests(): void {
  */
 export function loadLeadsMarketplaceRuntime(injector: Injector): Promise<LeadsMarketplaceRuntime> {
   if (!runtimePromise) {
-    runtimePromise = runInInjectionContext(injector, () => buildRuntime());
+    runtimePromise = buildRuntime(injector);
   }
   return runtimePromise;
 }
 
-async function buildRuntime(): Promise<LeadsMarketplaceRuntime> {
+async function buildRuntime(injector: Injector): Promise<LeadsMarketplaceRuntime> {
   const runtime: {
     indiamart?: MarketplaceIntegrationRuntime;
     justdial?: MarketplaceIntegrationRuntime;
@@ -55,7 +55,7 @@ async function buildRuntime(): Promise<LeadsMarketplaceRuntime> {
       import('../indiamartlead/indiamart-leads.service'),
       import('../indiamartlead/indiamart-lead.mapper'),
     ]);
-    const svc = inject(svcMod.IndiamartLeadsService);
+    const svc = injector.get(svcMod.IndiamartLeadsService);
     runtime.indiamart = {
       pullInProgress: svc.pullInProgress,
       loading: svc.pullInProgress,
@@ -70,7 +70,7 @@ async function buildRuntime(): Promise<LeadsMarketplaceRuntime> {
       import('../justdiallead/justdial-leads.service'),
       import('../justdiallead/justdial-lead.mapper'),
     ]);
-    const svc = inject(svcMod.JustdialLeadsService);
+    const svc = injector.get(svcMod.JustdialLeadsService);
     runtime.justdial = {
       pullInProgress: svc.loading,
       loading: svc.loading,
@@ -85,7 +85,7 @@ async function buildRuntime(): Promise<LeadsMarketplaceRuntime> {
       import('../tradeindialead/tradeindia-leads.service'),
       import('../tradeindialead/tradeindia-lead.mapper'),
     ]);
-    const svc = inject(svcMod.TradeIndiaLeadsService);
+    const svc = injector.get(svcMod.TradeIndiaLeadsService);
     runtime.tradeindia = {
       pullInProgress: svc.loading,
       loading: svc.loading,

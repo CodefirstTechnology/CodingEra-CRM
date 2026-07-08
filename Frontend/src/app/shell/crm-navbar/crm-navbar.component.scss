@@ -1,56 +1,43 @@
 .navbar {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 1rem;
-  padding: 0.75rem 1.5rem;
+  min-height: 4.5rem;
+  padding: 0.875rem 1.5rem;
   background: var(--primary-color);
   color: var(--navbar-text);
   border-bottom: 1px solid color-mix(in srgb, var(--navbar-text) 12%, transparent);
   transition: var(--transition-theme);
 }
 
-.navbar__left {
+.navbar__brand {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  min-width: 0;
-  flex-wrap: wrap;
+  justify-content: center;
+  max-width: min(280px, calc(100% - 12rem));
+  pointer-events: none;
 }
 
-.navbar__workspace {
-  font-size: 0.6875rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  padding: 0.25rem 0.5rem;
-  border-radius: 6px;
-  background: color-mix(in srgb, var(--tertiary-color) 16%, transparent);
-  color: var(--tertiary-color);
-  margin-right: 0.25rem;
-  transition: var(--transition-theme);
+.navbar__logo {
+  display: block;
+  max-width: 280px;
+  max-height: 64px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
 }
 
-.navbar__breadcrumb {
-  font-size: 0.875rem;
-  font-weight: 500;
-  opacity: 0.75;
-  align-self: baseline;
-}
-
-.navbar__slash {
-  opacity: 0.4;
-  font-size: 0.875rem;
-  align-self: baseline;
-}
-
-.navbar__page {
-  font-size: 1rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  align-self: baseline;
+.navbar__brand-text {
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+  text-align: center;
 }
 
 .navbar__notify {
@@ -148,7 +135,21 @@
 
 @media (max-width: 600px) {
   .navbar {
-    padding: 0.65rem 1rem;
+    min-height: 4rem;
+    padding: 0.75rem 1rem;
+  }
+
+  .navbar__brand {
+    max-width: min(200px, calc(100% - 10rem));
+  }
+
+  .navbar__logo {
+    max-width: 200px;
+    max-height: 48px;
+  }
+
+  .navbar__brand-text {
+    font-size: 1.125rem;
   }
 
   .btn--primary {

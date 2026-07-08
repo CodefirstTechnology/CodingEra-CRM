@@ -8,18 +8,38 @@ import {
   Validators,
 } from '@angular/forms';
 import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
-import { combineLatest, forkJoin, take } from 'rxjs';
+import { catchError, combineLatest, forkJoin, of, take } from 'rxjs';
+import { toDealPipelineRows } from '../../core/services/deals/deal-pipeline-config.util';
 import { DealMasterSelectService } from '../../core/services/deals/deal-master-select.service';
+import {
+  isQuotationGenerationBlockedForDeal,
+  QUOTATION_GENERATION_BLOCKED_MESSAGE,
+} from '../../core/services/deals/deal-stage-validation.util';
+import { DealsService } from '../../core/services/deals.service';
 import {
   masterOptionFormValue,
 } from '../../core/services/organizations/organization-master-select.util';
-import type { QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
+import type { CompanyProfileTerm } from '../../core/services/company-profile/company-profile-api.models';
+import { CompanyProfileHttpService } from '../../core/services/company-profile/company-profile-http.service';
+import type { QuotationTerm, QuotationUpsertDto } from '../../core/services/quotations/quotation-api.models';
 import { QUOTATION_STATUSES } from '../../core/services/quotations/quotation-api.models';
+import {
+  DEFAULT_QUOTATION_CURRENCY,
+  isTechnicalProposalTemplate,
+  parseQuotationTemplateFromQuery,
+  QuotationTemplateType,
+  QUOTATION_CURRENCY_OPTIONS,
+  type QuotationTemplateType as QuotationTemplateTypeValue,
+} from '../../core/services/quotations/quotation-template.constants';
 import { QuotationDealPrefillService } from '../../core/services/quotations/quotation-deal-prefill.service';
 import {
   aggregateQuotationLines,
   recalcLineGroupValues,
 } from '../../core/services/quotations/quotation-line-calc.util';
+import {
+  additionalChargesTotal,
+  normalizeChargeAmount,
+} from '../../core/services/quotations/quotation-additional-charges.util';
 import { QuotationsService, quotationHttpErrorMessage } from '../../core/services/quotations.service';
 import { ToastService } from '../../core/toast/toast.service';
 import {
@@ -34,9 +54,18 @@ import {
   normalizeGstin,
   syncGstinInputFromEvent,
 } from '../../shared/utils/gstin.util';
-import { gstFormValidators } from '../../shared/validators/crm-validators';
+import {
+  gstFormValidators,
+  notPastIsoDateValidator,
+  optionalEmailValidator,
+} from '../../shared/validators/crm-validators';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { QuotationItemGridComponent } from './quotation-item-grid/quotation-item-grid.component';
 import { createQuotationLineGroup, type QuotationLineFormValue } from './quotation-line-form.util';
+import { splitFullName } from '../leads/lead-full-name.util';
+import { formatQuotationNumber } from '../../core/services/quotations/quotation-next-number.util';
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -49,18 +78,29 @@ function parseDealIdFromQuery(qpm: ParamMap): number | null {
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
+interface QuotationTermsDefaults {
+  businessLine: string;
+  transportationLabel: string;
+  jurisdiction: string;
+  terms: QuotationTerm[];
+}
+
 @Component({
   selector: 'app-quotation-form',
-  imports: [ReactiveFormsModule, RouterLink, QuotationItemGridComponent],
+  imports: [ReactiveFormsModule, RouterLink, QuotationItemGridComponent, IntlTelInputComponent],
   templateUrl: './quotation-form.component.html',
   styleUrl: './quotation-form.component.scss',
 })
 export class QuotationFormComponent {
+  private initialQuotationDate: string | null = null;
+
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly fb = inject(FormBuilder);
   private readonly quotationsService = inject(QuotationsService);
   private readonly prefillService = inject(QuotationDealPrefillService);
+  private readonly dealsService = inject(DealsService);
+  private readonly companyProfileApi = inject(CompanyProfileHttpService);
   protected readonly dealMaster = inject(DealMasterSelectService);
   private readonly toast = inject(ToastService);
 
@@ -70,19 +110,32 @@ export class QuotationFormComponent {
   protected readonly saving = signal(false);
   protected readonly loading = signal(true);
   protected readonly editId = signal<number | null>(null);
+  protected readonly templateType = signal<QuotationTemplateTypeValue>(QuotationTemplateType.Standard);
   protected readonly statusOptions = QUOTATION_STATUSES;
-  protected readonly pageTitle = computed(() =>
-    this.editId() ? 'Edit Quotation' : 'New Quotation',
+  protected readonly currencyOptions = QUOTATION_CURRENCY_OPTIONS;
+  protected readonly isTechnicalProposal = computed(() =>
+    isTechnicalProposalTemplate(this.templateType()),
   );
+  protected readonly pageTitle = computed(() => {
+    if (this.editId()) {
+      return this.isTechnicalProposal() ? 'Edit Technical Proposal' : 'Edit Quotation';
+    }
+    return this.isTechnicalProposal() ? 'New Technical Proposal' : 'New Quotation';
+  });
+
+  private companyTermsDefaults: QuotationTermsDefaults = {
+    businessLine: '',
+    transportationLabel: '',
+    jurisdiction: '',
+    terms: [],
+  };
 
   protected readonly form = this.fb.nonNullable.group({
     dealId: [null as number | null],
-    salutation: [''],
-    firstName: ['', [Validators.required, Validators.maxLength(128)]],
-    lastName: ['', [Validators.required, Validators.maxLength(128)]],
+    fullName: ['', [Validators.required, Validators.maxLength(200)]],
     gender: [''],
-    mobileNumber: ['', Validators.maxLength(64)],
-    emailAddress: ['', [Validators.required, Validators.email, Validators.maxLength(256)]],
+    mobileNumber: [''],
+    emailAddress: ['', [Validators.maxLength(256), optionalEmailValidator()]],
     companyName: ['', [Validators.required, Validators.maxLength(512)]],
     employees: [''],
     annualRevenue: [''],
@@ -93,27 +146,62 @@ export class QuotationFormComponent {
     contactPerson: ['', Validators.maxLength(256)],
     officeAddress: [''],
     siteAddress: [''],
-    referenceNumber: ['', Validators.maxLength(128)],
+    referenceNumber: [''],
     referenceDate: [''],
     companyCode: ['', Validators.maxLength(32)],
-    documentTypeCode: ['QTN', Validators.maxLength(32)],
+    documentTypeCode: ['QTN'],
     fiscalYearLabel: ['', Validators.maxLength(16)],
     sequenceNumber: [0],
     quotationNumber: ['', Validators.maxLength(64)],
-    quotationDate: [todayIsoDate(), Validators.required],
+    quotationDate: [
+      todayIsoDate(),
+      [Validators.required, notPastIsoDateValidator(() => this.initialQuotationDate)],
+    ],
     status: ['Draft', Validators.required],
     remarks: [''],
+    gstPercent: [0, [Validators.min(0)]],
+    transportationCharges: [0],
+    loadingCharges: [0],
+    serviceCharges: [0],
+    customCharges: this.fb.array([]),
     lineItems: this.fb.array([this.createLineGroup()]),
+    customizeTerms: [false],
+    businessLine: [''],
+    transportationLabel: ['', [Validators.maxLength(128)]],
+    jurisdiction: ['', [Validators.maxLength(256)]],
+    terms: this.fb.array([] as ReturnType<typeof this.createTermGroup>[]),
+    projectName: [''],
+    kindAttnDesignation: ['', Validators.maxLength(256)],
+    commercialTerms: [''],
+    taxLabel: ['', Validators.maxLength(128)],
+    paymentTerms: [''],
+    hsnCode: ['', Validators.maxLength(64)],
+    incoterms: ['', Validators.maxLength(128)],
+    dispatchLeadTime: ['', Validators.maxLength(128)],
+    currencyCode: [DEFAULT_QUOTATION_CURRENCY, Validators.maxLength(8)],
+    proposalIntro: [''],
+    technicalSections: this.fb.array([] as ReturnType<typeof this.createTermGroup>[]),
+    commercialSections: this.fb.array([] as ReturnType<typeof this.createTermGroup>[]),
   });
 
   protected readonly grandTotal = computed(() => {
-    let sum = 0;
-    for (const ctrl of this.lineItems.controls) {
-      const g = ctrl as FormGroup;
-      const raw = g.getRawValue();
-      sum += recalcLineGroupValues(raw).lineTotal;
-    }
-    return sum;
+    const v = this.form.getRawValue();
+    const rows = this.lineItems.controls.map((ctrl) => {
+      const raw = (ctrl as FormGroup).getRawValue() as QuotationLineFormValue;
+      return { quantity: Number(raw.quantity) || 0, amounts: recalcLineGroupValues(raw) };
+    });
+    const gst = Number(v.gstPercent) || 0;
+    const additional = additionalChargesTotal({
+      transportationCharges: normalizeChargeAmount(v.transportationCharges),
+      loadingCharges: normalizeChargeAmount(v.loadingCharges),
+      serviceCharges: normalizeChargeAmount(v.serviceCharges),
+      customCharges: (v.customCharges as { chargeName: string; amount: number }[]).map((c, i) => ({
+        sortIndex: i,
+        chargeName: String(c.chargeName ?? ''),
+        amount: normalizeChargeAmount(c.amount),
+      })),
+    });
+    return aggregateQuotationLines(rows, gst, additional).grandTotal;
   });
 
   constructor() {
@@ -146,6 +234,73 @@ export class QuotationFormComponent {
     return this.form.controls.lineItems;
   }
 
+  protected get customCharges(): FormArray {
+    return this.form.controls.customCharges;
+  }
+
+  protected termsArray(): FormArray {
+    return this.form.controls.terms;
+  }
+
+  protected technicalSectionsArray(): FormArray {
+    return this.form.controls.technicalSections;
+  }
+
+  protected commercialSectionsArray(): FormArray {
+    return this.form.controls.commercialSections;
+  }
+
+  protected termsEditable(): boolean {
+    return this.form.controls.customizeTerms.value;
+  }
+
+  protected addTerm(prefill?: QuotationTerm): void {
+    this.termsArray().push(this.createTermGroup(prefill));
+  }
+
+  protected addTechnicalSection(prefill?: QuotationTerm): void {
+    this.technicalSectionsArray().push(this.createTermGroup(prefill));
+  }
+
+  protected removeTechnicalSection(index: number): void {
+    this.technicalSectionsArray().removeAt(index);
+  }
+
+  protected addCommercialSection(prefill?: QuotationTerm): void {
+    this.commercialSectionsArray().push(this.createTermGroup(prefill));
+  }
+
+  protected removeCommercialSection(index: number): void {
+    this.commercialSectionsArray().removeAt(index);
+  }
+
+  protected removeTerm(index: number): void {
+    this.termsArray().removeAt(index);
+  }
+
+  protected onCustomizeTermsChange(): void {
+    if (this.form.controls.customizeTerms.value) {
+      if (!this.termsArray().length) {
+        this.applyCompanyTermsDefaults();
+      }
+      return;
+    }
+    this.applyCompanyTermsDefaults();
+  }
+
+  protected addCustomCharge(): void {
+    this.customCharges.push(
+      this.fb.group({
+        chargeName: [''],
+        amount: [0],
+      }),
+    );
+  }
+
+  protected removeCustomCharge(index: number): void {
+    this.customCharges.removeAt(index);
+  }
+
   protected addLine(): void {
     this.lineItems.push(createQuotationLineGroup(this.fb));
   }
@@ -161,6 +316,9 @@ export class QuotationFormComponent {
 
   protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
   protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps();
+  protected intlTelMobileError = intlTelMobileErrorMessage;
 
   protected fieldInvalid(name: keyof typeof this.form.controls): boolean {
     const c = this.form.controls[name];
@@ -179,27 +337,6 @@ export class QuotationFormComponent {
     const g = this.lineGroupAt(index);
     const c = g.controls[name];
     return c != null && c.invalid && (c.touched || c.dirty);
-  }
-
-  protected refreshQuotationNumber(): void {
-    const cc = this.form.controls.companyCode.value.trim();
-    this.quotationsService
-      .getNextNumber(cc || undefined)
-      .pipe(take(1))
-      .subscribe({
-        next: (n) => {
-          this.form.patchValue({
-            companyCode: n.companyCode,
-            documentTypeCode: n.documentTypeCode,
-            fiscalYearLabel: n.fiscalYearLabel,
-            sequenceNumber: n.sequenceNumber,
-            quotationNumber: n.quotationNumber,
-            quotationDate: n.quotationDate?.slice(0, 10) || todayIsoDate(),
-          });
-        },
-        error: (err) =>
-          this.toast.error(quotationHttpErrorMessage(err, 'Could not generate quotation number.')),
-      });
   }
 
   protected saveDraft(): void {
@@ -245,18 +382,35 @@ export class QuotationFormComponent {
 
   private buildDto(statusOverride?: string): QuotationUpsertDto {
     const v = this.form.getRawValue();
-    const firstName = v.firstName.trim();
-    const lastName = v.lastName.trim();
-    const customerName = [firstName, lastName].filter(Boolean).join(' ').trim() || v.companyName.trim();
-    const contactPerson =
-      v.contactPerson.trim() ||
-      [v.salutation.trim(), firstName, lastName].filter(Boolean).join(' ').trim() ||
-      customerName;
+    const { firstName, lastName } = splitFullName(v.fullName);
+    const customerName = v.fullName.trim() || v.companyName.trim();
+    const contactPerson = v.contactPerson.trim() || customerName;
 
+    const headerGst = Number(v.gstPercent) || 0;
+    const customizeTerms = !!v.customizeTerms;
+    const terms = customizeTerms
+      ? (v.terms ?? [])
+          .map((t) => ({ title: t.title.trim(), body: t.body.trim() }))
+          .filter((t) => t.title || t.body)
+      : [];
+    const customChargeRows = (v.customCharges as { chargeName: string; amount: number }[]).map(
+      (c, i) => ({
+        sortIndex: i,
+        chargeName: String(c.chargeName ?? '').trim(),
+        amount: normalizeChargeAmount(c.amount),
+      }),
+    );
+    const additional = additionalChargesTotal({
+      transportationCharges: normalizeChargeAmount(v.transportationCharges),
+      loadingCharges: normalizeChargeAmount(v.loadingCharges),
+      serviceCharges: normalizeChargeAmount(v.serviceCharges),
+      customCharges: customChargeRows,
+    });
     const lineRows = (v.lineItems as QuotationLineFormValue[]).map((l, i) => {
       const calc = recalcLineGroupValues(l);
       return {
         lineIndex: i,
+        itemId: l.itemId ?? null,
         itemCode: l.itemCode.trim(),
         itemName: l.itemName.trim(),
         description: l.description.trim(),
@@ -264,22 +418,38 @@ export class QuotationFormComponent {
         uom: l.uom.trim(),
         weight: Number(l.weight) || 0,
         unitWeight: Number(l.unitWeight) || 0,
+        steelRate: Number(l.steelRate) || 0,
         rate: Number(l.rate) || 0,
+        itemSnapshotJson: l.itemSnapshotJson ?? '',
         discountPercent: Number(l.discountPercent) || 0,
-        gstPercent: Number(l.gstPercent) || 0,
+        gstPercent: headerGst > 0 ? 0 : Number(l.gstPercent) || 0,
         amount: calc.amount,
         taxAmount: calc.taxAmount,
         lineTotal: calc.lineTotal,
       };
     });
     const totals = aggregateQuotationLines(
-      lineRows.map((l) => ({ quantity: l.quantity, amounts: recalcLineGroupValues(l) })),
+      lineRows.map((l) => ({
+        quantity: l.quantity,
+        amounts: recalcLineGroupValues({
+          quantity: l.quantity,
+          rate: l.rate,
+          discountPercent: l.discountPercent,
+          gstPercent: l.gstPercent,
+          weight: l.weight,
+          unitWeight: l.unitWeight,
+          steelRate: l.steelRate,
+        }),
+      })),
+      headerGst,
+      additional,
     );
 
-    return {
+    const template = this.templateType();
+    const dto: QuotationUpsertDto = {
       id: this.editId() ?? undefined,
       dealId: v.dealId,
-      salutation: v.salutation.trim(),
+      salutation: '',
       firstName,
       lastName,
       gender: v.gender.trim(),
@@ -308,10 +478,47 @@ export class QuotationFormComponent {
       remarks: v.remarks.trim(),
       subtotal: totals.subtotal,
       taxTotal: totals.taxTotal,
+      gstPercent: headerGst,
       grandTotal: totals.grandTotal,
       totalQuantity: totals.totalQuantity,
       totalWeight: totals.totalWeight,
+      transportationCharges: normalizeChargeAmount(v.transportationCharges),
+      loadingCharges: normalizeChargeAmount(v.loadingCharges),
+      serviceCharges: normalizeChargeAmount(v.serviceCharges),
+      customCharges: customChargeRows.filter((c) => c.chargeName || c.amount > 0),
+      customizeTerms,
+      introText: customizeTerms ? v.businessLine.trim() : '',
+      transportationLabel: customizeTerms ? v.transportationLabel.trim() : '',
+      jurisdiction: customizeTerms ? v.jurisdiction.trim() : '',
+      terms,
       lineItems: lineRows,
+      quotationTemplate: template,
+      technicalProposal: isTechnicalProposalTemplate(template)
+        ? this.buildTechnicalProposalPayload(v)
+        : null,
+    };
+    return dto;
+  }
+
+  private buildTechnicalProposalPayload(v: ReturnType<typeof this.form.getRawValue>) {
+    const mapSections = (rows: { title: string; body: string }[]) =>
+      rows
+        .map((t) => ({ title: t.title.trim(), body: t.body.trim() }))
+        .filter((t) => t.title || t.body);
+
+    return {
+      projectName: v.projectName.trim(),
+      kindAttnDesignation: v.kindAttnDesignation.trim(),
+      commercialTerms: v.commercialTerms.trim(),
+      taxLabel: v.taxLabel.trim(),
+      paymentTerms: v.paymentTerms.trim(),
+      hsnCode: v.hsnCode.trim(),
+      incoterms: v.incoterms.trim(),
+      dispatchLeadTime: v.dispatchLeadTime.trim(),
+      currencyCode: (v.currencyCode.trim() || DEFAULT_QUOTATION_CURRENCY).toUpperCase(),
+      proposalIntro: v.proposalIntro.trim(),
+      technicalSections: mapSections(v.technicalSections ?? []),
+      commercialSections: mapSections(v.commercialSections ?? []),
     };
   }
 
@@ -319,7 +526,76 @@ export class QuotationFormComponent {
     return createQuotationLineGroup(this.fb);
   }
 
+  private createTermGroup(prefill?: QuotationTerm) {
+    return this.fb.nonNullable.group({
+      title: [prefill?.title ?? '', [Validators.maxLength(128)]],
+      body: [prefill?.body ?? ''],
+    });
+  }
+
+  private loadCompanyTermsDefaults() {
+    return this.companyProfileApi.get().pipe(
+      catchError(() => of(null)),
+      take(1),
+    );
+  }
+
+  private setCompanyTermsDefaults(profile: {
+    businessLine: string;
+    transportationLabel: string;
+    jurisdiction: string;
+    terms: CompanyProfileTerm[];
+  } | null): void {
+    this.companyTermsDefaults = {
+      businessLine: profile?.businessLine?.trim() ?? '',
+      transportationLabel: profile?.transportationLabel?.trim() ?? '',
+      jurisdiction: profile?.jurisdiction?.trim() ?? '',
+      terms: (profile?.terms ?? [])
+        .map((t) => ({ title: t.title?.trim() ?? '', body: t.body?.trim() ?? '' }))
+        .filter((t) => t.title || t.body),
+    };
+  }
+
+  private clearTermsArray(): void {
+    while (this.termsArray().length) {
+      this.termsArray().removeAt(0);
+    }
+  }
+
+  private applyTermsToForm(values: QuotationTermsDefaults): void {
+    this.clearTermsArray();
+    const terms = values.terms.length ? values.terms : [{ title: '', body: '' }];
+    terms.forEach((t) => this.addTerm(t));
+    this.form.patchValue({
+      businessLine: values.businessLine,
+      transportationLabel: values.transportationLabel,
+      jurisdiction: values.jurisdiction,
+    });
+  }
+
+  private applyCompanyTermsDefaults(): void {
+    this.applyTermsToForm(this.companyTermsDefaults);
+  }
+
+  private applyQuotationTermsFromDto(q: QuotationUpsertDto): void {
+    this.form.patchValue({ customizeTerms: q.customizeTerms ?? false });
+    if (q.customizeTerms) {
+      this.applyTermsToForm({
+        businessLine: q.introText?.trim() ?? '',
+        transportationLabel: q.transportationLabel?.trim() ?? '',
+        jurisdiction: q.jurisdiction?.trim() ?? '',
+        terms: (q.terms ?? [])
+          .map((t) => ({ title: t.title?.trim() ?? '', body: t.body?.trim() ?? '' }))
+          .filter((t) => t.title || t.body),
+      });
+      return;
+    }
+    this.applyCompanyTermsDefaults();
+  }
+
   private initNew(queryParams: ParamMap): void {
+    this.initialQuotationDate = null;
+    this.templateType.set(parseQuotationTemplateFromQuery(queryParams.get('template')));
     this.loading.set(true);
     const cached = consumeDealQuotationPrefill() ?? readDealQuotationPrefillFromNavigation();
     const dealIdFromQuery = parseDealIdFromQuery(queryParams);
@@ -328,15 +604,28 @@ export class QuotationFormComponent {
       settings: this.quotationsService.getSettings(),
       next: this.quotationsService.getNextNumber(),
       dealPatch: this.prefillService.resolveFormPatch(cached, dealIdFromQuery),
+      dealRow:
+        dealIdFromQuery != null
+          ? this.dealsService.getById(dealIdFromQuery).pipe(catchError(() => of(null)))
+          : of(null),
+      statuses: this.dealMaster.ensureStatusesLoaded().pipe(take(1)),
+      companyProfile: this.loadCompanyTermsDefaults(),
     })
       .pipe(take(1))
       .subscribe({
-        next: ({ settings, next, dealPatch }) => {
+        next: ({ settings, next, dealPatch, dealRow, companyProfile }) => {
+          if (dealRow && dealIdFromQuery != null) {
+            const pipeline = toDealPipelineRows(this.dealMaster.statusSelectOptions());
+            if (isQuotationGenerationBlockedForDeal(dealRow.status, pipeline)) {
+              this.loading.set(false);
+              this.toast.error(QUOTATION_GENERATION_BLOCKED_MESSAGE);
+              void this.router.navigate(['/deals', dealIdFromQuery]);
+              return;
+            }
+          }
           const base: Record<string, unknown> = {
             dealId: dealIdFromQuery,
-            salutation: '',
-            firstName: '',
-            lastName: '',
+            fullName: '',
             gender: '',
             mobileNumber: '',
             emailAddress: '',
@@ -352,16 +641,28 @@ export class QuotationFormComponent {
             siteAddress: '',
             referenceNumber: '',
             referenceDate: '',
-            companyCode: next.companyCode || settings.companyCode || '',
+            companyCode: next.companyCode || settings.companyCode || 'BCEPL',
             documentTypeCode: next.documentTypeCode || settings.documentTypeCode || 'QTN',
             fiscalYearLabel: next.fiscalYearLabel,
             sequenceNumber: next.sequenceNumber,
-            quotationNumber: next.quotationNumber,
             quotationDate: next.quotationDate?.slice(0, 10) || todayIsoDate(),
             status: 'Draft',
             remarks: '',
+            transportationCharges: 0,
+            loadingCharges: 0,
+            serviceCharges: 0,
           };
           this.applyNewFormPatch({ ...base, ...(dealPatch ?? {}) });
+          this.setCompanyTermsDefaults(companyProfile);
+          if (this.isTechnicalProposal()) {
+            this.form.patchValue({ customizeTerms: false });
+            this.applyTechnicalProposalDefaults();
+            this.syncProjectFromSiteAddress();
+          } else {
+            this.form.patchValue({ customizeTerms: false });
+            this.applyCompanyTermsDefaults();
+          }
+          this.syncQuotationNumberDisplay();
           this.loading.set(false);
         },
         error: () => {
@@ -374,11 +675,15 @@ export class QuotationFormComponent {
   }
 
   private applyNewFormPatch(patch: Record<string, unknown>): void {
+    const firstName = String(patch['firstName'] ?? '');
+    const lastName = String(patch['lastName'] ?? '');
+    const fullName =
+      String(patch['fullName'] ?? '').trim() ||
+      [firstName, lastName].filter(Boolean).join(' ').trim();
+
     this.form.patchValue({
       dealId: (patch['dealId'] as number | null) ?? null,
-      salutation: String(patch['salutation'] ?? ''),
-      firstName: String(patch['firstName'] ?? ''),
-      lastName: String(patch['lastName'] ?? ''),
+      fullName,
       gender: String(patch['gender'] ?? ''),
       mobileNumber: String(patch['mobileNumber'] ?? ''),
       emailAddress: String(patch['emailAddress'] ?? ''),
@@ -394,26 +699,49 @@ export class QuotationFormComponent {
       siteAddress: String(patch['siteAddress'] ?? ''),
       referenceNumber: String(patch['referenceNumber'] ?? ''),
       referenceDate: String(patch['referenceDate'] ?? ''),
-      companyCode: String(patch['companyCode'] ?? ''),
+      companyCode: String(patch['companyCode'] ?? 'BCEPL'),
       documentTypeCode: String(patch['documentTypeCode'] ?? 'QTN'),
       fiscalYearLabel: String(patch['fiscalYearLabel'] ?? ''),
       sequenceNumber: Number(patch['sequenceNumber']) || 0,
-      quotationNumber: String(patch['quotationNumber'] ?? ''),
       quotationDate: String(patch['quotationDate'] ?? todayIsoDate()),
       status: String(patch['status'] ?? 'Draft'),
       remarks: String(patch['remarks'] ?? ''),
+      transportationCharges: Number(patch['transportationCharges']) || 0,
+      loadingCharges: Number(patch['loadingCharges']) || 0,
+      serviceCharges: Number(patch['serviceCharges']) || 0,
     });
     this.lineItems.clear();
     this.lineItems.push(this.createLineGroup());
+    this.customCharges.clear();
+    this.syncQuotationNumberDisplay();
+  }
+
+  /** Display e.g. BCEPL/QTN/2025-26/601 from hidden numbering parts. */
+  private syncQuotationNumberDisplay(): void {
+    const cc = this.form.controls.companyCode.value.trim() || 'BCEPL';
+    const doc = this.form.controls.documentTypeCode.value.trim() || 'QTN';
+    const fy = this.form.controls.fiscalYearLabel.value.trim();
+    const seq = this.form.controls.sequenceNumber.value;
+    if (!fy || seq <= 0) return;
+
+    if (!this.form.controls.companyCode.value.trim()) {
+      this.form.controls.companyCode.setValue(cc, { emitEvent: false });
+    }
+
+    this.form.controls.quotationNumber.setValue(formatQuotationNumber(cc, doc, fy, seq), {
+      emitEvent: false,
+    });
   }
 
   private loadQuotation(id: number): void {
     this.loading.set(true);
-    this.quotationsService
-      .getById(id)
+    forkJoin({
+      quotation: this.quotationsService.getById(id).pipe(take(1)),
+      companyProfile: this.loadCompanyTermsDefaults(),
+    })
       .pipe(take(1))
       .subscribe({
-        next: (q) => {
+        next: ({ quotation: q, companyProfile }) => {
           if (!q) {
             this.loading.set(false);
             this.toast.error('Quotation not found.');
@@ -422,10 +750,11 @@ export class QuotationFormComponent {
           }
           if (q.dealClosed) {
             this.loading.set(false);
-            this.toast.error('Quotations linked to closed deals cannot be modified.');
+            this.toast.error('Quotations linked to delivered or closed deals cannot be modified.');
             void this.router.navigate(['/quotations', id]);
             return;
           }
+          this.setCompanyTermsDefaults(companyProfile);
           this.patchFromDto(q);
           this.loading.set(false);
         },
@@ -438,6 +767,12 @@ export class QuotationFormComponent {
   }
 
   private patchFromDto(q: QuotationUpsertDto): void {
+    this.templateType.set(
+      isTechnicalProposalTemplate(q.quotationTemplate)
+        ? QuotationTemplateType.TechnicalProposal
+        : QuotationTemplateType.Standard,
+    );
+    this.initialQuotationDate = q.quotationDate?.slice(0, 10) ?? null;
     const annualRevenue =
       q.annualRevenue != null && Number.isFinite(q.annualRevenue) && q.annualRevenue > 0
         ? q.annualRevenue.toLocaleString('en-IN', {
@@ -448,9 +783,7 @@ export class QuotationFormComponent {
 
     this.form.patchValue({
       dealId: q.dealId ?? null,
-      salutation: q.salutation ?? '',
-      firstName: q.firstName ?? '',
-      lastName: q.lastName ?? '',
+      fullName: [q.firstName, q.lastName].filter(Boolean).join(' ').trim() || q.customerName?.trim() || '',
       gender: q.gender ?? '',
       mobileNumber: q.mobileNumber,
       emailAddress: q.emailAddress,
@@ -474,12 +807,18 @@ export class QuotationFormComponent {
       quotationDate: q.quotationDate?.slice(0, 10) ?? todayIsoDate(),
       status: q.status,
       remarks: q.remarks,
+      gstPercent: q.gstPercent ?? 0,
+      transportationCharges: q.transportationCharges ?? 0,
+      loadingCharges: q.loadingCharges ?? 0,
+      serviceCharges: q.serviceCharges ?? 0,
     });
     this.lineItems.clear();
+    this.customCharges.clear();
     const lines = q.lineItems?.length
       ? q.lineItems
       : [
           {
+            itemId: null,
             itemName: '',
             description: '',
             quantity: 1,
@@ -490,6 +829,8 @@ export class QuotationFormComponent {
             uom: 'Nos',
             weight: 0,
             unitWeight: 0,
+            steelRate: 0,
+            itemSnapshotJson: '',
             discountPercent: 0,
             gstPercent: 0,
             taxAmount: 0,
@@ -499,6 +840,7 @@ export class QuotationFormComponent {
     for (const l of lines) {
       const g = this.createLineGroup();
       g.patchValue({
+        itemId: l.itemId ?? null,
         itemCode: l.itemCode,
         itemName: l.itemName ?? l.itemCode,
         description: l.description,
@@ -506,7 +848,9 @@ export class QuotationFormComponent {
         uom: l.uom || 'Nos',
         weight: l.weight ?? 0,
         unitWeight: l.unitWeight ?? 0,
+        steelRate: l.steelRate ?? 0,
         rate: l.rate,
+        itemSnapshotJson: l.itemSnapshotJson ?? '',
         discountPercent: l.discountPercent ?? 0,
         gstPercent: l.gstPercent ?? 0,
         amount: l.amount,
@@ -514,6 +858,57 @@ export class QuotationFormComponent {
         lineTotal: l.lineTotal ?? l.amount,
       });
       this.lineItems.push(g);
+    }
+    for (const c of q.customCharges ?? []) {
+      const g = this.fb.group({
+        chargeName: [c.chargeName ?? ''],
+        amount: [c.amount ?? 0],
+      });
+      this.customCharges.push(g);
+    }
+    if (this.isTechnicalProposal()) {
+      this.patchTechnicalProposalFromDto(q);
+    } else {
+      this.applyQuotationTermsFromDto(q);
+    }
+    this.syncQuotationNumberDisplay();
+  }
+
+  private patchTechnicalProposalFromDto(q: QuotationUpsertDto): void {
+    const tp = q.technicalProposal ?? {};
+    this.form.patchValue({
+      projectName: tp.projectName ?? q.siteAddress?.trim() ?? '',
+      kindAttnDesignation: tp.kindAttnDesignation ?? '',
+      commercialTerms: tp.commercialTerms ?? '',
+      taxLabel: tp.taxLabel ?? '',
+      paymentTerms: tp.paymentTerms ?? '',
+      hsnCode: tp.hsnCode ?? '',
+      incoterms: tp.incoterms ?? '',
+      dispatchLeadTime: tp.dispatchLeadTime ?? '',
+      currencyCode: tp.currencyCode?.trim() || DEFAULT_QUOTATION_CURRENCY,
+      proposalIntro: tp.proposalIntro ?? '',
+    });
+    this.applySectionsToForm(this.technicalSectionsArray(), tp.technicalSections ?? []);
+    this.applySectionsToForm(this.commercialSectionsArray(), tp.commercialSections ?? []);
+  }
+
+  private applySectionsToForm(array: FormArray, values: QuotationTerm[]): void {
+    while (array.length) {
+      array.removeAt(0);
+    }
+    const rows = values.length ? values : [{ title: '', body: '' }];
+    rows.forEach((t) => array.push(this.createTermGroup(t)));
+  }
+
+  private applyTechnicalProposalDefaults(): void {
+    this.applySectionsToForm(this.technicalSectionsArray(), [{ title: '', body: '' }]);
+    this.applySectionsToForm(this.commercialSectionsArray(), [{ title: '', body: '' }]);
+  }
+
+  private syncProjectFromSiteAddress(): void {
+    const site = this.form.controls.siteAddress.value.trim();
+    if (!this.form.controls.projectName.value.trim() && site) {
+      this.form.controls.projectName.setValue(site);
     }
   }
 }

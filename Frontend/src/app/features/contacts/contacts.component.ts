@@ -4,11 +4,18 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
+import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { ContactsService } from '../../core/services/contacts.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
+import { PermissionService } from '../../core/services/permission.service';
 import { ToastService } from '../../core/toast/toast.service';
-import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { createIdSelection } from '../../shared/utils/selection-manager';
+import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
+import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { IntlTelDisplayPipe } from '../../shared/pipes/intl-tel-display.pipe';
+import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 
 export interface ContactRow {
   id: string;
@@ -21,6 +28,8 @@ export interface ContactRow {
   organization: string;
   /** Backend FK when returned by API. */
   organizationId?: string;
+  /** `users.id` who created the contact (RBAC own-scope). */
+  createdBy?: string;
   designation: string;
   address: string;
   lastModified: string;
@@ -28,17 +37,23 @@ export interface ContactRow {
 
 @Component({
   selector: 'app-contacts',
-  imports: [ReactiveFormsModule, RouterLink, CrmSelectionBarComponent],
+  imports: [ReactiveFormsModule, RouterLink, IntlTelInputComponent, IntlTelDisplayPipe, CrmPaginationFooterComponent],
   templateUrl: './contacts.component.html',
   styleUrl: './contacts.component.scss',
 })
 export class ContactsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly createRowBus = inject(CreateRowBusService);
+  private readonly userScope = inject(UserDataScopeService);
   private readonly contactsService = inject(ContactsService);
   private readonly toast = inject(ToastService);
+  private readonly permissions = inject(PermissionService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+
+  protected canDeleteContacts(): boolean {
+    return this.permissions.has('contacts.delete');
+  }
 
   protected readonly sel = createIdSelection();
   protected readonly editingNumericId = signal<number | null>(null);
@@ -59,6 +74,47 @@ export class ContactsComponent {
   ] as const;
 
   protected readonly rows = signal<ContactRow[]>([]);
+  protected readonly searchQuery = signal('');
+
+  protected readonly filtered = computed(() => {
+    const q = this.searchQuery().trim().toLowerCase();
+    return this.rows().filter((row) => {
+      if (!q) return true;
+      const label = this.contactLabel(row).toLowerCase();
+      return (
+        label.includes(q) ||
+        row.firstName.toLowerCase().includes(q) ||
+        row.lastName.toLowerCase().includes(q) ||
+        row.email.toLowerCase().includes(q) ||
+        (row.phone?.toLowerCase().includes(q) ?? false) ||
+        row.organization.toLowerCase().includes(q) ||
+        (row.designation?.toLowerCase().includes(q) ?? false) ||
+        (row.address?.toLowerCase().includes(q) ?? false) ||
+        (row.gender?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  });
+
+  protected readonly tablePagination = createClientTablePagination(this.filtered);
+
+  protected hasActiveFilters(): boolean {
+    return this.searchQuery().trim().length > 0;
+  }
+
+  protected onSearchInput(ev: Event): void {
+    this.searchQuery.set((ev.target as HTMLInputElement).value);
+    this.tablePagination.resetPage();
+  }
+
+  protected clearSearch(): void {
+    this.searchQuery.set('');
+    this.tablePagination.resetPage();
+  }
+
+  protected resetFilters(): void {
+    this.searchQuery.set('');
+    this.tablePagination.resetPage();
+  }
 
   constructor() {
     this.refreshContacts();
@@ -67,6 +123,16 @@ export class ContactsComponent {
       this.refreshContacts();
     });
     this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
+      if (q['create'] === '1') {
+        this.openForm();
+        void this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { create: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
+        return;
+      }
       const edit = q['edit'];
       if (edit != null && edit !== '') {
         this.beginEditFromRoute(String(edit));
@@ -75,21 +141,21 @@ export class ContactsComponent {
   }
 
   private refreshContacts(): void {
-    this.contactsService
-      .getAll()
+    this.userScope
+      .listContacts()
       .pipe(take(1))
       .subscribe((rows) => this.rows.set(rows));
   }
 
   protected readonly allSelected = computed(() =>
-    this.sel.allSelectedIn(this.rows().map((r) => r.id)),
+    this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
   );
 
   protected readonly createForm = this.fb.nonNullable.group({
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
     email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
-    mobile: ['', [Validators.required, Validators.pattern(/^\d{10}$/)]],
+    mobile: ['', Validators.required],
     gender: [''],
     companyName: ['', Validators.maxLength(200)],
     designation: ['', Validators.maxLength(120)],
@@ -115,7 +181,7 @@ export class ContactsComponent {
   }
 
   protected toggleSelectAll(): void {
-    this.sel.toggleSelectAll(this.rows().map((r) => r.id));
+    this.sel.toggleSelectAll(this.filtered().map((r) => r.id));
   }
 
   protected openForm(): void {
@@ -221,6 +287,10 @@ export class ContactsComponent {
     return !!ctrl && ctrl.invalid && (ctrl.dirty || ctrl.touched);
   }
 
+  protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
+  protected readonly intlTelMobileInputProps = crmIntlTelInputProps();
+  protected intlTelMobileError = intlTelMobileErrorMessage;
+
   protected submitContact(): void {
     this.createForm.markAllAsTouched();
     if (this.createForm.invalid) return;
@@ -287,6 +357,10 @@ export class ContactsComponent {
 
   protected deleteContact(row: ContactRow, ev: Event): void {
     ev.stopPropagation();
+    if (!this.canDeleteContacts()) {
+      this.toast.error('You do not have permission to perform this action.');
+      return;
+    }
     const id = Number(row.id);
     if (!Number.isFinite(id)) return;
     this.contactsService

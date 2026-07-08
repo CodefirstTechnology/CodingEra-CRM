@@ -1,18 +1,36 @@
+import { LEAD_DEAL_MATCH_MOBILE_MIN_DIGITS } from '../../../shared/utils/lead-conversion.util';
+import { resolveImportNameParts } from './lead-import-name.util';
+
 /** Required columns for every imported lead (display + client-side estimates). */
 export const LEAD_IMPORT_REQUIRED_FIELD_LABELS = [
-  'First Name',
-  'Last Name',
-  'Mobile',
-  'Email',
+  'Full Name',
+  'Organization',
+  'Industry',
+  'Status',
+  'Lead Owner',
   'Requirement',
 ] as const;
+
+const VALID_IMPORT_GENDERS = new Set(
+  ['male', 'female', 'other', 'prefer not to say'].map((g) => g.toLowerCase()),
+);
 
 export function isValidImportEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
+/** True when a non-empty mobile looks usable (E.164 or national digits). */
 export function isValidImportMobile(mobile: string): boolean {
-  return /^\d{10}$/.test(mobile.trim());
+  const trimmed = mobile.trim();
+  if (!trimmed) return true;
+  const digits = trimmed.replace(/\D/g, '');
+  return digits.length >= LEAD_DEAL_MATCH_MOBILE_MIN_DIGITS && digits.length <= 15;
+}
+
+export function isValidImportGender(gender: string): boolean {
+  const trimmed = gender.trim();
+  if (!trimmed) return true;
+  return VALID_IMPORT_GENDERS.has(trimmed.toLowerCase());
 }
 
 /** True when a spreadsheet row is the template Required/Optional hint row. */
@@ -34,17 +52,25 @@ export function estimateImportRowValid(
   columns: string[],
   pickValue: PickValueFn,
 ): boolean {
-  const firstName = pickValue(values, columns, ['first name', 'firstname', 'first_name']);
-  const lastName = pickValue(values, columns, ['last name', 'lastname', 'last_name']);
+  const { firstName } = resolveImportNameParts(values, columns, pickValue);
+  const organization = pickValue(values, columns, ['organization', 'organisation', 'company']);
+  const industry = pickValue(values, columns, ['industry']);
+  const status = pickValue(values, columns, ['status', 'lead status']);
+  const leadOwner = pickValue(values, columns, ['lead owner', 'owner', 'assigned to']);
+  const requirement = pickValue(values, columns, ['requirement', 'requirements']);
   const mobile = pickValue(values, columns, ['mobile', 'phone', 'mobile number']);
   const email = pickValue(values, columns, ['email', 'e-mail']);
-  const requirement = pickValue(values, columns, ['requirement', 'requirements']);
+  const gender = pickValue(values, columns, ['gender']);
 
   return (
     firstName.length > 0 &&
-    lastName.length > 0 &&
+    organization.length > 0 &&
+    industry.length > 0 &&
+    status.length > 0 &&
+    leadOwner.length > 0 &&
     requirement.length > 0 &&
     isValidImportMobile(mobile) &&
-    isValidImportEmail(email)
+    (email.length === 0 || isValidImportEmail(email)) &&
+    isValidImportGender(gender)
   );
 }

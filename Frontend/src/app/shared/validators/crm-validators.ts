@@ -62,3 +62,24 @@ export function optionalGstinValidator(): ValidatorFn {
 export function gstFormValidators(): ValidatorFn[] {
   return [Validators.maxLength(GSTIN_MAX_LENGTH), optionalGstinValidator()];
 }
+
+function localTodayIsoDate(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Local calendar date as `YYYY-MM-DD` (e.g. date input min). */
+export function todayIsoDateLocal(): string {
+  return localTodayIsoDate();
+}
+
+/** ISO date (`YYYY-MM-DD`) must be today or later; optional exempt value for edit loads. */
+export function notPastIsoDateValidator(allowedPast?: () => string | null): ValidatorFn {
+  return (control: AbstractControl): ValidationErrors | null => {
+    const raw = String(control.value ?? '').trim();
+    if (!raw) return null;
+    const exempt = allowedPast?.()?.trim();
+    if (exempt && raw === exempt) return null;
+    return raw >= localTodayIsoDate() ? null : { pastDate: true };
+  };
+}

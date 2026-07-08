@@ -48,6 +48,8 @@ export class NotificationsPanelService {
 
   readonly unreadCount = computed(() => this.items().filter((n) => !n.read).length);
 
+  private trigger: HTMLElement | null = null;
+
   constructor() {
     effect(() => {
       const userId = this.auth.user()?.id?.trim() ?? null;
@@ -63,13 +65,27 @@ export class NotificationsPanelService {
     });
   }
 
-  toggle(): void {
-    const willOpen = !this.open();
-    this.open.set(willOpen);
-    if (willOpen) this.refresh(true);
+  registerTrigger(trigger: HTMLElement): void {
+    this.trigger = trigger;
   }
 
-  close(): void {
+  toggle(trigger?: HTMLElement | null): void {
+    if (trigger) {
+      this.registerTrigger(trigger);
+    }
+    if (this.open()) {
+      this.close({ restoreFocus: false });
+      return;
+    }
+    this.open.set(true);
+    this.refresh(true);
+  }
+
+  close(options?: { restoreFocus?: boolean }): void {
+    const restoreFocus = options?.restoreFocus ?? true;
+    if (restoreFocus) {
+      this.trigger?.focus();
+    }
     this.open.set(false);
   }
 

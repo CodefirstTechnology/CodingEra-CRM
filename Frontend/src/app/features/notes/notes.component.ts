@@ -8,13 +8,17 @@ import { NotesService } from '../../core/services/notes.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
 import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
-import { CrmSelectionBarComponent } from '../../shared/components/crm-selection-bar/crm-selection-bar.component';
+import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { resolveNoteRecordActivityLink } from '../../shared/utils/entity-record-nav.util';
 import { formatDealRecordLabel, formatLeadRecordLabel } from '../../shared/utils/activity-entity-display.util';
 
 export type NoteRelatedType = 'lead' | 'deal' | 'contact' | 'organization';
 export type NoteVisibility = 'team' | 'private';
+
+export type NoteRelatedTypeFilter = 'all' | NoteRelatedType;
+export type NoteVisibilityFilter = 'all' | NoteVisibility;
 
 export interface NoteRow {
   id: string;
@@ -48,7 +52,7 @@ export interface NoteRow {
 
 @Component({
   selector: 'app-notes',
-  imports: [ReactiveFormsModule, CrmSelectionBarComponent, RouterLink],
+  imports: [ReactiveFormsModule, RouterLink, CrmPaginationFooterComponent],
   templateUrl: './notes.component.html',
   styleUrl: './notes.component.scss',
 })
@@ -67,6 +71,83 @@ export class NotesComponent {
 
   protected readonly formOpen = signal(false);
   protected readonly rows = signal<NoteRow[]>([]);
+  protected readonly searchQuery = signal('');
+  protected readonly relatedTypeFilter = signal<NoteRelatedTypeFilter>('all');
+  protected readonly visibilityFilter = signal<NoteVisibilityFilter>('all');
+
+  protected readonly relatedTypeFilterOptions: { id: NoteRelatedTypeFilter; label: string }[] = [
+    { id: 'all', label: 'All record types' },
+    { id: 'lead', label: 'Lead' },
+    { id: 'deal', label: 'Deal' },
+    { id: 'contact', label: 'Contact' },
+    { id: 'organization', label: 'Organization' },
+  ];
+
+  protected readonly visibilityFilterOptions: { id: NoteVisibilityFilter; label: string }[] = [
+    { id: 'all', label: 'All visibility' },
+    { id: 'team', label: 'Team' },
+    { id: 'private', label: 'Private' },
+  ];
+
+  protected readonly filtered = computed(() => {
+    const q = this.searchQuery().trim().toLowerCase();
+    const relatedType = this.relatedTypeFilter();
+    const visibility = this.visibilityFilter();
+    return this.rows().filter((row) => {
+      if (relatedType !== 'all' && row.relatedType !== relatedType) return false;
+      if (visibility !== 'all' && row.visibility !== visibility) return false;
+      if (!q) return true;
+      const relatedLabel = this.noteRelatedLabel(row).toLowerCase();
+      return (
+        row.title.toLowerCase().includes(q) ||
+        (row.body?.toLowerCase().includes(q) ?? false) ||
+        (row.bodyPreview?.toLowerCase().includes(q) ?? false) ||
+        (row.relatedName?.toLowerCase().includes(q) ?? false) ||
+        (row.relatedLeadName?.toLowerCase().includes(q) ?? false) ||
+        (row.relatedDealName?.toLowerCase().includes(q) ?? false) ||
+        row.author.toLowerCase().includes(q) ||
+        (row.assignedBy?.toLowerCase().includes(q) ?? false) ||
+        relatedLabel.includes(q)
+      );
+    });
+  });
+
+  protected readonly tablePagination = createClientTablePagination(this.filtered);
+
+  protected hasActiveFilters(): boolean {
+    return (
+      this.relatedTypeFilter() !== 'all' ||
+      this.visibilityFilter() !== 'all' ||
+      this.searchQuery().trim().length > 0
+    );
+  }
+
+  protected onSearchInput(ev: Event): void {
+    this.searchQuery.set((ev.target as HTMLInputElement).value);
+    this.tablePagination.resetPage();
+  }
+
+  protected clearSearch(): void {
+    this.searchQuery.set('');
+    this.tablePagination.resetPage();
+  }
+
+  protected resetFilters(): void {
+    this.searchQuery.set('');
+    this.relatedTypeFilter.set('all');
+    this.visibilityFilter.set('all');
+    this.tablePagination.resetPage();
+  }
+
+  protected onRelatedTypeFilterSelect(ev: Event): void {
+    this.relatedTypeFilter.set((ev.target as HTMLSelectElement).value as NoteRelatedTypeFilter);
+    this.tablePagination.resetPage();
+  }
+
+  protected onVisibilityFilterSelect(ev: Event): void {
+    this.visibilityFilter.set((ev.target as HTMLSelectElement).value as NoteVisibilityFilter);
+    this.tablePagination.resetPage();
+  }
 
   protected readonly relatedTypeOptions = [
     { value: 'lead', label: 'Lead' },
@@ -97,6 +178,16 @@ export class NotesComponent {
       this.refreshNotes();
     });
     this.route.queryParams.pipe(takeUntilDestroyed()).subscribe((q) => {
+      if (q['create'] === '1') {
+        this.openForm();
+        void this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { create: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
+        return;
+      }
       const edit = q['edit'];
       if (edit != null && edit !== '') {
         this.beginEditFromRoute(String(edit));
@@ -112,7 +203,7 @@ export class NotesComponent {
   }
 
   protected readonly allSelected = computed(() =>
-    this.sel.allSelectedIn(this.rows().map((r) => r.id)),
+    this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
   );
 
   private clearEditQuery(): void {
@@ -130,7 +221,7 @@ export class NotesComponent {
   }
 
   protected toggleSelectAll(): void {
-    this.sel.toggleSelectAll(this.rows().map((r) => r.id));
+    this.sel.toggleSelectAll(this.filtered().map((r) => r.id));
   }
 
   protected isRowSelected(id: string): boolean {

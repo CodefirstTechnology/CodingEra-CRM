@@ -11,6 +11,7 @@ export interface DealNormalized {
   mobile: string;
   gender: string;
   annualRevenue: number | null;
+  dealAmount: number | null;
   employees: string;
   website: string;
   gst?: string;
@@ -19,6 +20,8 @@ export interface DealNormalized {
   status: string;
   dealOwnerId: number | null;
   assignedToUserId: number | null;
+  /** Resolved from nested `assignedToUser` / `dealOwner` on GET when user directory is unavailable. */
+  assignedToName?: string;
   assignedInitials: string;
   relatedContactId: number | null;
   relatedOrganizationId: number | null;
@@ -50,6 +53,7 @@ export interface DealUpsertDto {
   mobile?: string | null;
   gender?: string | null;
   annualRevenue?: number | null;
+  dealAmount?: number | null;
   employees?: string | null;
   website?: string | null;
   gst?: string | null;

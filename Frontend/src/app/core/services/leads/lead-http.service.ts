@@ -101,15 +101,12 @@ export class LeadHttpService {
     if (query?.status?.trim()) {
       params = params.set('status', query.status.trim());
     }
-    const ownerId = query?.leadOwnerId ?? query?.assignedToUserId ?? query?.userId;
+    const ownerId = query?.leadOwnerId ?? query?.assignedToUserId;
     if (ownerId != null && ownerId > 0) {
       const id = String(ownerId);
       params = params
         .set('leadOwnerId', id)
-        .set('lead_owner_id', id)
-        .set('assignedToUserId', id)
-        .set('assigned_to_user_id', id)
-        .set('userId', id);
+        .set('lead_owner_id', id);
     }
     return this.http
       .get<unknown>(this.baseUrl, {

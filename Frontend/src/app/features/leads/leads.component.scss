@@ -24,6 +24,28 @@
   border: 1px solid #fdba74;
 }
 
+.leads__sync-status {
+  margin: -0.25rem 0 1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--surface);
+  display: grid;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+}
+
+.leads__sync-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.75rem;
+  align-items: baseline;
+}
+
+.leads__sync-status-row span {
+  color: var(--text-muted);
+}
+
 .leads__modal-root {
   position: fixed;
   inset: 0;
@@ -882,4 +904,12 @@ select.leads__control {
 .leads__row-menu-muted {
   color: var(--text-muted);
   cursor: default;
+}
+
+.leads__row-menu-danger {
+  color: #b91c1c;
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, #b91c1c 10%, transparent);
+  }
 }

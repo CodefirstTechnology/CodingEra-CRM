@@ -2,6 +2,7 @@ import { Component, inject } from '@angular/core';
 import { AuthService } from '../../core/auth/auth.service';
 import { NotificationsPanelService } from '../../core/notifications/notifications-panel.service';
 import { ProfilePanelService } from '../../core/profile/profile-panel.service';
+import { CompanyBrandingService } from '../../core/services/company-branding.service';
 import { ThemePanelService } from '../../core/theme/theme-panel.service';
 
 @Component({
@@ -15,23 +16,24 @@ export class CrmNavbarComponent {
   protected readonly profilePanel = inject(ProfilePanelService);
   protected readonly notificationsPanel = inject(NotificationsPanelService);
   protected readonly auth = inject(AuthService);
+  protected readonly branding = inject(CompanyBrandingService);
 
   protected openTheme(): void {
     this.profilePanel.close();
-    this.notificationsPanel.close();
+    this.notificationsPanel.close({ restoreFocus: false });
     this.themePanel.toggle();
   }
 
   protected openProfile(): void {
     this.themePanel.close();
-    this.notificationsPanel.close();
+    this.notificationsPanel.close({ restoreFocus: false });
     this.profilePanel.toggle();
   }
 
-  protected openNotifications(): void {
+  protected openNotifications(trigger: HTMLButtonElement): void {
     this.themePanel.close();
     this.profilePanel.close();
-    this.notificationsPanel.toggle();
+    this.notificationsPanel.toggle(trigger);
   }
 
   protected notificationBadgeText(): string {

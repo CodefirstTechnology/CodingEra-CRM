@@ -11,6 +11,7 @@ export const QUOTATION_STATUSES: QuotationStatus[] = [
 export interface QuotationLineItemDto {
   id?: number;
   lineIndex: number;
+  itemId?: number | null;
   itemCode: string;
   itemName: string;
   description: string;
@@ -18,7 +19,9 @@ export interface QuotationLineItemDto {
   uom: string;
   weight: number;
   unitWeight: number;
+  steelRate: number;
   rate: number;
+  itemSnapshotJson: string;
   discountPercent: number;
   gstPercent: number;
   amount: number;
@@ -41,10 +44,39 @@ export interface QuotationGridColumnsDto {
 
 export interface QuotationTotalsDto {
   subtotal: number;
+  additionalChargesTotal?: number;
+  taxableAmount?: number;
   taxTotal: number;
   grandTotal: number;
   totalQuantity: number;
   totalWeight: number;
+}
+
+export interface QuotationAdditionalChargeDto {
+  id?: number;
+  sortIndex: number;
+  chargeName: string;
+  amount: number;
+}
+
+export interface QuotationTerm {
+  title: string;
+  body: string;
+}
+
+export interface TechnicalProposalPayload {
+  projectName?: string;
+  kindAttnDesignation?: string;
+  commercialTerms?: string;
+  taxLabel?: string;
+  paymentTerms?: string;
+  hsnCode?: string;
+  incoterms?: string;
+  dispatchLeadTime?: string;
+  currencyCode?: string;
+  proposalIntro?: string;
+  technicalSections?: QuotationTerm[];
+  commercialSections?: QuotationTerm[];
 }
 
 export interface QuotationUpsertDto {
@@ -81,10 +113,22 @@ export interface QuotationUpsertDto {
   remarks: string;
   subtotal?: number;
   taxTotal?: number;
+  gstPercent?: number;
   grandTotal?: number;
   totalQuantity?: number;
   totalWeight?: number;
+  transportationCharges?: number;
+  loadingCharges?: number;
+  serviceCharges?: number;
+  customizeTerms?: boolean;
+  introText?: string;
+  transportationLabel?: string;
+  jurisdiction?: string;
+  terms?: QuotationTerm[];
+  customCharges?: QuotationAdditionalChargeDto[];
   lineItems: QuotationLineItemDto[];
+  quotationTemplate?: string;
+  technicalProposal?: TechnicalProposalPayload | null;
 }
 
 export interface QuotationListItem {
@@ -107,6 +151,7 @@ export interface QuotationListItem {
   createdByName?: string | null;
   createdAt?: string;
   updatedAt?: string;
+  quotationTemplate?: string;
 }
 
 export interface QuotationNextNumber {

@@ -9,6 +9,7 @@ import { UserDataScopeService } from '../../../core/services/user-data-scope.ser
 import { isDealClosed, isDealClosedWon } from '../../../core/services/deals/deal-pipeline.constants';
 import { LeadOwnerOptionsService } from '../../../core/services/leads/lead-owner-options.service';
 import { leadsHttpErrorMessage } from '../../../core/services/leads.service';
+import { dealDisplayName } from '../../dashboard/utils/admin-dashboard.util';
 import type { DealRow } from '../../deals/deals.component';
 import type { LeadRow } from '../../leads/lead-row.model';
 import type { TaskRow } from '../../tasks/tasks.component';
@@ -19,12 +20,15 @@ import {
 import { parseSessionUserId } from '../utils/user-ownership.util';
 import type {
   UserDashboardActivityItem,
+  UserDashboardDealDetail,
   UserDashboardFollowUpItem,
   UserDashboardKpis,
   UserDashboardLeadStatusSummary,
   UserDashboardLeadTableRow,
   UserDashboardPerformance,
+  UserDashboardRevenueDealDetail,
   UserDashboardSnapshot,
+  UserDashboardTaskDetail,
 } from '../models/user-dashboard.models';
 
 @Injectable({ providedIn: 'root' })
@@ -143,9 +147,7 @@ export class UserDashboardService {
         monthlyRevenue,
       } satisfies UserDashboardKpis,
       assignedLeads: tableRows,
-      todaysLeads: todaysLeads
-        .slice(0, 8)
-        .map((l) => this.toLeadTableRow(l, undefined)),
+      todaysLeads: todaysLeads.map((l) => this.toLeadTableRow(l, undefined)),
       followUps: followUpsToday,
       activities: activities.map((row) => this.toDashboardActivityItem(row, entityNames)),
       performance: {
@@ -157,6 +159,39 @@ export class UserDashboardService {
         pendingCalls: pendingTasks.filter((t) => /call/i.test(t.title)).length,
       } satisfies UserDashboardPerformance,
       statusSummary: this.buildStatusSummary(myLeads),
+      activeDealDetails: activeDeals.map((d) => this.toDealDetail(d)),
+      pendingTaskDetails: pendingTasks.map((t) => this.toTaskDetail(t)),
+      monthlyRevenueDeals: monthlyClosed.map((d) => this.toRevenueDealDetail(d)),
+    };
+  }
+
+  private toDealDetail(deal: DealRow): UserDashboardDealDetail {
+    return {
+      id: deal.id,
+      dealName: dealDisplayName(deal),
+      company: deal.organizationName?.trim() || '—',
+      status: deal.status,
+      value: Number.isFinite(deal.dealAmount) ? deal.dealAmount : deal.annualRevenue,
+    };
+  }
+
+  private toTaskDetail(task: TaskRow): UserDashboardTaskDetail {
+    return {
+      id: task.id,
+      title: task.title,
+      status: task.status,
+      priority: task.priority,
+      dueDate: task.dueDate?.trim() || '—',
+    };
+  }
+
+  private toRevenueDealDetail(deal: DealRow): UserDashboardRevenueDealDetail {
+    return {
+      id: deal.id,
+      dealName: dealDisplayName(deal),
+      company: deal.organizationName?.trim() || '—',
+      value: Number.isFinite(deal.annualRevenue) ? deal.annualRevenue : deal.dealAmount,
+      closedDate: deal.lastModified?.trim() || '—',
     };
   }
 
@@ -197,12 +232,10 @@ export class UserDashboardService {
       });
     }
 
-    return items
-      .sort((a, b) => {
-        const order = { overdue: 0, upcoming: 1, meeting: 2 };
-        return order[a.kind] - order[b.kind];
-      })
-      .slice(0, 10);
+    return items.sort((a, b) => {
+      const order = { overdue: 0, upcoming: 1, meeting: 2 };
+      return order[a.kind] - order[b.kind];
+    });
   }
 
   private toDashboardActivityItem(
