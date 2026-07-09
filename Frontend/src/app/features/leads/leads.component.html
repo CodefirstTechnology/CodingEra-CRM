@@ -312,8 +312,8 @@
           <strong>{{ src.displayName }}</strong>
           <span>
             Auto sync: {{ src.autoSyncEnabled ? 'On' : 'Off' }}
-            · Last: {{ src.lastSyncAt ? (src.lastSyncAt | date: 'short') : '—' }}
-            · Next: {{ src.autoSyncEnabled ? 'Continuous' : '—' }}
+            · Last: {{ src.lastSyncAt ? (src.lastSyncAt | date: 'short') : 'Never' }}
+            · Connection: {{ src.apiIntegrationReady ? 'Ready' : 'Not set up' }}
           </span>
         </div>
       }

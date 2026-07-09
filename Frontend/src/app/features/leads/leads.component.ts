@@ -88,7 +88,6 @@ import {
 import { environment } from '../../../environments/environment';
 import { LeadSyncHttpService } from '../../core/services/lead-sync/lead-sync-http.service';
 import type { LeadSyncMyAccess } from '../../core/services/lead-sync/lead-sync-api.models';
-import { isLeadSyncClientPullEnabled } from '../../core/services/lead-sync/lead-sync-client.util';
 import {
   isIndiamartLeadRowId,
   isJustdialLeadRowId,
@@ -170,12 +169,12 @@ export class LeadsComponent {
   /** Assigned lead sync sources for the current user (from API). */
   protected readonly leadSyncAccess = signal<LeadSyncMyAccess[]>([]);
 
-  /** Sources the user may sync manually (assigned + client integration available). */
+  /** Sources the user may sync when API is configured in admin settings. */
   protected readonly visibleSyncSources = computed(() =>
-    this.leadSyncAccess().filter(
-      (s) => isLeadSyncClientPullEnabled(s.code) || s.apiIntegrationReady,
-    ),
+    this.leadSyncAccess().filter((s) => s.apiIntegrationReady),
   );
+
+  private readonly syncingSourceIds = signal<Set<number>>(new Set());
 
   private readonly marketplaceRuntime = signal<LeadsMarketplaceRuntime | null>(null);
   private readonly marketplaceLocalRows = signal<LeadRow[]>([]);
@@ -1663,18 +1662,15 @@ export class LeadsComponent {
   }
 
   protected syncSourceLoading(code: string): boolean {
-    const rt = this.marketplaceRuntime();
-    const c = code.trim().toLowerCase();
-    if (c === 'indiamart') return rt?.indiamart?.pullInProgress() ?? false;
-    if (c === 'justdial') return rt?.justdial?.loading() ?? false;
-    if (c === 'tradeindia') return rt?.tradeindia?.loading() ?? false;
-    return false;
+    const access = this.leadSyncAccess().find((s) => s.code.trim().toLowerCase() === code.trim().toLowerCase());
+    return access ? this.syncingSourceIds().has(access.sourceId) : false;
   }
 
   protected syncSourceConfigError(code: string): string | null {
-    const c = code.trim().toLowerCase();
-    if (c === 'indiamart') {
-      return this.marketplaceRuntime()?.indiamart?.getConfigError() ?? null;
+    const access = this.leadSyncAccess().find((s) => s.code.trim().toLowerCase() === code.trim().toLowerCase());
+    if (!access) return null;
+    if (!access.apiIntegrationReady) {
+      return `Ask an admin to connect ${access.displayName} in Advanced Settings → Lead Sync.`;
     }
     return null;
   }
@@ -1687,52 +1683,44 @@ export class LeadsComponent {
   }
 
   protected syncMarketplaceSource(access: LeadSyncMyAccess): void {
-    const startedAt = new Date().toISOString();
-    void this.ensureMarketplaceRuntime().then((rt) => {
-      const fetch$ = this.fetchMarketplaceByCode(rt, access.code);
-      if (!fetch$) {
-        this.toast.error(`Sync is not available for ${access.displayName}.`);
-        return;
-      }
-      fetch$.pipe(take(1)).subscribe({
+    if (!access.apiIntegrationReady) {
+      this.toast.error(
+        `${access.displayName} is not connected yet. Ask an admin to add the API key in Advanced Settings.`,
+      );
+      return;
+    }
+
+    this.syncingSourceIds.update((set) => new Set(set).add(access.sourceId));
+    this.leadSyncApi
+      .runSync(access.sourceId)
+      .pipe(take(1))
+      .subscribe({
         next: (r) => {
-          this.refreshMarketplaceLocalRows();
+          this.syncingSourceIds.update((set) => {
+            const next = new Set(set);
+            next.delete(access.sourceId);
+            return next;
+          });
           this.refreshLeads();
           this.loadLeadSyncAccess();
+          if (r.errorMessage || r.status === 'Failed') {
+            this.toast.error(r.errorMessage ?? `${access.displayName} sync failed.`);
+            return;
+          }
           this.toast.success(
-            `${access.displayName} sync: ${r.added} new locally, ${r.skippedDuplicates} skipped.${this.dbPersistToastSuffix(r)}`,
+            `${access.displayName}: ${r.totalCreated} new lead(s) imported (${r.totalReceived} received from API).`,
           );
-          this.leadSyncApi
-            .recordManualLog({
-              sourceId: access.sourceId,
-              startedAt,
-              endedAt: new Date().toISOString(),
-              totalReceived: r.added + r.skippedDuplicates,
-              totalCreated: r.dbSaved ?? 0,
-              failedCount: r.dbFailed ?? 0,
-              errorMessage: r.lastError ?? null,
-            })
-            .pipe(take(1))
-            .subscribe({ error: () => {} });
         },
         error: (e: unknown) => {
+          this.syncingSourceIds.update((set) => {
+            const next = new Set(set);
+            next.delete(access.sourceId);
+            return next;
+          });
           const msg = e instanceof Error ? e.message : `${access.displayName} sync failed.`;
           this.toast.error(msg);
-          this.leadSyncApi
-            .recordManualLog({
-              sourceId: access.sourceId,
-              startedAt,
-              endedAt: new Date().toISOString(),
-              totalReceived: 0,
-              totalCreated: 0,
-              failedCount: 1,
-              errorMessage: msg,
-            })
-            .pipe(take(1))
-            .subscribe({ error: () => {} });
         },
       });
-    });
   }
 
   private fetchMarketplaceByCode(rt: LeadsMarketplaceRuntime | null, code: string) {

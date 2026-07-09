@@ -1,174 +1,433 @@
 <div class="lsync">
   <header class="lsync__head">
-    <div>
+    <div class="lsync__head-text">
       <h2 class="lsync__title">Lead Sync Management</h2>
       <p class="lsync__sub">
-        Assign users per lead source, configure automatic lead sync, and review sync history.
+        Connect marketplace APIs, assign team access, and control automatic lead imports.
       </p>
     </div>
+    @if (isAdmin()) {
+      <nav class="lsync__tabs" aria-label="Lead sync sections">
+        <button
+          type="button"
+          class="lsync__tab"
+          [class.lsync__tab--active]="activeTab() === 'config'"
+          (click)="setTab('config')"
+        >
+          Connections
+        </button>
+        <button
+          type="button"
+          class="lsync__tab"
+          [class.lsync__tab--active]="activeTab() === 'history'"
+          (click)="setTab('history')"
+        >
+          Sync history
+        </button>
+      </nav>
+    }
   </header>
 
   @if (!isAdmin()) {
     <p class="lsync__err" role="alert">Only administrators can access this module.</p>
   } @else {
-    <nav class="lsync__tabs" aria-label="Lead sync sections">
-      <button
-        type="button"
-        class="lsync__tab"
-        [class.lsync__tab--active]="activeTab() === 'config'"
-        (click)="setTab('config')"
-      >
-        Configuration
-      </button>
-      <button
-        type="button"
-        class="lsync__tab"
-        [class.lsync__tab--active]="activeTab() === 'history'"
-        (click)="setTab('history')"
-      >
-        Sync History
-      </button>
-    </nav>
-
     @if (loadError(); as err) {
       <p class="lsync__err" role="alert">{{ err }}</p>
     }
 
     @if (loading()) {
-      <p class="lsync__hint">Loading…</p>
+      <p class="lsync__hint">Loading lead sources…</p>
     }
 
     @if (activeTab() === 'config' && !loading()) {
-      @for (source of sources(); track source.id) {
-        <section class="lsync__card">
-          <header class="lsync__card-head">
-            <h3 class="lsync__card-title">{{ source.displayName }}</h3>
-            <span
-              class="lsync__badge"
-              [class.lsync__badge--ready]="source.apiIntegrationReady"
-              [class.lsync__badge--pending]="!source.apiIntegrationReady"
-            >
-              {{ source.apiIntegrationReady ? 'API ready' : 'API pending' }}
-            </span>
-          </header>
+      <div class="lsync__workspace">
+        <aside class="lsync__sources" aria-label="Lead sources">
+          <p class="lsync__sources-label">Integrations</p>
+          <ul class="lsync__source-list">
+            @for (source of sources(); track source.id) {
+              @if (providerUi(source.code)) {
+                <li>
+                  <button
+                    type="button"
+                    class="lsync__source-item"
+                    [class.lsync__source-item--active]="selectedSourceId() === source.id"
+                    (click)="selectSource(source)"
+                  >
+                    <span class="lsync__source-name">{{ source.displayName }}</span>
+                    <span class="lsync__badge lsync__badge--compact" [class]="statusClass(source)">
+                      {{ statusLabel(source) }}
+                    </span>
+                  </button>
+                </li>
+              }
+            }
+          </ul>
+        </aside>
 
-          <div class="lsync__section">
-            <h4 class="lsync__section-title">User assignment</h4>
-            <p class="lsync__section-sub">Only users with Lead module access are listed.</p>
-            @if (eligibleUsers().length === 0) {
-              <p class="lsync__hint">No eligible users found.</p>
-            } @else {
-              <ul class="lsync__user-list">
-                @for (user of eligibleUsers(); track user.id) {
-                  <li>
-                    <label class="lsync__user-check">
-                      <input
-                        type="checkbox"
-                        [checked]="isUserSelected(source.id, user.id)"
-                        (change)="toggleUser(source.id, user.id, $any($event.target).checked)"
-                      />
-                      <span>{{ user.fullName }} ({{ user.email }}) — {{ user.roleName }}</span>
-                    </label>
-                  </li>
+        @if (selectedSource(); as source) {
+          @if (providerUi(source.code); as ui) {
+            <section class="lsync__detail">
+              <header class="lsync__detail-head">
+                <div>
+                  <h3 class="lsync__detail-title">{{ source.displayName }}</h3>
+                  <p class="lsync__detail-sub">
+                    Import leads from {{ source.displayName }} into your CRM.
+                  </p>
+                </div>
+                <div class="lsync__detail-stats">
+                  <div class="lsync__stat">
+                    <span class="lsync__stat-label">Last sync</span>
+                    <span class="lsync__stat-value">
+                      @if (source.lastSyncAt) {
+                        {{ source.lastSyncAt | date: 'medium' }}
+                      } @else {
+                        Never
+                      }
+                    </span>
+                  </div>
+                  <div class="lsync__stat">
+                    <span class="lsync__stat-label">Auto sync</span>
+                    <span
+                      class="lsync__stat-value"
+                      [class.lsync__stat-value--on]="source.autoSyncEnabled"
+                    >
+                      {{ source.autoSyncEnabled ? 'On' : 'Off' }}
+                    </span>
+                  </div>
+                  <div class="lsync__stat">
+                    <span class="lsync__stat-label">Team</span>
+                    <span class="lsync__stat-value">{{ source.assignments.length }} users</span>
+                  </div>
+                </div>
+              </header>
+
+              <nav class="lsync__subnav" aria-label="Source settings">
+                <button
+                  type="button"
+                  class="lsync__subnav-btn"
+                  [class.lsync__subnav-btn--active]="sourcePanel() === 'connection'"
+                  (click)="setSourcePanel('connection')"
+                >
+                  API connection
+                </button>
+                <button
+                  type="button"
+                  class="lsync__subnav-btn"
+                  [class.lsync__subnav-btn--active]="sourcePanel() === 'team'"
+                  (click)="setSourcePanel('team')"
+                >
+                  Team access
+                  @if (selectedTeamCount() > 0) {
+                    <span class="lsync__subnav-count">{{ selectedTeamCount() }}</span>
+                  }
+                </button>
+                <button
+                  type="button"
+                  class="lsync__subnav-btn"
+                  [class.lsync__subnav-btn--active]="sourcePanel() === 'automation'"
+                  (click)="setSourcePanel('automation')"
+                >
+                  Automation
+                </button>
+              </nav>
+
+              <div class="lsync__panel">
+                @switch (sourcePanel()) {
+                  @case ('connection') {
+                    <div class="lsync__panel-section">
+                      <div class="lsync__panel-intro">
+                        <h4 class="lsync__panel-title">{{ ui.connectionTitle }}</h4>
+                        <p class="lsync__panel-desc">{{ ui.connectionDescription }}</p>
+                      </div>
+
+                      <div class="lsync__form-grid">
+                        @for (field of ui.fields; track field.key) {
+                          @if (field.key === 'pullApiUrl') {
+                            <label class="lsync__field">
+                              <span class="lsync__label">{{ field.label }}</span>
+                              @if (field.hint) {
+                                <span class="lsync__field-hint">{{ field.hint }}</span>
+                              }
+                              <input
+                                class="lsync__input"
+                                [type]="fieldInputType(field)"
+                                [placeholder]="field.placeholder ?? ''"
+                                [value]="pullUrlDraft(source)"
+                                (input)="setPullUrlDraft(source.id, $any($event.target).value)"
+                              />
+                            </label>
+                          }
+                          @if (field.key === 'apiKey') {
+                            <label class="lsync__field">
+                              <span class="lsync__label">{{ field.label }}</span>
+                              @if (maskedApiKey(source.id); as masked) {
+                                <span class="lsync__saved-key">Saved key: {{ masked }}</span>
+                              }
+                              @if (field.hint) {
+                                <span class="lsync__field-hint">{{ field.hint }}</span>
+                              }
+                              <input
+                                class="lsync__input"
+                                type="password"
+                                [placeholder]="field.placeholder ?? ''"
+                                autocomplete="new-password"
+                                [value]="apiKeyDraft(source.id)"
+                                (input)="setApiKeyDraft(source.id, $any($event.target).value)"
+                              />
+                            </label>
+                          }
+                        }
+                      </div>
+
+                      <footer class="lsync__panel-foot">
+                        <div class="lsync__actions">
+                          <button
+                            type="button"
+                            class="lsync__btn lsync__btn--solid"
+                            [disabled]="savingSourceId() === source.id"
+                            (click)="saveCredentials(source)"
+                          >
+                            {{ savingSourceId() === source.id ? 'Saving…' : 'Save connection' }}
+                          </button>
+                          <button
+                            type="button"
+                            class="lsync__btn"
+                            [disabled]="!source.isConfigured || testingSourceId() === source.id"
+                            (click)="testConnection(source)"
+                          >
+                            {{ testingSourceId() === source.id ? 'Testing…' : 'Test connection' }}
+                          </button>
+                          <button
+                            type="button"
+                            class="lsync__btn"
+                            [disabled]="!source.isConfigured || syncingSourceId() === source.id"
+                            (click)="syncNow(source)"
+                          >
+                            {{ syncingSourceId() === source.id ? 'Syncing…' : 'Sync now' }}
+                          </button>
+                        </div>
+                      </footer>
+                    </div>
+                  }
+
+                  @case ('team') {
+                    <div class="lsync__panel-section lsync__panel-section--team">
+                      <div class="lsync__team-toolbar">
+                        <div class="lsync__panel-intro">
+                          <h4 class="lsync__panel-title">Team access</h4>
+                          <p class="lsync__panel-desc">
+                            Selected users can sync {{ source.displayName }} leads from the Leads page.
+                          </p>
+                        </div>
+                        <label class="lsync__search">
+                          <span class="visually-hidden">Search team members</span>
+                          <input
+                            type="search"
+                            placeholder="Search by name, email, or role…"
+                            [value]="teamSearchQuery()"
+                            (input)="onTeamSearch($event)"
+                          />
+                        </label>
+                      </div>
+
+                      @if (eligibleUsers().length === 0) {
+                        <p class="lsync__hint">No eligible users found.</p>
+                      } @else {
+                        <div class="lsync__team-meta">
+                          <span>{{ selectedTeamCount() }} of {{ eligibleUsers().length }} selected</span>
+                          <div class="lsync__team-bulk">
+                            <button
+                              type="button"
+                              class="lsync__link-btn"
+                              (click)="selectAllFilteredUsers(source.id)"
+                            >
+                              Select visible
+                            </button>
+                            <button
+                              type="button"
+                              class="lsync__link-btn"
+                              (click)="clearAllTeamUsers(source.id)"
+                            >
+                              Clear all
+                            </button>
+                          </div>
+                        </div>
+
+                        <div class="lsync__team-table-wrap">
+                          <table class="lsync__team-table">
+                            <thead>
+                              <tr>
+                                <th scope="col" class="lsync__col-check"></th>
+                                <th scope="col">User</th>
+                                <th scope="col">Email</th>
+                                <th scope="col">Role</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              @for (user of filteredTeamUsers(); track user.id) {
+                                <tr>
+                                  <td class="lsync__col-check">
+                                    <input
+                                      type="checkbox"
+                                      [checked]="isUserSelected(source.id, user.id)"
+                                      [attr.aria-label]="'Grant access to ' + user.fullName"
+                                      (change)="toggleUser(source.id, user.id, $any($event.target).checked)"
+                                    />
+                                  </td>
+                                  <td>
+                                    <div class="lsync__user-cell">
+                                      <span class="lsync__user-avatar">{{ userInitial(user.fullName) }}</span>
+                                      <span>{{ user.fullName }}</span>
+                                    </div>
+                                  </td>
+                                  <td class="lsync__muted">{{ user.email }}</td>
+                                  <td><span class="lsync__role-pill">{{ user.roleName }}</span></td>
+                                </tr>
+                              } @empty {
+                                <tr>
+                                  <td colspan="4" class="lsync__empty">No users match your search.</td>
+                                </tr>
+                              }
+                            </tbody>
+                          </table>
+                        </div>
+                      }
+
+                      <footer class="lsync__panel-foot">
+                        <button
+                          type="button"
+                          class="lsync__btn lsync__btn--solid"
+                          [disabled]="savingSourceId() === source.id"
+                          (click)="saveAssignments(source)"
+                        >
+                          {{ savingSourceId() === source.id ? 'Saving…' : 'Save team access' }}
+                        </button>
+                      </footer>
+                    </div>
+                  }
+
+                  @case ('automation') {
+                    <div class="lsync__panel-section">
+                      <div class="lsync__panel-intro">
+                        <h4 class="lsync__panel-title">Automatic sync</h4>
+                        <p class="lsync__panel-desc">
+                          Import new leads in the background without manual action.
+                        </p>
+                      </div>
+
+                      <div class="lsync__automation-card">
+                        <label class="lsync__toggle">
+                          <input
+                            type="checkbox"
+                            [checked]="autoSyncEnabled(source.id)"
+                            [disabled]="!source.isConfigured"
+                            (change)="setAutoSyncEnabled(source.id, $any($event.target).checked)"
+                          />
+                          <span class="lsync__toggle-text">
+                            <strong>Import new leads automatically</strong>
+                            <small>
+                              @if (!source.isConfigured) {
+                                Save the API connection first to enable automation.
+                              } @else if (autoSyncEnabled(source.id)) {
+                                Server checks for new leads about every minute.
+                              } @else {
+                                Manual sync only until you turn this on.
+                              }
+                            </small>
+                          </span>
+                        </label>
+
+                        <dl class="lsync__automation-meta">
+                          <div>
+                            <dt>Last sync</dt>
+                            <dd>
+                              @if (source.lastSyncAt) {
+                                {{ source.lastSyncAt | date: 'medium' }}
+                              } @else {
+                                Never
+                              }
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Current status</dt>
+                            <dd>{{ source.autoSyncEnabled ? 'Running' : 'Paused' }}</dd>
+                          </div>
+                        </dl>
+                      </div>
+
+                      <footer class="lsync__panel-foot">
+                        <button
+                          type="button"
+                          class="lsync__btn lsync__btn--solid"
+                          [disabled]="savingSourceId() === source.id || !source.isConfigured"
+                          (click)="saveAutoSync(source)"
+                        >
+                          {{ savingSourceId() === source.id ? 'Saving…' : 'Save automation' }}
+                        </button>
+                      </footer>
+                    </div>
+                  }
                 }
-              </ul>
-            }
-            <button
-              type="button"
-              class="lsync__btn lsync__btn--solid"
-              [disabled]="savingSourceId() === source.id"
-              (click)="saveAssignments(source)"
-            >
-              {{ savingSourceId() === source.id ? 'Saving…' : 'Save assignments' }}
-            </button>
-          </div>
-
-          <div class="lsync__section">
-            <h4 class="lsync__section-title">Auto sync</h4>
-            <label class="lsync__toggle">
-              <input
-                type="checkbox"
-                [checked]="autoSyncEnabled(source.id)"
-                (change)="setAutoSyncEnabled(source.id, $any($event.target).checked)"
-              />
-              <span>Enable auto sync</span>
-            </label>
-            @if (autoSyncEnabled(source.id)) {
-              <p class="lsync__hint">Leads sync automatically on each background check.</p>
-            }
-
-            <dl class="lsync__meta">
-              <div>
-                <dt>Last sync</dt>
-                <dd>
-                  @if (source.lastSyncAt) {
-                    {{ source.lastSyncAt | date: 'medium' }}
-                  } @else {
-                    —
-                  }
-                </dd>
               </div>
-              <div>
-                <dt>Next scheduled sync</dt>
-                <dd>
-                  @if (source.autoSyncEnabled) {
-                    Continuous
-                  } @else {
-                    —
-                  }
-                </dd>
-              </div>
-            </dl>
-
-            <button
-              type="button"
-              class="lsync__btn lsync__btn--solid"
-              [disabled]="savingSourceId() === source.id"
-              (click)="saveAutoSync(source)"
-            >
-              {{ savingSourceId() === source.id ? 'Saving…' : 'Save auto sync' }}
-            </button>
-          </div>
-        </section>
-      }
+            </section>
+          }
+        } @else {
+          <section class="lsync__detail lsync__detail--empty">
+            <p class="lsync__hint">No lead sources are available yet.</p>
+          </section>
+        }
+      </div>
     }
 
     @if (activeTab() === 'history') {
-      <div class="lsync__table-wrap">
-        <table class="lsync__table">
-          <thead>
-            <tr>
-              <th>Source</th>
-              <th>Type</th>
-              <th>Started</th>
-              <th>Ended</th>
-              <th>Received</th>
-              <th>Created</th>
-              <th>Failed</th>
-              <th>Triggered by</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (row of history(); track row.id) {
+      <div class="lsync__history">
+        <div class="lsync__history-head">
+          <p class="lsync__history-sub">Recent sync runs across all connected sources.</p>
+        </div>
+        <div class="lsync__table-wrap">
+          <table class="lsync__table">
+            <thead>
               <tr>
-                <td>{{ row.sourceName }}</td>
-                <td>{{ row.syncType }}</td>
-                <td>{{ row.startedAt | date: 'short' }}</td>
-                <td>{{ row.endedAt ? (row.endedAt | date: 'short') : '—' }}</td>
-                <td>{{ row.totalReceived }}</td>
-                <td>{{ row.totalCreated }}</td>
-                <td>{{ row.failedCount }}</td>
-                <td>{{ row.triggeredByName ?? 'System' }}</td>
-                <td>{{ row.status }}</td>
+                <th>Source</th>
+                <th>Type</th>
+                <th>Started</th>
+                <th>Received</th>
+                <th>Created</th>
+                <th>Failed</th>
+                <th>Triggered by</th>
+                <th>Status</th>
+                <th>Error</th>
               </tr>
-            } @empty {
-              <tr>
-                <td colspan="9" class="lsync__empty">No sync history yet.</td>
-              </tr>
-            }
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              @for (row of history(); track row.id) {
+                <tr [class.lsync__row--failed]="row.status === 'Failed'">
+                  <td>{{ row.sourceName }}</td>
+                  <td>{{ row.syncType }}</td>
+                  <td>{{ row.startedAt | date: 'short' }}</td>
+                  <td>{{ row.totalReceived }}</td>
+                  <td>{{ row.totalCreated }}</td>
+                  <td>{{ row.failedCount }}</td>
+                  <td>{{ row.triggeredByName ?? 'System' }}</td>
+                  <td>
+                    <span
+                      class="lsync__status-pill"
+                      [class.lsync__status-pill--failed]="row.status === 'Failed'"
+                      [class.lsync__status-pill--ok]="row.status === 'Completed'"
+                    >
+                      {{ row.status }}
+                    </span>
+                  </td>
+                  <td class="lsync__error-cell">{{ row.errorMessage ?? '—' }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="9" class="lsync__empty">No sync history yet.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
       </div>
     }
   }
