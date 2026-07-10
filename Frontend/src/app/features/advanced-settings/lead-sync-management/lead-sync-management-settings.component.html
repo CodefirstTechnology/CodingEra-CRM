@@ -133,6 +133,9 @@
                           @if (field.key === 'pullApiUrl') {
                             <label class="lsync__field lsync__field--wide">
                               <span class="lsync__label">{{ field.label }}</span>
+                              @if (field.hint) {
+                                <span class="lsync__field-hint">{{ field.hint }}</span>
+                              }
                               <input
                                 class="lsync__input"
                                 [type]="fieldInputType(field)"

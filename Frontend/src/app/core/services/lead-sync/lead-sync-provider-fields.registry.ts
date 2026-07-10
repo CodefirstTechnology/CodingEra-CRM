@@ -46,6 +46,7 @@ export const LEAD_SYNC_PROVIDER_UI: Record<string, LeadSyncProviderUiDef> = {
       {
         key: 'pullApiUrl',
         label: 'Lead pull API URL',
+        hint: 'Include userid and profile_id only. Do not put the API key in the URL.',
         type: 'url',
         required: true,
         placeholder: 'https://www.tradeindia.com/utils/my_inquiry.html?userid=…&profile_id=…',
