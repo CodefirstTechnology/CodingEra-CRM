@@ -218,15 +218,32 @@
             {{ data.kpis.convertedLeads }} / {{ data.kpis.totalLeads }} leads
           </span>
         </div>
-        <div class="sales-dash__mini-chart" role="img" aria-label="Lead mix by status share">
-          @for (bar of conversionBars(); track bar.label) {
-            <div class="sales-dash__mini-chart-col">
-              <div class="sales-dash__mini-bar-track">
-                <div class="sales-dash__mini-bar" [style.height.%]="bar.pct || 4"></div>
-              </div>
-              <span class="sales-dash__mini-day">{{ bar.label }}</span>
-            </div>
-          }
+        <div class="sales-dash__conversion-chart-wrap">
+          <svg
+            class="sales-dash__conversion-chart"
+            viewBox="0 0 132 68"
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="Lead mix by status share"
+          >
+            @for (bar of conversionBars(); track bar.label; let i = $index) {
+              @if (bar.ratio > 0) {
+                <rect
+                  class="sales-dash__conversion-bar"
+                  [attr.x]="8 + i * 42"
+                  [attr.y]="68 - conversionBarHeight(bar.ratio)"
+                  width="28"
+                  [attr.height]="conversionBarHeight(bar.ratio)"
+                  rx="3"
+                />
+              }
+            }
+          </svg>
+          <div class="sales-dash__conversion-labels" aria-hidden="true">
+            @for (bar of conversionBars(); track bar.label) {
+              <span class="sales-dash__conversion-label">{{ bar.label }}</span>
+            }
+          </div>
         </div>
       </article>
 
@@ -238,20 +255,21 @@
           </button>
         </header>
 
+        <div class="sales-dash__pipe-body">
         <div class="sales-dash__pipe-summary">
           <p class="sales-dash__forecast-total">{{ formatMoney(data.kpis.pipelineRevenue) }}</p>
           <p class="sales-dash__forecast-sub">{{ data.kpis.activePipelineCount }} open deals</p>
         </div>
 
-        @if (pipelineActiveSegments().length === 0) {
+        @if (pipelineCardSegments().length === 0) {
           <p class="sales-dash__pipe-empty">No active deals in pipeline.</p>
         } @else {
           <div
             class="sales-dash__pipe-stack"
             role="img"
-            [attr.aria-label]="'Pipeline value split across ' + pipelineActiveSegments().length + ' stages'"
+            [attr.aria-label]="'Pipeline value split across ' + pipelineCardSegments().length + ' stages'"
           >
-            @for (seg of pipelineActiveSegments(); track seg.label; let i = $index) {
+            @for (seg of pipelineCardSegments(); track seg.label; let i = $index) {
               <button
                 type="button"
                 class="sales-dash__pipe-stack-seg"
@@ -265,7 +283,7 @@
           </div>
 
           <ul class="sales-dash__pipe-stages">
-            @for (seg of pipelineActiveSegments(); track seg.label; let i = $index) {
+            @for (seg of pipelineCardSegments(); track seg.label; let i = $index) {
               <li class="sales-dash__pipe-stage-row">
                 <button
                   type="button"
@@ -284,9 +302,17 @@
             }
           </ul>
 
-          @if (pipelineEmptyStageCount() > 0) {
+          @if (pipelineCardHiddenCount() > 0 || pipelineEmptyStageCount() > 0) {
             <p class="sales-dash__pipe-foot">
-              {{ pipelineActiveSegments().length }} active · {{ pipelineEmptyStageCount() }} empty stages
+              @if (pipelineCardHiddenCount() > 0) {
+                +{{ pipelineCardHiddenCount() }} more active stages
+              }
+              @if (pipelineCardHiddenCount() > 0 && pipelineEmptyStageCount() > 0) {
+                ·
+              }
+              @if (pipelineEmptyStageCount() > 0) {
+                {{ pipelineEmptyStageCount() }} empty stages
+              }
             </p>
           }
         }
@@ -294,6 +320,7 @@
         <button type="button" class="sales-dash__pipe-view-deals" (click)="openPipelineOverview()">
           View all {{ data.kpis.activePipelineCount }} deals
         </button>
+        </div>
       </article>
     </div>
 

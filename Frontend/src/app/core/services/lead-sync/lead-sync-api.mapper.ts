@@ -65,6 +65,8 @@ export function mapLeadSyncSource(row: unknown): LeadSyncSource {
     displayName: str(o['displayName']),
     markerName: str(o['markerName']),
     apiIntegrationReady: bool(o['apiIntegrationReady']),
+    isConfigured: bool(o['isConfigured']),
+    pullApiUrl: nullableStr(o['pullApiUrl']),
     autoSyncEnabled: bool(o['autoSyncEnabled']),
     intervalOptionId: o['intervalOptionId'] == null ? null : num(o['intervalOptionId']),
     intervalHours: o['intervalHours'] == null ? null : num(o['intervalHours']),

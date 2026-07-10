@@ -7,34 +7,66 @@
       </p>
     </div>
 
-    <aside class="co-profile__logo-card">
-      <div class="co-profile__logo-card-head">
-        <div>
-          <h3 class="co-profile__logo-title">Company logo</h3>
-          <p class="co-profile__logo-note">Shown in the sidebar, login page, and browser tab.</p>
+    <aside class="co-profile__logo-stack">
+      <div class="co-profile__logo-card">
+        <div class="co-profile__logo-card-head">
+          <div>
+            <h3 class="co-profile__logo-title">Company logo</h3>
+            <p class="co-profile__logo-note">Shown in the sidebar, login page, and quotation PDFs.</p>
+          </div>
         </div>
-      </div>
-      <div class="co-profile__logo-stage">
-        @if (logoPreviewUrl(); as src) {
-          <img class="co-profile__logo-preview" [src]="src" alt="Company logo preview" />
-        } @else {
-          <div class="co-profile__logo-placeholder">
-            <span class="co-profile__logo-placeholder-icon" aria-hidden="true">◌</span>
-            <span>No logo uploaded</span>
+        <div class="co-profile__logo-stage">
+          @if (logoPreviewUrl(); as src) {
+            <img class="co-profile__logo-preview" [src]="src" alt="Company logo preview" />
+          } @else {
+            <div class="co-profile__logo-placeholder">
+              <span class="co-profile__logo-placeholder-icon" aria-hidden="true">◌</span>
+              <span>No logo uploaded</span>
+            </div>
+          }
+        </div>
+        @if (canEdit()) {
+          <div class="co-profile__logo-actions">
+            <label class="co-profile__upload-btn">
+              Upload logo
+              <input type="file" accept="image/png,image/jpeg,image/webp" (change)="onLogoSelected($event)" hidden />
+            </label>
+            @if (logoPreviewUrl()) {
+              <button type="button" class="co-profile__clear-btn" (click)="clearLogo()">Remove</button>
+            }
           </div>
         }
       </div>
-      @if (canEdit()) {
-        <div class="co-profile__logo-actions">
-          <label class="co-profile__upload-btn">
-            Upload logo
-            <input type="file" accept="image/png,image/jpeg,image/webp" (change)="onLogoSelected($event)" hidden />
-          </label>
-          @if (logoPreviewUrl()) {
-            <button type="button" class="co-profile__clear-btn" (click)="clearLogo()">Remove</button>
+
+      <div class="co-profile__logo-card co-profile__logo-card--favicon">
+        <div class="co-profile__logo-card-head">
+          <div>
+            <h3 class="co-profile__logo-title">Browser tab icon</h3>
+            <p class="co-profile__logo-note">Favicon shown in the browser tab. Prefer a square PNG (32×32 or 64×64).</p>
+          </div>
+        </div>
+        <div class="co-profile__logo-stage co-profile__logo-stage--favicon">
+          @if (faviconPreviewUrl(); as src) {
+            <img class="co-profile__favicon-preview" [src]="src" alt="Browser tab icon preview" />
+          } @else {
+            <div class="co-profile__logo-placeholder">
+              <span class="co-profile__logo-placeholder-icon" aria-hidden="true">◌</span>
+              <span>No tab icon uploaded</span>
+            </div>
           }
         </div>
-      }
+        @if (canEdit()) {
+          <div class="co-profile__logo-actions">
+            <label class="co-profile__upload-btn">
+              Upload icon
+              <input type="file" accept="image/png,image/jpeg,image/webp,image/x-icon,image/vnd.microsoft.icon" (change)="onFaviconSelected($event)" hidden />
+            </label>
+            @if (faviconPreviewUrl()) {
+              <button type="button" class="co-profile__clear-btn" (click)="clearFavicon()">Remove</button>
+            }
+          </div>
+        }
+      </div>
     </aside>
   </header>
 

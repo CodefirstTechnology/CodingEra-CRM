@@ -17,6 +17,7 @@ import type { UserTargetRow } from '../../../core/services/user-targets/user-tar
 
 export const STUCK_DEAL_INACTIVE_HOURS = 24;
 export const STUCK_DEAL_PREVIEW_LIMIT = 5;
+export const PIPELINE_STAGE_PREVIEW_LIMIT = 4;
 
 /** Deal stages that should never appear in the stuck-deals panel. */
 const STUCK_DEAL_EXCLUDED_STATUS_NAMES = [

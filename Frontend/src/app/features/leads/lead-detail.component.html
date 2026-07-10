@@ -427,6 +427,27 @@
               <input type="text" class="lead-detail__input" formControlName="website" />
             </label>
             <label class="lead-detail__field">
+              <span class="lead-detail__label">GSTIN</span>
+              <input
+                type="text"
+                class="lead-detail__input"
+                formControlName="gst"
+                placeholder="e.g. 27AAJCB6955B1ZM"
+                maxlength="15"
+                autocomplete="off"
+                spellcheck="false"
+                [class.is-invalid]="gstFieldInvalid()"
+                (input)="onGstinInput($event)"
+              />
+              @if (gstFieldInvalid() && dataForm.controls.gst.errors?.[gstinErrorKey]) {
+                <span class="lead-detail__field-error">{{ gstinErrorMessage }}</span>
+              }
+            </label>
+            <label class="lead-detail__field">
+              <span class="lead-detail__label">Lead amount</span>
+              <input type="text" class="lead-detail__input" formControlName="dealAmount" placeholder="0.00" />
+            </label>
+            <label class="lead-detail__field">
               <span class="lead-detail__label">Location</span>
               <input type="text" class="lead-detail__input" formControlName="location" />
             </label>
@@ -726,6 +747,32 @@
                 [placeholder]="sidebarAddLabel('Website')"
                 inputmode="url"
                 autocomplete="url"
+              />
+            </dd>
+            <dt>GSTIN</dt>
+            <dd class="lead-detail__kv-dd">
+              <input
+                type="text"
+                class="lead-detail__side-field"
+                [formControl]="dataForm.controls.gst"
+                [placeholder]="sidebarAddLabel('GSTIN')"
+                maxlength="15"
+                autocomplete="off"
+                spellcheck="false"
+                [class.lead-detail__side-field--invalid]="gstFieldInvalid()"
+                (input)="onGstinInput($event)"
+              />
+              @if (gstFieldInvalid() && dataForm.controls.gst.errors?.[gstinErrorKey]) {
+                <span class="lead-detail__field-error">{{ gstinErrorMessage }}</span>
+              }
+            </dd>
+            <dt>Lead amount</dt>
+            <dd class="lead-detail__kv-dd">
+              <input
+                type="text"
+                class="lead-detail__side-field"
+                [formControl]="dataForm.controls.dealAmount"
+                [placeholder]="sidebarAddLabel('Lead amount')"
               />
             </dd>
             <dt>Location</dt>

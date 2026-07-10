@@ -16,7 +16,11 @@ import type {
 } from './models/admin-dashboard.models';
 import { ADMIN_DASHBOARD_PERIOD_OPTIONS } from './models/admin-dashboard.models';
 import { AdminDashboardService } from './services/admin-dashboard.service';
-import { sortTeamMembers, STUCK_DEAL_PREVIEW_LIMIT } from './utils/admin-dashboard.util';
+import {
+  sortTeamMembers,
+  PIPELINE_STAGE_PREVIEW_LIMIT,
+  STUCK_DEAL_PREVIEW_LIMIT,
+} from './utils/admin-dashboard.util';
 
 type StreamTab = 'all' | 'calls' | 'meetings';
 type DetailKind = 'deals' | 'leads' | 'targets' | 'pipeline';
@@ -42,6 +46,7 @@ export class DashboardComponent {
 
   protected readonly periodOptions = ADMIN_DASHBOARD_PERIOD_OPTIONS;
   protected readonly stuckPreviewLimit = STUCK_DEAL_PREVIEW_LIMIT;
+  protected readonly pipelinePreviewLimit = PIPELINE_STAGE_PREVIEW_LIMIT;
 
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
@@ -72,11 +77,20 @@ export class DashboardComponent {
   protected readonly detailTeam = signal<AdminTeamMemberStats[]>([]);
   protected readonly detailPipeline = signal<AdminPipelineSegment[]>([]);
 
-  /** Stages that currently have at least one open deal — shown on the card. */
+  /** Stages that currently have at least one open deal — full list for modals. */
   protected readonly pipelineActiveSegments = computed(() => {
     const segments = this.snapshot()?.pipelineSegments ?? [];
     return [...segments].filter((s) => s.count > 0).sort((a, b) => b.revenue - a.revenue);
   });
+
+  /** Top pipeline stages shown on the dashboard card. */
+  protected readonly pipelineCardSegments = computed(() =>
+    this.pipelineActiveSegments().slice(0, this.pipelinePreviewLimit),
+  );
+
+  protected readonly pipelineCardHiddenCount = computed(() =>
+    Math.max(0, this.pipelineActiveSegments().length - this.pipelinePreviewLimit),
+  );
 
   protected readonly pipelineEmptyStageCount = computed(() => {
     const segments = this.snapshot()?.pipelineSegments ?? [];
@@ -168,23 +182,30 @@ export class DashboardComponent {
 
   protected readonly conversionBars = computed(() => {
     const k = this.snapshot()?.kpis;
-    if (!k || k.totalLeads === 0) {
-      return [
-        { label: 'Qual', pct: 0 },
-        { label: 'Conv', pct: 0 },
-        { label: 'New', pct: 0 },
-      ];
-    }
-    const total = k.totalLeads;
-    return [
-      { label: 'Qual', pct: Math.min(100, Math.round((k.qualifiedLeads / total) * 100)) },
-      { label: 'Conv', pct: Math.min(100, Math.round((k.convertedLeads / total) * 100)) },
-      {
-        label: 'New',
-        pct: Math.min(100, Math.round((k.newLeadsInPeriod / total) * 100)),
-      },
+    const empty = [
+      { label: 'Qual', ratio: 0 },
+      { label: 'Conv', ratio: 0 },
+      { label: 'New', ratio: 0 },
     ];
+    if (!k || k.totalLeads === 0) return empty;
+
+    const raw = [
+      { label: 'Qual', value: k.qualifiedLeads },
+      { label: 'Conv', value: k.convertedLeads },
+      { label: 'New', value: k.newLeadsInPeriod },
+    ];
+    const max = Math.max(...raw.map((r) => r.value), 1);
+
+    return raw.map((r) => ({
+      label: r.label,
+      ratio: r.value === 0 ? 0 : Math.max(0.08, r.value / max),
+    }));
   });
+
+  /** Bar height inside the conversion SVG viewBox (max 56). */
+  protected conversionBarHeight(ratio: number): number {
+    return Math.max(4, Math.round(ratio * 56));
+  }
 
   protected setStreamTab(tab: StreamTab): void {
     this.streamTab.set(tab);

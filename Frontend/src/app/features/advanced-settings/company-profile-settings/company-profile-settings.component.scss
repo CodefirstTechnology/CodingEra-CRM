@@ -34,6 +34,12 @@
   max-width: 640px;
 }
 
+.co-profile__logo-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
 .co-profile__logo-card {
   display: flex;
   flex-direction: column;
@@ -47,6 +53,16 @@
     var(--surface) 100%
   );
   box-shadow: var(--shadow-card);
+}
+
+.co-profile__logo-card--favicon .co-profile__logo-stage--favicon {
+  min-height: 96px;
+}
+
+.co-profile__favicon-preview {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
 }
 
 .co-profile__logo-card-head {

@@ -10,6 +10,8 @@ export interface CompanyProfile {
   businessLine: string;
   logoContentType: string;
   logoBase64: string | null;
+  faviconContentType: string;
+  faviconBase64: string | null;
   gstin: string;
   cinNumber: string;
   address: string;
@@ -38,6 +40,9 @@ export interface CompanyProfileUpsert {
   logoContentType: string;
   logoBase64: string | null;
   removeLogo: boolean;
+  faviconContentType: string;
+  faviconBase64: string | null;
+  removeFavicon: boolean;
   gstin: string;
   cinNumber: string;
   address: string;
