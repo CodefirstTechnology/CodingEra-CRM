@@ -47,19 +47,20 @@ export const LEAD_SYNC_PROVIDER_UI: Record<string, LeadSyncProviderUiDef> = {
   tradeindia: {
     connectionTitle: 'TradeIndia API connection',
     connectionDescription:
-      'Enter the pull endpoint and API key provided by TradeIndia or your integration partner.',
+      'From TradeIndia → My Inquiry API, include userid and profile_id on the pull URL, then paste your key below.',
     fields: [
       {
         key: 'pullApiUrl',
         label: 'Lead pull API URL',
+        hint: 'Example: https://www.tradeindia.com/utils/my_inquiry.html?userid=…&profile_id=…',
         type: 'url',
         required: true,
-        placeholder: 'https://api.tradeindia.com/…',
+        placeholder: 'https://www.tradeindia.com/utils/my_inquiry.html?userid=…&profile_id=…',
       },
       {
         key: 'apiKey',
-        label: 'API key / access token',
-        hint: 'Leave blank when updating other fields to keep the saved key.',
+        label: 'API key (key)',
+        hint: 'TradeIndia inquiry key. Leave blank when updating other fields to keep the saved key.',
         type: 'password',
         required: true,
         placeholder: 'Paste your TradeIndia API key',
