@@ -35,6 +35,7 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
   protected readonly savingSourceId = signal<number | null>(null);
   protected readonly testingSourceId = signal<number | null>(null);
   protected readonly syncingSourceId = signal<number | null>(null);
+  protected readonly disconnectingSourceId = signal<number | null>(null);
   protected readonly loadError = signal<string | null>(null);
   protected readonly activeTab = signal<LeadSyncMainTab>('config');
   protected readonly selectedSourceId = signal<number | null>(null);
@@ -287,6 +288,30 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
         this.syncingSourceId.set(null);
         const msg = err instanceof Error ? err.message : 'Sync failed.';
         this.toast.error(msg);
+      },
+    });
+  }
+
+  protected disconnectSource(source: LeadSyncSource): void {
+    const ok = window.confirm(
+      `Disconnect ${source.displayName}? This removes the saved API key, turns off auto sync, and clears team access for this source.`,
+    );
+    if (!ok) return;
+
+    this.disconnectingSourceId.set(source.id);
+    this.api.disconnectSource(source.id).subscribe({
+      next: (rows) => {
+        this.sources.set(rows);
+        this.initDrafts(rows);
+        this.draftApiKey.update((m) => ({ ...m, [source.id]: '' }));
+        this.maskedKey.update((m) => ({ ...m, [source.id]: null }));
+        this.disconnectingSourceId.set(null);
+        this.sourcePanel.set('connection');
+        this.toast.success(`${source.displayName} disconnected.`);
+      },
+      error: () => {
+        this.disconnectingSourceId.set(null);
+        this.toast.error(`Failed to disconnect ${source.displayName}.`);
       },
     });
   }

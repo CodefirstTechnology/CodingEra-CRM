@@ -108,6 +108,14 @@ export class LeadSyncHttpService {
       .pipe(map(mapLeadSyncSources));
   }
 
+  disconnectSource(sourceId: number) {
+    return this.http
+      .delete<unknown>(`${this.baseUrl}/sources/${sourceId}/credentials`, {
+        headers: this.jsonHeaders(),
+      })
+      .pipe(map(mapLeadSyncSources));
+  }
+
   testConnection(sourceId: number): Observable<LeadSyncRunResult> {
     return this.http
       .post<unknown>(`${this.baseUrl}/sources/${sourceId}/test`, {}, { headers: this.jsonHeaders() })

@@ -2,9 +2,7 @@
   <header class="lsync__head">
     <div class="lsync__head-text">
       <h2 class="lsync__title">Lead Sync Management</h2>
-      <p class="lsync__sub">
-        Connect marketplace APIs, assign team access, and control automatic lead imports.
-      </p>
+      <p class="lsync__sub">Connect marketplace APIs, assign team access, and control automatic lead imports.</p>
     </div>
     @if (isAdmin()) {
       <nav class="lsync__tabs" aria-label="Lead sync sections">
@@ -68,12 +66,7 @@
           @if (providerUi(source.code); as ui) {
             <section class="lsync__detail">
               <header class="lsync__detail-head">
-                <div>
-                  <h3 class="lsync__detail-title">{{ source.displayName }}</h3>
-                  <p class="lsync__detail-sub">
-                    Import leads from {{ source.displayName }} into your CRM.
-                  </p>
-                </div>
+                <h3 class="lsync__detail-title">{{ source.displayName }}</h3>
                 <div class="lsync__detail-stats">
                   <div class="lsync__stat">
                     <span class="lsync__stat-label">Last sync</span>
@@ -135,19 +128,11 @@
                 @switch (sourcePanel()) {
                   @case ('connection') {
                     <div class="lsync__panel-section">
-                      <div class="lsync__panel-intro">
-                        <h4 class="lsync__panel-title">{{ ui.connectionTitle }}</h4>
-                        <p class="lsync__panel-desc">{{ ui.connectionDescription }}</p>
-                      </div>
-
                       <div class="lsync__form-grid">
                         @for (field of ui.fields; track field.key) {
                           @if (field.key === 'pullApiUrl') {
-                            <label class="lsync__field">
+                            <label class="lsync__field lsync__field--wide">
                               <span class="lsync__label">{{ field.label }}</span>
-                              @if (field.hint) {
-                                <span class="lsync__field-hint">{{ field.hint }}</span>
-                              }
                               <input
                                 class="lsync__input"
                                 [type]="fieldInputType(field)"
@@ -158,14 +143,13 @@
                             </label>
                           }
                           @if (field.key === 'apiKey') {
-                            <label class="lsync__field">
-                              <span class="lsync__label">{{ field.label }}</span>
-                              @if (maskedApiKey(source.id); as masked) {
-                                <span class="lsync__saved-key">Saved key: {{ masked }}</span>
-                              }
-                              @if (field.hint) {
-                                <span class="lsync__field-hint">{{ field.hint }}</span>
-                              }
+                            <label class="lsync__field lsync__field--wide">
+                              <span class="lsync__label">
+                                {{ field.label }}
+                                @if (maskedApiKey(source.id); as masked) {
+                                  <em class="lsync__saved-key">Saved: {{ masked }}</em>
+                                }
+                              </span>
                               <input
                                 class="lsync__input"
                                 type="password"
@@ -205,6 +189,16 @@
                           >
                             {{ syncingSourceId() === source.id ? 'Syncing…' : 'Sync now' }}
                           </button>
+                          @if (source.isConfigured) {
+                            <button
+                              type="button"
+                              class="lsync__btn lsync__btn--danger"
+                              [disabled]="disconnectingSourceId() === source.id"
+                              (click)="disconnectSource(source)"
+                            >
+                              {{ disconnectingSourceId() === source.id ? 'Disconnecting…' : 'Disconnect' }}
+                            </button>
+                          }
                         </div>
                       </footer>
                     </div>
@@ -213,17 +207,32 @@
                   @case ('team') {
                     <div class="lsync__panel-section lsync__panel-section--team">
                       <div class="lsync__team-toolbar">
-                        <div class="lsync__panel-intro">
-                          <h4 class="lsync__panel-title">Team access</h4>
-                          <p class="lsync__panel-desc">
-                            Selected users can sync {{ source.displayName }} leads from the Leads page.
-                          </p>
+                        <div class="lsync__team-meta">
+                          <span>{{ selectedTeamCount() }} of {{ eligibleUsers().length }} selected</span>
+                          @if (eligibleUsers().length > 0) {
+                            <div class="lsync__team-bulk">
+                              <button
+                                type="button"
+                                class="lsync__link-btn"
+                                (click)="selectAllFilteredUsers(source.id)"
+                              >
+                                Select visible
+                              </button>
+                              <button
+                                type="button"
+                                class="lsync__link-btn"
+                                (click)="clearAllTeamUsers(source.id)"
+                              >
+                                Clear all
+                              </button>
+                            </div>
+                          }
                         </div>
                         <label class="lsync__search">
                           <span class="visually-hidden">Search team members</span>
                           <input
                             type="search"
-                            placeholder="Search by name, email, or role…"
+                            placeholder="Search users…"
                             [value]="teamSearchQuery()"
                             (input)="onTeamSearch($event)"
                           />
@@ -233,26 +242,6 @@
                       @if (eligibleUsers().length === 0) {
                         <p class="lsync__hint">No eligible users found.</p>
                       } @else {
-                        <div class="lsync__team-meta">
-                          <span>{{ selectedTeamCount() }} of {{ eligibleUsers().length }} selected</span>
-                          <div class="lsync__team-bulk">
-                            <button
-                              type="button"
-                              class="lsync__link-btn"
-                              (click)="selectAllFilteredUsers(source.id)"
-                            >
-                              Select visible
-                            </button>
-                            <button
-                              type="button"
-                              class="lsync__link-btn"
-                              (click)="clearAllTeamUsers(source.id)"
-                            >
-                              Clear all
-                            </button>
-                          </div>
-                        </div>
-
                         <div class="lsync__team-table-wrap">
                           <table class="lsync__team-table">
                             <thead>
@@ -308,13 +297,6 @@
 
                   @case ('automation') {
                     <div class="lsync__panel-section">
-                      <div class="lsync__panel-intro">
-                        <h4 class="lsync__panel-title">Automatic sync</h4>
-                        <p class="lsync__panel-desc">
-                          Import new leads in the background without manual action.
-                        </p>
-                      </div>
-
                       <div class="lsync__automation-card">
                         <label class="lsync__toggle">
                           <input
@@ -336,23 +318,6 @@
                             </small>
                           </span>
                         </label>
-
-                        <dl class="lsync__automation-meta">
-                          <div>
-                            <dt>Last sync</dt>
-                            <dd>
-                              @if (source.lastSyncAt) {
-                                {{ source.lastSyncAt | date: 'medium' }}
-                              } @else {
-                                Never
-                              }
-                            </dd>
-                          </div>
-                          <div>
-                            <dt>Current status</dt>
-                            <dd>{{ source.autoSyncEnabled ? 'Running' : 'Paused' }}</dd>
-                          </div>
-                        </dl>
                       </div>
 
                       <footer class="lsync__panel-foot">
@@ -381,9 +346,6 @@
 
     @if (activeTab() === 'history') {
       <div class="lsync__history">
-        <div class="lsync__history-head">
-          <p class="lsync__history-sub">Recent sync runs across all connected sources.</p>
-        </div>
         <div class="lsync__table-wrap">
           <table class="lsync__table">
             <thead>

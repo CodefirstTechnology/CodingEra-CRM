@@ -12,7 +12,7 @@ export interface LeadSyncCredentialFieldDef {
 
 export interface LeadSyncProviderUiDef {
   connectionTitle: string;
-  connectionDescription: string;
+  connectionDescription?: string;
   fields: LeadSyncCredentialFieldDef[];
 }
 
@@ -21,14 +21,11 @@ const INDIA_MART_PULL_URL = 'https://mapi.indiamart.com/wservce/crm/crmListing/v
 /** UI field definitions keyed by backend `lead_sync_sources.code`. */
 export const LEAD_SYNC_PROVIDER_UI: Record<string, LeadSyncProviderUiDef> = {
   indiamart: {
-    connectionTitle: 'IndiaMART API connection',
-    connectionDescription:
-      'Use your Lead Manager Pull API key from seller.indiamart.com → Lead Manager → Import/Export.',
+    connectionTitle: 'API connection',
     fields: [
       {
         key: 'pullApiUrl',
         label: 'Lead pull API URL',
-        hint: 'Official IndiaMART CRM listing endpoint.',
         type: 'url',
         required: true,
         placeholder: INDIA_MART_PULL_URL,
@@ -36,8 +33,7 @@ export const LEAD_SYNC_PROVIDER_UI: Record<string, LeadSyncProviderUiDef> = {
       },
       {
         key: 'apiKey',
-        label: 'CRM API key (glusr_crm_key)',
-        hint: 'Leave blank when updating other fields to keep the saved key.',
+        label: 'CRM API key',
         type: 'password',
         required: true,
         placeholder: 'Paste your IndiaMART CRM key',
@@ -45,22 +41,18 @@ export const LEAD_SYNC_PROVIDER_UI: Record<string, LeadSyncProviderUiDef> = {
     ],
   },
   tradeindia: {
-    connectionTitle: 'TradeIndia API connection',
-    connectionDescription:
-      'From TradeIndia → My Inquiry API, include userid and profile_id on the pull URL, then paste your key below.',
+    connectionTitle: 'API connection',
     fields: [
       {
         key: 'pullApiUrl',
         label: 'Lead pull API URL',
-        hint: 'Example: https://www.tradeindia.com/utils/my_inquiry.html?userid=…&profile_id=…',
         type: 'url',
         required: true,
         placeholder: 'https://www.tradeindia.com/utils/my_inquiry.html?userid=…&profile_id=…',
       },
       {
         key: 'apiKey',
-        label: 'API key (key)',
-        hint: 'TradeIndia inquiry key. Leave blank when updating other fields to keep the saved key.',
+        label: 'API key',
         type: 'password',
         required: true,
         placeholder: 'Paste your TradeIndia API key',
@@ -68,9 +60,7 @@ export const LEAD_SYNC_PROVIDER_UI: Record<string, LeadSyncProviderUiDef> = {
     ],
   },
   justdial: {
-    connectionTitle: 'Justdial API connection',
-    connectionDescription:
-      'Enter the pull endpoint and API key provided by Justdial or your integration partner.',
+    connectionTitle: 'API connection',
     fields: [
       {
         key: 'pullApiUrl',
@@ -81,8 +71,7 @@ export const LEAD_SYNC_PROVIDER_UI: Record<string, LeadSyncProviderUiDef> = {
       },
       {
         key: 'apiKey',
-        label: 'API key / access token',
-        hint: 'Leave blank when updating other fields to keep the saved key.',
+        label: 'API key',
         type: 'password',
         required: true,
         placeholder: 'Paste your Justdial API key',
