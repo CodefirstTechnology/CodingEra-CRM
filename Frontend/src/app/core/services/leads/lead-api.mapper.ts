@@ -717,6 +717,9 @@ export function applyLeadRowOrgFieldsFromPatch(
     const w = patch.website.trim();
     out.website = w || undefined;
   }
+  if (patch.gst !== undefined) {
+    out.gst = normalizeGstin(patch.gst) || undefined;
+  }
   if (patch.territory !== undefined) {
     const t = patch.territory.trim();
     out.territory = t || undefined;

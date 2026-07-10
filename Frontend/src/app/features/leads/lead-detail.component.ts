@@ -49,6 +49,14 @@ import { intlTelFieldInvalid, intlTelMobileErrorMessage } from '../../shared/uti
 import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
 import { leadRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
+import {
+  GSTIN_ERROR_KEY,
+  GSTIN_ERROR_MESSAGE,
+  gstControlInvalid,
+  normalizeGstin,
+  syncGstinInputFromEvent,
+} from '../../shared/utils/gstin.util';
+import { gstFormValidators } from '../../shared/validators/crm-validators';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
 import type { TaskRow } from '../tasks/tasks.component';
 
@@ -258,6 +266,7 @@ export class LeadDetailComponent {
   protected readonly dataForm = this.fb.nonNullable.group({
     organization: [''],
     website: [''],
+    gst: ['', gstFormValidators()],
     territory: [''],
     industry: [''],
     source: [''],
@@ -273,6 +282,16 @@ export class LeadDetailComponent {
   protected readonly intlTelMobileInputProps = crmIntlTelInputProps();
   protected intlTelMobileError = intlTelMobileErrorMessage;
   protected intlTelFieldInvalid = intlTelFieldInvalid;
+  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
+  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+
+  protected gstFieldInvalid(): boolean {
+    return gstControlInvalid(this.dataForm.controls.gst);
+  }
+
+  protected onGstinInput(ev: Event): void {
+    syncGstinInputFromEvent(ev, this.dataForm.controls.gst);
+  }
 
   constructor() {
     this.leadOwnerOpts.load();
@@ -795,6 +814,7 @@ export class LeadDetailComponent {
       {
         organization: row.organization ?? '',
         website: row.website ?? '',
+        gst: normalizeGstin(row.gst),
         territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
         industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
         source: row.source?.trim() || row.leadSource || '',
@@ -940,6 +960,7 @@ export class LeadDetailComponent {
       organization: v.organization.trim(),
       ...(row.organizationId?.trim() ? { organizationId: row.organizationId.trim() } : {}),
       website: v.website.trim() || undefined,
+      gst: normalizeGstin(v.gst) || undefined,
       territory: terrPick.label.trim() || undefined,
       territoryId: terrPick.masterId,
       industry: indPick.label.trim() || undefined,
@@ -968,6 +989,7 @@ export class LeadDetailComponent {
           this.dataForm.controls.mobile.dirty ||
           this.dataForm.controls.organization.dirty ||
           this.dataForm.controls.website.dirty ||
+          this.dataForm.controls.gst.dirty ||
           this.dataForm.controls.territory.dirty ||
           this.dataForm.controls.industry.dirty ||
           this.dataForm.controls.source.dirty ||
