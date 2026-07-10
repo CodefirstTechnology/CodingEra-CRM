@@ -55,6 +55,7 @@ function readTermsFromJson(raw: unknown): CompanyProfileTerm[] {
 export function mapCompanyProfile(raw: unknown): CompanyProfile {
   const o = unwrapProfileRecord(raw);
   const logo = readStr(o, ['logoBase64', 'LogoBase64']);
+  const favicon = readStr(o, ['faviconBase64', 'FaviconBase64']);
   return {
     brandName: readStr(o, ['brandName', 'BrandName']),
     companyName: readStr(o, ['companyName', 'CompanyName']),
@@ -62,6 +63,8 @@ export function mapCompanyProfile(raw: unknown): CompanyProfile {
     businessLine: readStr(o, ['businessLine', 'BusinessLine']),
     logoContentType: readStr(o, ['logoContentType', 'LogoContentType']),
     logoBase64: logo.trim() ? logo : null,
+    faviconContentType: readStr(o, ['faviconContentType', 'FaviconContentType']),
+    faviconBase64: favicon.trim() ? favicon : null,
     gstin: readStr(o, ['gstin', 'Gstin']),
     cinNumber: readStr(o, ['cinNumber', 'CinNumber']),
     address: readStr(o, ['address', 'Address']),
@@ -96,6 +99,9 @@ export function toCompanyProfileUpsertBody(profile: CompanyProfileUpsert): Recor
     logoContentType: profile.logoContentType,
     logoBase64: profile.logoBase64,
     removeLogo: profile.removeLogo,
+    faviconContentType: profile.faviconContentType,
+    faviconBase64: profile.faviconBase64,
+    removeFavicon: profile.removeFavicon,
     gstin: profile.gstin,
     cinNumber: profile.cinNumber,
     address: profile.address,

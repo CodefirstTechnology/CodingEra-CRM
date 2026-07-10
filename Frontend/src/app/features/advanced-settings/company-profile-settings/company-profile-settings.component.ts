@@ -9,6 +9,7 @@ import { ToastService } from '../../../core/toast/toast.service';
 import { optionalPhoneValidator } from '../../../shared/validators/crm-validators';
 
 const MAX_LOGO_BYTES = 2_100_000;
+const MAX_FAVICON_BYTES = 512_000;
 
 @Component({
   selector: 'app-company-profile-settings',
@@ -28,10 +29,14 @@ export class CompanyProfileSettingsComponent implements OnInit {
   protected readonly loadError = signal<string | null>(null);
   protected readonly logoPreviewUrl = signal<string | null>(null);
   protected readonly logoRemoved = signal(false);
+  protected readonly faviconPreviewUrl = signal<string | null>(null);
+  protected readonly faviconRemoved = signal(false);
   protected readonly canEdit = signal(false);
 
   private pendingLogoBase64: string | null = null;
   private pendingLogoContentType = '';
+  private pendingFaviconBase64: string | null = null;
+  private pendingFaviconContentType = '';
 
   protected readonly form = this.fb.nonNullable.group({
     brandName: ['', [Validators.maxLength(128)]],
@@ -109,6 +114,41 @@ export class CompanyProfileSettingsComponent implements OnInit {
     this.logoRemoved.set(true);
   }
 
+  protected onFaviconSelected(ev: Event): void {
+    const input = ev.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      this.toast.error('Please choose a PNG, JPEG, or WebP image for the tab icon.');
+      return;
+    }
+    if (file.size > MAX_FAVICON_BYTES) {
+      this.toast.error('Browser tab icon must be smaller than 512 KB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const comma = result.indexOf(',');
+      if (comma < 0) return;
+      this.pendingFaviconBase64 = result.slice(comma + 1);
+      this.pendingFaviconContentType = file.type;
+      this.faviconRemoved.set(false);
+      this.faviconPreviewUrl.set(result);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  protected clearFavicon(): void {
+    this.pendingFaviconBase64 = null;
+    this.pendingFaviconContentType = '';
+    this.faviconPreviewUrl.set(null);
+    this.faviconRemoved.set(true);
+  }
+
   protected submit(): void {
     if (!this.canEdit()) {
       this.toast.error('You do not have permission to update company profile.');
@@ -131,6 +171,9 @@ export class CompanyProfileSettingsComponent implements OnInit {
       logoContentType: this.pendingLogoContentType,
       logoBase64: this.pendingLogoBase64,
       removeLogo: this.logoRemoved(),
+      faviconContentType: this.pendingFaviconContentType,
+      faviconBase64: this.pendingFaviconBase64,
+      removeFavicon: this.faviconRemoved(),
       gstin: v.gstin.trim(),
       cinNumber: v.cinNumber.trim(),
       address: v.address.trim(),
@@ -157,6 +200,9 @@ export class CompanyProfileSettingsComponent implements OnInit {
         this.pendingLogoBase64 = null;
         this.pendingLogoContentType = '';
         this.logoRemoved.set(false);
+        this.pendingFaviconBase64 = null;
+        this.pendingFaviconContentType = '';
+        this.faviconRemoved.set(false);
         this.applyProfile(row);
         this.branding.applyFromProfile(row);
         this.toast.success('Company profile saved.');
@@ -234,6 +280,13 @@ export class CompanyProfileSettingsComponent implements OnInit {
       this.logoRemoved.set(false);
     } else {
       this.logoPreviewUrl.set(null);
+    }
+
+    if (row.faviconBase64 && row.faviconContentType) {
+      this.faviconPreviewUrl.set(`data:${row.faviconContentType};base64,${row.faviconBase64}`);
+      this.faviconRemoved.set(false);
+    } else {
+      this.faviconPreviewUrl.set(null);
     }
   }
 }
