@@ -73,6 +73,12 @@ function readOptionalInt(v: unknown): number | null {
   return Number.isFinite(n) ? Math.trunc(n) : null;
 }
 
+function readOptionalNumber(v: unknown): number | null {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'number' ? v : Number(String(v).trim());
+  return Number.isFinite(n) ? n : null;
+}
+
 /** Resolves lead owner FK from flat or nested API shapes (list vs detail). */
 function readLeadOwnerFk(r: Record<string, unknown>): number | null {
   for (const key of [
@@ -260,6 +266,10 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
   let territory = readMasterName(r['territory']) || readMasterName(r['Territory']);
   let employees = String(r['employees'] ?? r['Employees'] ?? '').trim();
   let annualRevenue = readOptionalInt(r['annualRevenue']) ?? readOptionalInt(r['AnnualRevenue']);
+  let dealAmount =
+    readOptionalNumber(r['dealAmount']) ??
+    readOptionalNumber(r['DealAmount']) ??
+    readOptionalNumber(r['deal_amount']);
   let website = String(r['website'] ?? r['Website'] ?? '').trim();
   let gst = normalizeGstin(String(r['gst'] ?? r['Gst'] ?? ''));
   let territoryId =
@@ -368,6 +378,7 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
     territory,
     employees,
     annualRevenue,
+    dealAmount,
     website,
     gst,
     leadStatusId,
@@ -432,6 +443,8 @@ export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
       dto.organizationId != null && dto.organizationId > 0 ? String(dto.organizationId) : undefined,
     employees: dto.employees || undefined,
     annualRevenue: formatAnnualRevenueDisplay(dto.annualRevenue),
+    dealAmount:
+      dto.dealAmount != null && Number.isFinite(dto.dealAmount) ? dto.dealAmount : undefined,
     website: dto.website || undefined,
     gst: normalizeGstin(dto.gst) || undefined,
     territory: dto.territory || undefined,
@@ -561,6 +574,7 @@ function normalizedToUpsertDto(n: LeadNormalized, idOverride?: number): LeadUpse
     leadSource: n.leadSource || null,
     location: n.location?.trim() || null,
     leadDate: n.leadDate?.trim() || null,
+    dealAmount: n.dealAmount,
     createdAt: n.createdAt,
   };
 }
@@ -600,6 +614,10 @@ function rowToNormalized(row: LeadRow, previous?: LeadNormalized): LeadNormalize
     employeeCountId: row.employeeCountId ?? previous?.employeeCountId ?? null,
     annualRevenue:
       parseAnnualRevenueForApi(row.annualRevenue) ?? previous?.annualRevenue ?? null,
+    dealAmount:
+      row.dealAmount != null && Number.isFinite(row.dealAmount)
+        ? row.dealAmount
+        : previous?.dealAmount ?? null,
     website: row.website ?? previous?.website ?? '',
     gst: normalizeGstin(row.gst ?? previous?.gst),
     leadStatusId: row.leadStatusId ?? previous?.leadStatusId ?? null,
@@ -699,6 +717,14 @@ export function reconcileLeadNormalizedAfterPut(
       'annualRevenue' in patch ? parseAnnualRevenueForApi(patch.annualRevenue) : null;
     out.annualRevenue =
       fromPatch ?? (baseline.annualRevenue != null ? baseline.annualRevenue : null);
+  }
+
+  if (!(fromApi.dealAmount != null && Number.isFinite(Number(fromApi.dealAmount)))) {
+    const fromPatch =
+      'dealAmount' in patch && patch.dealAmount != null && Number.isFinite(patch.dealAmount)
+        ? patch.dealAmount
+        : null;
+    out.dealAmount = fromPatch ?? (baseline.dealAmount != null ? baseline.dealAmount : null);
   }
 
   return out;

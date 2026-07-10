@@ -79,6 +79,7 @@ import {
   optionalEmailValidator,
   optionalUrlValidator,
 } from '../../shared/validators/crm-validators';
+import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import {
   buildLeadDisplayName,
@@ -714,6 +715,7 @@ export class LeadsComponent {
     organization: ['', [Validators.required, Validators.maxLength(160)]],
     employees: [''],
     annualRevenue: ['', Validators.maxLength(32)],
+    dealAmount: ['', Validators.maxLength(40)],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
     gst: ['', gstFormValidators()],
     territory: [''],
@@ -802,6 +804,7 @@ export class LeadsComponent {
       organization: '',
       employees: '',
       annualRevenue: '',
+      dealAmount: '',
       website: '',
       gst: '',
       territory: '',
@@ -831,6 +834,7 @@ export class LeadsComponent {
       organization: '',
       employees: '',
       annualRevenue: '',
+      dealAmount: '',
       website: '',
       gst: '',
       territory: '',
@@ -877,6 +881,8 @@ export class LeadsComponent {
             );
           const ar = row.annualRevenue?.trim() ?? '';
           const arInput = ar.startsWith('₹') ? ar.replace(/^₹\s*/, '').trim() : ar;
+          const dealAmountInput =
+            row.dealAmount != null && row.dealAmount !== 0 ? String(row.dealAmount) : '';
           this.createForm.patchValue({
             fullName: fullNameFromLeadParts(row),
             mobile: row.mobile ?? '',
@@ -889,6 +895,7 @@ export class LeadsComponent {
               this.employeeSelectOptions(),
             ),
             annualRevenue: arInput,
+            dealAmount: dealAmountInput,
             website: row.website ?? '',
             gst: normalizeGstin(row.gst),
             territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
@@ -1472,6 +1479,7 @@ export class LeadsComponent {
       employees: empPick.label || undefined,
       employeeCountId: empPick.masterId,
       annualRevenue: raw.annualRevenue.trim() || undefined,
+      dealAmount: parseRevenueInputToNumber(raw.dealAmount),
       website: raw.website.trim() || undefined,
       gst: normalizeGstin(raw.gst) || undefined,
       territory: terrPick.label || undefined,

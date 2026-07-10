@@ -94,6 +94,11 @@ export function buildLeadPutJson(dto: LeadUpsertDto, previous: LeadNormalized): 
     body['leadDate'] = leadDate;
   }
 
+  const dealAmount = dto.dealAmount ?? previous.dealAmount;
+  if (dealAmount != null && Number.isFinite(dealAmount)) {
+    body['dealAmount'] = dealAmount;
+  }
+
   return body;
 }
 
@@ -145,6 +150,10 @@ export function stripLeadUpsertForPost(dto: LeadUpsertDto): Record<string, unkno
   const leadDate = dto.leadDate?.trim() || '';
   if (leadDate) {
     body['leadDate'] = leadDate;
+  }
+
+  if (dto.dealAmount != null && Number.isFinite(dto.dealAmount)) {
+    body['dealAmount'] = dto.dealAmount;
   }
 
   return body;

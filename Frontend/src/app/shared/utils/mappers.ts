@@ -86,7 +86,10 @@ export function mapLeadToDealRow(lead: LeadRow): Omit<DealRow, 'id'> {
     employees: (lead.employees ?? '').trim() || '1-10',
     employeeCountId: lead.employeeCountId ?? undefined,
     annualRevenue: parseLeadNumericValue(lead),
-    dealAmount: 0,
+    dealAmount:
+      lead.dealAmount != null && Number.isFinite(lead.dealAmount) && lead.dealAmount > 0
+        ? lead.dealAmount
+        : 0,
     website: (lead.website ?? '').trim(),
     gst: normalizeGstin(lead.gst),
     territory: (lead.territory ?? '').trim(),

@@ -139,6 +139,15 @@
                 />
               </label>
               <label class="leads__field">
+                <span class="leads__label">Lead amount</span>
+                <input
+                  class="leads__control leads__control--soft"
+                  type="text"
+                  formControlName="dealAmount"
+                  placeholder="₹ 0.00"
+                />
+              </label>
+              <label class="leads__field">
                 <span class="leads__label">Website</span>
                 <input class="leads__control leads__control--soft" type="text" formControlName="website" placeholder="https://" />
                 @if (fieldInvalid('website') && createForm.get('website')?.errors?.['url']) {

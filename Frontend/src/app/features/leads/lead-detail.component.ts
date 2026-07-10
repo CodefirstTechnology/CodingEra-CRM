@@ -57,6 +57,7 @@ import {
   syncGstinInputFromEvent,
 } from '../../shared/utils/gstin.util';
 import { gstFormValidators } from '../../shared/validators/crm-validators';
+import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
 import type { TaskRow } from '../tasks/tasks.component';
 
@@ -267,6 +268,7 @@ export class LeadDetailComponent {
     organization: [''],
     website: [''],
     gst: ['', gstFormValidators()],
+    dealAmount: [''],
     territory: [''],
     industry: [''],
     source: [''],
@@ -291,6 +293,11 @@ export class LeadDetailComponent {
 
   protected onGstinInput(ev: Event): void {
     syncGstinInputFromEvent(ev, this.dataForm.controls.gst);
+  }
+
+  private revenueNumberToInputString(value: number | undefined): string {
+    if (value == null || !Number.isFinite(value) || value === 0) return '';
+    return value.toLocaleString('en-IN');
   }
 
   constructor() {
@@ -815,6 +822,7 @@ export class LeadDetailComponent {
         organization: row.organization ?? '',
         website: row.website ?? '',
         gst: normalizeGstin(row.gst),
+        dealAmount: this.revenueNumberToInputString(row.dealAmount),
         territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
         industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
         source: row.source?.trim() || row.leadSource || '',
@@ -961,6 +969,7 @@ export class LeadDetailComponent {
       ...(row.organizationId?.trim() ? { organizationId: row.organizationId.trim() } : {}),
       website: v.website.trim() || undefined,
       gst: normalizeGstin(v.gst) || undefined,
+      dealAmount: parseRevenueInputToNumber(v.dealAmount),
       territory: terrPick.label.trim() || undefined,
       territoryId: terrPick.masterId,
       industry: indPick.label.trim() || undefined,
@@ -990,6 +999,7 @@ export class LeadDetailComponent {
           this.dataForm.controls.organization.dirty ||
           this.dataForm.controls.website.dirty ||
           this.dataForm.controls.gst.dirty ||
+          this.dataForm.controls.dealAmount.dirty ||
           this.dataForm.controls.territory.dirty ||
           this.dataForm.controls.industry.dirty ||
           this.dataForm.controls.source.dirty ||

@@ -39,6 +39,8 @@ export interface LeadRow {
   /** Master data FK (`/api/MasterData/employee-counts`) when resolving organization. */
   employeeCountId?: number | null;
   annualRevenue?: string;
+  /** Lead value (`leads.deal_amount`); labeled “Lead amount” in UI. */
+  dealAmount?: number;
   website?: string;
   gst?: string;
   territory?: string;
