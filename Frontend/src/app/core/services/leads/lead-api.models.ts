@@ -41,6 +41,7 @@ export interface LeadNormalized {
   territory: string;
   employees: string;
   annualRevenue: number | null;
+  dealAmount: number | null;
   website: string;
   gst?: string;
   leadStatusId: number | null;
@@ -85,6 +86,7 @@ export interface LeadUpsertDto {
   leadSource?: string | null;
   location?: string | null;
   leadDate?: string | null;
+  dealAmount?: number | null;
   createdAt?: string | null;
 }
 

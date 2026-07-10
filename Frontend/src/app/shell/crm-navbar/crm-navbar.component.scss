@@ -31,6 +31,7 @@
   width: auto;
   height: auto;
   object-fit: contain;
+  background: transparent;
 }
 
 .navbar__brand-text {
@@ -66,6 +67,7 @@
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .navbar__icon-btn {
@@ -133,27 +135,71 @@
   filter: brightness(1.05);
 }
 
+/* Tablet / mobile: left-align brand so it never overlaps header actions */
 @media (max-width: 600px) {
   .navbar {
-    min-height: 4rem;
-    padding: 0.75rem 1rem;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-height: 3.75rem;
+    padding: 0.55rem 0.75rem;
   }
 
   .navbar__brand {
-    max-width: min(200px, calc(100% - 10rem));
+    position: static;
+    left: auto;
+    top: auto;
+    transform: none;
+    max-width: min(140px, 40vw);
+    min-width: 0;
+    flex: 0 1 auto;
+    justify-content: flex-start;
   }
 
   .navbar__logo {
-    max-width: 200px;
-    max-height: 48px;
+    max-width: 100%;
+    max-height: 36px;
   }
 
   .navbar__brand-text {
-    font-size: 1.125rem;
+    font-size: 1rem;
+    text-align: left;
+  }
+
+  .navbar__right {
+    gap: 0.35rem;
+  }
+
+  .navbar__icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .navbar__avatar {
+    width: 32px;
+    height: 32px;
   }
 
   .btn--primary {
-    padding: 0.45rem 0.75rem;
-    font-size: 0.8125rem;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* Narrow phones: free space for logo; page already has search */
+@media (max-width: 400px) {
+  .navbar__brand {
+    max-width: min(112px, 36vw);
+  }
+
+  .navbar__logo {
+    max-height: 32px;
+  }
+
+  .navbar__search {
+    display: none;
+  }
+
+  .btn--primary {
+    padding: 0.35rem 0.5rem;
   }
 }

@@ -15,6 +15,8 @@ interface CompanyBrandingState {
   tagline: string;
   logoContentType: string;
   logoBase64: string | null;
+  faviconContentType: string;
+  faviconBase64: string | null;
 }
 
 function readBrandingField(o: Record<string, unknown>, keys: string[]): string {
@@ -37,12 +39,15 @@ function mapBrandingPayload(raw: unknown): CompanyBrandingState | null {
   }
 
   const logoBase64 = readBrandingField(o, ['logoBase64', 'LogoBase64']).trim();
+  const faviconBase64 = readBrandingField(o, ['faviconBase64', 'FaviconBase64']).trim();
   return {
     brandName: readBrandingField(o, ['brandName', 'BrandName']).trim(),
     companyName: readBrandingField(o, ['companyName', 'CompanyName']).trim(),
     tagline: readBrandingField(o, ['tagline', 'Tagline']).trim(),
     logoContentType: readBrandingField(o, ['logoContentType', 'LogoContentType']).trim(),
     logoBase64: logoBase64 || null,
+    faviconContentType: readBrandingField(o, ['faviconContentType', 'FaviconContentType']).trim(),
+    faviconBase64: faviconBase64 || null,
   };
 }
 
@@ -57,10 +62,19 @@ export class CompanyBrandingService {
   private readonly tagline = signal('');
   private readonly logoContentType = signal('');
   private readonly logoBase64 = signal<string | null>(null);
+  private readonly faviconContentType = signal('');
+  private readonly faviconBase64 = signal<string | null>(null);
 
   readonly logoUrl = computed(() => {
     const base64 = this.logoBase64();
     const contentType = this.logoContentType();
+    if (base64 && contentType) return `data:${contentType};base64,${base64}`;
+    return null;
+  });
+
+  readonly faviconUrl = computed(() => {
+    const base64 = this.faviconBase64();
+    const contentType = this.faviconContentType();
     if (base64 && contentType) return `data:${contentType};base64,${base64}`;
     return null;
   });
@@ -88,6 +102,8 @@ export class CompanyBrandingService {
       tagline: profile.tagline,
       logoContentType: profile.logoContentType,
       logoBase64: profile.logoBase64,
+      faviconContentType: profile.faviconContentType,
+      faviconBase64: profile.faviconBase64,
     });
   }
 
@@ -128,6 +144,8 @@ export class CompanyBrandingService {
     this.tagline.set(branding.tagline);
     this.logoContentType.set(branding.logoContentType);
     this.logoBase64.set(branding.logoBase64);
+    this.faviconContentType.set(branding.faviconContentType);
+    this.faviconBase64.set(branding.faviconBase64);
     this.persistToStorage(branding);
     this.applyToDocument();
   }
@@ -139,10 +157,10 @@ export class CompanyBrandingService {
     const favicon = document.querySelector<HTMLLinkElement>("link[rel*='icon']");
     if (!favicon) return;
 
-    const logoUrl = this.logoUrl();
-    if (logoUrl) {
-      favicon.type = this.logoContentType() || 'image/png';
-      favicon.href = logoUrl;
+    const faviconUrl = this.faviconUrl();
+    if (faviconUrl) {
+      favicon.type = this.faviconContentType() || 'image/png';
+      favicon.href = faviconUrl;
       return;
     }
 
@@ -170,6 +188,8 @@ export class CompanyBrandingService {
         tagline: String(parsed.tagline ?? ''),
         logoContentType: String(parsed.logoContentType ?? ''),
         logoBase64: parsed.logoBase64 ? String(parsed.logoBase64) : null,
+        faviconContentType: String(parsed.faviconContentType ?? ''),
+        faviconBase64: parsed.faviconBase64 ? String(parsed.faviconBase64) : null,
       });
     } catch {
       /* ignore corrupt cache */

@@ -139,6 +139,15 @@
                 />
               </label>
               <label class="leads__field">
+                <span class="leads__label">Lead amount</span>
+                <input
+                  class="leads__control leads__control--soft"
+                  type="text"
+                  formControlName="dealAmount"
+                  placeholder="₹ 0.00"
+                />
+              </label>
+              <label class="leads__field">
                 <span class="leads__label">Website</span>
                 <input class="leads__control leads__control--soft" type="text" formControlName="website" placeholder="https://" />
                 @if (fieldInvalid('website') && createForm.get('website')?.errors?.['url']) {
@@ -312,8 +321,8 @@
           <strong>{{ src.displayName }}</strong>
           <span>
             Auto sync: {{ src.autoSyncEnabled ? 'On' : 'Off' }}
-            · Last: {{ src.lastSyncAt ? (src.lastSyncAt | date: 'short') : '—' }}
-            · Next: {{ src.autoSyncEnabled ? 'Continuous' : '—' }}
+            · Last: {{ src.lastSyncAt ? (src.lastSyncAt | date: 'short') : 'Never' }}
+            · Connection: {{ src.apiIntegrationReady ? 'Ready' : 'Not set up' }}
           </span>
         </div>
       }
