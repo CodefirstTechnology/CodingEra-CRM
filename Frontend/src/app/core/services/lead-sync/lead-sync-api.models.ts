@@ -25,6 +25,8 @@ export interface LeadSyncSource {
   displayName: string;
   markerName: string;
   apiIntegrationReady: boolean;
+  isConfigured: boolean;
+  pullApiUrl: string | null;
   autoSyncEnabled: boolean;
   intervalOptionId: number | null;
   intervalHours: number | null;
@@ -77,4 +79,24 @@ export interface LeadSyncUpdateAssignments {
 export interface LeadSyncUpdateAutoSync {
   autoSyncEnabled: boolean;
   intervalOptionId: number | null;
+}
+
+export interface LeadSyncCredentialsMasked {
+  pullApiUrl: string | null;
+  hasApiKey: boolean;
+  apiKeyMasked: string | null;
+  configuredAt: string | null;
+}
+
+export interface LeadSyncSaveCredentials {
+  pullApiUrl?: string | null;
+  apiKey?: string | null;
+}
+
+export interface LeadSyncRunResult {
+  totalReceived: number;
+  totalCreated: number;
+  failedCount: number;
+  errorMessage: string | null;
+  status: string;
 }

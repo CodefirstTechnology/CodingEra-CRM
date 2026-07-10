@@ -5,7 +5,10 @@ import { map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import type {
+  LeadSyncCredentialsMasked,
   LeadSyncManualLog,
+  LeadSyncRunResult,
+  LeadSyncSaveCredentials,
   LeadSyncUpdateAssignments,
   LeadSyncUpdateAutoSync,
 } from './lead-sync-api.models';
@@ -90,4 +93,68 @@ export class LeadSyncHttpService {
       .get<unknown>(`${this.baseUrl}/history`, { headers: this.jsonHeaders(), params })
       .pipe(map(mapLeadSyncLogRows));
   }
+
+  getCredentials(sourceId: number): Observable<LeadSyncCredentialsMasked> {
+    return this.http
+      .get<unknown>(`${this.baseUrl}/sources/${sourceId}/credentials`, { headers: this.jsonHeaders() })
+      .pipe(map(mapLeadSyncCredentials));
+  }
+
+  saveCredentials(sourceId: number, body: LeadSyncSaveCredentials) {
+    return this.http
+      .put<unknown>(`${this.baseUrl}/sources/${sourceId}/credentials`, body, {
+        headers: this.jsonHeaders(),
+      })
+      .pipe(map(mapLeadSyncSources));
+  }
+
+  disconnectSource(sourceId: number) {
+    return this.http
+      .delete<unknown>(`${this.baseUrl}/sources/${sourceId}/credentials`, {
+        headers: this.jsonHeaders(),
+      })
+      .pipe(map(mapLeadSyncSources));
+  }
+
+  testConnection(sourceId: number): Observable<LeadSyncRunResult> {
+    return this.http
+      .post<unknown>(`${this.baseUrl}/sources/${sourceId}/test`, {}, { headers: this.jsonHeaders() })
+      .pipe(map(mapLeadSyncRunResult));
+  }
+
+  runSync(sourceId: number): Observable<LeadSyncRunResult> {
+    return this.http
+      .post<unknown>(`${this.baseUrl}/sources/${sourceId}/sync`, {}, { headers: this.jsonHeaders() })
+      .pipe(map(mapLeadSyncRunResult));
+  }
+}
+
+function mapLeadSyncCredentials(row: unknown): LeadSyncCredentialsMasked {
+  const o = (row ?? {}) as Record<string, unknown>;
+  const nullable = (v: unknown): string | null => {
+    const s = typeof v === 'string' ? v.trim() : v != null ? String(v).trim() : '';
+    return s.length ? s : null;
+  };
+  return {
+    pullApiUrl: nullable(o['pullApiUrl']),
+    hasApiKey: o['hasApiKey'] === true || o['hasApiKey'] === 'true' || o['hasApiKey'] === 1,
+    apiKeyMasked: nullable(o['apiKeyMasked']),
+    configuredAt: nullable(o['configuredAt']),
+  };
+}
+
+function mapLeadSyncRunResult(row: unknown): LeadSyncRunResult {
+  const o = (row ?? {}) as Record<string, unknown>;
+  const num = (v: unknown) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const err = o['errorMessage'];
+  return {
+    totalReceived: num(o['totalReceived']),
+    totalCreated: num(o['totalCreated']),
+    failedCount: num(o['failedCount']),
+    errorMessage: typeof err === 'string' && err.trim() ? err.trim() : null,
+    status: typeof o['status'] === 'string' ? o['status'] : '',
+  };
 }
