@@ -427,11 +427,25 @@
 }
 
 .lsync__automation-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
   border: 1px solid var(--card-border);
   border-radius: 10px;
   padding: 0.9rem 1rem;
   background: color-mix(in srgb, var(--text-muted) 4%, var(--surface));
   max-width: 36rem;
+}
+
+.lsync__automation-interval {
+  margin: 0;
+}
+
+/* Theme tokens so closed select + option list stay readable in dark mode */
+.lsync__automation-interval select.lsync__input,
+.lsync__automation-interval select.lsync__input option {
+  background-color: var(--surface);
+  color: var(--text-primary);
 }
 
 .lsync__toggle {
