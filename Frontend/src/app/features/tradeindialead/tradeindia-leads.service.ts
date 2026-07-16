@@ -9,6 +9,7 @@ import {
   mapUnknownRecordToTradeIndiaLeadInput,
   mapUnknownTradeIndiaWebhookPayloadToInput,
 } from './tradeindia-api.mapper';
+import { parseTradeIndiaInquiryMessage, resolveTradeIndiaCustomerName } from './tradeindia-inquiry-parse';
 import {
   isTradeIndiaLeadStatus,
   TradeIndiaLead,
@@ -310,10 +311,14 @@ export class TradeIndiaLeadsService {
       if (!raw) return;
       const parsed = JSON.parse(raw) as unknown;
       if (!Array.isArray(parsed)) return;
-      const rows = parsed.filter(this.isValidLead) as TradeIndiaLead[];
+      const rawRows = parsed.filter(this.isValidLead) as TradeIndiaLead[];
+      const rows = rawRows.map((row) => this.normalizeStoredLead(row));
       const repairedRows = this.ensureUniqueStoredIds(rows);
       this.leadsSignal.set(repairedRows);
-      if (repairedRows.some((row, i) => row.id !== rows[i].id)) {
+      const changed =
+        repairedRows.some((row, i) => row.id !== rawRows[i]?.id) ||
+        rows.some((row, i) => row.companyName !== (rawRows[i]?.companyName ?? '').trim());
+      if (changed) {
         this.persist();
       }
     } catch {
@@ -339,6 +344,7 @@ export class TradeIndiaLeadsService {
       mobile: input.mobile.trim(),
       email: input.email.trim(),
       city: input.city.trim(),
+      companyName: (input.companyName ?? '').trim(),
       product: input.product.trim(),
       quantity: input.quantity.trim(),
       message: input.message.trim(),
@@ -348,7 +354,34 @@ export class TradeIndiaLeadsService {
     };
     const ref = input.externalRef?.trim();
     if (ref) lead.externalRef = ref;
-    return lead;
+    return this.normalizeStoredLead(lead);
+  }
+
+  /** Backfill company/product/name from inquiry message for older localStorage rows. */
+  private normalizeStoredLead(lead: TradeIndiaLead): TradeIndiaLead {
+    const parsed = parseTradeIndiaInquiryMessage(lead.message);
+    let companyName = (lead.companyName ?? '').trim();
+    let product = (lead.product ?? '').trim();
+    let city = (lead.city ?? '').trim();
+    let customerName = (lead.customerName ?? '').trim();
+
+    if (!companyName && parsed.companyName) companyName = parsed.companyName;
+    const productLooksLikeInquiryBlob =
+      /^dear\b/i.test(product) || /inquiry regarding/i.test(product);
+    if (
+      parsed.product &&
+      (!product || product === '-' || product === '—' || productLooksLikeInquiryBlob)
+    ) {
+      product = parsed.product;
+    }
+    if ((!city || city === '-' || city === '—') && parsed.city) city = parsed.city;
+
+    customerName = resolveTradeIndiaCustomerName({
+      senderName: customerName,
+      companyName,
+    });
+
+    return { ...lead, customerName, companyName, product, city };
   }
 
   private nextId(): number {
@@ -383,12 +416,15 @@ export class TradeIndiaLeadsService {
     if (!value || typeof value !== 'object') return false;
     const v = value as Record<string, unknown>;
     if (v['externalRef'] !== undefined && typeof v['externalRef'] !== 'string') return false;
+    const companyOk =
+      v['companyName'] === undefined || typeof v['companyName'] === 'string';
     return (
       typeof v['id'] === 'number' &&
       typeof v['customerName'] === 'string' &&
       typeof v['mobile'] === 'string' &&
       typeof v['email'] === 'string' &&
       typeof v['city'] === 'string' &&
+      companyOk &&
       typeof v['product'] === 'string' &&
       typeof v['quantity'] === 'string' &&
       typeof v['message'] === 'string' &&
