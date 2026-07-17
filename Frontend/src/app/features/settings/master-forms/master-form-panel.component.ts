@@ -35,10 +35,15 @@ export class MasterFormPanelComponent {
     sortOrder: [0],
     isWon: [false],
     isLost: [false],
+    isConversionStatus: [false],
   });
 
   protected readonly isDealStatuses = computed(() => this.config().slug === 'deal-statuses');
+  protected readonly isLeadStatuses = computed(() => this.config().slug === 'lead-statuses');
 
+  protected isConversionLeadStatus(row: MasterFormRow): boolean {
+    return row.isConversionStatus === true;
+  }
   protected readonly filteredRows = computed(() => {
     const q = this.searchQuery().trim().toLowerCase();
     const all = [...this.rows()].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id - b.id);
@@ -82,6 +87,7 @@ export class MasterFormPanelComponent {
       sortOrder: maxSort + 10,
       isWon: false,
       isLost: false,
+      isConversionStatus: false,
     });
     this.modalOpen.set(true);
   }
@@ -95,6 +101,7 @@ export class MasterFormPanelComponent {
       sortOrder: row.sortOrder ?? 0,
       isWon: row.isWon === true,
       isLost: row.isLost === true,
+      isConversionStatus: row.isConversionStatus === true,
     });
     this.modalOpen.set(true);
   }
@@ -109,6 +116,7 @@ export class MasterFormPanelComponent {
       sortOrder: 0,
       isWon: false,
       isLost: false,
+      isConversionStatus: false,
     });
   }
 
@@ -145,6 +153,7 @@ export class MasterFormPanelComponent {
       sortOrder: this.isDealStatuses() ? v.sortOrder : undefined,
       isWon: this.isDealStatuses() ? v.isWon : undefined,
       isLost: this.isDealStatuses() ? v.isLost : undefined,
+      isConversionStatus: this.isLeadStatuses() ? v.isConversionStatus : undefined,
     };
 
     const editId = this.editingId();

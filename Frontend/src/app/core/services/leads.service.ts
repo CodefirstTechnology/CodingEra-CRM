@@ -14,6 +14,7 @@ import { isLeadConverted, validateLeadForConversion } from '../../shared/utils/l
 import { filterLeadsForUser } from '../../features/user-dashboard/utils/user-ownership.util';
 import { LeadRoundRobinService } from './leads/lead-round-robin.service';
 import { OrganizationResolveService } from './organizations/organization-resolve.service';
+import { LeadMasterDataService } from './leads/lead-master-data.service';
 import type { LeadRow } from '../../features/leads/lead-row.model';
 import {
   leadCreatePayloadToApiJson,
@@ -76,6 +77,7 @@ export class LeadsService {
   private readonly roundRobin = inject(LeadRoundRobinService);
   private readonly dealsService = inject(DealsService);
   private readonly conversionStorage = inject(LeadConversionStorageService);
+  private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly permissions = inject(PermissionService);
   private readonly auth = inject(AuthService);
 
@@ -166,13 +168,22 @@ export class LeadsService {
               return of({ leadId: String(idn), deal, lead, convertedAt } satisfies ConvertLeadResult);
             }
 
-            return this.update(idn, {
-              status: CONVERTED_LEAD_STATUS_NAME,
-              updated: 'Just now',
-              isConverted: true,
-              convertedDealId: deal.id,
-              convertedAt,
-            }).pipe(
+            return this.leadMasterData.loadLeadStatuses().pipe(
+              switchMap((statuses) => {
+                const conv = this.leadMasterData.resolveConversionLeadStatus(statuses);
+                const statusName = conv?.name?.trim() || CONVERTED_LEAD_STATUS_NAME;
+                const patch: Partial<Omit<LeadRow, 'id'>> = {
+                  status: statusName as LeadRow['status'],
+                  updated: 'Just now',
+                  isConverted: true,
+                  convertedDealId: deal.id,
+                  convertedAt,
+                };
+                if (conv != null && conv.id > 0) {
+                  patch.leadStatusId = conv.id;
+                }
+                return this.update(idn, patch);
+              }),
               map(
                 (updated) =>
                   ({

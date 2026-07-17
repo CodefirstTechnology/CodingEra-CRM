@@ -232,7 +232,9 @@ export function dealRecordDate(deal: DealRow): Date | null {
 }
 
 export function isLeadConvertedRow(lead: LeadRow): boolean {
-  return lead.status === 'Converted' || lead.isConverted === true;
+  if (lead.isConverted === true) return true;
+  const status = (lead.status ?? '').trim().toLowerCase();
+  return status === 'converted' || status === 'moved to deal';
 }
 
 export function resolveDealValue(deal: DealRow): number {
