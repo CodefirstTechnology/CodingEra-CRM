@@ -20,10 +20,27 @@ import {
   sortTeamMembers,
   PIPELINE_STAGE_PREVIEW_LIMIT,
   STUCK_DEAL_PREVIEW_LIMIT,
+  startOfDay,
+  endOfDay,
 } from './utils/admin-dashboard.util';
 
 type StreamTab = 'all' | 'calls' | 'meetings';
 type DetailKind = 'deals' | 'leads' | 'targets' | 'pipeline';
+
+function toDateInputValue(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function parseDateInputValue(value: string): Date | null {
+  const s = value?.trim();
+  if (!s) return null;
+  const t = Date.parse(`${s}T00:00:00`);
+  if (Number.isNaN(t)) return null;
+  return new Date(t);
+}
 
 const PIPELINE_STAGE_COLORS = [
   'var(--sd-accent)',
@@ -53,9 +70,18 @@ export class DashboardComponent {
   protected readonly snapshot = signal<AdminDashboardSnapshot | null>(null);
   protected readonly periodKey = signal<AdminDashboardPeriodKey>('this_month');
   protected readonly periodMenuOpen = signal(false);
+  protected readonly customPickerOpen = signal(false);
+  protected readonly customStartInput = signal(toDateInputValue(startOfDay(new Date(new Date().getFullYear(), new Date().getMonth(), 1))));
+  protected readonly customEndInput = signal(toDateInputValue(endOfDay(new Date())));
+  protected readonly customRangeError = signal<string | null>(null);
 
   protected readonly periodLabel = computed(() => {
     const key = this.periodKey();
+    if (key === 'custom') {
+      const data = this.snapshot();
+      if (data?.period.key === 'custom') return data.period.label;
+      return 'Custom date range';
+    }
     return this.periodOptions.find((o) => o.key === key)?.label ?? 'This month';
   });
 
@@ -102,14 +128,28 @@ export class DashboardComponent {
   }
 
   protected togglePeriodMenu(): void {
-    this.periodMenuOpen.update((open) => !open);
+    this.periodMenuOpen.update((open) => {
+      const next = !open;
+      if (!next) {
+        this.customPickerOpen.set(false);
+        this.customRangeError.set(null);
+      }
+      return next;
+    });
   }
 
   protected closePeriodMenu(): void {
     this.periodMenuOpen.set(false);
+    this.customPickerOpen.set(false);
+    this.customRangeError.set(null);
   }
 
   protected selectPeriod(key: AdminDashboardPeriodKey): void {
+    if (key === 'custom') {
+      this.customPickerOpen.set(true);
+      this.customRangeError.set(null);
+      return;
+    }
     if (this.periodKey() === key) {
       this.closePeriodMenu();
       return;
@@ -119,14 +159,52 @@ export class DashboardComponent {
     this.refreshDashboard();
   }
 
+  protected onCustomStartChange(value: string): void {
+    this.customStartInput.set(value);
+    this.customRangeError.set(null);
+  }
+
+  protected onCustomEndChange(value: string): void {
+    this.customEndInput.set(value);
+    this.customRangeError.set(null);
+  }
+
+  protected applyCustomRange(): void {
+    const start = parseDateInputValue(this.customStartInput());
+    const end = parseDateInputValue(this.customEndInput());
+    if (!start || !end) {
+      this.customRangeError.set('Select both start and end dates.');
+      return;
+    }
+    if (startOfDay(start).getTime() > startOfDay(end).getTime()) {
+      this.customRangeError.set('Start date must be on or before end date.');
+      return;
+    }
+    this.periodKey.set('custom');
+    this.customRangeError.set(null);
+    this.periodMenuOpen.set(false);
+    this.customPickerOpen.set(false);
+    this.refreshDashboard();
+  }
+
   protected refreshDashboard(): void {
     this.closePeriodMenu();
     this.entityCache.invalidate();
     this.loading.set(true);
     this.error.set(null);
     this.streamExpanded.set(false);
+
+    const key = this.periodKey();
+    const customRange =
+      key === 'custom'
+        ? {
+            start: parseDateInputValue(this.customStartInput()) ?? startOfDay(new Date()),
+            end: parseDateInputValue(this.customEndInput()) ?? endOfDay(new Date()),
+          }
+        : null;
+
     this.dashboardService
-      .loadSnapshot(this.periodKey())
+      .loadSnapshot(key, customRange)
       .pipe(take(1))
       .subscribe({
         next: ({ data, error }) => {
@@ -183,16 +261,16 @@ export class DashboardComponent {
   protected readonly conversionBars = computed(() => {
     const k = this.snapshot()?.kpis;
     const empty = [
-      { label: 'Qual', ratio: 0 },
-      { label: 'Conv', ratio: 0 },
-      { label: 'New', ratio: 0 },
+      { label: 'Leads', ratio: 0 },
+      { label: 'Won', ratio: 0 },
+      { label: 'Ratio', ratio: 0 },
     ];
     if (!k || k.totalLeads === 0) return empty;
 
     const raw = [
-      { label: 'Qual', value: k.qualifiedLeads },
-      { label: 'Conv', value: k.convertedLeads },
-      { label: 'New', value: k.newLeadsInPeriod },
+      { label: 'Leads', value: k.totalLeads },
+      { label: 'Won', value: k.wonDeals },
+      { label: 'Ratio', value: k.conversionRatePct },
     ];
     const max = Math.max(...raw.map((r) => r.value), 1);
 
@@ -302,8 +380,8 @@ export class DashboardComponent {
     const data = this.snapshot();
     if (!data) return;
 
-    if (filter === 'all') {
-      this.openLeadDetails('All leads', data.leadDetails);
+    if (filter === 'all' || filter === 'new') {
+      this.openLeadDetails(`Leads (${data.period.label.toLowerCase()})`, data.leadDetails);
       return;
     }
     if (filter === 'qualified') {
@@ -313,16 +391,18 @@ export class DashboardComponent {
       );
       return;
     }
-    if (filter === 'converted') {
-      this.openLeadDetails(
-        'Converted leads',
-        data.leadDetails.filter((l) => l.status === 'Converted'),
-      );
-      return;
-    }
     this.openLeadDetails(
-      `New leads (${data.period.label.toLowerCase()})`,
-      data.newLeadDetails,
+      'Converted leads',
+      data.leadDetails.filter((l) => l.status === 'Converted'),
+    );
+  }
+
+  protected openWonDeals(): void {
+    const data = this.snapshot();
+    if (!data) return;
+    this.openDealDetails(
+      `Won deals (${data.period.label.toLowerCase()})`,
+      data.wonDealDetails,
     );
   }
 

@@ -25,25 +25,61 @@
           <button
             type="button"
             class="sales-dash__period-backdrop"
-            aria-label="Close period menu"
+            aria-label="Close date range menu"
             (click)="closePeriodMenu()"
           ></button>
-          <ul class="sales-dash__period-menu" role="listbox" aria-label="Reporting period">
-            @for (opt of periodOptions; track opt.key) {
-              <li class="sales-dash__period-item" role="presentation">
+          <div class="sales-dash__period-panel" role="listbox" aria-label="Date range filter">
+            <ul class="sales-dash__period-menu">
+              @for (opt of periodOptions; track opt.key) {
+                <li class="sales-dash__period-item" role="presentation">
+                  <button
+                    type="button"
+                    role="option"
+                    class="sales-dash__period-option"
+                    [class.sales-dash__period-option--active]="
+                      periodKey() === opt.key || (opt.key === 'custom' && customPickerOpen())
+                    "
+                    [attr.aria-selected]="periodKey() === opt.key || (opt.key === 'custom' && customPickerOpen())"
+                    (click)="selectPeriod(opt.key)"
+                  >
+                    {{ opt.label }}
+                  </button>
+                </li>
+              }
+            </ul>
+            @if (customPickerOpen() || periodKey() === 'custom') {
+              <div class="sales-dash__period-custom">
+                <label class="sales-dash__period-custom-field">
+                  <span>From</span>
+                  <input
+                    type="date"
+                    class="sales-dash__period-date"
+                    [value]="customStartInput()"
+                    (change)="onCustomStartChange($any($event.target).value)"
+                  />
+                </label>
+                <label class="sales-dash__period-custom-field">
+                  <span>To</span>
+                  <input
+                    type="date"
+                    class="sales-dash__period-date"
+                    [value]="customEndInput()"
+                    (change)="onCustomEndChange($any($event.target).value)"
+                  />
+                </label>
+                @if (customRangeError(); as rangeErr) {
+                  <p class="sales-dash__period-custom-error" role="alert">{{ rangeErr }}</p>
+                }
                 <button
                   type="button"
-                  role="option"
-                  class="sales-dash__period-option"
-                  [class.sales-dash__period-option--active]="periodKey() === opt.key"
-                  [attr.aria-selected]="periodKey() === opt.key"
-                  (click)="selectPeriod(opt.key)"
+                  class="sales-dash__period-apply"
+                  (click)="applyCustomRange()"
                 >
-                  {{ opt.label }}
+                  Apply
                 </button>
-              </li>
+              </div>
             }
-          </ul>
+          </div>
         }
       </div>
       @if (snapshot(); as data) {
@@ -85,34 +121,18 @@
         <span class="sales-dash__kpi-label">Total leads</span>
         <span class="sales-dash__kpi-value">{{ data.kpis.totalLeads }}</span>
       </button>
-      <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openKpiLeads('qualified')">
-        <span class="sales-dash__kpi-label">Qualified</span>
-        <span class="sales-dash__kpi-value">{{ data.kpis.qualifiedLeads }}</span>
-      </button>
-      <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openKpiLeads('converted')">
-        <span class="sales-dash__kpi-label">Converted</span>
-        <span class="sales-dash__kpi-value">{{ data.kpis.convertedLeads }}</span>
-      </button>
-      <article class="sales-dash__kpi">
-        <span class="sales-dash__kpi-label">Conversion</span>
-        <span class="sales-dash__kpi-value">{{ data.kpis.conversionRatePct }}%</span>
-      </article>
-      <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openKpiLeads('new')">
-        <span class="sales-dash__kpi-label">New ({{ data.period.label.toLowerCase() }})</span>
-        <span class="sales-dash__kpi-value">{{ data.kpis.newLeadsInPeriod }}</span>
-      </button>
-      <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openPipelineOverview()">
-        <span class="sales-dash__kpi-label">Active pipeline</span>
-        <span class="sales-dash__kpi-value">{{ data.kpis.activePipelineCount }}</span>
+      <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openWonDeals()">
+        <span class="sales-dash__kpi-label">Won deals</span>
+        <span class="sales-dash__kpi-value">{{ data.kpis.wonDeals }}</span>
       </button>
       <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openPipelineOverview()">
         <span class="sales-dash__kpi-label">Pipeline value</span>
         <span class="sales-dash__kpi-value">{{ formatMoney(data.kpis.pipelineRevenue) }}</span>
       </button>
-      <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openTargetDetails()">
-        <span class="sales-dash__kpi-label">Target achieved</span>
-        <span class="sales-dash__kpi-value">{{ data.kpis.targetAchievedPct }}%</span>
-      </button>
+      <article class="sales-dash__kpi">
+        <span class="sales-dash__kpi-label">Conversion ratio</span>
+        <span class="sales-dash__kpi-value">{{ data.kpis.conversionRatePct }}%</span>
+      </article>
     </section>
 
     <div class="sales-dash__ledger">
@@ -211,11 +231,11 @@
       </article>
 
       <article class="sales-dash__card sales-dash__card--conversion sales-dash__card--click sales-dash__ledger-card" (click)="openKpiLeads('all')">
-        <h2 class="sales-dash__card-title">Conversion rate</h2>
+        <h2 class="sales-dash__card-title">Conversion ratio</h2>
         <div class="sales-dash__conversion-head">
           <span class="sales-dash__big-num">{{ data.kpis.conversionRatePct }}%</span>
           <span class="sales-dash__pill sales-dash__pill--pos">
-            {{ data.kpis.convertedLeads }} / {{ data.kpis.totalLeads }} leads
+            {{ data.kpis.wonDeals }} won / {{ data.kpis.totalLeads }} leads
           </span>
         </div>
         <div class="sales-dash__conversion-chart-wrap">
@@ -224,7 +244,7 @@
             viewBox="0 0 132 68"
             preserveAspectRatio="none"
             role="img"
-            aria-label="Lead mix by status share"
+            aria-label="Won deals versus total leads for the selected date range"
           >
             @for (bar of conversionBars(); track bar.label; let i = $index) {
               @if (bar.ratio > 0) {
