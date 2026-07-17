@@ -31,6 +31,8 @@ export interface MasterDataOption {
   isWon?: boolean;
   /** Terminal lost flag from deal-status master. */
   isLost?: boolean;
+  /** Lead→deal conversion status flag from lead-status master. */
+  isConversionStatus?: boolean;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -90,17 +92,31 @@ export class LeadMasterDataService {
   }
 
   resolveLeadStatusId(statusName: string, map: Map<string, number>): number | null {
-    const key = statusName.trim().toLowerCase();
+    const key = statusName.trim().toLowerCase().replace(/\s+/g, ' ');
     if (!key) return map.get('new') ?? null;
     const direct = map.get(key);
     if (direct != null) return direct;
     if (key === 'lost') {
       return map.get('unqualified') ?? map.get('lost') ?? map.get('new') ?? null;
     }
-    if (key === 'converted') {
-      return map.get('qualified') ?? map.get('converted') ?? map.get('new') ?? null;
+    // Legacy conversion aliases — callers should prefer resolveConversionLeadStatusId.
+    if (key === 'converted' || key === 'moved to deal') {
+      return map.get('converted') ?? map.get('moved to deal') ?? null;
     }
     return map.get('new') ?? [...map.values()][0] ?? null;
+  }
+
+  /** Resolves the conversion status id from loaded lead-status options (flag preferred). */
+  resolveConversionLeadStatus(
+    options: readonly MasterDataOption[],
+  ): MasterDataOption | null {
+    const byFlag = options.find((o) => o.isConversionStatus === true && o.id > 0);
+    if (byFlag) return byFlag;
+    const keyMatch = (n: string) => {
+      const k = n.trim().toLowerCase().replace(/\s+/g, ' ');
+      return k === 'moved to deal' || k === 'converted';
+    };
+    return options.find((o) => o.id > 0 && keyMatch(o.name)) ?? null;
   }
 
   /** Active salutations for lead forms (`/api/MasterData/salutations`). */
@@ -167,6 +183,10 @@ export class LeadMasterDataService {
               sortOrder: Number(row['sortOrder'] ?? row['sort_order'] ?? 0) || undefined,
               isWon: row['isWon'] === true || row['is_won'] === true || row['IsWon'] === true,
               isLost: row['isLost'] === true || row['is_lost'] === true || row['IsLost'] === true,
+              isConversionStatus:
+                row['isConversionStatus'] === true ||
+                row['is_conversion_status'] === true ||
+                row['IsConversionStatus'] === true,
             }))
             .filter((o) => Number.isFinite(o.id) && o.id > 0 && o.name.length > 0),
         ),

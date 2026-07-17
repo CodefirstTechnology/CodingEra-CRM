@@ -12,6 +12,8 @@ export class ConvertLeadModalComponent {
   readonly open = input(false);
   readonly leadCount = input(1);
   readonly leadPreview = input('');
+  /** Display name of the master conversion status (defaults to Converted). */
+  readonly conversionStatusLabel = input('Converted');
 
   readonly confirm = output<ConvertLeadOptions>();
   readonly dismiss = output<void>();

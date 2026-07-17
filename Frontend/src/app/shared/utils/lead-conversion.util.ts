@@ -1,5 +1,5 @@
 import {
-  CONVERTED_LEAD_STATUS_NAME,
+  isConvertedLeadStatusName,
   resolveLeadStatusIdFromName,
 } from '../../core/services/leads/lead-status.constants';
 import type { ActivityGroup, ActivityRow } from '../../core/services/activities/activity-api.models';
@@ -45,12 +45,36 @@ export function validateLeadForConversion(lead: LeadRow): string | null {
   return null;
 }
 
-export function isLeadConverted(lead: LeadRow): boolean {
-  return (
-    lead.isConverted === true ||
-    lead.status === CONVERTED_LEAD_STATUS_NAME ||
-    !!lead.convertedDealId
-  );
+/**
+ * True when the lead is treated as converted for lock / badge UI.
+ * Live-safe / backward-compatible:
+ * - Flagged conversion status (any display name) or legacy "Converted" / "Moved to Deal"
+ * - Local convert marker when status is still empty or Qualified (older UI-only convert)
+ * Soft email/mobile deal links alone do not lock or rename status.
+ */
+export function isLeadConverted(
+  lead: LeadRow,
+  conversion?: { id?: number | null; name?: string | null },
+): boolean {
+  if (conversion?.id != null && conversion.id > 0 && lead.leadStatusId === conversion.id) {
+    return true;
+  }
+  if (isConvertedLeadStatusName(lead.status ?? '')) return true;
+  const convName = conversion?.name?.trim();
+  if (convName && lead.status?.trim().toLowerCase() === convName.toLowerCase()) {
+    return true;
+  }
+
+  // Local convert metadata (localStorage / sourceLeadId inference). Honor only while
+  // status is still empty or Qualified (legacy overlay). Other pipeline statuses win.
+  if (lead.isConverted === true) {
+    const status = (lead.status ?? '').trim().toLowerCase();
+    if (!status || status === 'qualified') return true;
+    if (isConvertedLeadStatusName(status)) return true;
+    if (convName && status === convName.toLowerCase()) return true;
+  }
+
+  return false;
 }
 
 export function normalizeLeadContactEmail(email: string | undefined): string {
@@ -121,19 +145,35 @@ export function inferConvertedDealIdFromIndex(
   return null;
 }
 
-/** Marks a lead converted when a matching deal exists in the API (cross-session / admin-safe). */
+/**
+ * Links a matching deal when found (cross-session / admin-safe).
+ * - `sourceLeadId` → deal link + isConverted (real convert; status not rewritten)
+ * - email/mobile → deal link only (View deal); does not lock status
+ */
 export function applyDealConversionInference(
   lead: LeadRow,
   index: LeadDealConversionIndex | null | undefined,
 ): LeadRow {
-  if (isLeadConverted(lead) || !index) return lead;
-  const dealId = inferConvertedDealIdFromIndex(lead, index);
-  if (!dealId) return lead;
+  if (!index) return lead;
+
+  const leadId = normalizeLeadRecordId(lead.id);
+  const bySource = index.byLeadId.get(leadId);
+  if (bySource) {
+    if (lead.isConverted === true && lead.convertedDealId === bySource) return lead;
+    return {
+      ...lead,
+      isConverted: true,
+      convertedDealId: bySource,
+    };
+  }
+
+  if (lead.convertedDealId) return lead;
+
+  const softDealId = inferConvertedDealIdFromIndex(lead, index);
+  if (!softDealId) return lead;
   return {
     ...lead,
-    isConverted: true,
-    convertedDealId: dealId,
-    status: CONVERTED_LEAD_STATUS_NAME,
+    convertedDealId: softDealId,
   };
 }
 

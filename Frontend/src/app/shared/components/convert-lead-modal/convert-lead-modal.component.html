@@ -17,7 +17,7 @@
   }
   <label class="convert-lead-modal__check">
     <input type="checkbox" [checked]="markAsConverted()" (change)="onMarkConvertedChange($event)" />
-    <span>Mark lead as converted</span>
+    <span>Mark lead as {{ conversionStatusLabel() }}</span>
   </label>
   <label class="convert-lead-modal__check">
     <input type="checkbox" [checked]="removeFromActive()" (change)="onRemoveFromActiveChange($event)" />
