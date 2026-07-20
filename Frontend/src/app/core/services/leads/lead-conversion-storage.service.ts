@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import type { DealRow } from '../../../features/deals/deals.component';
 import type { LeadRow } from '../../../features/leads/lead-row.model';
-import { CONVERTED_LEAD_STATUS_NAME } from './lead-status.constants';
+import { isConvertedLeadStatusName } from './lead-status.constants';
 import { LEAD_CONVERSION_DEAL_SOURCE } from './lead-conversion.types';
 import {
   applyDealConversionInference,
@@ -79,13 +79,13 @@ export class LeadConversionStorageService {
   enrichLeadRow(row: LeadRow): LeadRow {
     const link = this.getLeadLink(row.id);
     if (link) {
+      // Keep API status as-is (do not rewrite to conversion name). isConverted
+      // restores lock/badge for legacy local converts still on Qualified.
       return {
         ...row,
         isConverted: true,
         convertedDealId: link.convertedDealId,
         convertedAt: link.convertedAt,
-        status:
-          row.status === CONVERTED_LEAD_STATUS_NAME ? row.status : CONVERTED_LEAD_STATUS_NAME,
       };
     }
 
@@ -96,12 +96,10 @@ export class LeadConversionStorageService {
         isConverted: true,
         convertedDealId: dealLink.dealId,
         convertedAt: dealLink.convertedAt,
-        status:
-          row.status === CONVERTED_LEAD_STATUS_NAME ? row.status : CONVERTED_LEAD_STATUS_NAME,
       };
     }
 
-    if (row.status === CONVERTED_LEAD_STATUS_NAME) {
+    if (isConvertedLeadStatusName(row.status ?? '')) {
       return { ...row, isConverted: true };
     }
     return row;

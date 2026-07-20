@@ -57,7 +57,12 @@
                 <button type="button" class="mf-panel__action" [disabled]="togglingId() === row.id" (click)="moveStage(row, 1)" aria-label="Move down">↓</button>
               </td>
             }
-            <td>{{ row.name }}</td>
+            <td>
+              {{ row.name }}
+              @if (isLeadStatuses() && isConversionLeadStatus(row)) {
+                <span class="mf-panel__badge" title="Set automatically when a lead is converted to a deal (not Won)">Conversion</span>
+              }
+            </td>
             <td>{{ row.description || '—' }}</td>
             @if (isDealStatuses()) {
               <td>
@@ -115,6 +120,16 @@
       <input type="checkbox" formControlName="isActive" />
       <span>Active</span>
     </label>
+    @if (isLeadStatuses()) {
+      <p class="mf-panel__hint">
+        Conversion status is set automatically when a lead is converted to a deal (not Won / not revenue).
+        You can rename that status; keep exactly one status marked below.
+      </p>
+      <label class="mf-panel__checkbox">
+        <input type="checkbox" formControlName="isConversionStatus" />
+        <span>Lead → deal conversion status</span>
+      </label>
+    }
     @if (isDealStatuses()) {
       <label class="mf-panel__field">
         <span>Sort order</span>

@@ -23,9 +23,11 @@ import {
   todayIsoDateLocal,
 } from '../../core/services/leads/lead-api.mapper';
 import {
-  CONVERTED_LEAD_STATUS_NAME,
+  conversionLeadStatusDisplayName,
   ensureConvertedInLeadStatusOptions,
   FALLBACK_LEAD_STATUS_OPTIONS,
+  findConversionLeadStatus,
+  isConversionLeadStatusOption,
   isConvertedLeadStatusName,
   isSelectableLeadStatusOption,
   resolveLeadStatusIdFromName,
@@ -252,6 +254,15 @@ export class LeadsComponent {
     return ensureConvertedInLeadStatusOptions(base);
   });
 
+  /** Flagged (or legacy-named) conversion status from master data. */
+  protected readonly conversionStatusOption = computed(() =>
+    findConversionLeadStatus(this.statusSelectOptions()),
+  );
+
+  protected readonly conversionStatusLabel = computed(() =>
+    conversionLeadStatusDisplayName(this.statusSelectOptions()),
+  );
+
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
   protected readonly isPersistedApiLeadRow = isPersistedApiLeadRow;
   protected readonly isLeadConverted = isLeadConverted;
@@ -261,7 +272,7 @@ export class LeadsComponent {
     const chips: { id: LeadListStatusFilter; label: string }[] = [{ id: 'all', label: 'All' }];
     for (const opt of this.statusSelectOptions()) {
       const label = opt.name.trim();
-      if (!label || isConvertedLeadStatusName(label)) continue;
+      if (!label || isConversionLeadStatusOption(opt)) continue;
       chips.push({ id: coerceLeadStatus(label), label });
     }
     return chips;
@@ -284,7 +295,10 @@ export class LeadsComponent {
       if (chip.id === 'all') continue;
       items.push(chip);
     }
-    items.push({ id: 'Converted', label: 'Converted' });
+    items.push({
+      id: this.conversionStatusLabel() as LeadListStatusFilter,
+      label: this.conversionStatusLabel(),
+    });
     return items;
   });
 
@@ -868,7 +882,7 @@ export class LeadsComponent {
             return;
           }
           if (isLeadConverted(row)) {
-            this.toast.error('Converted leads cannot be edited.');
+            this.toast.error('Leads moved to a deal cannot be edited.');
             this.clearEditQuery();
             return;
           }
@@ -1457,9 +1471,9 @@ export class LeadsComponent {
     const rtPick = this.resolveMasterPick(raw.requestType, this.requestTypeSelectOptions());
     const indPick = this.resolveMasterPick(raw.industry, this.industrySelectOptions());
     const statPick = this.resolveMasterPick(raw.status, this.statusSelectOptions());
-    if (isConvertedLeadStatusName(statPick.label)) {
+    if (isConversionLeadStatusOption({ id: 0, name: statPick.label })) {
       this.toast.error(
-        'Converted status is set automatically when you convert a lead to a deal.',
+        `${this.conversionStatusLabel()} is set automatically when you convert a lead to a deal.`,
       );
       return;
     }
@@ -1547,7 +1561,12 @@ export class LeadsComponent {
   }
 
   protected isLeadConvertedInTable(row: LeadRow): boolean {
-    return isLeadConverted(this.leadRowForTableStatus(row));
+    const enriched = this.leadRowForTableStatus(row);
+    const conv = this.conversionStatusOption();
+    return isLeadConverted(enriched, {
+      id: conv?.id,
+      name: conv?.name,
+    });
   }
 
   /** Master-data status label for table display (admin read-only and filters). */
@@ -1558,7 +1577,19 @@ export class LeadsComponent {
   /** Status label shown in the table — matches user dropdown / converted badge rules. */
   protected leadTableStatusLabel(row: LeadRow): LeadStatus {
     const enriched = this.leadRowForTableStatus(row);
-    if (isLeadConverted(enriched)) return CONVERTED_LEAD_STATUS_NAME;
+    const conv = this.conversionStatusOption();
+    // Only force conversion master name when FK/status is actually conversion —
+    // not when a soft deal match exists on a Qualified (or other) lead.
+    if (conv?.id != null && conv.id > 0 && enriched.leadStatusId === conv.id) {
+      return (conv.name.trim() || this.conversionStatusLabel()) as LeadStatus;
+    }
+    if (
+      isConvertedLeadStatusName(enriched.status ?? '') ||
+      (conv?.name?.trim() &&
+        enriched.status?.trim().toLowerCase() === conv.name.trim().toLowerCase())
+    ) {
+      return this.conversionStatusLabel() as LeadStatus;
+    }
     return this.leadStatusLabel(enriched);
   }
 
@@ -1581,7 +1612,12 @@ export class LeadsComponent {
     const options = this.statusSelectOptions();
     const norm = (s: string) => s.trim().toLowerCase();
     let label = row.status?.trim() || '';
-    if (label === 'Converted') label = 'Qualified';
+    if (isConversionLeadStatusOption({ id: 0, name: label })) {
+      const conversionOpt = options.find((o) => isConversionLeadStatusOption(o) && o.id > 0);
+      if (conversionOpt?.name.trim()) return conversionOpt.name.trim();
+      // Legacy overlay: conversion status was UI-only while FK stayed Qualified.
+      label = 'Qualified';
+    }
     if (label === 'Lost') label = 'Unqualified';
     if (label) {
       const byName = options.find((o) => o.id > 0 && norm(o.name) === norm(label));
@@ -1594,11 +1630,17 @@ export class LeadsComponent {
     return label || 'New';
   }
 
-  /** Filter by `lead_status_id` when present; falls back to label match (incl. legacy Converted → Qualified). */
+  /** Filter by `lead_status_id` when present; falls back to label match (incl. legacy Converted). */
   private rowMatchesStatusFilter(row: LeadRow, filter: LeadListStatusFilter): boolean {
     if (filter === 'all') return true;
     const enriched = this.leadRowForTableStatus(row);
-    if (filter === 'Converted') return isLeadConverted(enriched);
+    const conv = this.conversionStatusOption();
+    if (
+      isConvertedLeadStatusName(filter) ||
+      (conv != null && filter.trim().toLowerCase() === conv.name.trim().toLowerCase())
+    ) {
+      return isLeadConverted(enriched, { id: conv?.id, name: conv?.name });
+    }
     const filterId = resolveLeadStatusIdFromName(filter);
     if (enriched.leadStatusId != null && enriched.leadStatusId > 0 && filterId != null) {
       return enriched.leadStatusId === filterId;
@@ -1620,9 +1662,9 @@ export class LeadsComponent {
     const pick = this.resolveMasterPick(raw, this.statusSelectOptions());
     const label = pick.label.trim();
     if (!label) return;
-    if (isConvertedLeadStatusName(label)) {
+    if (isConversionLeadStatusOption({ id: pick.masterId ?? 0, name: label })) {
       this.toast.error(
-        'Converted status is set automatically when you convert a lead to a deal.',
+        `${this.conversionStatusLabel()} is set automatically when you convert a lead to a deal.`,
       );
       this.refreshLeads();
       return;
@@ -1771,6 +1813,9 @@ export class LeadsComponent {
       case 'Lost':
         return 'leads__tag leads__tag--bad';
       default:
+        if (isConversionLeadStatusOption({ id: 0, name: status })) {
+          return 'leads__tag leads__tag--ok';
+        }
         return 'leads__tag leads__tag--muted';
     }
   }

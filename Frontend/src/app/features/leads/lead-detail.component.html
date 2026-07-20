@@ -24,7 +24,7 @@
       </button>
       @if (convertedDealId(); as dealId) {
         <a class="lead-detail__btn lead-detail__btn--ghost" [routerLink]="['/deals', dealId]">View deal</a>
-        <span class="lead-detail__converted-badge">Converted</span>
+        <span class="lead-detail__converted-badge">{{ conversionStatusLabel() }}</span>
       } @else {
         <button
           type="button"
@@ -411,7 +411,7 @@
       </header>
 
       @if (isLeadDataReadOnly()) {
-      <p class="lead-detail__readonly-msg" role="status">This lead is converted and can no longer be edited.</p>
+      <p class="lead-detail__readonly-msg" role="status">This lead was moved to a deal and can no longer be edited.</p>
       }
 
       <form class="lead-detail__data-form" [formGroup]="dataForm" (ngSubmit)="saveDataTab()">
@@ -920,6 +920,7 @@
   [open]="convertModalOpen()"
   [leadCount]="1"
   [leadPreview]="lead()?.name ?? ''"
+  [conversionStatusLabel]="conversionStatusLabel()"
   (confirm)="onConvertModalConfirm($event)"
   (dismiss)="closeConvertModal()"
 />

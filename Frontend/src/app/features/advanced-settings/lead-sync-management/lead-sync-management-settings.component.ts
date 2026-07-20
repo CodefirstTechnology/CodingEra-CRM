@@ -5,6 +5,7 @@ import { isAdmin } from '../../../core/auth/auth-role.util';
 import { AuthService } from '../../../core/auth/auth.service';
 import type {
   LeadSyncEligibleUser,
+  LeadSyncIntervalOption,
   LeadSyncLogRow,
   LeadSyncSource,
 } from '../../../core/services/lead-sync/lead-sync-api.models';
@@ -44,10 +45,12 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
 
   protected readonly sources = signal<LeadSyncSource[]>([]);
   protected readonly eligibleUsers = signal<LeadSyncEligibleUser[]>([]);
+  protected readonly intervals = signal<LeadSyncIntervalOption[]>([]);
   protected readonly history = signal<LeadSyncLogRow[]>([]);
 
   protected readonly draftUserIds = signal<Record<number, number[]>>({});
   protected readonly draftAutoSync = signal<Record<number, boolean>>({});
+  protected readonly draftIntervalOptionId = signal<Record<number, number | null>>({});
   protected readonly draftPullUrl = signal<Record<number, string>>({});
   protected readonly draftApiKey = signal<Record<number, string>>({});
   protected readonly maskedKey = signal<Record<number, string | null>>({});
@@ -131,6 +134,14 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
       next: (rows) => this.eligibleUsers.set(rows),
       error: () => {},
     });
+
+    this.api.listIntervals().subscribe({
+      next: (rows) => {
+        this.intervals.set(rows);
+        this.ensureIntervalDraftDefaults(this.sources());
+      },
+      error: () => {},
+    });
   }
 
   protected loadHistory(): void {
@@ -188,6 +199,26 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
 
   protected setAutoSyncEnabled(sourceId: number, enabled: boolean): void {
     this.draftAutoSync.update((m) => ({ ...m, [sourceId]: enabled }));
+    if (enabled && this.draftIntervalOptionId()[sourceId] == null) {
+      const defaultId = this.defaultIntervalOptionId();
+      if (defaultId != null) {
+        this.draftIntervalOptionId.update((m) => ({ ...m, [sourceId]: defaultId }));
+      }
+    }
+  }
+
+  protected intervalOptionId(sourceId: number): number | null {
+    return this.draftIntervalOptionId()[sourceId] ?? null;
+  }
+
+  protected setIntervalOptionId(sourceId: number, value: number | null): void {
+    this.draftIntervalOptionId.update((m) => ({ ...m, [sourceId]: value }));
+  }
+
+  protected selectedIntervalLabel(sourceId: number): string | null {
+    const id = this.intervalOptionId(sourceId);
+    if (id == null) return null;
+    return this.intervals().find((i) => i.id === id)?.label ?? null;
   }
 
   protected pullUrlDraft(source: LeadSyncSource): string {
@@ -320,20 +351,30 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
     const enabled = this.draftAutoSync()[source.id];
     if (enabled == null) return;
 
+    let intervalOptionId = this.draftIntervalOptionId()[source.id] ?? null;
+    if (enabled) {
+      intervalOptionId ??= this.defaultIntervalOptionId();
+      if (intervalOptionId == null) {
+        this.toast.error('No sync interval options are available. Refresh and try again.');
+        return;
+      }
+    }
+
     this.savingSourceId.set(source.id);
     this.api
       .updateAutoSync(source.id, {
         autoSyncEnabled: enabled,
-        intervalOptionId: null,
+        intervalOptionId: enabled ? intervalOptionId : null,
       })
       .subscribe({
         next: (rows) => {
           this.sources.set(rows);
           this.initDrafts(rows);
           this.savingSourceId.set(null);
+          const label = enabled ? this.selectedIntervalLabel(source.id) : null;
           this.toast.success(
             enabled
-              ? `${source.displayName} automatic sync enabled.`
+              ? `${source.displayName} automatic sync enabled${label ? ` (${label})` : ''}.`
               : `${source.displayName} automatic sync disabled.`,
           );
         },
@@ -370,17 +411,42 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
   private initDrafts(sources: LeadSyncSource[]): void {
     const userDraft: Record<number, number[]> = {};
     const autoDraft: Record<number, boolean> = {};
+    const intervalDraft: Record<number, number | null> = {};
     const urlDraft: Record<number, string> = {};
+    const defaultIntervalId = this.defaultIntervalOptionId();
     for (const s of sources) {
       userDraft[s.id] = s.assignments.map((a) => a.userId);
       autoDraft[s.id] = s.autoSyncEnabled;
+      intervalDraft[s.id] = s.intervalOptionId ?? defaultIntervalId;
       const ui = getLeadSyncProviderUi(s.code);
       const defaultUrl = ui?.fields.find((f) => f.key === 'pullApiUrl')?.defaultValue ?? '';
       urlDraft[s.id] = s.pullApiUrl ?? defaultUrl;
     }
     this.draftUserIds.set(userDraft);
     this.draftAutoSync.set(autoDraft);
+    this.draftIntervalOptionId.set(intervalDraft);
     this.draftPullUrl.set(urlDraft);
+  }
+
+  private defaultIntervalOptionId(): number | null {
+    const rows = this.intervals();
+    if (!rows.length) return null;
+    return [...rows].sort((a, b) => a.sortOrder - b.sortOrder || a.minutes - b.minutes)[0]?.id ?? null;
+  }
+
+  private ensureIntervalDraftDefaults(sources: LeadSyncSource[]): void {
+    if (!sources.length) return;
+    const defaultId = this.defaultIntervalOptionId();
+    if (defaultId == null) return;
+    this.draftIntervalOptionId.update((current) => {
+      const next = { ...current };
+      for (const s of sources) {
+        if (next[s.id] == null) {
+          next[s.id] = s.intervalOptionId ?? defaultId;
+        }
+      }
+      return next;
+    });
   }
 
   private loadCredentialsDraft(source: LeadSyncSource): void {

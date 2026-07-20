@@ -129,7 +129,7 @@ export class UserDashboardService {
       return sum + (Number.isFinite(d.annualRevenue) ? d.annualRevenue : 0);
     }, 0);
 
-    const converted = myLeads.filter((l) => l.status === 'Converted').length;
+    const converted = myLeads.filter((l) => l.status === 'Converted' || l.isConverted === true).length;
     const conversionPct = myLeads.length ? Math.round((converted / myLeads.length) * 1000) / 10 : 0;
     const monthlyClosureRate = myLeads.length
       ? Math.round((monthlyClosed.length / myLeads.length) * 1000) / 10
@@ -293,8 +293,7 @@ export class UserDashboardService {
     switch (lead.status) {
       case 'Qualified':
       case 'Converted':
-        return 'High';
-      case 'Contacted':
+        return 'High';      case 'Contacted':
         return 'Medium';
       case 'Lost':
         return 'Low';

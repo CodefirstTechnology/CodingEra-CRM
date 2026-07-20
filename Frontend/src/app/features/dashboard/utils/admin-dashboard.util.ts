@@ -8,6 +8,7 @@ import { DEAL_STAGE_MATERIAL_DELIVERED } from '../../../core/services/deals/deal
 import type { DealRow } from '../../deals/deals.component';
 import type { LeadRow } from '../../leads/lead-row.model';
 import type {
+  AdminDashboardCustomRange,
   AdminDashboardPeriod,
   AdminDashboardPeriodKey,
   AdminTeamMemberStats,
@@ -134,12 +135,49 @@ export function endOfYear(d: Date): Date {
   return endOfDay(new Date(d.getFullYear(), 11, 31));
 }
 
+/** Monday 00:00 of the week containing `d` (ISO-style week). */
+export function startOfWeek(d: Date): Date {
+  const day = d.getDay();
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() + mondayOffset);
+  return startOfDay(monday);
+}
+
+/** Sunday 23:59:59.999 of the week containing `d`. */
+export function endOfWeek(d: Date): Date {
+  const start = startOfWeek(d);
+  return endOfDay(new Date(start.getFullYear(), start.getMonth(), start.getDate() + 6));
+}
+
+function formatShortDate(d: Date): string {
+  try {
+    return new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }).format(d);
+  } catch {
+    return d.toLocaleDateString();
+  }
+}
+
 export function resolveDashboardPeriod(
   key: AdminDashboardPeriodKey,
   ref = new Date(),
+  customRange?: AdminDashboardCustomRange | null,
 ): AdminDashboardPeriod {
   const now = ref;
   switch (key) {
+    case 'today':
+      return {
+        key,
+        label: 'Today',
+        start: startOfDay(now),
+        end: endOfDay(now),
+      };
+    case 'this_week':
+      return {
+        key,
+        label: 'This week',
+        start: startOfWeek(now),
+        end: endOfWeek(now),
+      };
     case 'last_month': {
       const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       return {
@@ -149,20 +187,18 @@ export function resolveDashboardPeriod(
         end: endOfMonth(prev),
       };
     }
-    case 'this_quarter':
+    case 'custom': {
+      const start = customRange?.start ? startOfDay(customRange.start) : startOfMonth(now);
+      const end = customRange?.end ? endOfDay(customRange.end) : endOfMonth(now);
+      const orderedStart = start.getTime() <= end.getTime() ? start : startOfDay(end);
+      const orderedEnd = start.getTime() <= end.getTime() ? end : endOfDay(start);
       return {
         key,
-        label: 'This quarter',
-        start: startOfQuarter(now),
-        end: endOfQuarter(now),
+        label: `${formatShortDate(orderedStart)} – ${formatShortDate(orderedEnd)}`,
+        start: orderedStart,
+        end: orderedEnd,
       };
-    case 'this_year':
-      return {
-        key,
-        label: 'This year',
-        start: startOfYear(now),
-        end: endOfYear(now),
-      };
+    }
     case 'this_month':
     default:
       return {
@@ -196,7 +232,9 @@ export function dealRecordDate(deal: DealRow): Date | null {
 }
 
 export function isLeadConvertedRow(lead: LeadRow): boolean {
-  return lead.status === 'Converted' || lead.isConverted === true;
+  if (lead.isConverted === true) return true;
+  const status = (lead.status ?? '').trim().toLowerCase();
+  return status === 'converted' || status === 'moved to deal';
 }
 
 export function resolveDealValue(deal: DealRow): number {

@@ -28,7 +28,7 @@ export function mapLeadSyncIntervalOption(row: unknown): LeadSyncIntervalOption 
   const o = (row ?? {}) as Record<string, unknown>;
   return {
     id: num(o['id']),
-    hours: num(o['hours']),
+    minutes: num(o['minutes'] ?? o['hours']),
     label: str(o['label']),
     sortOrder: num(o['sortOrder']),
   };
@@ -69,7 +69,10 @@ export function mapLeadSyncSource(row: unknown): LeadSyncSource {
     pullApiUrl: nullableStr(o['pullApiUrl']),
     autoSyncEnabled: bool(o['autoSyncEnabled']),
     intervalOptionId: o['intervalOptionId'] == null ? null : num(o['intervalOptionId']),
-    intervalHours: o['intervalHours'] == null ? null : num(o['intervalHours']),
+    intervalMinutes:
+      o['intervalMinutes'] == null && o['intervalHours'] == null
+        ? null
+        : num(o['intervalMinutes'] ?? (Number(o['intervalHours']) || 0) * 60),
     intervalLabel: nullableStr(o['intervalLabel']),
     lastSyncAt: nullableStr(o['lastSyncAt']),
     nextSyncAt: nullableStr(o['nextSyncAt']),

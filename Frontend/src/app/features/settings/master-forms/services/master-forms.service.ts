@@ -54,6 +54,10 @@ function mapRow(raw: Record<string, unknown>): MasterFormRow | null {
     sortOrder,
     isWon: raw['isWon'] === true || raw['is_won'] === true || raw['IsWon'] === true,
     isLost: raw['isLost'] === true || raw['is_lost'] === true || raw['IsLost'] === true,
+    isConversionStatus:
+      raw['isConversionStatus'] === true ||
+      raw['is_conversion_status'] === true ||
+      raw['IsConversionStatus'] === true,
   };
 }
 
@@ -160,6 +164,9 @@ export class MasterFormsService {
       if (payload.sortOrder != null && payload.sortOrder > 0) body['sortOrder'] = payload.sortOrder;
       if (payload.isWon != null) body['isWon'] = payload.isWon;
       if (payload.isLost != null) body['isLost'] = payload.isLost;
+    }
+    if (entity === 'lead-statuses' && payload.isConversionStatus != null) {
+      body['isConversionStatus'] = payload.isConversionStatus;
     }
 
     const url =

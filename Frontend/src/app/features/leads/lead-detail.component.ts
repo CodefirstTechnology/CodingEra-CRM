@@ -33,6 +33,11 @@ import { ToastService } from '../../core/toast/toast.service';
 import { TasksService } from '../../core/services/tasks.service';
 import { LeadOwnerOptionsService, isPersistedApiLeadRow } from '../../core/services/leads/lead-owner-options.service';
 import {
+  conversionLeadStatusDisplayName,
+  ensureConvertedInLeadStatusOptions,
+  findConversionLeadStatus,
+} from '../../core/services/leads/lead-status.constants';
+import {
   buildLeadConversionActivityGroup,
   isLeadConverted,
   isLeadQualifiedForConversion,
@@ -136,7 +141,8 @@ export class LeadDetailComponent {
 
   protected readonly canConvertCurrentLead = computed(() => {
     const row = this.lead();
-    if (!row || isLeadConverted(row)) return false;
+    const conv = this.conversionStatusOption();
+    if (!row || isLeadConverted(row, { id: conv?.id, name: conv?.name })) return false;
     return isLeadQualifiedForConversion(row);
   });
 
@@ -147,7 +153,8 @@ export class LeadDetailComponent {
 
   protected readonly isLeadDataReadOnly = computed(() => {
     const row = this.lead();
-    return row != null && isLeadConverted(row);
+    const conv = this.conversionStatusOption();
+    return row != null && isLeadConverted(row, { id: conv?.id, name: conv?.name });
   });
   protected readonly commentComposerOpen = signal(false);
   protected readonly commentDraft = signal('');
@@ -216,6 +223,15 @@ export class LeadDetailComponent {
 
   private readonly territoriesFromApi = signal<MasterDataOption[]>([]);
   private readonly industriesFromApi = signal<MasterDataOption[]>([]);
+  private readonly leadStatusesFromApi = signal<MasterDataOption[]>([]);
+
+  protected readonly conversionStatusOption = computed(() =>
+    findConversionLeadStatus(ensureConvertedInLeadStatusOptions(this.leadStatusesFromApi())),
+  );
+
+  protected readonly conversionStatusLabel = computed(() =>
+    conversionLeadStatusDisplayName(ensureConvertedInLeadStatusOptions(this.leadStatusesFromApi())),
+  );
 
   protected readonly territorySelectOptions = computed<MasterDataOption[]>(() => {
     const api = this.territoriesFromApi();
@@ -305,12 +321,14 @@ export class LeadDetailComponent {
     forkJoin({
       territories: this.leadMasterData.loadTerritories(),
       industries: this.leadMasterData.loadIndustries(),
+      leadStatuses: this.leadMasterData.loadLeadStatuses(),
     })
       .pipe(takeUntilDestroyed())
       .subscribe({
         next: (r) => {
           this.territoriesFromApi.set(r.territories);
           this.industriesFromApi.set(r.industries);
+          this.leadStatusesFromApi.set(r.leadStatuses);
         },
       });
 
@@ -929,7 +947,7 @@ export class LeadDetailComponent {
     if (!row || idn == null) return;
 
     if (this.isLeadDataReadOnly()) {
-      this.toast.error('Converted leads cannot be edited.');
+      this.toast.error('Leads moved to a deal cannot be edited.');
       return;
     }
 

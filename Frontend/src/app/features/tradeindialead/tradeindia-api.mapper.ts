@@ -1,5 +1,9 @@
 import type { TradeIndiaLeadInput, TradeIndiaLeadStatus } from './tradeindia-lead.model';
 import { isTradeIndiaLeadStatus } from './tradeindia-lead.model';
+import {
+  parseTradeIndiaInquiryMessage,
+  resolveTradeIndiaCustomerName,
+} from './tradeindia-inquiry-parse';
 
 function pickString(obj: Record<string, unknown>, keys: string[]): string | undefined {
   for (const k of keys) {
@@ -56,24 +60,52 @@ function mapStatus(raw: string | undefined): TradeIndiaLeadStatus {
 /**
  * Maps one loosely-typed TradeIndia API / webhook object into {@link TradeIndiaLeadInput}.
  * Returns `null` when the object has no usable identity/contact fields.
+ *
+ * Field mapping (TradeIndia My Inquiry API):
+ * - sender_name → customerName
+ * - sender_mobile → mobile
+ * - sender_email → email
+ * - sender_city → city
+ * - sender_co → companyName (Organization)
+ * - product_name → product (Requirement)
+ * - message → message (notes / full inquiry; parsed when structured fields missing)
+ * - rfi_id → externalRef
  */
 export function mapUnknownRecordToTradeIndiaLeadInput(value: unknown): TradeIndiaLeadInput | null {
   const row = asRecord(value);
   if (!row) return null;
 
+  const rawMessage =
+    pickString(row, [
+      'message',
+      'Message',
+      'MESSAGE',
+      'inquiry_message',
+      'enquiry_text',
+      'inquiry_text',
+      'requirement',
+      'query',
+      'remarks',
+      'description',
+    ]) ?? '';
+  const parsed = parseTradeIndiaInquiryMessage(rawMessage);
+
   const customerName =
     pickString(row, [
+      'sender_name',
+      'SENDER_NAME',
       'name',
       'customerName',
       'customer_name',
       'customer',
       'contact_name',
       'buyer_name',
-      'sender_name',
       'lead_name',
     ]) ?? '';
   const mobile =
     pickString(row, [
+      'sender_mobile',
+      'SENDER_MOBILE',
       'mobile',
       'phone',
       'Phone',
@@ -81,11 +113,15 @@ export function mapUnknownRecordToTradeIndiaLeadInput(value: unknown): TradeIndi
       'contact_number',
       'phone_number',
       'mobile_number',
-      'sender_mobile',
-    ]) ?? '';
-  const email = pickString(row, ['email', 'Email', 'EMAIL', 'buyer_email', 'sender_email']) ?? '';
+    ]) ??
+    parsed.mobile ??
+    '';
+  const email =
+    pickString(row, ['sender_email', 'SENDER_EMAIL', 'email', 'Email', 'EMAIL', 'buyer_email']) ?? '';
   const city =
     pickString(row, [
+      'sender_city',
+      'SENDER_CITY',
       'city',
       'City',
       'location',
@@ -93,32 +129,34 @@ export function mapUnknownRecordToTradeIndiaLeadInput(value: unknown): TradeIndi
       'area',
       'locality',
       'customer_city',
-      'sender_city',
-    ]) ?? '';
-  const requirement =
+    ]) ??
+    parsed.city ??
+    '';
+  const companyName =
     pickString(row, [
-      'requirement',
-      'message',
-      'Message',
-      'query',
-      'remarks',
-      'comments',
-      'description',
-      'enquiry_text',
-      'inquiry_text',
-    ]) ?? '';
+      'sender_co',
+      'SENDER_CO',
+      'company',
+      'company_name',
+      'Company Name',
+      'CompanyName',
+      'organization',
+    ]) ??
+    parsed.companyName ??
+    '';
   const product =
     pickString(row, [
+      'product_name',
+      'PRODUCT_NAME',
       'product',
       'Product',
-      'product_name',
-      'service',
-      'Service',
-      'category',
-      'requirement_for',
       'subject',
+      'category',
+      'service',
+      'requirement_for',
     ]) ??
-    (requirement.length > 0 ? requirement.slice(0, 120) : '');
+    parsed.product ??
+    '';
   const quantity =
     pickString(row, ['quantity', 'Quantity', 'qty', 'QTY', 'units']) ??
     pickNumberString(row, ['quantity', 'qty', 'units']) ??
@@ -135,6 +173,8 @@ export function mapUnknownRecordToTradeIndiaLeadInput(value: unknown): TradeIndi
     'query_time',
   ]);
   const externalRef = pickString(row, [
+    'rfi_id',
+    'RFI_ID',
     'enquiry_id',
     'inquiry_id',
     'externalRef',
@@ -148,16 +188,18 @@ export function mapUnknownRecordToTradeIndiaLeadInput(value: unknown): TradeIndi
   ]);
   const statusRaw = pickString(row, ['status', 'STATUS', 'lead_status']);
 
-  if (!customerName && !email && !mobile) return null;
+  if (!customerName && !email && !mobile && !companyName) return null;
 
   const input: TradeIndiaLeadInput = {
-    customerName: customerName || email || mobile || 'Unknown',
+    // Never use mobile/email as Name — TradeIndia often omits sender_name.
+    customerName: resolveTradeIndiaCustomerName({ senderName: customerName, companyName }),
     mobile: mobile || '-',
     email: email || '-',
     city: city || '-',
+    companyName: companyName || '',
     product: product || '-',
     quantity,
-    message: requirement || '-',
+    message: rawMessage || '-',
     source,
     status: mapStatus(statusRaw),
   };

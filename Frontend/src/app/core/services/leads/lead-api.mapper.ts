@@ -19,11 +19,13 @@ const LEAD_STATUS_BY_KEY: Record<string, LeadStatus> = {
   junk: 'Junk',
   lost: 'Lost',
   converted: 'Converted',
+  'moved to deal': 'Converted',
 };
 
 export function coerceLeadStatus(raw: string | undefined | null): LeadStatus {
-  const key = (raw ?? 'New').trim().toLowerCase();
-  return LEAD_STATUS_BY_KEY[key] ?? 'New';
+  const trimmed = (raw ?? 'New').trim() || 'New';
+  const key = trimmed.toLowerCase().replace(/\s+/g, ' ');
+  return LEAD_STATUS_BY_KEY[key] ?? (trimmed as LeadStatus);
 }
 
 function coerceLeadSource(raw: string | undefined | null): LeadSource {
@@ -419,15 +421,9 @@ export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
   const parsedSort = tsRaw ? Date.parse(tsRaw) : NaN;
 
   const status = coerceLeadStatus(dto.statusName);
-  const statusIdFromName = resolveLeadStatusIdFromName(status);
   const apiStatusId = dto.leadStatusId != null && dto.leadStatusId > 0 ? dto.leadStatusId : undefined;
-  /** Keep FK aligned with resolved status label when API FK drifts (common on marketplace imports). */
-  const leadStatusId =
-    statusIdFromName != null && statusIdFromName > 0
-      ? apiStatusId != null && apiStatusId !== statusIdFromName
-        ? statusIdFromName
-        : (apiStatusId ?? statusIdFromName)
-      : apiStatusId;
+  // Prefer API FK; name→canonical id only when API omits FK (avoid remapping Qualified↔Nurture).
+  const leadStatusId = apiStatusId ?? resolveLeadStatusIdFromName(status) ?? undefined;
 
   const row: LeadRow = {
     id,

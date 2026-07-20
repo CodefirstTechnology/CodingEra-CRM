@@ -11,6 +11,7 @@
     [open]="convertModalOpen()"
     [leadCount]="convertTargets().length"
     [leadPreview]="convertModalPreview()"
+    [conversionStatusLabel]="conversionStatusLabel()"
     (confirm)="onConvertModalConfirm($event)"
     (dismiss)="closeConvertModal()"
   />
@@ -467,7 +468,7 @@
                       }
                       @case ('status') {
                         @if (isLeadConvertedInTable(row)) {
-                          <span class="leads__tag leads__tag--converted">Converted</span>
+                          <span class="leads__tag leads__tag--converted">{{ conversionStatusLabel() }}</span>
                         } @else if (isAdminViewer()) {
                           <span [class]="statusClass(leadTableStatusLabel(row))">{{ leadTableStatusLabel(row) }}</span>
                         } @else if (canEditLeadStatusInTable(row)) {
@@ -565,7 +566,7 @@
                           Convert to deal
                         </button>
                       } @else if (isLeadConvertedInTable(row)) {
-                        <span class="leads__row-menu-muted" role="menuitem">Already converted</span>
+                        <span class="leads__row-menu-muted" role="menuitem">Already moved to a deal</span>
                         @if (leadRowForTableStatus(row).convertedDealId; as dealId) {
                           <a
                             role="menuitem"

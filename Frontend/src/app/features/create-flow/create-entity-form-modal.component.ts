@@ -22,7 +22,7 @@ import { LeadMasterDataService } from '../../core/services/leads/lead-master-dat
 import {
   ensureConvertedInLeadStatusOptions,
   FALLBACK_LEAD_STATUS_OPTIONS,
-  isConvertedLeadStatusName,
+  isConversionLeadStatusOption,
   isSelectableLeadStatusOption,
   resolveLeadStatusIdFromName,
 } from '../../core/services/leads/lead-status.constants';
@@ -576,9 +576,9 @@ export class CreateEntityFormModalComponent {
     const raw = this.leadForm.getRawValue();
     const emailTrim = raw.email.trim();
 
-    if (isConvertedLeadStatusName(raw.status)) {
+    if (isConversionLeadStatusOption({ id: 0, name: String(raw.status ?? '') })) {
       this.toast.error(
-        'Converted status is set automatically when you convert a lead to a deal.',
+        'Conversion status is set automatically when you convert a lead to a deal.',
       );
       return;
     }

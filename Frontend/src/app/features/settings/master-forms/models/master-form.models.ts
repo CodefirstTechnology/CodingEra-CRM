@@ -23,6 +23,7 @@ export interface MasterFormRow {
   sortOrder?: number;
   isWon?: boolean;
   isLost?: boolean;
+  isConversionStatus?: boolean;
 }
 
 export interface MasterFormUpsertPayload {
@@ -33,6 +34,7 @@ export interface MasterFormUpsertPayload {
   sortOrder?: number;
   isWon?: boolean;
   isLost?: boolean;
+  isConversionStatus?: boolean;
 }
 
 export interface DealStatusReorderItem {
@@ -49,7 +51,8 @@ export const MASTER_FORM_ENTITIES: readonly MasterFormEntityConfig[] = [
     slug: 'lead-statuses',
     label: 'Lead Statuses',
     singularLabel: 'Lead Status',
-    description: 'Pipeline stages for leads (New, Contacted, Qualified, etc.).',
+    description:
+      'Pipeline stages for leads. Mark one status as the conversion status (set automatically when a lead becomes a deal — not Won). That status name can be renamed freely.',
   },
   {
     slug: 'deal-statuses',

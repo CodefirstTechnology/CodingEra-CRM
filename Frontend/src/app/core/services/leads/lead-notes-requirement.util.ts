@@ -56,6 +56,11 @@ export function resolveLeadRequirementForDisplay(
 
   if (extractMarketplaceExternalRef(notesRaw)) {
     const parsed = parseMarketplaceNotesDisplay(notesRaw);
+    const ext = extractMarketplaceExternalRef(notesRaw);
+    if (ext?.source === 'TradeIndia') {
+      const product = plainTextFromHtml(parsed.product).trim();
+      if (product) return product;
+    }
     return plainTextFromHtml(parsed.message).trim();
   }
 

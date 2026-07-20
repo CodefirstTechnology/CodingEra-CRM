@@ -25,6 +25,7 @@ import type { LeadRow } from '../../leads/lead-row.model';
 import type { TaskRow } from '../../tasks/tasks.component';
 import type {
   AdminActivityStreamItem,
+  AdminDashboardCustomRange,
   AdminDashboardPeriod,
   AdminDashboardPeriodKey,
   AdminDashboardSnapshot,
@@ -39,7 +40,6 @@ import {
   dealDisplayName,
   dealOwnerLabel,
   dealLastModifiedDate,
-  dealRecordDate,
   formatRelativeTime,
   isActiveDealStatus,
   isDateInRange,
@@ -81,8 +81,9 @@ export class AdminDashboardService {
 
   loadSnapshot(
     periodKey: AdminDashboardPeriodKey = 'this_month',
+    customRange?: AdminDashboardCustomRange | null,
   ): Observable<{ data: AdminDashboardSnapshot | null; error: string | null }> {
-    const period = resolveDashboardPeriod(periodKey);
+    const period = resolveDashboardPeriod(periodKey, new Date(), customRange);
 
     return this.dealMaster.ensureStatusesLoaded().pipe(
       take(1),
@@ -174,16 +175,20 @@ export class AdminDashboardService {
       targetOverlapsPeriod(t, period.start, period.end),
     );
 
-    const leadDetails = this.buildLeadDetails(allLeads);
-    const newLeads = allLeads.filter((l) => {
+    const periodLeads = allLeads.filter((l) => {
       const d = leadRecordDate(l);
       return d != null && isDateInRange(d, period.start, period.end);
     });
-    const newLeadDetails = this.buildLeadDetails(newLeads);
+    const leadDetails = this.buildLeadDetails(periodLeads);
+    const newLeadDetails = leadDetails;
     const openDeals = allDeals.filter((d) => isActiveDealStatus(d.status, pipelineOptions));
     const openDealDetails = openDeals.map((d) => this.toDealDetail(d));
+    const wonDealsInPeriod = allDeals.filter((d) =>
+      isDealWonInPeriod(d, pipelineOptions, period.start, period.end),
+    );
+    const wonDealDetails = wonDealsInPeriod.map((d) => this.toDealDetail(d));
 
-    const kpis = this.buildKpis(allLeads, openDeals, overlappingTargets, ctx);
+    const kpis = this.buildKpis(periodLeads, openDeals, wonDealsInPeriod, overlappingTargets);
     const pipelineSegments = this.buildPipelineSegments(openDeals, pipeline);
     const team = this.buildTeamStats(salesUsers, grouped, overlappingTargets, ctx);
     const stuckDeals = this.buildStuckDeals(allDeals, pipelineOptions);
@@ -201,6 +206,7 @@ export class AdminDashboardService {
       leadDetails,
       newLeadDetails,
       openDealDetails,
+      wonDealDetails,
       activities: activityItems,
       focusInsight,
     };
@@ -230,26 +236,17 @@ export class AdminDashboardService {
   }
 
   private buildKpis(
-    leads: LeadRow[],
+    periodLeads: LeadRow[],
     openDeals: DealRow[],
+    wonDealsInPeriod: DealRow[],
     overlappingTargets: UserTargetRow[],
-    ctx: DashboardBuildContext,
   ): AdminDashboardSnapshot['kpis'] {
-    const { period, pipelineOptions } = ctx;
-    const totalLeads = leads.length;
-    const qualifiedLeads = leads.filter((l) => l.status === 'Qualified').length;
-    const convertedLeads = leads.filter((l) => isLeadConvertedRow(l)).length;
-    const junkCount = leads.filter((l) => l.status === 'Junk').length;
-    const denominator = Math.max(1, totalLeads - junkCount);
+    const totalLeads = periodLeads.length;
+    const qualifiedLeads = periodLeads.filter((l) => l.status === 'Qualified').length;
+    const convertedLeads = periodLeads.filter((l) => isLeadConvertedRow(l)).length;
+    const wonDeals = wonDealsInPeriod.length;
     const conversionRatePct =
-      totalLeads === 0
-        ? 0
-        : Math.round((convertedLeads / denominator) * 1000) / 10;
-
-    const newLeadsInPeriod = leads.filter((l) => {
-      const d = leadRecordDate(l);
-      return d != null && isDateInRange(d, period.start, period.end);
-    }).length;
+      totalLeads === 0 ? 0 : Math.round((wonDeals / totalLeads) * 1000) / 10;
 
     const pipelineRevenue = openDeals.reduce((sum, d) => sum + resolveDealValue(d), 0);
 
@@ -264,8 +261,9 @@ export class AdminDashboardService {
       totalLeads,
       qualifiedLeads,
       convertedLeads,
+      wonDeals,
       conversionRatePct,
-      newLeadsInPeriod,
+      newLeadsInPeriod: totalLeads,
       activePipelineCount: openDeals.length,
       pipelineRevenue,
       periodAchieved,
