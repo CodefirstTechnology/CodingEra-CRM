@@ -5,7 +5,13 @@ import type { LeadRow, LeadSource, LeadStatus } from '../../../features/leads/le
 import type { IndiaMartLead } from '../../../features/indiamartlead/indiamart-lead.model';
 import type { JustdialLead } from '../../../features/justdiallead/justdial-lead.model';
 import type { TradeIndiaLead } from '../../../features/tradeindialead/tradeindia-lead.model';
+import { parseTradeIndiaInquiryMessage, looksLikePhoneNumber, resolveTradeIndiaCustomerName } from '../../../features/tradeindialead/tradeindia-inquiry-parse';
+import {
+  tradeIndiaOrganizationText,
+  tradeIndiaRequirementText,
+} from '../../../features/tradeindialead/tradeindia-lead.mapper';
 import type { LeadUpsertDto } from './lead-api.models';
+import { splitFullName } from '../../../features/leads/lead-full-name.util';
 
 export type MarketplaceApiSource = Extract<LeadSource, 'IndiaMART' | 'Justdial' | 'TradeIndia'>;
 
@@ -14,6 +20,7 @@ interface MarketplaceLeadShape {
   mobile: string;
   email: string;
   city: string;
+  companyName?: string;
   product: string;
   quantity: string;
   message: string;
@@ -51,11 +58,21 @@ export function marketplaceLeadDedupeKey(
 }
 
 /** Organization name stored in `/api/organizations` and linked via `organizationId` on the lead. */
-export function marketplaceOrganizationName(lead: MarketplaceLeadShape): string {
+export function marketplaceOrganizationName(
+  lead: MarketplaceLeadShape,
+  source?: MarketplaceApiSource,
+): string {
+  if (source === 'TradeIndia') {
+    const company = tradeIndiaOrganizationText({
+      companyName: lead.companyName ?? '',
+      message: lead.message,
+    });
+    if (company) return company;
+  }
   const product = lead.product.trim();
-  if (product) return product;
+  if (product && product !== '-' && product !== '—') return product;
   const city = lead.city.trim();
-  if (city) return city;
+  if (city && city !== '-' && city !== '—') return city;
   const customer = lead.customerName.trim();
   if (customer) return customer;
   return 'Marketplace lead';
@@ -64,7 +81,13 @@ export function marketplaceOrganizationName(lead: MarketplaceLeadShape): string 
 /** Resolves org name from a lead upsert built by {@link toUpsertDto}. */
 export function marketplaceOrganizationNameFromUpsert(dto: LeadUpsertDto): string {
   const parsed = parseMarketplaceNotesDisplay(dto.notes);
-  if (parsed.product.trim()) return parsed.product.trim();
+  const ext = extractMarketplaceExternalRef(dto.notes);
+  if (ext?.source === 'TradeIndia') {
+    if (parsed.company.trim()) return parsed.company.trim();
+    const fromMessage = parseTradeIndiaInquiryMessage(parsed.message).companyName?.trim();
+    if (fromMessage) return fromMessage;
+  }
+  if (ext?.source !== 'TradeIndia' && parsed.product.trim()) return parsed.product.trim();
   const fromLabel = parsed.organizationLabel.split(' (')[0]?.trim();
   if (fromLabel) return fromLabel;
   const fullName = `${dto.firstName ?? ''} ${dto.lastName ?? ''}`.trim();
@@ -77,15 +100,30 @@ export function marketplaceTerritoryFromUpsert(dto: LeadUpsertDto): string | und
 }
 
 function splitCustomerName(name: string): { firstName: string; lastName: string } {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
+  const { firstName, lastName } = splitFullName(name);
   return {
-    firstName: parts[0] ?? 'Lead',
-    lastName: parts.length > 1 ? parts.slice(1).join(' ') : 'Contact',
+    firstName: firstName || 'Buyer',
+    lastName,
   };
 }
 
 function buildNotes(source: MarketplaceApiSource, lead: MarketplaceLeadShape): string {
   const lines: string[] = [];
+  if (source === 'TradeIndia') {
+    const product = tradeIndiaRequirementText({ product: lead.product, message: lead.message });
+    const company = tradeIndiaOrganizationText({
+      companyName: lead.companyName ?? '',
+      message: lead.message,
+    });
+    if (product) lines.push(`Product: ${product}`);
+    if (company) lines.push(`Company: ${company}`);
+    if (lead.city.trim() && lead.city.trim() !== '-') lines.push(`City: ${lead.city.trim()}`);
+    if (lead.message.trim() && lead.message.trim() !== '-') lines.push(lead.message.trim());
+    if (lead.source.trim()) lines.push(`Inquiry source: ${lead.source.trim()}`);
+    lines.push(marketplaceExternalRefMarker(source, marketplaceRefKey(lead)));
+    return lines.join('\n');
+  }
+
   if (lead.message.trim()) lines.push(lead.message.trim());
   if (lead.product.trim()) {
     lines.push(`Product: ${lead.product.trim()}${lead.quantity.trim() ? ` · ${lead.quantity.trim()}` : ''}`);
@@ -125,7 +163,19 @@ function crmMasterStatusFromMarketplace(raw: string | undefined): LeadStatus {
 }
 
 function toUpsertDto(source: MarketplaceApiSource, lead: MarketplaceLeadShape): LeadUpsertDto {
-  const { firstName, lastName } = splitCustomerName(lead.customerName);
+  const resolvedName =
+    source === 'TradeIndia'
+      ? resolveTradeIndiaCustomerName({
+          senderName: lead.customerName,
+          companyName:
+            lead.companyName ||
+            tradeIndiaOrganizationText({
+              companyName: lead.companyName ?? '',
+              message: lead.message,
+            }),
+        })
+      : lead.customerName;
+  const { firstName, lastName } = splitCustomerName(resolvedName);
   const status = crmMasterStatusFromMarketplace(lead.status);
 
   return {
@@ -160,13 +210,19 @@ export function justdialLeadToUpsertDto(lead: JustdialLead): LeadUpsertDto {
 }
 
 export function tradeIndiaLeadToUpsertDto(lead: TradeIndiaLead): LeadUpsertDto {
-  return toUpsertDto('TradeIndia', lead);
+  const requirement = tradeIndiaRequirementText(lead);
+  return {
+    ...toUpsertDto('TradeIndia', lead),
+    requirement: requirement || null,
+    organizationName: tradeIndiaOrganizationText(lead) || null,
+  };
 }
 
 /** Parsed from marketplace import notes saved via {@link buildNotes}. */
 export interface MarketplaceNotesDisplay {
   message: string;
   product: string;
+  company: string;
   city: string;
   inquirySource: string;
   organizationLabel: string;
@@ -180,15 +236,18 @@ export function parseMarketplaceNotesDisplay(notes: string | null | undefined): 
 
   const msgLines: string[] = [];
   let product = '';
+  let company = '';
   let city = '';
   let inquirySource = '';
 
   for (const line of lines) {
     if (line.startsWith('[crm-ext:')) continue;
     const productMatch = line.match(/^Product:\s*(.+)$/i);
+    const companyMatch = line.match(/^Company:\s*(.+)$/i);
     const cityMatch = line.match(/^City:\s*(.+)$/i);
     const inqMatch = line.match(/^Inquiry source:\s*(.+)$/i);
     if (productMatch) product = productMatch[1].trim();
+    else if (companyMatch) company = companyMatch[1].trim();
     else if (cityMatch) city = cityMatch[1].trim();
     else if (inqMatch) inquirySource = inqMatch[1].trim();
     else msgLines.push(line);
@@ -196,24 +255,40 @@ export function parseMarketplaceNotesDisplay(notes: string | null | undefined): 
 
   const message = msgLines.join('\n').trim();
   const ext = extractMarketplaceExternalRef(notes);
+  const fromBlob = parseTradeIndiaInquiryMessage(message);
+
+  if (ext?.source === 'TradeIndia') {
+    if (!product && fromBlob.product) product = fromBlob.product;
+    if (!company && fromBlob.companyName) company = fromBlob.companyName;
+    if (!city && fromBlob.city) city = fromBlob.city;
+  }
+
   const organizationLabel =
     ext?.source === 'IndiaMART'
       ? product
         ? `${product}${city ? ` (${city})` : ''}`
         : city
-      : product
-        ? `${product}${city ? ` (${city})` : ''}`
-        : city || message.slice(0, 120) || '';
+      : ext?.source === 'TradeIndia'
+        ? company || ''
+        : product
+          ? `${product}${city ? ` (${city})` : ''}`
+          : city || message.slice(0, 120) || '';
 
-  return { message, product, city, inquirySource, organizationLabel };
+  return { message, product, company, city, inquirySource, organizationLabel };
 }
 
 /**
  * Fills organization / territory / source on {@link LeadRow} when the API row only has marketplace data in `notes`.
  */
 export function applyMarketplaceNotesToLeadRow(row: LeadRow, notes: string | null | undefined): LeadRow {
+  const notesRaw = String(notes ?? '');
   const ext = extractMarketplaceExternalRef(notes);
-  if (!ext && !String(notes ?? '').includes('Product:') && !String(notes ?? '').includes('City:')) {
+  if (
+    !ext &&
+    !notesRaw.includes('Product:') &&
+    !notesRaw.includes('Company:') &&
+    !notesRaw.includes('City:')
+  ) {
     return row;
   }
 
@@ -222,13 +297,42 @@ export function applyMarketplaceNotesToLeadRow(row: LeadRow, notes: string | nul
 
   if (ext?.source === 'IndiaMART') {
     out.organization = '';
+  } else if (ext?.source === 'TradeIndia') {
+    const company = parsed.company || parsed.organizationLabel;
+    if (company) out.organization = company;
   } else if (!out.organization?.trim() && parsed.organizationLabel) {
     out.organization = parsed.organizationLabel;
   }
+
   if (!out.territory?.trim() && parsed.city) {
     out.territory = parsed.city;
   }
-  if (!out.requirement?.trim()) {
+
+  if (ext?.source === 'TradeIndia') {
+    const requirement = tradeIndiaRequirementText({
+      product: parsed.product,
+      message: parsed.message,
+    });
+    if (requirement) out.requirement = requirement;
+
+    // Fix existing leads where Name was incorrectly set to the mobile number.
+    const nameLooksLikePhone =
+      looksLikePhoneNumber(out.firstName) || looksLikePhoneNumber(out.name);
+    if (nameLooksLikePhone) {
+      const displayName = resolveTradeIndiaCustomerName({
+        senderName: '',
+        companyName: out.organization || parsed.company,
+      });
+      const parts = splitFullName(displayName);
+      out.name = displayName;
+      out.firstName = parts.firstName || 'Buyer';
+      out.lastName = parts.lastName;
+    } else if (/^contact$/i.test((out.lastName ?? '').trim())) {
+      // Backend used to default lastName to "Contact" for single-word names.
+      out.lastName = '';
+      out.name = (out.firstName ?? '').trim() || out.name;
+    }
+  } else if (!out.requirement?.trim()) {
     if (ext?.source === 'IndiaMART') {
       out.requirement = indiaMartRequirementText({
         customerName: '',
@@ -245,6 +349,7 @@ export function applyMarketplaceNotesToLeadRow(row: LeadRow, notes: string | nul
       out.requirement = plainTextFromHtml(parsed.message);
     }
   }
+
   if (!out.notes?.trim() && parsed.message) {
     out.notes = plainTextFromHtml(parsed.message);
   }

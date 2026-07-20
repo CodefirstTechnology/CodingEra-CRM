@@ -314,13 +314,36 @@
                               @if (!source.isConfigured) {
                                 Save the API connection first to enable automation.
                               } @else if (autoSyncEnabled(source.id)) {
-                                Server checks for new leads about every minute.
+                                Pulls on the interval you select below (default from server options).
                               } @else {
                                 Manual sync only until you turn this on.
                               }
                             </small>
                           </span>
                         </label>
+
+                        @if (autoSyncEnabled(source.id) && source.isConfigured) {
+                          <label class="lsync__field lsync__field--wide lsync__automation-interval">
+                            <span>Sync interval</span>
+                            <select
+                              class="lsync__input"
+                              [ngModel]="intervalOptionId(source.id)"
+                              (ngModelChange)="setIntervalOptionId(source.id, $event)"
+                              [disabled]="savingSourceId() === source.id || intervals().length === 0"
+                            >
+                              @for (opt of intervals(); track opt.id) {
+                                <option [ngValue]="opt.id">{{ opt.label }}</option>
+                              }
+                            </select>
+                            <span class="lsync__field-hint">
+                              @if (source.nextSyncAt) {
+                                Next scheduled sync: {{ source.nextSyncAt | date: 'medium' }}
+                              } @else {
+                                Choose how often the server should pull new leads.
+                              }
+                            </span>
+                          </label>
+                        }
                       </div>
 
                       <footer class="lsync__panel-foot">

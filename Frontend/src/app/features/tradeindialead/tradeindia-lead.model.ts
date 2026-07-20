@@ -24,8 +24,12 @@ export interface TradeIndiaLead {
   mobile: string;
   email: string;
   city: string;
+  /** Buyer company (`sender_co`) → CRM Organization. */
+  companyName: string;
+  /** Product inquired about (`product_name`) → CRM Requirement. */
   product: string;
   quantity: string;
+  /** Full TradeIndia inquiry message (notes / detail). */
   message: string;
   source: string;
   status: TradeIndiaLeadStatus;

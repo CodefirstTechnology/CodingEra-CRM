@@ -1,6 +1,6 @@
 export interface LeadSyncIntervalOption {
   id: number;
-  hours: number;
+  minutes: number;
   label: string;
   sortOrder: number;
 }
@@ -29,7 +29,7 @@ export interface LeadSyncSource {
   pullApiUrl: string | null;
   autoSyncEnabled: boolean;
   intervalOptionId: number | null;
-  intervalHours: number | null;
+  intervalMinutes: number | null;
   intervalLabel: string | null;
   lastSyncAt: string | null;
   nextSyncAt: string | null;

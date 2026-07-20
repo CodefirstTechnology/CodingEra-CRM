@@ -7,7 +7,12 @@ export type AdminTeamSortKey =
   | 'activeDeals'
   | 'targetAchieved';
 
-export type AdminDashboardPeriodKey = 'this_month' | 'last_month' | 'this_quarter' | 'this_year';
+export type AdminDashboardPeriodKey =
+  | 'today'
+  | 'this_week'
+  | 'this_month'
+  | 'last_month'
+  | 'custom';
 
 export type AdminActivityStreamKind = 'lead' | 'deal' | 'item' | 'task' | 'email' | 'call' | 'meeting' | 'other';
 
@@ -18,10 +23,20 @@ export interface AdminDashboardPeriod {
   end: Date;
 }
 
+/** Optional inclusive date bounds used when period key is `custom`. */
+export interface AdminDashboardCustomRange {
+  start: Date;
+  end: Date;
+}
+
 export interface AdminDashboardKpis {
+  /** Leads whose record date falls in the selected period. */
   totalLeads: number;
   qualifiedLeads: number;
   convertedLeads: number;
+  /** Closed-won deals whose record date falls in the selected period. */
+  wonDeals: number;
+  /** (Won Deals ÷ Total Leads) × 100 for the selected period. */
   conversionRatePct: number;
   newLeadsInPeriod: number;
   activePipelineCount: number;
@@ -117,6 +132,7 @@ export interface AdminDashboardSnapshot {
   leadDetails: AdminLeadDetail[];
   newLeadDetails: AdminLeadDetail[];
   openDealDetails: AdminDealDetail[];
+  wonDealDetails: AdminDealDetail[];
   activities: AdminActivityStreamItem[];
   focusInsight: string;
 }
@@ -133,8 +149,9 @@ export const LEAD_STATUS_KEYS: LeadStatus[] = [
 ];
 
 export const ADMIN_DASHBOARD_PERIOD_OPTIONS: readonly { key: AdminDashboardPeriodKey; label: string }[] = [
+  { key: 'today', label: 'Today' },
+  { key: 'this_week', label: 'This week' },
   { key: 'this_month', label: 'This month' },
   { key: 'last_month', label: 'Last month' },
-  { key: 'this_quarter', label: 'This quarter' },
-  { key: 'this_year', label: 'This year' },
+  { key: 'custom', label: 'Custom date range' },
 ] as const;
