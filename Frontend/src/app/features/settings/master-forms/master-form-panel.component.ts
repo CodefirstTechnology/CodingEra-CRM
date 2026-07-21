@@ -3,6 +3,7 @@ import { Component, computed, effect, inject, input, signal } from '@angular/cor
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { CrmModalComponent } from '../../../core/modal/crm-modal.component';
 import { ToastService } from '../../../core/toast/toast.service';
+import { TextFormatter } from '../../../shared/utils/text-normalizer';
 import type { MasterFormEntityConfig, MasterFormRow, MasterFormSaveResult } from './models/master-form.models';
 import { MasterFormsService } from './services/master-forms.service';
 
@@ -136,10 +137,11 @@ export class MasterFormPanelComponent {
   }
 
   protected submit(): void {
+    const cfg = this.config();
+    TextFormatter.formForEntity(this.form, cfg.slug);
     this.form.markAllAsTouched();
     if (this.form.invalid || this.duplicateNameError()) return;
 
-    const cfg = this.config();
     const v = this.form.getRawValue();
     if (v.isWon && v.isLost) {
       this.toast.error('A stage cannot be both Won and Lost.');

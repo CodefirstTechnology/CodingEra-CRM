@@ -1,12 +1,12 @@
 import type { DealNormalized, DealUpsertDto } from './deal-api.models';
-import { normalizeGstin } from '../../../shared/utils/gstin.util';
+import { TextFormatter } from '../../../shared/utils/text-normalizer';
 import { DEFAULT_DEAL_PIPELINE_STATUS } from './deal-pipeline.constants';
 
 const DEFAULT_DEAL_GENDER = 'Other';
 
 /** Backend rejects null `NextStep`; use empty string when unset. */
 function normalizeNextStep(value: string | null | undefined): string {
-  return value?.trim() ?? '';
+  return TextFormatter.description(value ?? '');
 }
 
 /**
@@ -15,19 +15,19 @@ function normalizeNextStep(value: string | null | undefined): string {
  */
 export function stripDealUpsertForPost(dto: DealUpsertDto): Record<string, unknown> {
   const body: Record<string, unknown> = {
-    organizationName: dto.organizationName?.trim() || '',
-    salutation: dto.salutation?.trim() || '',
-    firstName: dto.firstName?.trim() || 'Contact',
-    lastName: dto.lastName?.trim() || 'Primary',
-    email: dto.email?.trim() || '',
-    mobile: dto.mobile?.trim() || '',
-    gender: dto.gender?.trim() || DEFAULT_DEAL_GENDER,
+    organizationName: TextFormatter.companyName(dto.organizationName),
+    salutation: TextFormatter.personName(dto.salutation),
+    firstName: TextFormatter.personName(dto.firstName) || 'Contact',
+    lastName: TextFormatter.personName(dto.lastName) || 'Primary',
+    email: TextFormatter.email(dto.email),
+    mobile: TextFormatter.mobile(dto.mobile),
+    gender: TextFormatter.gender(dto.gender) || DEFAULT_DEAL_GENDER,
     employees: dto.employees?.trim() || '1-10',
-    website: dto.website?.trim() || '',
-    gst: normalizeGstin(dto.gst),
-    territory: dto.territory?.trim() || '',
-    industry: dto.industry?.trim() || 'Technology',
-    status: dto.status?.trim() || DEFAULT_DEAL_PIPELINE_STATUS,
+    website: TextFormatter.website(dto.website),
+    gst: TextFormatter.gstin(dto.gst),
+    territory: TextFormatter.territory(dto.territory),
+    industry: TextFormatter.industry(dto.industry) || 'Technology',
+    status: TextFormatter.status(dto.status) || DEFAULT_DEAL_PIPELINE_STATUS,
     assignedInitials: dto.assignedInitials?.trim() || '',
     nextStep: normalizeNextStep(dto.nextStep),
   };
@@ -46,7 +46,10 @@ export function stripDealUpsertForPost(dto: DealUpsertDto): Record<string, unkno
 
   const prob = dto.probabilityPercent;
   if (prob != null && Number.isFinite(prob)) {
-    body['probabilityPercent'] = Math.trunc(Math.round(prob));
+    const pct = TextFormatter.percentage(prob);
+    if (pct.valid && pct.value != null) {
+      body['probabilityPercent'] = Math.trunc(Math.round(pct.value));
+    }
   }
 
   if (dto.dealOwnerId != null && dto.dealOwnerId > 0) {
@@ -56,7 +59,7 @@ export function stripDealUpsertForPost(dto: DealUpsertDto): Record<string, unkno
     body['assignedToUserId'] = dto.assignedToUserId;
   }
 
-  const orgNm = dto.organizationName?.trim() || '';
+  const orgNm = TextFormatter.companyName(dto.organizationName);
   if (dto.organizationId != null && dto.organizationId > 0) {
     body['organizationId'] = dto.organizationId;
     if (orgNm) body['organizationName'] = orgNm;
@@ -88,19 +91,36 @@ export function buildDealPutJson(dto: DealUpsertDto, previous: DealNormalized): 
   const dealId = dto.id > 0 ? dto.id : previous.id;
   const body: Record<string, unknown> = {
     id: dealId,
-    organizationName: dto.organizationName?.trim() || previous.organizationName?.trim() || '',
-    salutation: dto.salutation?.trim() ?? previous.salutation ?? '',
-    firstName: dto.firstName?.trim() || previous.firstName?.trim() || 'Contact',
-    lastName: dto.lastName?.trim() || previous.lastName?.trim() || 'Primary',
-    email: dto.email?.trim() ?? previous.email ?? '',
-    mobile: dto.mobile?.trim() ?? previous.mobile ?? '',
-    gender: dto.gender?.trim() || previous.gender?.trim() || DEFAULT_DEAL_GENDER,
+    organizationName:
+      TextFormatter.companyName(dto.organizationName) ||
+      TextFormatter.companyName(previous.organizationName),
+    salutation: TextFormatter.personName(dto.salutation ?? previous.salutation),
+    firstName:
+      TextFormatter.personName(dto.firstName) ||
+      TextFormatter.personName(previous.firstName) ||
+      'Contact',
+    lastName:
+      TextFormatter.personName(dto.lastName) ||
+      TextFormatter.personName(previous.lastName) ||
+      'Primary',
+    email: TextFormatter.email(dto.email) || TextFormatter.email(previous.email),
+    mobile: TextFormatter.mobile(dto.mobile) || TextFormatter.mobile(previous.mobile),
+    gender:
+      TextFormatter.gender(dto.gender) ||
+      TextFormatter.gender(previous.gender) ||
+      DEFAULT_DEAL_GENDER,
     employees: dto.employees?.trim() || previous.employees?.trim() || '1-10',
-    website: dto.website?.trim() ?? previous.website ?? '',
-    gst: normalizeGstin(dto.gst ?? previous.gst),
-    territory: dto.territory?.trim() ?? previous.territory ?? '',
-    industry: dto.industry?.trim() || previous.industry?.trim() || 'Technology',
-    status: dto.status?.trim() || previous.status?.trim() || DEFAULT_DEAL_PIPELINE_STATUS,
+    website: TextFormatter.website(dto.website ?? previous.website),
+    gst: TextFormatter.gstin(dto.gst ?? previous.gst),
+    territory: TextFormatter.territory(dto.territory ?? previous.territory),
+    industry:
+      TextFormatter.industry(dto.industry) ||
+      TextFormatter.industry(previous.industry) ||
+      'Technology',
+    status:
+      TextFormatter.status(dto.status) ||
+      TextFormatter.status(previous.status) ||
+      DEFAULT_DEAL_PIPELINE_STATUS,
     assignedInitials: dto.assignedInitials?.trim() ?? previous.assignedInitials ?? '',
     nextStep: normalizeNextStep(dto.nextStep ?? previous.nextStep),
   };
@@ -117,7 +137,10 @@ export function buildDealPutJson(dto: DealUpsertDto, previous: DealNormalized): 
 
   const prob = dto.probabilityPercent ?? previous.probabilityPercent;
   if (prob != null && Number.isFinite(prob)) {
-    body['probabilityPercent'] = Math.trunc(Math.round(prob));
+    const pct = TextFormatter.percentage(prob);
+    if (pct.valid && pct.value != null) {
+      body['probabilityPercent'] = Math.trunc(Math.round(pct.value));
+    }
   }
 
   const orgId =
@@ -126,7 +149,9 @@ export function buildDealPutJson(dto: DealUpsertDto, previous: DealNormalized): 
       : previous.organizationId != null && previous.organizationId > 0
         ? previous.organizationId
         : null;
-  const orgNm = dto.organizationName?.trim() || previous.organizationName?.trim() || '';
+  const orgNm =
+    TextFormatter.companyName(dto.organizationName) ||
+    TextFormatter.companyName(previous.organizationName);
   if (orgId != null && orgId > 0) {
     body['organizationId'] = orgId;
     if (orgNm) body['organizationName'] = orgNm;

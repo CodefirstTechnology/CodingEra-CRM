@@ -1,3 +1,9 @@
+import {
+  inboundDescription,
+  inboundEmail,
+  inboundMaster,
+  inboundPerson,
+} from '../../../shared/utils/text-normalizer';
 import type {
   UserTargetRow,
   UserTargetSalesUser,
@@ -29,8 +35,8 @@ export function mapUserTargetType(raw: unknown): UserTargetType {
   const r = (raw ?? {}) as Record<string, unknown>;
   return {
     id: num(r['id'] ?? r['Id']),
-    name: str(r['name'] ?? r['Name']),
-    description: str(r['description'] ?? r['Description']),
+    name: inboundMaster('unknown', str(r['name'] ?? r['Name'])),
+    description: inboundDescription(str(r['description'] ?? r['Description'])),
     sortOrder: num(r['sortOrder'] ?? r['SortOrder']),
     isActive: bool(r['isActive'] ?? r['IsActive'], true),
   };
@@ -40,9 +46,9 @@ export function mapUserTargetSalesUser(raw: unknown): UserTargetSalesUser {
   const r = (raw ?? {}) as Record<string, unknown>;
   return {
     id: num(r['id'] ?? r['Id']),
-    fullName: str(r['fullName'] ?? r['FullName']),
-    email: str(r['email'] ?? r['Email']),
-    roleName: str(r['roleName'] ?? r['RoleName']),
+    fullName: inboundPerson(str(r['fullName'] ?? r['FullName'])),
+    email: inboundEmail(str(r['email'] ?? r['Email'])),
+    roleName: inboundMaster('role', str(r['roleName'] ?? r['RoleName'])),
   };
 }
 
@@ -51,10 +57,10 @@ export function mapUserTargetRow(raw: unknown): UserTargetRow {
   return {
     id: num(r['id'] ?? r['Id']),
     userId: num(r['userId'] ?? r['UserId']),
-    userName: str(r['userName'] ?? r['UserName']),
-    userEmail: str(r['userEmail'] ?? r['UserEmail']),
+    userName: inboundPerson(str(r['userName'] ?? r['UserName'])),
+    userEmail: inboundEmail(str(r['userEmail'] ?? r['UserEmail'])),
     targetTypeId: num(r['targetTypeId'] ?? r['TargetTypeId']),
-    targetTypeName: str(r['targetTypeName'] ?? r['TargetTypeName']),
+    targetTypeName: inboundMaster('unknown', str(r['targetTypeName'] ?? r['TargetTypeName'])),
     targetAmount: num(r['targetAmount'] ?? r['TargetAmount']),
     startDate: dateStr(r['startDate'] ?? r['StartDate']),
     endDate: dateStr(r['endDate'] ?? r['EndDate']),
@@ -72,7 +78,7 @@ export function mapUserTargetWidget(raw: unknown): UserTargetWidget {
   const r = (raw ?? {}) as Record<string, unknown>;
   return {
     targetId: num(r['targetId'] ?? r['TargetId']),
-    targetTypeName: str(r['targetTypeName'] ?? r['TargetTypeName']),
+    targetTypeName: inboundMaster('unknown', str(r['targetTypeName'] ?? r['TargetTypeName'])),
     targetAmount: num(r['targetAmount'] ?? r['TargetAmount']),
     achievedAmount: num(r['achievedAmount'] ?? r['AchievedAmount']),
     remainingAmount: num(r['remainingAmount'] ?? r['RemainingAmount']),

@@ -1,7 +1,19 @@
 import type { TaskPriority, TaskRow, TaskStatus } from '../../../features/tasks/tasks.component';
+import { TextFormatter } from '../../../shared/utils/text-normalizer';
+import {
+  inboundDescription,
+  inboundPerson,
+  inboundTitle,
+} from '../../../shared/utils/text-normalizer/inbound-format';
 
 const TASK_STATUSES: TaskStatus[] = ['Backlog', 'Todo', 'In Progress', 'Done', 'Canceled'];
 const TASK_PRIORITIES: TaskPriority[] = ['Low', 'Medium', 'High'];
+
+function formatAssigneeName(raw: string): string {
+  const s = raw.trim();
+  if (!s || /^User #\d+$/i.test(s)) return s;
+  return inboundPerson(s) || s;
+}
 
 function readOptionalInt(v: unknown): number | null {
   if (v == null || v === '') return null;
@@ -136,10 +148,14 @@ export function taskRowToUpsertDto(data: Omit<TaskRow, 'id'>, taskId?: number): 
 
   return {
     taskId: taskId != null && taskId > 0 ? taskId : 0,
-    taskTitle: data.title?.trim() || '',
-    taskDescription: data.description?.trim() || null,
+    taskTitle: TextFormatter.title(data.title) || '',
+    taskDescription: data.description?.trim()
+      ? TextFormatter.description(data.description)
+      : null,
     taskStatus: data.status,
-    taskAssignee: data.assignedTo?.trim() || null,
+    taskAssignee: data.assignedTo?.trim()
+      ? TextFormatter.personName(data.assignedTo)
+      : null,
     taskDueDate: dueLocalOrIsoToIso(data.dueDateRaw),
     taskPriority: data.priority,
     assigneeUserId,
@@ -154,7 +170,7 @@ export function mapTaskApiRecord(raw: unknown): TaskRow {
   const id = String(readOptionalInt(r['taskId']) ?? readOptionalInt(r['id']) ?? r['id'] ?? '');
   const assignedToUserId = readAssignedUserId(r);
   const taskAssignee = String(r['taskAssignee'] ?? r['TaskAssignee'] ?? '').trim();
-  const assignedTo = taskAssignee || readAssigneeLabel(r);
+  const assignedTo = formatAssigneeName(taskAssignee || readAssigneeLabel(r));
   const dueRaw = String(
     r['taskDueDate'] ?? r['TaskDueDate'] ?? r['dueDate'] ?? r['dueDateTime'] ?? r['DueDate'] ?? '',
   ).trim();
@@ -162,8 +178,12 @@ export function mapTaskApiRecord(raw: unknown): TaskRow {
 
   return {
     id,
-    title: String(r['taskTitle'] ?? r['TaskTitle'] ?? r['title'] ?? r['name'] ?? '').trim() || 'Task',
-    description: String(r['taskDescription'] ?? r['TaskDescription'] ?? r['description'] ?? '').trim(),
+    title:
+      inboundTitle(String(r['taskTitle'] ?? r['TaskTitle'] ?? r['title'] ?? r['name'] ?? '')) ||
+      'Task',
+    description: inboundDescription(
+      String(r['taskDescription'] ?? r['TaskDescription'] ?? r['description'] ?? ''),
+    ),
     status: coerceStatus(String(r['taskStatus'] ?? r['TaskStatus'] ?? r['status'] ?? '')),
     priority: coercePriority(String(r['taskPriority'] ?? r['TaskPriority'] ?? r['priority'] ?? '')),
     dueDate: dueRaw ? formatLastModified(dueRaw) : '—',

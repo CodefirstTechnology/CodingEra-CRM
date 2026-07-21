@@ -4,6 +4,19 @@ import { Observable, of } from 'rxjs';
 import { catchError, map, shareReplay, tap } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
+import { TextFormatter } from '../../../shared/utils/text-normalizer';
+
+function masterEntityForSegment(segment: string): string {
+  const s = segment.toLowerCase().replace(/^\//, '');
+  if (s.includes('salutation')) return 'unknown'; // honorifics — leave for person formatter on use
+  if (s.includes('industr')) return 'industry';
+  if (s.includes('territor')) return 'territory';
+  if (s.includes('lead-status') || s.includes('leadstatus')) return 'leadStatus';
+  if (s.includes('deal-status') || s.includes('dealstatus')) return 'dealStatus';
+  if (s.includes('request')) return 'requestType';
+  if (s.includes('employee')) return 'employeeCount';
+  return 'unknown';
+}
 
 function extractMasterDataRows(raw: unknown): Record<string, unknown>[] {
   if (Array.isArray(raw)) {
@@ -177,9 +190,16 @@ export class LeadMasterDataService {
       .pipe(
         map((raw) =>
           extractMasterDataRows(raw)
-            .map((row) => ({
+            .map((row) => {
+              const nameRaw = String(row['name'] ?? row['description'] ?? '').trim();
+              const entity = masterEntityForSegment(segment);
+              const name =
+                entity === 'unknown'
+                  ? nameRaw
+                  : TextFormatter.entityName(entity, nameRaw) || nameRaw;
+              return {
               id: Number(row['id']),
-              name: String(row['name'] ?? row['description'] ?? '').trim(),
+              name,
               sortOrder: Number(row['sortOrder'] ?? row['sort_order'] ?? 0) || undefined,
               isWon: row['isWon'] === true || row['is_won'] === true || row['IsWon'] === true,
               isLost: row['isLost'] === true || row['is_lost'] === true || row['IsLost'] === true,
@@ -187,7 +207,8 @@ export class LeadMasterDataService {
                 row['isConversionStatus'] === true ||
                 row['is_conversion_status'] === true ||
                 row['IsConversionStatus'] === true,
-            }))
+            };
+            })
             .filter((o) => Number.isFinite(o.id) && o.id > 0 && o.name.length > 0),
         ),
         catchError((err) => {

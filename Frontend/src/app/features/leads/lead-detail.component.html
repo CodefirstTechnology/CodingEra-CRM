@@ -512,6 +512,7 @@
                 class="lead-detail__input"
                 formControlName="fullName"
                 autocomplete="name"
+                (blur)="onFullNameBlur()"
                 [class.is-invalid]="dataForm.controls.fullName.invalid && dataForm.controls.fullName.touched"
               />
             </label>
@@ -861,6 +862,7 @@
                 [formControl]="dataForm.controls.fullName"
                 [placeholder]="sidebarAddLabel('Full name')"
                 autocomplete="name"
+                (blur)="onFullNameBlur()"
               />
             </dd>
             <dt>Email</dt>

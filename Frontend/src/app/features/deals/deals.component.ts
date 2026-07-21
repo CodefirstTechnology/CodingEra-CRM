@@ -45,8 +45,8 @@ import {
   optionalUrlValidator,
 } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
-import { leadPersonName } from '../../shared/utils/lead-person-name.util';
-import { fullNameFromLeadParts, splitFullName } from '../leads/lead-full-name.util';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
+import { fullNameFromLeadParts, normalizeFullNameControl, splitFullName } from '../leads/lead-full-name.util';
 
 export type { DealPipelineStatus };
 
@@ -217,7 +217,7 @@ export class DealsComponent {
   protected readonly rows = signal<DealRow[]>([]);
 
   protected readonly filtered = computed(() => {
-    const q = this.searchQuery().trim().toLowerCase();
+    const q = TextFormatter.search(this.searchQuery());
     const st = this.statusFilter();
     const owner = this.ownerFilter();
     const filterByOwner = this.isAdminViewer() && owner !== 'all';
@@ -477,11 +477,7 @@ export class DealsComponent {
 
   /** Primary contact name from `first_name` + `last_name` on the deal row. */
   protected dealContactName(row: DealRow): string {
-    return leadPersonName({
-      firstName: row.firstName,
-      lastName: row.lastName,
-      name: '',
-    });
+    return fullNameFromLeadParts(row) || '—';
   }
 
   protected displayColumnValue(row: DealRow, id: string): string {
@@ -796,6 +792,10 @@ export class DealsComponent {
     return !!c && c.invalid && (c.dirty || c.touched);
   }
 
+  protected onFullNameBlur(): void {
+    normalizeFullNameControl(this.createForm.controls.fullName);
+  }
+
   protected onGstinInput(ev: Event): void {
     syncGstinInputFromEvent(ev, this.createForm.controls.gst);
   }
@@ -805,6 +805,7 @@ export class DealsComponent {
   }
 
   protected submitDeal(): void {
+    TextFormatter.form(this.createForm);
     this.createForm.markAllAsTouched();
     if (this.createForm.invalid) return;
 

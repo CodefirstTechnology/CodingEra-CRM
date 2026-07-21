@@ -1,5 +1,12 @@
 import { formatActivityWhen } from '../activities/activity-api.mapper';
 import type { EmailDeliveryStatus, EntityEmailItem, EmailEntityType } from './email-api.models';
+import { inboundPerson } from '../../../shared/utils/text-normalizer/inbound-format';
+
+function formatSenderName(raw: string): string {
+  const s = raw.trim();
+  if (!s || /^User #\d+$/i.test(s)) return s;
+  return inboundPerson(s) || s;
+}
 
 function readOptionalInt(v: unknown): number | null {
   if (v == null || v === '') return null;
@@ -46,9 +53,10 @@ export function mapEmailApiRecord(raw: unknown, resolveSenderName?: (userId: num
 
   const sentBy = readOptionalInt(r['sentBy'] ?? r['SentBy'] ?? r['sentByUserId'] ?? r['SentByUserId']);
   const fromEmail = readString(r['fromEmail'] ?? r['FromEmail']);
-  const senderName =
+  const senderName = formatSenderName(
     readString(r['senderName'] ?? r['SenderName'] ?? r['sentByName'] ?? r['SentByName']) ||
-    (resolveSenderName ? resolveSenderName(sentBy) : sentBy != null ? `User #${sentBy}` : 'User');
+      (resolveSenderName ? resolveSenderName(sentBy) : sentBy != null ? `User #${sentBy}` : 'User'),
+  );
   const senderDisplay = fromEmail ? `${senderName} <${fromEmail}>` : senderName;
   const senderInitial = senderName.replace(/[^a-zA-Z0-9]/g, '').charAt(0).toUpperCase() || '?';
 

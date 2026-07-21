@@ -45,6 +45,7 @@ import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { OrganizationRow } from '../organizations/organizations.component';
 import type { NoteRelatedType, NoteRow, NoteVisibility } from '../notes/notes.component';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
 import {
   optionalEmailValidator,
   optionalUrlValidator,
@@ -570,6 +571,7 @@ export class CreateEntityFormModalComponent {
   }
 
   protected async submitLead(): Promise<void> {
+    TextFormatter.form(this.leadForm);
     this.leadForm.markAllAsTouched();
     if (this.leadForm.invalid) return;
 
@@ -602,7 +604,10 @@ export class CreateEntityFormModalComponent {
       salutationId: salPick.masterId ?? null,
       firstName: raw.firstName.trim(),
       lastName: raw.lastName.trim(),
-      name: this.buildDisplayName(salPick.label, raw.firstName, raw.lastName),
+      name: TextFormatter.entityName(
+        'lead',
+        this.buildDisplayName(salPick.label, raw.firstName, raw.lastName),
+      ),
       mobile: raw.mobile.trim(),
       leadOwnerId: ownerId,
       gender: raw.gender || undefined,
@@ -638,6 +643,7 @@ export class CreateEntityFormModalComponent {
   }
 
   protected submitDeal(): void {
+    TextFormatter.form(this.dealForm);
     this.dealForm.markAllAsTouched();
     if (this.dealForm.invalid) return;
 
@@ -704,6 +710,7 @@ export class CreateEntityFormModalComponent {
   }
 
   protected submitContact(): void {
+    TextFormatter.form(this.contactForm);
     this.contactForm.markAllAsTouched();
     if (this.contactForm.invalid) return;
 
@@ -735,6 +742,7 @@ export class CreateEntityFormModalComponent {
   }
 
   protected submitOrganization(): void {
+    TextFormatter.form(this.orgForm);
     this.orgForm.markAllAsTouched();
     if (this.orgForm.invalid) return;
 
@@ -749,7 +757,7 @@ export class CreateEntityFormModalComponent {
     const territoryPick = resolveOrgMasterPick(raw.territory, this.orgMaster.territorySelectOptions());
 
     const payload: Omit<OrganizationRow, 'id'> = {
-      name: nameTrim,
+      name: TextFormatter.entityName('organization', nameTrim),
       website: web || '',
       industry:
         industryPick.label ||
@@ -795,6 +803,7 @@ export class CreateEntityFormModalComponent {
   }
 
   protected submitTask(): void {
+    TextFormatter.form(this.taskForm);
     this.taskForm.markAllAsTouched();
     if (this.taskForm.invalid) return;
 
@@ -845,6 +854,7 @@ export class CreateEntityFormModalComponent {
   }
 
   protected submitModalNote(): void {
+    TextFormatter.form(this.noteForm);
     this.noteForm.markAllAsTouched();
     if (this.noteForm.invalid) return;
 

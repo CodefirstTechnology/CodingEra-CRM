@@ -1,5 +1,12 @@
 import { coerceLeadStatus } from '../../core/services/leads/lead-api.mapper';
 import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
+import {
+  inboundEmail,
+  inboundMobile,
+  inboundPerson,
+  inboundTitle,
+  TextFormatter,
+} from '../../shared/utils/text-normalizer';
 import type { LeadRow, LeadStatus } from '../leads/lead-row.model';
 import type { IndiaMartLead } from './indiamart-lead.model';
 
@@ -27,10 +34,11 @@ function mapIndiaMartStatusToLeadStatus(status: IndiaMartLead['status']): LeadSt
  * Field mapping is frontend-only until a shared API DTO exists.
  */
 export function mapIndiaMartLeadToLeadRow(im: IndiaMartLead): LeadRow {
-  const trimmed = im.customerName.trim();
+  const trimmed = inboundPerson(im.customerName) || im.customerName.trim();
   const parts = trimmed.split(/\s+/).filter(Boolean);
-  const firstName = parts[0] ?? '—';
-  const lastName = parts.length > 1 ? parts.slice(1).join(' ') : '—';
+  const firstName = inboundPerson(parts[0] ?? '—') || '—';
+  const lastName =
+    parts.length > 1 ? inboundPerson(parts.slice(1).join(' ')) || parts.slice(1).join(' ') : '—';
   const created = new Date(im.createdAt);
   const ts = Number.isFinite(created.getTime()) ? created.getTime() : Date.now();
   const updatedLabel = Number.isFinite(created.getTime())
@@ -42,17 +50,17 @@ export function mapIndiaMartLeadToLeadRow(im: IndiaMartLead): LeadRow {
     name: trimmed || '—',
     firstName,
     lastName,
-    mobile: im.mobile.trim(),
-    email: im.email.trim(),
+    mobile: inboundMobile(im.mobile),
+    email: inboundEmail(im.email),
     organization: '',
     industry: 'Other',
     status: mapIndiaMartStatusToLeadStatus(im.status),
     leadOwnerName: '—',
     owner: 'IM',
     updated: updatedLabel,
-    source: im.source.trim(),
-    requirement: plainTextFromHtml(im.message),
-    notes: plainTextFromHtml(im.message),
+    source: inboundTitle(im.source) || im.source.trim(),
+    requirement: TextFormatter.requirement(plainTextFromHtml(im.message)),
+    notes: TextFormatter.description(plainTextFromHtml(im.message)),
     leadSource: 'IndiaMART',
     sortTimestamp: ts,
   };

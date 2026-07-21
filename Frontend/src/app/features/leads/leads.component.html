@@ -65,6 +65,7 @@
                   type="text"
                   formControlName="fullName"
                   autocomplete="name"
+                  (blur)="onFullNameBlur()"
                 />
                 @if (fieldInvalid('fullName')) {
                   <span class="leads__err">Full name is required.</span>

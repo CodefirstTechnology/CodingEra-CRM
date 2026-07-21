@@ -1,4 +1,5 @@
 import { normalizeGstin } from '../../../shared/utils/gstin.util';
+import { TextFormatter } from '../../../shared/utils/text-normalizer';
 import { parseRevenueInputToNumber } from '../../../shared/utils/revenue-parse';
 import type { LeadRow, LeadSource, LeadStatus } from '../../../features/leads/lead-row.model';
 import { plainTextFromHtml } from '../../../shared/utils/plain-text-from-html';
@@ -407,13 +408,16 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
 
 export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
   const id = String(dto.id);
+  const firstName = TextFormatter.personName(dto.firstName);
+  const lastName = TextFormatter.personName(dto.lastName);
   const name =
-    [dto.firstName, dto.lastName].filter(Boolean).join(' ').trim() ||
-    dto.organizationName ||
-    'Lead';
+    TextFormatter.entityName(
+      'lead',
+      [firstName, lastName].filter(Boolean).join(' ').trim() || dto.organizationName || 'Lead',
+    ) || 'Lead';
   const leadOwnerId =
     dto.leadOwnerId != null && dto.leadOwnerId > 0 ? String(dto.leadOwnerId) : undefined;
-  const ownerNameFromApi = dto.leadOwnerName?.trim() ?? '';
+  const ownerNameFromApi = TextFormatter.personName(dto.leadOwnerName ?? '') || dto.leadOwnerName?.trim() || '';
 
   const displayIsoCreated = dto.createdAt?.trim() || dto.updatedAt?.trim() || null;
   const displayIsoUpdated = dto.updatedAt?.trim() || dto.createdAt?.trim() || null;
@@ -428,33 +432,35 @@ export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
   const row: LeadRow = {
     id,
     name,
-    firstName: dto.firstName,
-    lastName: dto.lastName,
-    salutation: dto.salutationName ? dto.salutationName : undefined,
-    mobile: dto.mobile || undefined,
-    gender: dto.gender || undefined,
-    email: dto.email,
-    organization: dto.organizationName,
+    firstName,
+    lastName,
+    salutation: dto.salutationName ? TextFormatter.personName(dto.salutationName) : undefined,
+    mobile: dto.mobile ? TextFormatter.mobile(dto.mobile) : undefined,
+    gender: dto.gender ? TextFormatter.gender(dto.gender) : undefined,
+    email: TextFormatter.email(dto.email),
+    organization: TextFormatter.entityName('organization', dto.organizationName),
     organizationId:
       dto.organizationId != null && dto.organizationId > 0 ? String(dto.organizationId) : undefined,
     employees: dto.employees || undefined,
     annualRevenue: formatAnnualRevenueDisplay(dto.annualRevenue),
     dealAmount:
       dto.dealAmount != null && Number.isFinite(dto.dealAmount) ? dto.dealAmount : undefined,
-    website: dto.website || undefined,
+    website: dto.website ? TextFormatter.website(dto.website) : undefined,
     gst: normalizeGstin(dto.gst) || undefined,
-    territory: dto.territory || undefined,
-    industry: dto.industry || 'Other',
+    territory: dto.territory ? TextFormatter.territory(dto.territory) : undefined,
+    industry: TextFormatter.industry(dto.industry) || 'Other',
     status,
-    requestType: dto.requestTypeName || undefined,
+    requestType: dto.requestTypeName
+      ? TextFormatter.entityName('requestType', dto.requestTypeName)
+      : undefined,
     salutationId: dto.salutationId != null && dto.salutationId > 0 ? dto.salutationId : undefined,
     requestTypeId: dto.requestTypeId != null && dto.requestTypeId > 0 ? dto.requestTypeId : undefined,
     territoryId: dto.territoryId != null && dto.territoryId > 0 ? dto.territoryId : undefined,
     employeeCountId: dto.employeeCountId != null && dto.employeeCountId > 0 ? dto.employeeCountId : undefined,
     industryId: dto.industryId != null && dto.industryId > 0 ? dto.industryId : undefined,
     leadStatusId,
-    notes: dto.notes || undefined,
-    requirement: dto.requirement || undefined,
+    notes: dto.notes ? TextFormatter.description(dto.notes) : undefined,
+    requirement: dto.requirement ? TextFormatter.requirement(dto.requirement) : undefined,
     leadOwnerName:
       ownerNameFromApi || (leadOwnerId ? `User #${leadOwnerId}` : ''),
     owner: ownerNameFromApi ? initialsFromLeadOwnerName(ownerNameFromApi) : '',

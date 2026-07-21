@@ -2,32 +2,38 @@ import type { DealRow } from '../../features/deals/deals.component';
 import type { LeadRow } from '../../features/leads/lead-row.model';
 import type { NoteRow } from '../../features/notes/notes.component';
 import type { TaskRow } from '../../features/tasks/tasks.component';
+import { TextFormatter } from './text-normalizer';
 
 /** Display name from `leads.first_name` + `leads.last_name`, falling back to `name`. */
 export function leadPersonName(
   lead: Pick<LeadRow, 'firstName' | 'lastName' | 'name'>,
 ): string {
   const combined = [lead.firstName?.trim(), lead.lastName?.trim()].filter(Boolean).join(' ');
-  if (combined) return combined;
-  const legacy = lead.name?.trim();
-  return legacy || '—';
+  const raw = combined || lead.name?.trim() || '';
+  return TextFormatter.entityName('lead', raw) || '—';
 }
 
 /** Contact label for deals: `firstName` + `lastName` (not organization). */
 export function dealPersonName(
   deal: Pick<DealRow, 'firstName' | 'lastName' | 'contactName' | 'dealTitle' | 'organizationName'>,
 ): string {
-  const contact =
+  const contactRaw =
     deal.contactName?.trim() ||
     [deal.firstName?.trim(), deal.lastName?.trim()].filter(Boolean).join(' ');
-  if (contact) return contact;
+  if (contactRaw) {
+    return TextFormatter.entityName('contact', contactRaw);
+  }
 
   const title = deal.dealTitle?.trim();
   if (title) {
     const parts = title.split(/\s*[—–]\s*|\s+-\s+/).map((p) => p.trim()).filter(Boolean);
     const last = parts[parts.length - 1];
-    if (last && !/^unknown organization$/i.test(last)) return last;
-    if (!/^unknown organization(\s|$)/i.test(title)) return title;
+    if (last && !/^unknown organization$/i.test(last)) {
+      return TextFormatter.entityName('contact', last);
+    }
+    if (!/^unknown organization(\s|$)/i.test(title)) {
+      return TextFormatter.entityName('contact', title);
+    }
   }
 
   return '—';

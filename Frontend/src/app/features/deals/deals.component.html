@@ -192,6 +192,7 @@
                   class="deals__control deals__control--soft"
                   type="text"
                   formControlName="fullName"
+                  (blur)="onFullNameBlur()"
                   autocomplete="name"
                 />
                 @if (fieldInvalid('fullName')) {

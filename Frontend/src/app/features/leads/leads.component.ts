@@ -52,6 +52,7 @@ import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.s
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { resolveRecordOwnerIdForSubmit, showOwnerPickerOnCreate, showSelfAssignedOwnerOnCreate } from '../../shared/utils/record-owner-assignment.util';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import {
@@ -86,6 +87,7 @@ import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import {
   buildLeadDisplayName,
   fullNameFromLeadParts,
+  normalizeFullNameControl,
   splitFullName,
 } from './lead-full-name.util';
 import { environment } from '../../../environments/environment';
@@ -573,7 +575,7 @@ export class LeadsComponent {
   }
 
   protected readonly filtered = computed(() => {
-    const q = this.searchQuery().trim().toLowerCase();
+    const q = TextFormatter.search(this.searchQuery());
     const st = this.statusFilter();
     const src = this.sourceFilter();
     const owner = this.ownerFilter();
@@ -1439,6 +1441,7 @@ export class LeadsComponent {
   }
 
   protected submitLead(): void {
+    TextFormatter.form(this.createForm);
     this.createForm.markAllAsTouched();
     if (this.createForm.invalid) return;
 
@@ -1484,7 +1487,11 @@ export class LeadsComponent {
       salutationId: undefined,
       firstName,
       lastName,
-      name: buildLeadDisplayName('', firstName, lastName) || raw.fullName.trim(),
+      name:
+        TextFormatter.entityName(
+          'lead',
+          buildLeadDisplayName('', firstName, lastName) || raw.fullName,
+        ) || firstName,
       mobile: raw.mobile.trim(),
       leadOwnerId,
       gender: raw.gender || undefined,
@@ -1786,6 +1793,10 @@ export class LeadsComponent {
   protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
   protected readonly intlTelMobileInputProps = crmIntlTelInputProps();
   protected intlTelMobileError = intlTelMobileErrorMessage;
+
+  protected onFullNameBlur(): void {
+    normalizeFullNameControl(this.createForm.controls.fullName);
+  }
 
   protected fieldInvalid(name: string): boolean {
     const c = this.createForm.get(name);

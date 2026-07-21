@@ -9,6 +9,7 @@ import type {
   RolePermissionAssignment,
 } from '../auth/permission.models';
 import { accessScopeToApi, normalizeAccessScope } from '../auth/permission.util';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
 
 function apiBase(): string | null {
   const base = environment.apiUrl?.replace(/\/$/, '');
@@ -152,8 +153,8 @@ export class RbacService {
     if (!Number.isFinite(id)) return null;
     return {
       id,
-      name: String(o['name'] ?? o['Name'] ?? ''),
-      description: String(o['description'] ?? o['Description'] ?? ''),
+      name: TextFormatter.entityName('role', String(o['name'] ?? o['Name'] ?? '')),
+      description: TextFormatter.description(String(o['description'] ?? o['Description'] ?? '')),
       isActive: Boolean(o['isActive'] ?? o['IsActive'] ?? true),
       assignedUserCount: Number(o['assignedUserCount'] ?? o['AssignedUserCount'] ?? 0),
       createdAt: o['createdAt'] != null ? String(o['createdAt']) : undefined,
