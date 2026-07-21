@@ -103,13 +103,44 @@
           <section class="deals__form-section" aria-label="Organization details">
             <h3 class="deals__form-section-title">Organization details</h3>
             <div class="deals__form-grid deals__form-grid--3">
-              <label class="deals__field">
+              <div class="deals__field">
                 <span class="deals__label">Organization name <span class="deals__req">*</span></span>
-                <input class="deals__control deals__control--soft" type="text" formControlName="organizationName" />
+                @if (useExistingOrgEnabled()) {
+                  <app-crm-searchable-select
+                    #orgSearchSelect
+                    formControlName="selectedOrganizationId"
+                    placeholder="Search organization name, GSTIN, website, phone…"
+                    ariaLabel="Search existing organization"
+                    [searchFn]="searchOrganizations"
+                    (optionSelected)="onOrganizationPicked($event)"
+                  />
+                } @else {
+                  <input
+                    class="deals__control deals__control--soft"
+                    type="text"
+                    formControlName="organizationName"
+                  />
+                  @if (orgDuplicateSuggestions().length > 0) {
+                    <div class="deals__duplicate-hint" role="status">
+                      <p class="deals__duplicate-title">Similar organizations found</p>
+                      @for (org of orgDuplicateSuggestions(); track org.id) {
+                        <div class="deals__duplicate-row">
+                          <span>{{ org.name }}</span>
+                          <button type="button" class="deals__duplicate-use" (click)="useDuplicateOrganization(org)">
+                            Use existing
+                          </button>
+                        </div>
+                      }
+                      <button type="button" class="deals__duplicate-dismiss" (click)="dismissDuplicateOrganization()">
+                        Continue creating new
+                      </button>
+                    </div>
+                  }
+                }
                 @if (fieldInvalid('organizationName')) {
                   <span class="deals__err">Organization name is required.</span>
                 }
-              </label>
+              </div>
               <label class="deals__field">
                 <span class="deals__label">No. of employees</span>
                 <select class="deals__control deals__control--soft" formControlName="employees">
@@ -186,18 +217,29 @@
           <section class="deals__form-section" aria-label="Contact details">
             <h3 class="deals__form-section-title">Contact details</h3>
             <div class="deals__form-grid deals__form-grid--3">
-              <label class="deals__field">
+              <div class="deals__field">
                 <span class="deals__label">Full name <span class="deals__req">*</span></span>
-                <input
-                  class="deals__control deals__control--soft"
-                  type="text"
-                  formControlName="fullName"
-                  autocomplete="name"
-                />
+                @if (useExistingContactEnabled()) {
+                  <app-crm-searchable-select
+                    #contactSearchSelect
+                    formControlName="selectedContactId"
+                    placeholder="Search contact name, mobile, email…"
+                    ariaLabel="Search existing contact"
+                    [searchFn]="searchContacts"
+                    (optionSelected)="onContactPicked($event)"
+                  />
+                } @else {
+                  <input
+                    class="deals__control deals__control--soft"
+                    type="text"
+                    formControlName="fullName"
+                    autocomplete="name"
+                  />
+                }
                 @if (fieldInvalid('fullName')) {
                   <span class="deals__err">Full name is required.</span>
                 }
-              </label>
+              </div>
               <div class="deals__field">
                 <span class="deals__label">Primary mobile no.</span>
                 <div class="crm-intl-tel-field crm-intl-tel-field--soft">
@@ -220,7 +262,7 @@
                   autocomplete="email"
                   (input)="clearEmailDuplicate()"
                 />
-                @if (createForm.get('primaryEmail')?.errors?.['duplicate']) {
+                @if (createForm.get('primaryEmail')?.errors?.['duplicate'] && !isLinkingExistingContact()) {
                   <span class="deals__err">This email is already used on a deal.</span>
                 } @else if (fieldInvalid('primaryEmail') && createForm.get('primaryEmail')?.errors?.['email']) {
                   <span class="deals__err">Enter a valid email.</span>
