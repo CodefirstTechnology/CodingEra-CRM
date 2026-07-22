@@ -73,7 +73,6 @@ import {
   ColumnOrderItemDirective,
   ColumnOrderListDirective,
   ColumnOrderService,
-  mergeColumnOrder,
   sortByColumnOrder,
   type ColumnOrderConfig,
   type ColumnReorderEvent,
@@ -169,6 +168,9 @@ interface LeadColumnOption {
   ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
+  host: {
+    '(document:click)': 'onDocumentClickCloseColumnMenu()',
+  },
 })
 export class LeadsComponent {
   private readonly fb = inject(FormBuilder);
@@ -1334,6 +1336,13 @@ export class LeadsComponent {
     this.columnMenuOpen.update((open) => !open);
   }
 
+  /** Closes Columns menu on outside click (inside clicks are stopped on the menu root). */
+  protected onDocumentClickCloseColumnMenu(): void {
+    if (this.columnMenuOpen()) {
+      this.columnMenuOpen.set(false);
+    }
+  }
+
   protected toggleColumn(id: string): void {
     if (this.requiredColumnIds.has(id)) return;
     const next = this.selectedColumnIds().includes(id)
@@ -1364,16 +1373,14 @@ export class LeadsComponent {
 
   private syncColumnOrderWithAvailable(available: readonly string[]): void {
     const current = this.columnOrderIds();
-    if (current.length === 0) {
-      this.columnOrderIds.set(this.columnOrderSvc.resolveOrder(this.leadsColumnOrderConfig, available));
-      return;
+    const next = this.columnOrderSvc.reconcileOrder(
+      this.leadsColumnOrderConfig,
+      available,
+      current,
+    );
+    if (next !== current) {
+      this.columnOrderIds.set(next);
     }
-    const merged = mergeColumnOrder(this.preferredColumnOrder, available, current);
-    if (merged.length === current.length && merged.every((id, i) => id === current[i])) {
-      return;
-    }
-    this.columnOrderIds.set(merged);
-    this.columnOrderSvc.saveOrder(this.leadsColumnOrderConfig, merged);
   }
 
   private leadsTableColumnsStorageKey(): string {

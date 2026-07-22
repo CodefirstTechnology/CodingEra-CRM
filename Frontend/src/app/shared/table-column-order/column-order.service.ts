@@ -34,6 +34,28 @@ export class ColumnOrderService {
     return merged;
   }
 
+  /**
+   * Keep component order in sync with available columns.
+   * - Empty current → load/merge from storage (no write if already resolved).
+   * - Non-empty → merge; persist only when the order actually changes.
+   * Returns `currentOrder` (same reference) when unchanged to avoid extra signal writes.
+   */
+  reconcileOrder(
+    config: ColumnOrderConfig,
+    availableIds: readonly string[],
+    currentOrder: readonly string[],
+  ): string[] {
+    if (currentOrder.length === 0) {
+      return this.resolveOrder(config, availableIds);
+    }
+    const merged = mergeColumnOrder(config.preferredOrder, availableIds, currentOrder);
+    if (sameOrder(merged, currentOrder)) {
+      return currentOrder as string[];
+    }
+    this.storage.save(config.storageKeyPrefix, config.getUserId(), merged);
+    return merged;
+  }
+
   /** Persist an explicit order (after drag). */
   saveOrder(config: ColumnOrderConfig, order: readonly string[]): void {
     this.storage.save(config.storageKeyPrefix, config.getUserId(), order);
@@ -59,4 +81,8 @@ export class ColumnOrderService {
     this.storage.clear(config.storageKeyPrefix, config.getUserId());
     return mergeColumnOrder(config.preferredOrder, availableIds, null);
   }
+}
+
+function sameOrder(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
 }

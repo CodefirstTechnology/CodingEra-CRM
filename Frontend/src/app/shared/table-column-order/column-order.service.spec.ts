@@ -48,6 +48,18 @@ describe('ColumnOrderService', () => {
     expect(storage.load(prefix, '7')).toBeNull();
   });
 
+  it('reconcileOrder loads from storage when current is empty', () => {
+    storage.save(prefix, '7', ['status', 'name', 'source', 'requirement']);
+    const next = service.reconcileOrder(config, ['name', 'source', 'requirement', 'status'], []);
+    expect(next).toEqual(['status', 'name', 'source', 'requirement']);
+  });
+
+  it('reconcileOrder returns same reference when unchanged', () => {
+    const current = ['name', 'source', 'requirement', 'status'];
+    const next = service.reconcileOrder(config, current, current);
+    expect(next).toBe(current);
+  });
+
   it('resolveOrder keeps saved order after hide/show simulation', () => {
     storage.save(prefix, '7', ['email', 'name', 'source', 'requirement', 'status']);
     const available = ['name', 'source', 'requirement', 'status', 'email'];

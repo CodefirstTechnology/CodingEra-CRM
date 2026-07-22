@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -36,6 +36,15 @@ import {
   CrmSearchableSelectComponent,
 } from '../../shared/components/crm-searchable-select/crm-searchable-select.component';
 import type { CrmSearchableSelectOption } from '../../shared/components/crm-searchable-select/crm-searchable-select.model';
+import {
+  ColumnOrderHandleDirective,
+  ColumnOrderItemDirective,
+  ColumnOrderListDirective,
+  ColumnOrderService,
+  sortByColumnOrder,
+  type ColumnOrderConfig,
+  type ColumnReorderEvent,
+} from '../../shared/table-column-order';
 import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
 import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
@@ -145,6 +154,8 @@ interface DealColumnOption {
   required: boolean;
 }
 
+const DEALS_COLUMN_ORDER_STORAGE_PREFIX = 'crm.dealsColumnOrder';
+
 @Component({
   selector: 'app-deals',
   imports: [
@@ -154,9 +165,15 @@ interface DealColumnOption {
     CrmPaginationFooterComponent,
     CrmSearchableSelectComponent,
     IntlTelInputComponent,
+    ColumnOrderListDirective,
+    ColumnOrderItemDirective,
+    ColumnOrderHandleDirective,
   ],
   templateUrl: './deals.component.html',
   styleUrl: './deals.component.scss',
+  host: {
+    '(document:click)': 'onDocumentClickCloseColumnMenu()',
+  },
 })
 export class DealsComponent {
   private readonly fb = inject(FormBuilder);
@@ -172,6 +189,7 @@ export class DealsComponent {
   protected readonly dealMaster = inject(DealMasterSelectService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly columnOrderSvc = inject(ColumnOrderService);
 
   protected readonly sel = createIdSelection();
   protected readonly assignPickerOpen = signal(false);
@@ -301,6 +319,8 @@ export class DealsComponent {
     'probabilityPercent',
     'nextStep',
   ];
+  /** Full column id order (visible + hidden). Independent of visibility prefs. */
+  private readonly columnOrderIds = signal<string[]>([]);
   private readonly columnLabels: Record<string, string> = {
     contactName: 'Name',
     organizationName: 'Organization',
@@ -314,12 +334,22 @@ export class DealsComponent {
     nextStep: 'Next step',
   };
 
+  private readonly dealsColumnOrderConfig: ColumnOrderConfig = {
+    storageKeyPrefix: DEALS_COLUMN_ORDER_STORAGE_PREFIX,
+    preferredOrder: this.preferredColumnOrder,
+    getUserId: () => this.auth.user()?.id ?? null,
+  };
+
   constructor() {
     this.ownerOpts.load();
     this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
     this.setupExistingOrgContactToggles();
     this.setupOrganizationDuplicateDetection();
     this.refreshDeals();
+    effect(() => {
+      const available = this.availableColumnIds();
+      untracked(() => this.syncColumnOrderWithAvailable(available));
+    });
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'deal') return;
       const created = e.row as DealRow;
@@ -361,7 +391,7 @@ export class DealsComponent {
     this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
   );
 
-  protected readonly columnOptions = computed<DealColumnOption[]>(() => {
+  protected readonly availableColumnIds = computed(() => {
     const ids = new Set(this.preferredColumnOrder);
     for (const row of this.rows()) {
       for (const key of Object.keys(row)) {
@@ -370,13 +400,17 @@ export class DealsComponent {
         }
       }
     }
-    return [...ids]
-      .filter((id) => !this.ignoredColumnIds.has(id))
-      .map((id) => ({
-        id,
-        label: this.columnLabels[id] ?? this.titleizeColumnId(id),
-        required: this.requiredColumnIds.has(id),
-      }));
+    return [...ids].filter((id) => !this.ignoredColumnIds.has(id));
+  });
+
+  protected readonly columnOptions = computed<DealColumnOption[]>(() => {
+    const options = this.availableColumnIds().map((id) => ({
+      id,
+      label: this.columnLabels[id] ?? this.titleizeColumnId(id),
+      required: this.requiredColumnIds.has(id),
+    }));
+    const order = this.columnOrderIds();
+    return order.length > 0 ? sortByColumnOrder(options, order) : options;
   });
 
   protected readonly visibleColumns = computed(() =>
@@ -484,11 +518,50 @@ export class DealsComponent {
     this.columnMenuOpen.update((open) => !open);
   }
 
+  /** Closes Columns menu on outside click (inside clicks are stopped on the menu root). */
+  protected onDocumentClickCloseColumnMenu(): void {
+    if (this.columnMenuOpen()) {
+      this.columnMenuOpen.set(false);
+    }
+  }
+
   protected toggleColumn(id: string): void {
     if (this.requiredColumnIds.has(id)) return;
     this.selectedColumnIds.update((selected) =>
       selected.includes(id) ? selected.filter((columnId) => columnId !== id) : [...selected, id],
     );
+  }
+
+  protected onColumnReordered(event: ColumnReorderEvent): void {
+    const current = this.columnOrderIds();
+    if (!current.length) return;
+    const next = this.columnOrderSvc.applyReorder(
+      this.dealsColumnOrderConfig,
+      current,
+      event.fromIndex,
+      event.toIndex,
+    );
+    this.columnOrderIds.set(next);
+  }
+
+  protected resetColumnOrder(): void {
+    const next = this.columnOrderSvc.resetOrder(
+      this.dealsColumnOrderConfig,
+      this.availableColumnIds(),
+    );
+    this.columnOrderIds.set(next);
+  }
+
+  private syncColumnOrderWithAvailable(available: readonly string[]): void {
+    const current = this.columnOrderIds();
+    const next = this.columnOrderSvc.reconcileOrder(
+      this.dealsColumnOrderConfig,
+      available,
+      current,
+    );
+    if (next !== current) {
+      this.columnOrderIds.set(next);
+    }
   }
 
   protected isColumnVisible(id: string): boolean {

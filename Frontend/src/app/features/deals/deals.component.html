@@ -351,20 +351,50 @@
           Columns
         </button>
         @if (columnMenuOpen()) {
-          <div class="deals__columns-menu" role="menu" aria-label="Choose deal table columns">
-            <p class="deals__columns-help">Name, organization, and assigned to are required. Email and mobile are optional.</p>
-            @for (column of columnOptions(); track column.id) {
-              <label class="deals__column-option" [class.is-required]="column.required">
-                <input
-                  type="checkbox"
-                  class="deals__checkbox"
-                  [checked]="isColumnVisible(column.id)"
-                  [disabled]="column.required"
-                  (change)="toggleColumn(column.id)"
-                />
-                <span>{{ column.label }}</span>
-              </label>
+          <div
+            class="deals__columns-menu"
+            role="menu"
+            aria-label="Choose deal table columns"
+            crmColumnOrderList
+            (crmColumnReordered)="onColumnReordered($event)"
+          >
+            <p class="deals__columns-help">
+              Name, organization, and assigned to are required. Press and hold ☰, then drag up or down.
+            </p>
+            @for (column of columnOptions(); track column.id; let i = $index) {
+              <div
+                class="deals__column-option"
+                [class.is-required]="column.required"
+                [crmColumnOrderItem]="i"
+                role="menuitem"
+              >
+                <span
+                  class="deals__column-drag"
+                  crmColumnOrderHandle
+                  [attr.aria-label]="'Reorder ' + column.label"
+                  title="Press and hold, then drag"
+                >
+                  ☰
+                </span>
+                <label class="deals__column-option-label">
+                  <input
+                    type="checkbox"
+                    class="deals__checkbox"
+                    [checked]="isColumnVisible(column.id)"
+                    [disabled]="column.required"
+                    (change)="toggleColumn(column.id)"
+                  />
+                  <span>{{ column.label }}</span>
+                </label>
+              </div>
             }
+            <button
+              type="button"
+              class="deals__columns-reset"
+              (click)="resetColumnOrder()"
+            >
+              Reset Column Order
+            </button>
           </div>
         }
       </div>
