@@ -69,6 +69,16 @@ import { createClientTablePagination } from '../../shared/utils/crm-table-pagina
 import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import {
+  ColumnOrderHandleDirective,
+  ColumnOrderItemDirective,
+  ColumnOrderListDirective,
+  ColumnOrderService,
+  mergeColumnOrder,
+  sortByColumnOrder,
+  type ColumnOrderConfig,
+  type ColumnReorderEvent,
+} from '../../shared/table-column-order';
+import {
   GSTIN_ERROR_KEY,
   GSTIN_ERROR_MESSAGE,
   gstControlInvalid,
@@ -131,6 +141,7 @@ const FALLBACK_INDUSTRY_NAMES = [
 ] as const;
 
 const LEADS_TABLE_COLUMNS_STORAGE_PREFIX = 'crm.leadsTableColumns';
+const LEADS_COLUMN_ORDER_STORAGE_PREFIX = 'crm.leadsColumnOrder';
 const DEFAULT_OPTIONAL_LEAD_COLUMN_IDS = ['status', 'owner'] as const;
 
 interface LeadColumnOption {
@@ -152,6 +163,9 @@ interface LeadColumnOption {
     NgComponentOutlet,
     IntlTelInputComponent,
     DatePipe,
+    ColumnOrderListDirective,
+    ColumnOrderItemDirective,
+    ColumnOrderHandleDirective,
   ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
@@ -170,6 +184,7 @@ export class LeadsComponent {
   private readonly leadRoundRobin = inject(LeadRoundRobinService);
   private readonly leadSyncApi = inject(LeadSyncHttpService);
   private readonly injector = inject(Injector);
+  private readonly columnOrderSvc = inject(ColumnOrderService);
 
   /** Assigned lead sync sources for the current user (from API). */
   protected readonly leadSyncAccess = signal<LeadSyncMyAccess[]>([]);
@@ -353,6 +368,8 @@ export class LeadsComponent {
     'notes',
   ];
   private readonly selectedColumnIds = signal<string[]>([...DEFAULT_OPTIONAL_LEAD_COLUMN_IDS]);
+  /** Full column id order (visible + hidden). Independent of visibility prefs. */
+  private readonly columnOrderIds = signal<string[]>([]);
   private readonly columnLabels: Record<string, string> = {
     source: 'Source',
     owner: 'Lead owner',
@@ -361,6 +378,12 @@ export class LeadsComponent {
     location: 'Location',
     leadDate: 'Lead date',
     requestType: 'Request type',
+  };
+
+  private readonly leadsColumnOrderConfig: ColumnOrderConfig = {
+    storageKeyPrefix: LEADS_COLUMN_ORDER_STORAGE_PREFIX,
+    preferredOrder: this.preferredColumnOrder,
+    getUserId: () => this.auth.user()?.id ?? null,
   };
 
   /** Manual / API-backed rows only; merged with marketplace lead sources in {@link rows}. */
@@ -383,6 +406,10 @@ export class LeadsComponent {
       .subscribe((active) => this.detailChildActive.set(active));
     this.refreshLeads();
     this.refreshDealConversionIndex();
+    effect(() => {
+      const available = this.availableColumnIds();
+      untracked(() => this.syncColumnOrderWithAvailable(available));
+    });
     forkJoin({
       employeeCounts: this.leadMasterData.loadEmployeeCounts(),
       territories: this.leadMasterData.loadTerritories(),
@@ -612,7 +639,7 @@ export class LeadsComponent {
     this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
   );
 
-  protected readonly columnOptions = computed<LeadColumnOption[]>(() => {
+  protected readonly availableColumnIds = computed(() => {
     const ids = new Set(this.preferredColumnOrder);
     for (const row of this.rows()) {
       for (const key of Object.keys(row)) {
@@ -621,13 +648,17 @@ export class LeadsComponent {
         }
       }
     }
-    return [...ids]
-      .filter((id) => !this.ignoredColumnIds.has(id))
-      .map((id) => ({
-        id,
-        label: this.columnLabels[id] ?? this.titleizeColumnId(id),
-        required: this.requiredColumnIds.has(id),
-      }));
+    return [...ids].filter((id) => !this.ignoredColumnIds.has(id));
+  });
+
+  protected readonly columnOptions = computed<LeadColumnOption[]>(() => {
+    const options = this.availableColumnIds().map((id) => ({
+      id,
+      label: this.columnLabels[id] ?? this.titleizeColumnId(id),
+      required: this.requiredColumnIds.has(id),
+    }));
+    const order = this.columnOrderIds();
+    return order.length > 0 ? sortByColumnOrder(options, order) : options;
   });
 
   protected readonly visibleColumns = computed(() =>
@@ -1309,6 +1340,40 @@ export class LeadsComponent {
       ? this.selectedColumnIds().filter((columnId) => columnId !== id)
       : [...this.selectedColumnIds(), id];
     this.saveOptionalColumnIds(next);
+  }
+
+  protected onColumnReordered(event: ColumnReorderEvent): void {
+    const current = this.columnOrderIds();
+    if (!current.length) return;
+    const next = this.columnOrderSvc.applyReorder(
+      this.leadsColumnOrderConfig,
+      current,
+      event.fromIndex,
+      event.toIndex,
+    );
+    this.columnOrderIds.set(next);
+  }
+
+  protected resetColumnOrder(): void {
+    const next = this.columnOrderSvc.resetOrder(
+      this.leadsColumnOrderConfig,
+      this.availableColumnIds(),
+    );
+    this.columnOrderIds.set(next);
+  }
+
+  private syncColumnOrderWithAvailable(available: readonly string[]): void {
+    const current = this.columnOrderIds();
+    if (current.length === 0) {
+      this.columnOrderIds.set(this.columnOrderSvc.resolveOrder(this.leadsColumnOrderConfig, available));
+      return;
+    }
+    const merged = mergeColumnOrder(this.preferredColumnOrder, available, current);
+    if (merged.length === current.length && merged.every((id, i) => id === current[i])) {
+      return;
+    }
+    this.columnOrderIds.set(merged);
+    this.columnOrderSvc.saveOrder(this.leadsColumnOrderConfig, merged);
   }
 
   private leadsTableColumnsStorageKey(): string {
