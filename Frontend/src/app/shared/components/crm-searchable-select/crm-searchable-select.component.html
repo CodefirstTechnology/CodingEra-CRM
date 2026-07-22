@@ -1,0 +1,63 @@
+<div class="crm-searchable-select__wrap">
+  <div class="crm-searchable-select__input-wrap">
+    <input
+      #searchInput
+      type="text"
+      class="crm-searchable-select__input"
+      [class]="controlClass()"
+      [attr.placeholder]="placeholder()"
+      [attr.aria-label]="ariaLabel()"
+      role="combobox"
+      aria-autocomplete="list"
+      [attr.aria-expanded]="open()"
+      [attr.aria-controls]="listId()"
+      [disabled]="disabled()"
+      [value]="displayValue()"
+      (input)="onInput($event)"
+      (focus)="onFocus()"
+      (keydown)="onKeydown($event)"
+    />
+    @if (hasSelection()) {
+      <button
+        type="button"
+        class="crm-searchable-select__clear"
+        aria-label="Clear selection"
+        (click)="clearSelection($event)"
+      >
+        ×
+      </button>
+    }
+  </div>
+
+  @if (open()) {
+    <div
+      class="crm-searchable-select__panel"
+      [id]="listId()"
+      role="listbox"
+    >
+      @if (loading()) {
+        <p class="crm-searchable-select__state">Searching…</p>
+      } @else if (showHint()) {
+        <p class="crm-searchable-select__state">Type at least {{ minLength() }} characters…</p>
+      } @else if (showEmptyState()) {
+        <p class="crm-searchable-select__state">No matches found.</p>
+      } @else {
+        @for (opt of options(); track opt.id; let i = $index) {
+          <button
+            type="button"
+            class="crm-searchable-select__option"
+            role="option"
+            [class.crm-searchable-select__option--active]="isActive(i)"
+            [attr.aria-selected]="isActive(i)"
+            (pointerdown)="pickOption(opt, $event)"
+          >
+            <span class="crm-searchable-select__option-label">{{ opt.label }}</span>
+            @if (opt.hint) {
+              <span class="crm-searchable-select__option-hint">{{ opt.hint }}</span>
+            }
+          </button>
+        }
+      }
+    </div>
+  }
+</div>

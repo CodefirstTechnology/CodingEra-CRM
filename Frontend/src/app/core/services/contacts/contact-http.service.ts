@@ -1,7 +1,7 @@
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
 import type { ContactRow } from '../../../features/contacts/contacts.component';
@@ -15,6 +15,8 @@ import {
 export interface ContactListQuery {
   userId?: number;
   organizationId?: number;
+  search?: string;
+  limit?: number;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -42,16 +44,33 @@ export class ContactHttpService {
     if (query?.organizationId != null && query.organizationId > 0) {
       params = params.set('organizationId', String(query.organizationId));
     }
+    if (query?.search?.trim()) {
+      params = params.set('search', query.search.trim());
+    }
+    if (query?.limit != null && query.limit > 0) {
+      params = params.set('limit', String(query.limit));
+    }
 
     return this.http.get<unknown>(this.baseUrl, { headers: this.jsonHeaders(), params }).pipe(
       map((raw) => extractContactRecords(raw).map((item) => mapContactApiRecord(item))),
     );
   }
 
+  search(term: string, organizationId?: number, limit = 20): Observable<ContactRow[]> {
+    const q = term.trim();
+    if (q.length < 2) {
+      return of([]);
+    }
+    return this.list({ search: q, organizationId, limit });
+  }
+
   getById(id: number): Observable<ContactRow | null> {
     return this.http
       .get<unknown>(`${this.baseUrl}/${id}`, { headers: this.jsonHeaders() })
-      .pipe(map((raw) => (raw != null ? mapContactApiRecord(raw) : null)));
+      .pipe(
+        map((raw) => (raw != null ? mapContactApiRecord(raw) : null)),
+        catchError(() => of(null)),
+      );
   }
 
   create(body: ContactUpsertDto): Observable<ContactRow> {

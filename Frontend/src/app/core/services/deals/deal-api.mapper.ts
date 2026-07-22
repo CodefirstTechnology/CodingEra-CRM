@@ -292,6 +292,9 @@ export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
   if (dto.relatedContactId != null && dto.relatedContactId > 0) {
     out.relatedContactId = String(dto.relatedContactId);
   }
+  if (dto.contactId != null && dto.contactId > 0) {
+    out.contactId = String(dto.contactId);
+  }
   if (dto.organizationId != null && dto.organizationId > 0) {
     out.organizationId = String(dto.organizationId);
   }
@@ -403,7 +406,10 @@ function rowToNormalized(row: DealRow, previous?: DealNormalized): DealNormalize
     id: previous?.id ?? (Number.isFinite(Number(row.id)) ? Number(row.id) : 0),
     organizationId:
       parseOptionalPositiveInt(row.organizationId) ?? previous?.organizationId ?? null,
-    contactId: previous?.contactId ?? null,
+    contactId: parseOptionalPositiveInt(row.contactId) ??
+      parseOptionalPositiveInt(row.relatedContactId) ??
+      previous?.contactId ??
+      null,
     organizationName: row.organizationName ?? '',
     salutation: row.salutation ?? '',
     firstName: row.firstName ?? '',
