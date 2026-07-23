@@ -1,22 +1,37 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { take } from 'rxjs';
+import { catchError, forkJoin, of } from 'rxjs';
+import { AuthService } from '../../core/auth/auth.service';
+import { ROLE_ID_ADMIN } from '../../core/auth/auth-role.util';
+import type { RoleListItem } from '../../core/auth/permission.models';
 import { CrmModalComponent } from '../../core/modal/crm-modal.component';
+import { RbacService } from '../../core/services/rbac.service';
 import { formatInrCompact } from '../../shared/utils/format-inr.util';
 import { CrmEntityCacheService } from '../../core/services/crm-entity-cache.service';
+import type { AdminUserRow } from '../../core/services/admin-users.service';
 import type {
   AdminActivityStreamItem,
   AdminDashboardPeriodKey,
   AdminDashboardSnapshot,
+  AdminDashboardTeamFilters,
   AdminDealDetail,
   AdminLeadDetail,
   AdminPipelineSegment,
+  AdminTeamLeadStatusFilter,
   AdminTeamMemberStats,
+  AdminTeamRoleFilter,
   AdminTeamSortKey,
 } from './models/admin-dashboard.models';
-import { ADMIN_DASHBOARD_PERIOD_OPTIONS } from './models/admin-dashboard.models';
+import {
+  ADMIN_DASHBOARD_PERIOD_OPTIONS,
+  ADMIN_TEAM_LEAD_STATUS_OPTIONS,
+} from './models/admin-dashboard.models';
 import { AdminDashboardService } from './services/admin-dashboard.service';
 import {
+  isAdminRoleLabel,
+  resolveDefaultSalesTeamRoleFilter,
   sortTeamMembers,
   PIPELINE_STAGE_PREVIEW_LIMIT,
   STUCK_DEAL_PREVIEW_LIMIT,
@@ -53,15 +68,18 @@ const PIPELINE_STAGE_COLORS = [
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, CrmModalComponent],
+  imports: [RouterLink, CrmModalComponent, FormsModule],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })
 export class DashboardComponent {
   private readonly dashboardService = inject(AdminDashboardService);
   private readonly entityCache = inject(CrmEntityCacheService);
+  private readonly auth = inject(AuthService);
+  private readonly rbac = inject(RbacService);
 
   protected readonly periodOptions = ADMIN_DASHBOARD_PERIOD_OPTIONS;
+  protected readonly teamLeadStatusOptions = ADMIN_TEAM_LEAD_STATUS_OPTIONS;
   protected readonly stuckPreviewLimit = STUCK_DEAL_PREVIEW_LIMIT;
   protected readonly pipelinePreviewLimit = PIPELINE_STAGE_PREVIEW_LIMIT;
 
@@ -87,6 +105,32 @@ export class DashboardComponent {
 
   protected readonly teamSortKey = signal<AdminTeamSortKey>('qualifiedLeads');
   protected readonly teamSortDesc = signal(true);
+  protected readonly teamRoleFilter = signal<AdminTeamRoleFilter>('all');
+  protected readonly teamLeadStatusFilter = signal<AdminTeamLeadStatusFilter>('all');
+  protected readonly teamRoles = signal<RoleListItem[]>([]);
+
+  protected readonly teamRoleOptions = computed(() => {
+    const roles = this.teamRoles().filter(
+      (r) => r.isActive && r.id !== ROLE_ID_ADMIN && !isAdminRoleLabel(r.name),
+    );
+    return [
+      { value: 'all' as const, label: 'All roles' },
+      ...roles.map((r) => ({ value: r.id as number, label: r.name })),
+    ];
+  });
+
+  protected readonly teamRoleFilterLabel = computed(() => {
+    const current = this.teamRoleFilter();
+    if (current === 'all') return 'All roles';
+    return this.teamRoleOptions().find((o) => o.value === current)?.label ?? 'All roles';
+  });
+
+  protected readonly teamLeadStatusLabel = computed(() => {
+    const current = this.teamLeadStatusFilter();
+    return (
+      this.teamLeadStatusOptions.find((o) => o.value === current)?.label ?? 'All statuses'
+    );
+  });
 
   protected readonly streamTab = signal<StreamTab>('all');
   protected readonly STREAM_INITIAL_COUNT = 10;
@@ -124,7 +168,60 @@ export class DashboardComponent {
   });
 
   constructor() {
+    this.loadTeamRolesAndDashboard();
+  }
+
+  private loadTeamRolesAndDashboard(): void {
+    forkJoin({
+      roles: this.rbac
+        .listRoles(this.auth.token(), { activeOnly: true })
+        .pipe(catchError(() => of([] as RoleListItem[]))),
+      users: this.entityCache
+        .listUsers()
+        .pipe(catchError(() => of([] as AdminUserRow[]))),
+    })
+      .pipe(take(1))
+      .subscribe({
+        next: ({ roles, users }) => {
+          this.teamRoles.set(roles);
+          this.teamRoleFilter.set(resolveDefaultSalesTeamRoleFilter(roles, users));
+          this.refreshDashboard();
+        },
+        error: () => {
+          this.teamRoles.set([]);
+          this.refreshDashboard();
+        },
+      });
+  }
+
+  protected onTeamRoleFilterChange(raw: string): void {
+    const next: AdminTeamRoleFilter = raw === 'all' ? 'all' : Number(raw);
+    if (next !== 'all' && (!Number.isFinite(next) || next <= 0)) return;
+    if (this.teamRoleFilter() === next) return;
+    this.teamRoleFilter.set(next);
     this.refreshDashboard();
+  }
+
+  protected onTeamLeadStatusFilterChange(raw: string): void {
+    const next = raw as AdminTeamLeadStatusFilter;
+    if (this.teamLeadStatusFilter() === next) return;
+    this.teamLeadStatusFilter.set(next);
+    this.refreshDashboard();
+  }
+
+  protected teamRoleSelectValue(role: AdminTeamRoleFilter): string {
+    return role === 'all' ? 'all' : `${role}`;
+  }
+
+  protected teamRoleOptionValue(value: AdminTeamRoleFilter | number): string {
+    return value === 'all' ? 'all' : `${value}`;
+  }
+
+  private teamFilters(): AdminDashboardTeamFilters {
+    return {
+      roleId: this.teamRoleFilter(),
+      leadStatus: this.teamLeadStatusFilter(),
+    };
   }
 
   protected togglePeriodMenu(): void {
@@ -204,7 +301,7 @@ export class DashboardComponent {
         : null;
 
     this.dashboardService
-      .loadSnapshot(key, customRange)
+      .loadSnapshot(key, customRange, this.teamFilters())
       .pipe(take(1))
       .subscribe({
         next: ({ data, error }) => {

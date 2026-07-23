@@ -11,10 +11,14 @@ import type {
   AdminDashboardCustomRange,
   AdminDashboardPeriod,
   AdminDashboardPeriodKey,
+  AdminTeamLeadStatusFilter,
   AdminTeamMemberStats,
+  AdminTeamRoleFilter,
   AdminTeamSortKey,
 } from '../models/admin-dashboard.models';
+import type { AdminUserRow } from '../../../core/services/admin-users.service';
 import type { UserTargetRow } from '../../../core/services/user-targets/user-target-api.models';
+import { ROLE_ID_ADMIN } from '../../../core/auth/auth-role.util';
 
 export const STUCK_DEAL_INACTIVE_HOURS = 24;
 export const STUCK_DEAL_PREVIEW_LIMIT = 5;
@@ -374,4 +378,77 @@ export function countLeadsByStatus(leads: LeadRow[]): Record<string, number> {
     counts[key] = (counts[key] ?? 0) + 1;
   }
   return counts;
+}
+
+export function isAdminRoleLabel(roleName: string | undefined | null): boolean {
+  const role = (roleName ?? '').trim().toLowerCase();
+  return role === 'admin' || role === 'administrator';
+}
+
+export function isAdminTeamUser(user: AdminUserRow): boolean {
+  if (user.roleId === ROLE_ID_ADMIN) return true;
+  return isAdminRoleLabel(user.role);
+}
+
+export function filterTeamUsers(
+  users: AdminUserRow[],
+  roleFilter: AdminTeamRoleFilter,
+): AdminUserRow[] {
+  const team = users.filter((u) => !isAdminTeamUser(u));
+  if (roleFilter === 'all') return team;
+  return team.filter((u) => u.roleId === roleFilter);
+}
+
+export function filterLeadsForTeamPeriod(
+  leads: LeadRow[],
+  period: AdminDashboardPeriod,
+): LeadRow[] {
+  return leads.filter((l) => {
+    const d = leadRecordDate(l);
+    return d != null && isDateInRange(d, period.start, period.end);
+  });
+}
+
+export function filterLeadsByTeamStatus(
+  leads: LeadRow[],
+  statusFilter: AdminTeamLeadStatusFilter,
+): LeadRow[] {
+  if (statusFilter === 'all') return leads;
+  return leads.filter((l) => (l.status || 'New') === statusFilter);
+}
+
+/** Canonical CRM sales rep role name (`crm_roles.name`). */
+export const SALES_TEAM_ROLE_NAME = 'Sales';
+
+export function isSalesTeamRoleName(name: string | undefined | null): boolean {
+  return (name ?? '').trim().toLowerCase() === SALES_TEAM_ROLE_NAME.toLowerCase();
+}
+
+/** Default team role filter — selects the active `Sales` role when present. */
+export function resolveDefaultSalesTeamRoleFilter(
+  roles: readonly { id: number; name: string; isActive: boolean }[],
+  users?: readonly { roleId?: number; role: string }[],
+): AdminTeamRoleFilter {
+  const pickSalesRoleId = (
+    list: readonly { id: number; name: string; isActive: boolean }[],
+  ): number | null => {
+    const match = list.find((r) => isSalesTeamRoleName(r.name));
+    return match?.id ?? null;
+  };
+
+  const fromActiveRoles = pickSalesRoleId(roles.filter((r) => r.isActive));
+  if (fromActiveRoles != null) return fromActiveRoles;
+
+  const fromAnyRole = pickSalesRoleId(roles);
+  if (fromAnyRole != null) return fromAnyRole;
+
+  if (users?.length) {
+    for (const user of users) {
+      if (isSalesTeamRoleName(user.role) && user.roleId != null && user.roleId > 0) {
+        return user.roleId;
+      }
+    }
+  }
+
+  return 'all';
 }

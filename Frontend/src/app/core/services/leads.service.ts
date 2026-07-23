@@ -140,10 +140,14 @@ export class LeadsService {
     const markAsConverted = options.markAsConverted !== false;
     const removeFromActive = options.removeFromActive === true;
 
-    return this.getById(idn).pipe(
-      switchMap((lead) => {
+    return forkJoin({
+      lead: this.getById(idn),
+      statuses: this.leadMasterData.loadLeadStatuses(),
+    }).pipe(
+      switchMap(({ lead, statuses }) => {
         if (!lead) return throwError(() => new Error('Lead not found.'));
-        if (isLeadConverted(lead)) {
+        const conv = this.leadMasterData.resolveConversionLeadStatus(statuses);
+        if (isLeadConverted(lead, { id: conv?.id, name: conv?.name })) {
           return throwError(() => new Error('This lead was already converted to a deal.'));
         }
         const validationError = validateLeadForConversion(lead);

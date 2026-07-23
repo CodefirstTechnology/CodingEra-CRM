@@ -130,9 +130,10 @@ export class QuotationPdfService {
       fontSize: L.fontSize.body,
       cellPadding: L.cellPaddingMm,
       lineColor: [0, 0, 0] as [number, number, number],
-      lineWidth: 0.15,
+      lineWidth: 0.12,
       textColor: [0, 0, 0] as [number, number, number],
       valign: 'middle' as const,
+      overflow: 'linebreak' as const,
     };
 
     let y = 0;
@@ -226,23 +227,34 @@ export class QuotationPdfService {
 
     const drawFooter = (pageNumber: number, totalPages: number): void => {
       const footerH = L.footerHeightMm;
-      const footerY = pageH - footerH;
+      const footerY = pageH - margin - footerH;
+      const textPad = L.headerTextPadMm;
+      const textInnerW = contentW - textPad * 2;
+
       doc.setFillColor(...C.brandBlue);
-      doc.rect(0, footerY, pageW, footerH, 'F');
+      doc.rect(margin, footerY, contentW, footerH, 'F');
+
       doc.setTextColor(255, 255, 255);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(L.fontSize.footer);
-      const addr = doc.splitTextToSize(C.address, contentW - 4);
-      doc.text(addr, pageW / 2, footerY + 3.5, { align: 'center' });
-      doc.text(
-        `Contact No : ${C.contactPhone}    Email ID : ${C.emails.join(', ')}    Website : ${C.website}`,
-        pageW / 2,
-        footerY + 7.5 + (addr.length - 1) * 2.2,
-        { align: 'center' },
-      );
+      doc.setFontSize(L.fontSize.headerSub);
+      const addr = doc.splitTextToSize(C.address, textInnerW) as string[];
+      const contactLine = `Contact No : ${C.contactPhone}    Email ID : ${C.emails.join(', ')}    Website : ${C.website}`;
+      const contact = doc.splitTextToSize(contactLine, textInnerW) as string[];
+      const lineH = 2.6;
+      const textLineCount = addr.length + contact.length;
+      const textBlockH = textLineCount * lineH;
+      const startY = footerY + (footerH - textBlockH) / 2 + lineH * 0.75;
+
+      doc.text(addr, pageW / 2, startY, { align: 'center' });
+      doc.text(contact, pageW / 2, startY + addr.length * lineH, { align: 'center' });
       if (totalPages > 1) {
         doc.setFontSize(6);
-        doc.text(`Page ${pageNumber} of ${totalPages}`, pageW - margin, footerY + 2, { align: 'right' });
+        doc.text(
+          `Page ${pageNumber} of ${totalPages}`,
+          margin + contentW - textPad,
+          footerY + 2.5,
+          { align: 'right' },
+        );
       }
       doc.setTextColor(0, 0, 0);
     };
@@ -345,7 +357,6 @@ export class QuotationPdfService {
 
     y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 16;
 
-    const lineRows = this.lineItemRows(q.lineItems ?? []);
     const subtotal = this.subtotal(q);
     const additionalTotal = this.additionalChargesTotal(q);
     const taxableAmount = subtotal + additionalTotal;
@@ -362,10 +373,31 @@ export class QuotationPdfService {
         amount: c.amount,
       })),
     });
+    const sigName = generator.fullName !== '—' ? generator.fullName : '';
+    const sigPhone = generator.phone !== '—' ? generator.phone : '';
+    const sigBlock = [sigName, sigPhone].filter(Boolean).join('\n');
+    const footerRows = this.buildUnifiedFooterRows(
+      C,
+      subtotal,
+      additionalLines,
+      taxTotal,
+      grandTotal,
+      gstPercent,
+    );
+    const footerContentReserveMm =
+      this.estimateUnifiedFooterHeight(footerRows) + L.closingRowHeightMm + L.footerGapMm + 2;
+    const reservedBottomMm =
+      margin + L.footerHeightMm + footerContentReserveMm;
+    const lineRows = this.padLineItemRowsForPage(
+      this.lineItemRows(q.lineItems ?? []),
+      y,
+      pageH,
+      reservedBottomMm,
+    );
 
     autoTable(doc, {
       startY: y,
-      margin: { left: margin, right: margin, bottom: L.footerReserveMm },
+      margin: { left: margin, right: margin, bottom: reservedBottomMm },
       tableWidth: contentW,
       theme: 'grid',
       head: [['Sr. No.', 'Material Description', 'Quantity (Nos)', 'Rate per Nos. (Rs.)', 'Total Amount (Rs.)']],
@@ -402,29 +434,18 @@ export class QuotationPdfService {
 
     y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 20;
 
-    if (y > pageH - L.footerReserveMm - 55) {
-      doc.addPage();
-      y = margin;
-    }
-
     const termsW = contentW * L.termsWidthRatio;
     const totalsW = contentW - termsW;
     const termsDetailW = termsW - L.termsIndexWidthMm - L.termsTitleWidthMm;
     const totalsLabelW = totalsW * 0.55;
     const totalsValueW = totalsW - totalsLabelW;
     const footerStartY = y;
-    const footerRows = this.buildUnifiedFooterRows(
-      C,
-      subtotal,
-      additionalLines,
-      taxTotal,
-      grandTotal,
-      gstPercent,
-    );
     const footerBlockStyles = {
       ...tableStyles,
       fontSize: L.fontSize.terms,
       cellPadding: L.termsDetailCellPaddingMm,
+      overflow: 'linebreak' as const,
+      minCellHeight: L.footerMinCellHeightMm,
     };
 
     autoTable(doc, {
@@ -436,18 +457,18 @@ export class QuotationPdfService {
       body: footerRows,
       columnStyles: {
         0: { cellWidth: L.termsIndexWidthMm, halign: 'center', valign: 'top' },
-        1: { cellWidth: L.termsTitleWidthMm, valign: 'top' },
+        1: { cellWidth: L.termsTitleWidthMm, valign: 'top', fontStyle: 'normal' },
         2: { cellWidth: termsDetailW, valign: 'top', cellPadding: L.termsDetailCellPaddingMm },
         3: {
           cellWidth: totalsLabelW,
           halign: 'left',
-          valign: 'middle',
+          valign: 'top',
           cellPadding: L.totalsCellPaddingMm,
         },
         4: {
           cellWidth: totalsValueW,
           halign: 'right',
-          valign: 'middle',
+          valign: 'top',
           cellPadding: L.totalsCellPaddingMm,
         },
       },
@@ -455,24 +476,25 @@ export class QuotationPdfService {
 
     y = (doc as DocWithTable).lastAutoTable?.finalY ?? footerStartY + 40;
 
-    const sigName = generator.fullName !== '—' ? generator.fullName : '';
-    const sigPhone = generator.phone !== '—' ? generator.phone : '';
-    const sigBlock = [sigName, sigPhone].filter(Boolean).join('\n');
+    const jurisdictionText = C.jurisdiction?.trim() ? `" ${C.jurisdiction.trim()} "` : '';
+    const closingBottomMargin = margin + L.footerHeightMm + L.footerGapMm;
 
     autoTable(doc, {
       startY: y,
-      margin: { left: margin, right: margin },
+      margin: { left: margin, right: margin, bottom: closingBottomMargin },
       tableWidth: contentW,
       theme: 'grid',
       styles: {
         ...tableStyles,
         fontSize: L.fontSize.body,
-        cellPadding: L.signatureCellPaddingMm,
+        cellPadding: L.closingRowPaddingMm,
+        minCellHeight: L.closingRowHeightMm,
+        valign: 'middle',
       },
       body: [
         [
           {
-            content: `" ${C.jurisdiction} "`,
+            content: jurisdictionText,
             styles: { halign: 'center', fontStyle: 'italic', valign: 'middle' },
           },
           {
@@ -487,7 +509,7 @@ export class QuotationPdfService {
       },
     });
 
-    y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 18;
+    y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + L.closingRowHeightMm;
 
     const totalPages = doc.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
@@ -515,6 +537,67 @@ export class QuotationPdfService {
         this.formatMoney(total),
       ];
     });
+  }
+
+  /** Blank row with fixed height so the items table fills the page like the reference template. */
+  private emptyLineItemRow(minHeightMm: number): RowInput {
+    const cell = {
+      content: '',
+      styles: { minCellHeight: minHeightMm, valign: 'middle' as const },
+    };
+    return [cell, cell, cell, cell, cell];
+  }
+
+  private padLineItemRowsForPage(
+    rows: RowInput[],
+    startY: number,
+    pageH: number,
+    reservedBottomMm: number,
+  ): RowInput[] {
+    const L = QUOTATION_PDF_LAYOUT;
+    const minRowH = L.lineItemMinRowHeightMm;
+    const availableBody = pageH - startY - reservedBottomMm - L.lineItemHeadHeightMm - L.lineItemFootHeightMm;
+    if (availableBody <= minRowH) return rows;
+
+    const dataCount = rows.length;
+    const maxRows = Math.floor(availableBody / minRowH);
+    const targetRows = Math.max(L.lineItemMinVisibleRows, maxRows);
+    const fillerCount = Math.max(0, targetRows - dataCount) + L.lineItemExtraEmptyRows;
+
+    const padded = [...rows];
+    for (let i = 0; i < fillerCount; i++) {
+      padded.push(this.emptyLineItemRow(minRowH));
+    }
+    return padded;
+  }
+
+  private rowCells(row: RowInput): unknown[] {
+    return Array.isArray(row) ? row : [row];
+  }
+
+  private cellContentText(cell: unknown): string {
+    if (cell == null) return '';
+    if (typeof cell === 'string' || typeof cell === 'number') return String(cell);
+    if (typeof cell === 'object' && 'content' in cell) {
+      return String((cell as { content?: unknown }).content ?? '');
+    }
+    return '';
+  }
+
+  private estimateUnifiedFooterHeight(rows: RowInput[]): number {
+    const L = QUOTATION_PDF_LAYOUT;
+    const lineH = 3.1;
+    let total = 0;
+    for (const row of rows) {
+      let maxLines = 1;
+      for (const cell of this.rowCells(row)) {
+        const text = this.cellContentText(cell);
+        if (text) maxLines = Math.max(maxLines, text.split('\n').length);
+      }
+      const pad = L.termsDetailCellPaddingMm.top + L.termsDetailCellPaddingMm.bottom;
+      total += Math.max(L.footerMinCellHeightMm, maxLines * lineH + pad);
+    }
+    return total;
   }
 
   private additionalChargesTotal(q: QuotationUpsertDto): number {
@@ -613,8 +696,6 @@ export class QuotationPdfService {
     gstPercent: number,
   ): RowInput[] {
     const terms = this.resolveTermsWithBank(company);
-    const transportLabel = company.transportationLabel?.trim() || 'Extra At Actual';
-    const transportPad = QUOTATION_PDF_LAYOUT.transportCellPaddingMm;
     const rows: RowInput[] = [
       [
         { content: 'Terms & Conditions:', colSpan: 3, styles: { fontStyle: 'bold' as const } },
@@ -623,31 +704,19 @@ export class QuotationPdfService {
       ],
     ];
 
-    if (additionalLines.length) {
-      rows.push([
-        { content: '', colSpan: 3 },
-        { content: 'Additional Charges:', styles: { fontStyle: 'bold' as const } },
-        '',
-      ]);
-      for (const line of additionalLines) {
-        rows.push([
-          { content: '', colSpan: 3 },
-          line.label,
-          { content: this.formatMoney(line.amount), styles: { halign: 'right' as const } },
-        ]);
-      }
-    }
-
+    const termRows: RowInput[] = [];
+    const usedChargeIndices = new Set<number>();
     let gstRowAdded = false;
     let grandTotalRowAdded = false;
 
     if (!terms.length) {
-      rows.push([
+      termRows.push([
         { content: '—', colSpan: 3, styles: { fontStyle: 'italic' as const } },
         '',
         '',
       ]);
-      this.appendMissingTotalsRows(rows, taxTotal, grandTotal, gstPercent, gstRowAdded, grandTotalRowAdded);
+      this.appendMissingTotalsRows(termRows, taxTotal, grandTotal, gstPercent, gstRowAdded, grandTotalRowAdded);
+      rows.push(...termRows);
       return rows;
     }
 
@@ -656,43 +725,21 @@ export class QuotationPdfService {
       termNum += 1;
       const title = term.title.trim();
       const body = this.formatTermBody(term.body);
-      const isOrderPayment = /order\s*&\s*payment|order and payment/i.test(title);
 
-      if (isOrderPayment) {
-        rows.push([
+      if (/payment terms/i.test(title)) {
+        termRows.push([
           String(termNum),
           title,
           body,
-          {
-            content: 'Transportation',
-            styles: {
-              fontStyle: 'bold' as const,
-              valign: 'middle' as const,
-              halign: 'left' as const,
-              cellPadding: transportPad,
-            },
-          },
-          {
-            content: transportLabel,
-            styles: {
-              valign: 'middle' as const,
-              halign: 'center' as const,
-              cellPadding: transportPad,
-            },
-          },
+          `Add. : GST @ ${gstPercent}%`,
+          { content: this.formatMoney(taxTotal), styles: { halign: 'right' as const } },
         ]);
-        continue;
-      }
-
-      if (/^taxes$/i.test(title)) {
-        rows.push([String(termNum), title, body, '', this.formatMoney(0)]);
-        rows.push(['', '', '', `Add. : GST @ ${gstPercent}%`, this.formatMoney(taxTotal)]);
         gstRowAdded = true;
         continue;
       }
 
-      if (/payment terms/i.test(title)) {
-        rows.push([
+      if (/^transportation$/i.test(title)) {
+        termRows.push([
           String(termNum),
           title,
           body,
@@ -706,25 +753,116 @@ export class QuotationPdfService {
         continue;
       }
 
-      if (/^transportation$/i.test(title) && company.signatureEntity) {
-        rows.push([
+      if (/^validity$/i.test(title) && company.signatureEntity) {
+        termRows.push([
           String(termNum),
           title,
           body,
           {
             content: `For ${company.signatureEntity}`,
             colSpan: 2,
-            styles: { fontStyle: 'bold' as const, halign: 'center' as const, valign: 'middle' as const },
+            styles: {
+              fontStyle: 'bold' as const,
+              halign: 'center' as const,
+              valign: 'middle' as const,
+            },
           },
         ]);
         continue;
       }
 
-      rows.push([String(termNum), title, body, '', '']);
+      if (/^taxes$/i.test(title)) {
+        const serviceBlock = this.collectTaxesRowCharges(additionalLines, usedChargeIndices);
+        if (serviceBlock) {
+          termRows.push([
+            String(termNum),
+            title,
+            body,
+            serviceBlock.labels,
+            {
+              content: serviceBlock.amounts,
+              styles: { halign: 'right' as const, valign: 'top' as const },
+            },
+          ]);
+          continue;
+        }
+        termRows.push([String(termNum), title, body, '', '']);
+        continue;
+      }
+
+      const charge = this.pickChargeForTerm(title, additionalLines, usedChargeIndices);
+      if (charge) {
+        termRows.push([
+          String(termNum),
+          title,
+          body,
+          charge.label,
+          { content: this.formatMoney(charge.amount), styles: { halign: 'right' as const } },
+        ]);
+        continue;
+      }
+
+      termRows.push([String(termNum), title, body, '', '']);
     }
 
-    this.appendMissingTotalsRows(rows, taxTotal, grandTotal, gstPercent, gstRowAdded, grandTotalRowAdded);
+    this.appendMissingTotalsRows(termRows, taxTotal, grandTotal, gstPercent, gstRowAdded, grandTotalRowAdded);
+    rows.push(...termRows);
     return rows;
+  }
+
+  /** Service Charges field + all Add Charge rows on the Taxes term row. */
+  private collectTaxesRowCharges(
+    additionalLines: { label: string; amount: number }[],
+    used: Set<number>,
+  ): { labels: string; amounts: string } | null {
+    const rows: { label: string; amount: number }[] = [];
+
+    for (let i = 0; i < additionalLines.length; i++) {
+      if (used.has(i)) continue;
+      if (/^service charges$/i.test(additionalLines[i].label.trim())) {
+        used.add(i);
+        rows.push(additionalLines[i]);
+        break;
+      }
+    }
+
+    for (let i = 0; i < additionalLines.length; i++) {
+      if (used.has(i)) continue;
+      if (/transportation charges/i.test(additionalLines[i].label)) continue;
+      if (/loading charges/i.test(additionalLines[i].label)) continue;
+      used.add(i);
+      rows.push(additionalLines[i]);
+    }
+
+    if (!rows.length) return null;
+
+    return {
+      labels: rows.map((r) => r.label).join('\n'),
+      amounts: rows.map((r) => this.formatMoney(r.amount)).join('\n'),
+    };
+  }
+
+  /** Map term titles to charge lines: Order→Transport, Delivery→Loading. */
+  private pickChargeForTerm(
+    title: string,
+    additionalLines: { label: string; amount: number }[],
+    used: Set<number>,
+  ): { label: string; amount: number } | undefined {
+    let matcher: RegExp | null = null;
+    if (/order\s*&\s*payment|order and payment/i.test(title)) matcher = /transportation/i;
+    else if (/delivery/i.test(title)) matcher = /loading/i;
+
+    if (!matcher) return undefined;
+
+    for (let i = 0; i < additionalLines.length; i++) {
+      if (used.has(i)) continue;
+      if (matcher.test(additionalLines[i].label)) {
+        used.add(i);
+        return additionalLines[i];
+      }
+    }
+
+    return undefined;
   }
 
   /** GST and grand total align with "Taxes" / "Payment Terms" when present; otherwise append after terms. */

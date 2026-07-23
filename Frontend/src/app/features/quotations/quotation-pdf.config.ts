@@ -43,9 +43,11 @@ export const QUOTATION_PDF_COMPANY = {
 export const QUOTATION_PDF_LAYOUT = {
   marginMm: 14,
   headerHeightMm: 24,
-  footerHeightMm: 15,
-  footerReserveMm: 28,
-  sectionGapMm: 3,
+  /** Footer bar height — mirrors header visual weight */
+  footerHeightMm: 18,
+  footerGapMm: 1.5,
+  footerReserveMm: 36,
+  sectionGapMm: 2,
   introGapMm: 4,
   /** Left header column width — logo area; right text uses remaining content width */
   brandBlockWidthMm: 50,
@@ -67,8 +69,18 @@ export const QUOTATION_PDF_LAYOUT = {
   lineQtyWidthMm: 26,
   lineRateWidthMm: 30,
   lineAmountWidthMm: 30,
+  /** Empty line-item rows expand to fill the page above terms (reference template) */
+  lineItemMinRowHeightMm: 6.2,
+  lineItemMinVisibleRows: 14,
+  /** Extra blank line-item rows added after page-fill calculation */
+  lineItemExtraEmptyRows: 1,
+  lineItemHeadHeightMm: 8,
+  lineItemFootHeightMm: 8,
+  /** Jurisdiction + signatory row below Terms & Conditions */
+  closingRowHeightMm: 8,
+  closingRowPaddingMm: { top: 1.5, right: 1.2, bottom: 1.5, left: 1.2 },
   /** Terms block (index + title + detail) uses this share of content width */
-  termsWidthRatio: 0.7,
+  termsWidthRatio: 0.68,
   /** Totals mini-table (label + amount), right edge aligns with line amount column */
   totalsLabelWidthMm: 42,
   /** Terms table column widths (mm) */
@@ -77,10 +89,10 @@ export const QUOTATION_PDF_LAYOUT = {
   /** Quotation number highlight in meta grid */
   qtnHighlightFill: [220, 235, 250] as [number, number, number],
   qtnHighlightText: [30, 64, 120] as [number, number, number],
-  cellPaddingMm: 1,
-  termsDetailCellPaddingMm: { top: 1, right: 1, bottom: 1, left: 1 },
-  transportCellPaddingMm: { top: 1.5, right: 1.2, bottom: 1.5, left: 1.2 },
-  totalsCellPaddingMm: { top: 1, right: 1, bottom: 1, left: 1 },
+  cellPaddingMm: 1.2,
+  footerMinCellHeightMm: 4,
+  termsDetailCellPaddingMm: { top: 1.2, right: 1.2, bottom: 1.2, left: 1.2 },
+  totalsCellPaddingMm: { top: 1.2, right: 1.2, bottom: 1.2, left: 1.2 },
   introCellPaddingMm: { top: 1, right: 1.2, bottom: 1, left: 1.2 },
   signatureCellPaddingMm: { top: 1, right: 1, bottom: 1, left: 1 },
   fontSize: {
