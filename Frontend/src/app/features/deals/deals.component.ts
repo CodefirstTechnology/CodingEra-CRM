@@ -154,7 +154,13 @@ interface DealColumnOption {
   required: boolean;
 }
 
+const DEALS_TABLE_COLUMNS_STORAGE_PREFIX = 'crm.dealsTableColumns';
 const DEALS_COLUMN_ORDER_STORAGE_PREFIX = 'crm.dealsColumnOrder';
+const DEFAULT_OPTIONAL_DEAL_COLUMN_IDS = [
+  'annualRevenue',
+  'dealAmount',
+  'status',
+] as const;
 
 @Component({
   selector: 'app-deals',
@@ -282,14 +288,7 @@ export class DealsComponent {
   protected readonly tablePagination = createClientTablePagination(this.filtered);
 
   private readonly requiredColumnIds = new Set(['contactName', 'organizationName', 'assignedTo']);
-  private readonly selectedColumnIds = signal<string[]>([
-    'contactName',
-    'organizationName',
-    'assignedTo',
-    'annualRevenue',
-    'dealAmount',
-    'status',
-  ]);
+  private readonly selectedColumnIds = signal<string[]>([...DEFAULT_OPTIONAL_DEAL_COLUMN_IDS]);
   private readonly ignoredColumnIds = new Set([
     'id',
     'dealOwnerId',
@@ -341,6 +340,7 @@ export class DealsComponent {
   };
 
   constructor() {
+    this.selectedColumnIds.set(this.loadStoredOptionalColumnIds());
     this.ownerOpts.load();
     this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
     this.setupExistingOrgContactToggles();
@@ -527,9 +527,10 @@ export class DealsComponent {
 
   protected toggleColumn(id: string): void {
     if (this.requiredColumnIds.has(id)) return;
-    this.selectedColumnIds.update((selected) =>
-      selected.includes(id) ? selected.filter((columnId) => columnId !== id) : [...selected, id],
-    );
+    const next = this.selectedColumnIds().includes(id)
+      ? this.selectedColumnIds().filter((columnId) => columnId !== id)
+      : [...this.selectedColumnIds(), id];
+    this.saveOptionalColumnIds(next);
   }
 
   protected onColumnReordered(event: ColumnReorderEvent): void {
@@ -561,6 +562,52 @@ export class DealsComponent {
     );
     if (next !== current) {
       this.columnOrderIds.set(next);
+    }
+  }
+
+  private dealsTableColumnsStorageKey(): string {
+    const userId = this.auth.user()?.id?.trim();
+    return userId
+      ? `${DEALS_TABLE_COLUMNS_STORAGE_PREFIX}.${userId}`
+      : DEALS_TABLE_COLUMNS_STORAGE_PREFIX;
+  }
+
+  private loadStoredOptionalColumnIds(): string[] {
+    try {
+      const raw = localStorage.getItem(this.dealsTableColumnsStorageKey());
+      if (!raw?.trim()) return [...DEFAULT_OPTIONAL_DEAL_COLUMN_IDS];
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [...DEFAULT_OPTIONAL_DEAL_COLUMN_IDS];
+      const ids = parsed.filter((v): v is string => typeof v === 'string');
+      return this.normalizeOptionalColumnIds(ids);
+    } catch {
+      return [...DEFAULT_OPTIONAL_DEAL_COLUMN_IDS];
+    }
+  }
+
+  private normalizeOptionalColumnIds(ids: readonly string[]): string[] {
+    const allowed = new Set(
+      this.preferredColumnOrder.filter(
+        (id) => !this.requiredColumnIds.has(id) && !this.ignoredColumnIds.has(id),
+      ),
+    );
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const id of ids) {
+      if (!allowed.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+    }
+    return out;
+  }
+
+  private saveOptionalColumnIds(ids: readonly string[]): void {
+    const normalized = this.normalizeOptionalColumnIds(ids);
+    this.selectedColumnIds.set(normalized);
+    try {
+      localStorage.setItem(this.dealsTableColumnsStorageKey(), JSON.stringify(normalized));
+    } catch {
+      /* quota / private browsing */
     }
   }
 
