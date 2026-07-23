@@ -860,7 +860,8 @@ export class LeadDetailComponent {
       { emitEvent: false },
     );
     this.dataForm.markAsPristine();
-    if (isLeadConverted(row)) {
+    const conv = this.conversionStatusOption();
+    if (isLeadConverted(row, { id: conv?.id, name: conv?.name })) {
       this.dataForm.disable({ emitEvent: false });
     } else {
       this.dataForm.enable({ emitEvent: false });
@@ -912,10 +913,11 @@ export class LeadDetailComponent {
   }
 
   protected canEditLead(row: LeadRow): boolean {
+    const conv = this.conversionStatusOption();
     return (
       !this.isAdminViewer() &&
       isPersistedApiLeadRow(row.id) &&
-      !isLeadConverted(row)
+      !isLeadConverted(row, { id: conv?.id, name: conv?.name })
     );
   }
 

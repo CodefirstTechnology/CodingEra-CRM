@@ -736,7 +736,7 @@ export class LeadsComponent {
     return (
       !this.isAdminViewer() &&
       isPersistedApiLeadRow(row.id) &&
-      !isLeadConverted(row)
+      !this.isLeadConvertedInTable(row)
     );
   }
 
@@ -916,7 +916,7 @@ export class LeadsComponent {
             this.toast.error('Lead not found.');
             return;
           }
-          if (isLeadConverted(row)) {
+          if (this.isLeadConvertedInTable(row)) {
             this.toast.error('Leads moved to a deal cannot be edited.');
             this.clearEditQuery();
             return;
