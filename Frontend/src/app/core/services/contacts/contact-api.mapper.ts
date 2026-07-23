@@ -1,13 +1,19 @@
 import type { ContactRow } from '../../../features/contacts/contacts.component';
+import { TextFormatter } from '../../../shared/utils/text-normalizer';
+import {
+  inboundAddress,
+  inboundCompany,
+  inboundEmail,
+  inboundGender,
+  inboundMaster,
+  inboundMobile,
+  inboundPerson,
+} from '../../../shared/utils/text-normalizer/inbound-format';
 
 function readOptionalInt(v: unknown): number | null {
   if (v == null || v === '') return null;
   const n = typeof v === 'number' ? v : Number(String(v).trim());
   return Number.isFinite(n) ? Math.trunc(n) : null;
-}
-
-function trimString(v: string | undefined | null): string {
-  return (v ?? '').trim();
 }
 
 function formatLastModified(iso: string | undefined | null): string {
@@ -30,7 +36,9 @@ function readOrganizationId(r: Record<string, unknown>): number | null {
   if (direct != null && direct > 0) return direct;
   const org = r['organization'] ?? r['Organization'];
   if (org != null && typeof org === 'object') {
-    const n = readOptionalInt((org as Record<string, unknown>)['id'] ?? (org as Record<string, unknown>)['Id']);
+    const n = readOptionalInt(
+      (org as Record<string, unknown>)['id'] ?? (org as Record<string, unknown>)['Id'],
+    );
     if (n != null && n > 0) return n;
   }
   return null;
@@ -39,14 +47,14 @@ function readOrganizationId(r: Record<string, unknown>): number | null {
 function readOrganizationName(r: Record<string, unknown>): string {
   for (const key of ['organizationName', 'OrganizationName', 'companyName', 'CompanyName']) {
     const v = r[key];
-    if (typeof v === 'string' && v.trim()) return v.trim();
+    if (typeof v === 'string' && v.trim()) return inboundCompany(v);
   }
   const org = r['organization'] ?? r['Organization'];
-  if (typeof org === 'string' && org.trim()) return org.trim();
+  if (typeof org === 'string' && org.trim()) return inboundCompany(org);
   if (org != null && typeof org === 'object') {
     const o = org as Record<string, unknown>;
     const name = String(o['name'] ?? o['Name'] ?? '').trim();
-    if (name) return name;
+    if (name) return inboundCompany(name);
   }
   return '';
 }
@@ -82,15 +90,15 @@ export function contactRowToUpsertDto(data: Omit<ContactRow, 'id'>, id?: number)
 
   return {
     id,
-    salutation: trimString(data.salutation),
-    firstName: trimString(data.firstName),
-    lastName: trimString(data.lastName),
-    email: trimString(data.email),
-    phone: trimString(data.phone),
-    gender: trimString(data.gender),
+    salutation: TextFormatter.personName(data.salutation),
+    firstName: TextFormatter.personName(data.firstName),
+    lastName: TextFormatter.personName(data.lastName),
+    email: TextFormatter.email(data.email),
+    phone: TextFormatter.mobile(data.phone),
+    gender: TextFormatter.gender(data.gender),
     organizationId,
-    designation: trimString(data.designation),
-    address: trimString(data.address),
+    designation: inboundMaster('designation', data.designation),
+    address: TextFormatter.address(data.address),
   };
 }
 
@@ -100,16 +108,17 @@ export function mapContactApiRecord(raw: unknown): ContactRow {
   const id = String(readOptionalInt(r['id']) ?? r['id'] ?? '');
   const organizationId = readOrganizationId(r);
   const organization = readOrganizationName(r);
-  const phone = String(r['phone'] ?? r['Phone'] ?? r['mobile'] ?? r['Mobile'] ?? '').trim() || '—';
+  const phoneRaw = String(r['phone'] ?? r['Phone'] ?? r['mobile'] ?? r['Mobile'] ?? '').trim();
+  const phone = phoneRaw && phoneRaw !== '—' ? inboundMobile(phoneRaw) || phoneRaw : '—';
 
   return {
     id,
-    salutation: String(r['salutation'] ?? r['Salutation'] ?? '').trim(),
-    firstName: String(r['firstName'] ?? r['FirstName'] ?? '').trim(),
-    lastName: String(r['lastName'] ?? r['LastName'] ?? '').trim(),
-    email: String(r['email'] ?? r['Email'] ?? '').trim(),
+    salutation: inboundPerson(String(r['salutation'] ?? r['Salutation'] ?? '')),
+    firstName: inboundPerson(String(r['firstName'] ?? r['FirstName'] ?? '')),
+    lastName: inboundPerson(String(r['lastName'] ?? r['LastName'] ?? '')),
+    email: inboundEmail(String(r['email'] ?? r['Email'] ?? '')),
     phone,
-    gender: String(r['gender'] ?? r['Gender'] ?? '').trim(),
+    gender: inboundGender(String(r['gender'] ?? r['Gender'] ?? '')),
     organization: organization || '—',
     organizationId:
       organizationId != null && organizationId > 0 ? String(organizationId) : undefined,
@@ -117,8 +126,8 @@ export function mapContactApiRecord(raw: unknown): ContactRow {
       const n = readOptionalInt(r['createdBy'] ?? r['CreatedBy']);
       return n != null && n > 0 ? String(n) : undefined;
     })(),
-    designation: String(r['designation'] ?? r['Designation'] ?? '').trim(),
-    address: String(r['address'] ?? r['Address'] ?? '').trim(),
+    designation: inboundMaster('designation', String(r['designation'] ?? r['Designation'] ?? '')),
+    address: inboundAddress(String(r['address'] ?? r['Address'] ?? '')),
     lastModified: formatLastModified(
       String(r['lastModified'] ?? r['updatedAt'] ?? r['modifiedAt'] ?? r['createdAt'] ?? ''),
     ),

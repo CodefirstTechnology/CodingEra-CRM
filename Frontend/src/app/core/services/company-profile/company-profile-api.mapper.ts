@@ -1,3 +1,14 @@
+import {
+  inboundAddress,
+  inboundCompany,
+  inboundDescription,
+  inboundEmail,
+  inboundMobile,
+  inboundPerson,
+  inboundTitle,
+  inboundWebsite,
+  TextFormatter,
+} from '../../../shared/utils/text-normalizer';
 import type { CompanyProfile, CompanyProfileTerm, CompanyProfileUpsert } from './company-profile-api.models';
 
 function readStr(o: Record<string, unknown>, keys: string[]): string {
@@ -35,8 +46,8 @@ function readTerms(raw: unknown): CompanyProfileTerm[] {
     .map((item) => {
       if (!item || typeof item !== 'object') return null;
       const o = item as Record<string, unknown>;
-      const title = readStr(o, ['title', 'Title']).trim();
-      const body = readStr(o, ['body', 'Body', 'content', 'Content']).trim();
+      const title = inboundTitle(readStr(o, ['title', 'Title']));
+      const body = inboundDescription(readStr(o, ['body', 'Body', 'content', 'Content']));
       if (!title && !body) return null;
       return { title, body };
     })
@@ -57,34 +68,34 @@ export function mapCompanyProfile(raw: unknown): CompanyProfile {
   const logo = readStr(o, ['logoBase64', 'LogoBase64']);
   const favicon = readStr(o, ['faviconBase64', 'FaviconBase64']);
   return {
-    brandName: readStr(o, ['brandName', 'BrandName']),
-    companyName: readStr(o, ['companyName', 'CompanyName']),
-    tagline: readStr(o, ['tagline', 'Tagline']),
-    businessLine: readStr(o, ['businessLine', 'BusinessLine']),
+    brandName: inboundCompany(readStr(o, ['brandName', 'BrandName'])),
+    companyName: inboundCompany(readStr(o, ['companyName', 'CompanyName'])),
+    tagline: inboundTitle(readStr(o, ['tagline', 'Tagline'])),
+    businessLine: inboundTitle(readStr(o, ['businessLine', 'BusinessLine'])),
     logoContentType: readStr(o, ['logoContentType', 'LogoContentType']),
     logoBase64: logo.trim() ? logo : null,
     faviconContentType: readStr(o, ['faviconContentType', 'FaviconContentType']),
     faviconBase64: favicon.trim() ? favicon : null,
-    gstin: readStr(o, ['gstin', 'Gstin']),
-    cinNumber: readStr(o, ['cinNumber', 'CinNumber']),
-    address: readStr(o, ['address', 'Address']),
-    contactNumber: readStr(o, ['contactNumber', 'ContactNumber']),
-    email: readStr(o, ['email', 'Email']),
-    website: readStr(o, ['website', 'Website']),
-    bankName: readStr(o, ['bankName', 'BankName']),
-    accountNumber: readStr(o, ['accountNumber', 'AccountNumber']),
-    ifscCode: readStr(o, ['ifscCode', 'IfscCode']),
-    branchName: readStr(o, ['branchName', 'BranchName']),
-    signatoryName: readStr(o, ['signatoryName', 'SignatoryName']),
-    signatoryMobile: readStr(o, ['signatoryMobile', 'SignatoryMobile']),
+    gstin: TextFormatter.gstin(readStr(o, ['gstin', 'Gstin'])),
+    cinNumber: readStr(o, ['cinNumber', 'CinNumber']).trim().toUpperCase(),
+    address: inboundAddress(readStr(o, ['address', 'Address'])),
+    contactNumber: inboundMobile(readStr(o, ['contactNumber', 'ContactNumber'])),
+    email: inboundEmail(readStr(o, ['email', 'Email'])),
+    website: inboundWebsite(readStr(o, ['website', 'Website'])),
+    bankName: inboundCompany(readStr(o, ['bankName', 'BankName'])),
+    accountNumber: readStr(o, ['accountNumber', 'AccountNumber']).trim(),
+    ifscCode: readStr(o, ['ifscCode', 'IfscCode']).trim().toUpperCase(),
+    branchName: inboundTitle(readStr(o, ['branchName', 'BranchName'])),
+    signatoryName: inboundPerson(readStr(o, ['signatoryName', 'SignatoryName'])),
+    signatoryMobile: inboundMobile(readStr(o, ['signatoryMobile', 'SignatoryMobile'])),
     terms: (() => {
       const fromArray = readTerms(o['terms'] ?? o['Terms']);
       if (fromArray.length) return fromArray;
       return readTermsFromJson(o['termsConditionsJson'] ?? o['TermsConditionsJson']);
     })(),
-    introText: readStr(o, ['introText', 'IntroText']),
-    transportationLabel: readStr(o, ['transportationLabel', 'TransportationLabel']),
-    jurisdiction: readStr(o, ['jurisdiction', 'Jurisdiction']),
+    introText: inboundDescription(readStr(o, ['introText', 'IntroText'])),
+    transportationLabel: inboundTitle(readStr(o, ['transportationLabel', 'TransportationLabel'])),
+    jurisdiction: inboundTitle(readStr(o, ['jurisdiction', 'Jurisdiction'])),
     defaultGstPercent: readNum(o, ['defaultGstPercent', 'DefaultGstPercent']) || 18,
     updatedAt: readStr(o, ['updatedAt', 'UpdatedAt']) || null,
   };

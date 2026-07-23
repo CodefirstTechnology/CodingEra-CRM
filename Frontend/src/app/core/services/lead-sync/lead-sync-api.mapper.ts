@@ -1,3 +1,9 @@
+import {
+  inboundEmail,
+  inboundMaster,
+  inboundPerson,
+  inboundTitle,
+} from '../../../shared/utils/text-normalizer';
 import type {
   LeadSyncEligibleUser,
   LeadSyncIntervalOption,
@@ -29,7 +35,7 @@ export function mapLeadSyncIntervalOption(row: unknown): LeadSyncIntervalOption 
   return {
     id: num(o['id']),
     minutes: num(o['minutes'] ?? o['hours']),
-    label: str(o['label']),
+    label: inboundTitle(str(o['label'])),
     sortOrder: num(o['sortOrder']),
   };
 }
@@ -38,9 +44,9 @@ export function mapLeadSyncEligibleUser(row: unknown): LeadSyncEligibleUser {
   const o = (row ?? {}) as Record<string, unknown>;
   return {
     id: num(o['id']),
-    fullName: str(o['fullName']),
-    email: str(o['email']),
-    roleName: str(o['roleName']),
+    fullName: inboundPerson(str(o['fullName'])),
+    email: inboundEmail(str(o['email'])),
+    roleName: inboundMaster('role', str(o['roleName'])),
   };
 }
 
@@ -52,8 +58,8 @@ export function mapLeadSyncSource(row: unknown): LeadSyncSource {
         const x = (a ?? {}) as Record<string, unknown>;
         return {
           userId: num(x['userId']),
-          fullName: str(x['fullName']),
-          email: str(x['email']),
+          fullName: inboundPerson(str(x['fullName'])),
+          email: inboundEmail(str(x['email'])),
           sortOrder: num(x['sortOrder']),
         };
       })
@@ -62,8 +68,8 @@ export function mapLeadSyncSource(row: unknown): LeadSyncSource {
   return {
     id: num(o['id']),
     code: str(o['code']),
-    displayName: str(o['displayName']),
-    markerName: str(o['markerName']),
+    displayName: inboundTitle(str(o['displayName'])),
+    markerName: inboundTitle(str(o['markerName'])),
     apiIntegrationReady: bool(o['apiIntegrationReady']),
     isConfigured: bool(o['isConfigured']),
     pullApiUrl: nullableStr(o['pullApiUrl']),
@@ -73,7 +79,7 @@ export function mapLeadSyncSource(row: unknown): LeadSyncSource {
       o['intervalMinutes'] == null && o['intervalHours'] == null
         ? null
         : num(o['intervalMinutes'] ?? (Number(o['intervalHours']) || 0) * 60),
-    intervalLabel: nullableStr(o['intervalLabel']),
+    intervalLabel: o['intervalLabel'] == null ? null : inboundTitle(str(o['intervalLabel'])),
     lastSyncAt: nullableStr(o['lastSyncAt']),
     nextSyncAt: nullableStr(o['nextSyncAt']),
     assignments,
@@ -85,8 +91,8 @@ export function mapLeadSyncMyAccess(row: unknown): LeadSyncMyAccess {
   return {
     sourceId: num(o['sourceId']),
     code: str(o['code']),
-    displayName: str(o['displayName']),
-    syncButtonLabel: str(o['syncButtonLabel']),
+    displayName: inboundTitle(str(o['displayName'])),
+    syncButtonLabel: inboundTitle(str(o['syncButtonLabel'])),
     apiIntegrationReady: bool(o['apiIntegrationReady']),
     autoSyncEnabled: bool(o['autoSyncEnabled']),
     lastSyncAt: nullableStr(o['lastSyncAt']),
@@ -96,18 +102,19 @@ export function mapLeadSyncMyAccess(row: unknown): LeadSyncMyAccess {
 
 export function mapLeadSyncLogRow(row: unknown): LeadSyncLogRow {
   const o = (row ?? {}) as Record<string, unknown>;
+  const triggered = nullableStr(o['triggeredByName']);
   return {
     id: num(o['id']),
     sourceId: num(o['sourceId']),
-    sourceName: str(o['sourceName']),
+    sourceName: inboundTitle(str(o['sourceName'])),
     syncType: str(o['syncType']),
     startedAt: str(o['startedAt']),
     endedAt: nullableStr(o['endedAt']),
     totalReceived: num(o['totalReceived']),
     totalCreated: num(o['totalCreated']),
     failedCount: num(o['failedCount']),
-    triggeredByName: nullableStr(o['triggeredByName']),
-    status: str(o['status']),
+    triggeredByName: triggered ? inboundPerson(triggered) : null,
+    status: inboundMaster('status', str(o['status'])),
     errorMessage: nullableStr(o['errorMessage']),
   };
 }

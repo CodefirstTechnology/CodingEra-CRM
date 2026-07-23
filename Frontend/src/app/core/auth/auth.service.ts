@@ -25,6 +25,7 @@ import {
 import { parsePermissionsFromApi } from './permission.util';
 import type { RegisterApiRequest, RegisterPayload, UserSession } from './auth.models';
 import { SKIP_USER_ID_QUERY } from '../http/skip-user-id-query.context';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
 
 /** CRM API query param `userId` must be a positive integer — same as `users.id` in the database. */
 function pickNumericDbUserId(v: unknown): string | null {
@@ -259,8 +260,14 @@ export class AuthService {
                 ({
                   id: numericUserId ?? '',
                   email: emailResolved,
-                  name: String(
-                    u?.['name'] ?? u?.['fullName'] ?? profile?.['fullName'] ?? this.displayNameFromEmail(trimmed),
+                  name: TextFormatter.entityName(
+                    'user',
+                    String(
+                      u?.['name'] ??
+                        u?.['fullName'] ??
+                        profile?.['fullName'] ??
+                        this.displayNameFromEmail(trimmed),
+                    ),
                   ),
                   role: sessionRoleLabel(roleId, roleName),
                   roleId,

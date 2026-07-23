@@ -21,6 +21,7 @@ import { IntlTelDisplayPipe } from '../../shared/pipes/intl-tel-display.pipe';
 import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { OrganizationRow } from './organizations.component';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
 
 export type OrganizationMainTab = 'deals' | 'contacts';
 
@@ -232,6 +233,7 @@ export class OrganizationDetailComponent {
     const idn = this.numericId();
     const row = this.organization();
     if (idn == null || !row) return;
+    TextFormatter.form(this.detailForm);
     this.detailForm.markAllAsTouched();
     if (this.detailForm.invalid) return;
 
@@ -265,7 +267,7 @@ export class OrganizationDetailComponent {
         const territoryPick = resolveOrgMasterPick(v.territory, this.orgMaster.territorySelectOptions());
 
         const payload: Omit<OrganizationRow, 'id'> = {
-          name: nameTrim,
+          name: TextFormatter.entityName('organization', nameTrim),
           website: web || '—',
           industry:
             industryPick.label ||

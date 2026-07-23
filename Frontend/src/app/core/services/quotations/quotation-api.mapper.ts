@@ -12,6 +12,14 @@ import type {
 import { normalizeQuotationTemplateType } from './quotation-template.constants';
 import { normalizeGstin } from '../../../shared/utils/gstin.util';
 import { recalcLineGroupValues } from './quotation-line-calc.util';
+import {
+  inboundCompany,
+  inboundEmail,
+  inboundGender,
+  inboundMaster,
+  inboundMobile,
+  inboundPerson,
+} from '../../../shared/utils/text-normalizer/inbound-format';
 
 function pickStr(o: Record<string, unknown>, keys: string[]): string {
   for (const k of keys) {
@@ -91,18 +99,20 @@ export function mapQuotationListItem(raw: unknown): QuotationListItem {
     createdBy: pickNullableNum(o, ['createdBy', 'created_by', 'CreatedBy']),
     dealId: pickNullableNum(o, ['dealId', 'deal_id', 'DealId']),
     dealClosed: pickBool(o, ['dealClosed', 'deal_closed', 'DealClosed']),
-    customerName: pickStr(o, ['customerName', 'customer_name']),
-    companyName: pickStr(o, ['companyName', 'company_name']),
-    contactPerson: pickStr(o, ['contactPerson', 'contact_person']),
-    mobileNumber: pickStr(o, ['mobileNumber', 'mobile_number']),
-    emailAddress: pickStr(o, ['emailAddress', 'email_address']),
+    customerName: inboundPerson(pickStr(o, ['customerName', 'customer_name'])),
+    companyName: inboundCompany(pickStr(o, ['companyName', 'company_name'])),
+    contactPerson: inboundPerson(pickStr(o, ['contactPerson', 'contact_person'])),
+    mobileNumber: inboundMobile(pickStr(o, ['mobileNumber', 'mobile_number'])),
+    emailAddress: inboundEmail(pickStr(o, ['emailAddress', 'email_address'])),
     referenceNumber: pickStr(o, ['referenceNumber', 'reference_number']),
     quotationNumber: pickStr(o, ['quotationNumber', 'quotation_number']),
     quotationDate: pickStr(o, ['quotationDate', 'quotation_date']),
-    status: pickStr(o, ['status', 'Status']) || 'Draft',
+    status: inboundMaster('quotationStatus', pickStr(o, ['status', 'Status'])) || 'Draft',
     grandTotal: pickNum(o, ['grandTotal', 'grand_total']),
-    createdByName:
-      pickStr(o, ['createdByName', 'created_by_name', 'CreatedByName']) || undefined,
+    createdByName: (() => {
+      const n = pickStr(o, ['createdByName', 'created_by_name', 'CreatedByName']);
+      return n ? inboundPerson(n) : undefined;
+    })(),
     createdAt: pickStr(o, ['createdAt', 'created_at']) || undefined,
     updatedAt: pickStr(o, ['updatedAt', 'updated_at']) || undefined,
     quotationTemplate: normalizeQuotationTemplateType(
@@ -231,36 +241,39 @@ export function mapQuotationDetail(raw: unknown): QuotationUpsertDto {
     ? customRaw.map((item, i) => mapCustomCharge(item, i))
     : [];
 
-  let firstName = pickStr(o, ['firstName', 'first_name']);
-  let lastName = pickStr(o, ['lastName', 'last_name']);
-  const customerName = pickStr(o, ['customerName', 'customer_name']);
-  if (!firstName && !lastName && customerName) {
-    const parts = customerName.split(/\s+/).filter(Boolean);
+  let firstName = inboundPerson(pickStr(o, ['firstName', 'first_name']));
+  let lastName = inboundPerson(pickStr(o, ['lastName', 'last_name']));
+  const customerNameRaw = pickStr(o, ['customerName', 'customer_name']);
+  if (!firstName && !lastName && customerNameRaw) {
+    const parts = inboundPerson(customerNameRaw).split(/\s+/).filter(Boolean);
     if (parts.length >= 2) {
       firstName = parts[0] ?? '';
       lastName = parts.slice(1).join(' ');
     } else {
-      firstName = customerName;
+      firstName = inboundPerson(customerNameRaw);
     }
   }
+
+  const customerName =
+    inboundPerson(customerNameRaw) || [firstName, lastName].filter(Boolean).join(' ');
 
   return {
     id: pickNum(o, ['id', 'Id']) || undefined,
     dealId: pickNullableNum(o, ['dealId', 'deal_id']),
     dealClosed: pickBool(o, ['dealClosed', 'deal_closed', 'DealClosed']),
-    salutation: pickStr(o, ['salutation', 'Salutation']),
+    salutation: inboundPerson(pickStr(o, ['salutation', 'Salutation'])),
     firstName,
     lastName,
-    gender: pickStr(o, ['gender', 'Gender']),
-    customerName: customerName || [firstName, lastName].filter(Boolean).join(' '),
-    companyName: pickStr(o, ['companyName', 'company_name']),
+    gender: inboundGender(pickStr(o, ['gender', 'Gender'])),
+    customerName,
+    companyName: inboundCompany(pickStr(o, ['companyName', 'company_name'])),
     employees: pickStr(o, ['employees', 'Employees']),
     annualRevenue: pickNullableNum(o, ['annualRevenue', 'annual_revenue']),
     website: pickStr(o, ['website', 'Website']),
     gst: normalizeGstin(pickStr(o, ['gst', 'Gst'])),
     territory: pickStr(o, ['territory', 'Territory']),
     industry: pickStr(o, ['industry', 'Industry']),
-    contactPerson: pickStr(o, ['contactPerson', 'contact_person']),
+    contactPerson: inboundPerson(pickStr(o, ['contactPerson', 'contact_person'])),
     mobileNumber: pickStr(o, ['mobileNumber', 'mobile_number']),
     emailAddress: pickStr(o, ['emailAddress', 'email_address']),
     officeAddress: pickStr(o, ['officeAddress', 'office_address']),

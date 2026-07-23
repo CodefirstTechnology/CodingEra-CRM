@@ -16,6 +16,7 @@ import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/con
 import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
 import { IntlTelDisplayPipe } from '../../shared/pipes/intl-tel-display.pipe';
 import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
 
 export interface ContactRow {
   id: string;
@@ -77,7 +78,7 @@ export class ContactsComponent {
   protected readonly searchQuery = signal('');
 
   protected readonly filtered = computed(() => {
-    const q = this.searchQuery().trim().toLowerCase();
+    const q = TextFormatter.search(this.searchQuery());
     return this.rows().filter((row) => {
       if (!q) return true;
       const label = this.contactLabel(row).toLowerCase();
@@ -292,6 +293,7 @@ export class ContactsComponent {
   protected intlTelMobileError = intlTelMobileErrorMessage;
 
   protected submitContact(): void {
+    TextFormatter.form(this.createForm);
     this.createForm.markAllAsTouched();
     if (this.createForm.invalid) return;
 

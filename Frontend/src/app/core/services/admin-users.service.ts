@@ -6,6 +6,7 @@ import { readUsersTableRoleId } from '../auth/auth-role.util';
 import { hasAnyPermission } from '../auth/permission.util';
 import { AuthService } from '../auth/auth.service';
 import { environment } from '../../../environments/environment';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
 
 export type CreateUserResult = { ok: true } | { ok: false; error: string };
 export type DeleteUserResult = { ok: true } | { ok: false; error: string };
@@ -218,10 +219,18 @@ export class AdminUsersService {
     if (!email) return null;
 
     const name =
-      pickStr(o, ['name', 'Name', 'fullName', 'FullName', 'userName', 'UserName']) ??
+      TextFormatter.entityName(
+        'user',
+        pickStr(o, ['name', 'Name', 'fullName', 'FullName', 'userName', 'UserName']) ?? '',
+      ) ||
+      pickStr(o, ['name', 'Name', 'fullName', 'FullName', 'userName', 'UserName']) ||
       this.nameFromEmail(email);
 
-    const roleRaw = pickStr(o, ['role', 'Role', 'userRole', 'UserRole']) ?? 'User';
+    const roleRaw =
+      TextFormatter.entityName(
+        'role',
+        pickStr(o, ['role', 'Role', 'userRole', 'UserRole']) ?? 'User',
+      ) || 'User';
     const roleId = readUsersTableRoleId(o);
 
     const id =

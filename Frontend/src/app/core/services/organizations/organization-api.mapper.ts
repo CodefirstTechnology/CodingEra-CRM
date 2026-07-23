@@ -1,4 +1,4 @@
-import { normalizeGstin } from '../../../shared/utils/gstin.util';
+import { TextFormatter } from '../../../shared/utils/text-normalizer';
 import { normalizeOrganizationRow } from '../../../shared/utils/normalize-local-rows';
 import type { OrganizationRow } from '../../../features/organizations/organizations.component';
 
@@ -110,11 +110,15 @@ export type OrganizationEnsureOptions = Omit<OrganizationCreateInput, 'name'>;
 
 /** JSON body for `POST /api/organizations` (must match Swagger `OrganizationUpsertDto` — no extra keys). */
 export function organizationCreatePayload(input: OrganizationCreateInput): Record<string, unknown> {
-  const name = input.name.trim();
+  const normalized = TextFormatter.entity('organization', {
+    name: input.name,
+    website: input.website ?? '',
+    gst: input.gst ?? '',
+  });
   const body: Record<string, unknown> = {
-    name,
-    website: input.website?.trim() ?? '',
-    gst: normalizeGstin(input.gst),
+    name: String(normalized['name'] ?? ''),
+    website: String(normalized['website'] ?? ''),
+    gst: String(normalized['gst'] ?? ''),
     annualRevenue:
       input.annualRevenue != null && Number.isFinite(Number(input.annualRevenue))
         ? Number(input.annualRevenue)
@@ -145,16 +149,18 @@ export function organizationLeadSyncPayload(
   options?: OrganizationEnsureOptions,
 ): Record<string, unknown> | null {
   if (!options) return null;
-  const body: Record<string, unknown> = { name: orgName.trim() };
+  const body: Record<string, unknown> = {
+    name: TextFormatter.entityName('organization', orgName),
+  };
   let extras = 0;
 
   if (options.website !== undefined) {
-    body['website'] = String(options.website).trim();
+    body['website'] = TextFormatter.website(String(options.website));
     extras++;
   }
 
   if (options.gst !== undefined) {
-    body['gst'] = normalizeGstin(options.gst);
+    body['gst'] = TextFormatter.gstin(options.gst);
     extras++;
   }
 
@@ -216,10 +222,10 @@ export function mergeOrganizationLeadSyncWithExisting(
     body['employeeCountId'] = existing.employeeCountId;
   }
   if (!('website' in body) && existing.website?.trim()) {
-    body['website'] = existing.website.trim();
+    body['website'] = TextFormatter.website(existing.website);
   }
   if (!('gst' in body) && existing.gst?.trim()) {
-    body['gst'] = normalizeGstin(existing.gst);
+    body['gst'] = TextFormatter.gstin(existing.gst);
   }
 
   return body;

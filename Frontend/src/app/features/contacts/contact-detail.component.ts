@@ -13,6 +13,7 @@ import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
 import { dealStatusCssKind } from '../../core/services/deals/deal-status.constants';
 import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
 import { intlTelFieldInvalid, intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
 import { IntlTelDisplayPipe } from '../../shared/pipes/intl-tel-display.pipe';
 import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 
@@ -173,6 +174,7 @@ export class ContactDetailComponent {
     const idn = this.numericId();
     const row = this.contact();
     if (idn == null || !row) return;
+    TextFormatter.form(this.detailForm);
     this.detailForm.markAllAsTouched();
     if (this.detailForm.invalid) return;
 

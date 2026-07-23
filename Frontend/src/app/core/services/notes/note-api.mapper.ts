@@ -1,5 +1,16 @@
 import type { NoteRelatedType, NoteRow, NoteVisibility } from '../../../features/notes/notes.component';
 import { formatActivityWhen } from '../activities/activity-api.mapper';
+import {
+  inboundDescription,
+  inboundPerson,
+  inboundTitle,
+} from '../../../shared/utils/text-normalizer/inbound-format';
+
+function formatDisplayPerson(raw: string): string {
+  const s = raw.trim();
+  if (!s || s === '—' || /^User #\d+$/i.test(s)) return s;
+  return inboundPerson(s) || s;
+}
 
 function readOptionalInt(v: unknown): number | null {
   if (v == null || v === '') return null;
@@ -113,7 +124,7 @@ export function mapNoteApiRecord(raw: unknown): NoteRow {
 
   return {
     id,
-    title: String(r['title'] ?? r['subject'] ?? 'Note').trim() || 'Note',
+    title: inboundTitle(String(r['title'] ?? r['subject'] ?? 'Note')) || 'Note',
     relatedType,
     relatedName: String(r['relatedName'] ?? r['entityName'] ?? '').trim() || '—',
     relatedId:
@@ -121,12 +132,12 @@ export function mapNoteApiRecord(raw: unknown): NoteRow {
         ? String(readOptionalInt(r['relatedId'] ?? r['recordId']))
         : undefined,
     visibility: coerceVisibility(String(r['visibility'] ?? '')),
-    body,
-    author: author || '—',
-    assignedBy: assignedBy || author || '—',
+    body: inboundDescription(body),
+    author: formatDisplayPerson(author || '—'),
+    assignedBy: formatDisplayPerson(assignedBy || author || '—'),
     when,
     bodyPreview,
-    bodyStorage: body,
+    bodyStorage: inboundDescription(body),
     relatedLeadId,
     relatedDealId,
     authorUserId:

@@ -148,6 +148,30 @@ export const LEAD_STATUS_KEYS: LeadStatus[] = [
   'Converted',
 ];
 
+/** `all` = every non-admin role; otherwise filter by `crm_roles.id`. */
+export type AdminTeamRoleFilter = 'all' | number;
+
+/** `all` = every lead status in period; otherwise only leads with this status. */
+export type AdminTeamLeadStatusFilter = 'all' | LeadStatus;
+
+export interface AdminDashboardTeamFilters {
+  roleId: AdminTeamRoleFilter;
+  leadStatus: AdminTeamLeadStatusFilter;
+}
+
+export const DEFAULT_ADMIN_DASHBOARD_TEAM_FILTERS: AdminDashboardTeamFilters = {
+  roleId: 'all',
+  leadStatus: 'all',
+};
+
+export const ADMIN_TEAM_LEAD_STATUS_OPTIONS: readonly {
+  value: AdminTeamLeadStatusFilter;
+  label: string;
+}[] = [
+  { value: 'all', label: 'All statuses' },
+  ...LEAD_STATUS_KEYS.map((status) => ({ value: status as AdminTeamLeadStatusFilter, label: status })),
+];
+
 export const ADMIN_DASHBOARD_PERIOD_OPTIONS: readonly { key: AdminDashboardPeriodKey; label: string }[] = [
   { key: 'today', label: 'Today' },
   { key: 'this_week', label: 'This week' },

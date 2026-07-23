@@ -1,7 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
-import { ROLE_ID_USER } from '../../../core/auth/auth-role.util';
 import type { AdminUserRow } from '../../../core/services/admin-users.service';
 import { CrmEntityCacheService } from '../../../core/services/crm-entity-cache.service';
 import { UserDataScopeService } from '../../../core/services/user-data-scope.service';
@@ -29,17 +28,22 @@ import type {
   AdminDashboardPeriod,
   AdminDashboardPeriodKey,
   AdminDashboardSnapshot,
+  AdminDashboardTeamFilters,
   AdminDealDetail,
   AdminLeadDetail,
   AdminPipelineSegment,
   AdminStuckDealRow,
   AdminTeamMemberStats,
 } from '../models/admin-dashboard.models';
+import { DEFAULT_ADMIN_DASHBOARD_TEAM_FILTERS } from '../models/admin-dashboard.models';
 import {
   countLeadsByStatus,
   dealDisplayName,
   dealOwnerLabel,
   dealLastModifiedDate,
+  filterLeadsByTeamStatus,
+  filterLeadsForTeamPeriod,
+  filterTeamUsers,
   formatRelativeTime,
   isActiveDealStatus,
   isDateInRange,
@@ -69,6 +73,7 @@ interface DashboardBuildContext {
   pipeline: DealPipelineStatusRow[];
   pipelineOptions: MasterDataOption[];
   targets: UserTargetRow[];
+  teamFilters: AdminDashboardTeamFilters;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -82,6 +87,7 @@ export class AdminDashboardService {
   loadSnapshot(
     periodKey: AdminDashboardPeriodKey = 'this_month',
     customRange?: AdminDashboardCustomRange | null,
+    teamFilters: AdminDashboardTeamFilters = DEFAULT_ADMIN_DASHBOARD_TEAM_FILTERS,
   ): Observable<{ data: AdminDashboardSnapshot | null; error: string | null }> {
     const period = resolveDashboardPeriod(periodKey, new Date(), customRange);
 
@@ -99,17 +105,23 @@ export class AdminDashboardService {
           targets: this.userTargetsApi.listTargets(false).pipe(catchError(() => of([] as UserTargetRow[]))),
         }).pipe(
           switchMap(({ users, leads, deals, tasks, targets }) => {
-            const salesUsers = users.filter((u) => u.roleId === ROLE_ID_USER);
+            const teamUsers = filterTeamUsers(users, teamFilters.roleId);
             const grouped = this.groupRecords(leads, deals, tasks);
             const entityNames = buildActivityEntityNameMap(leads, deals);
-            const ctx: DashboardBuildContext = { period, pipeline, pipelineOptions, targets };
+            const ctx: DashboardBuildContext = {
+              period,
+              pipeline,
+              pipelineOptions,
+              targets,
+              teamFilters,
+            };
 
             return this.activitiesService.getRecentFeed(50).pipe(
               catchError(() => of([] as ActivityRow[])),
               map((activities) => ({
                 data: this.buildSnapshot(
                   ctx,
-                  salesUsers,
+                  teamUsers,
                   leads,
                   deals,
                   grouped,
@@ -163,7 +175,7 @@ export class AdminDashboardService {
 
   private buildSnapshot(
     ctx: DashboardBuildContext,
-    salesUsers: AdminUserRow[],
+    teamUsers: AdminUserRow[],
     allLeads: LeadRow[],
     allDeals: DealRow[],
     grouped: GroupedRecords,
@@ -190,7 +202,7 @@ export class AdminDashboardService {
 
     const kpis = this.buildKpis(periodLeads, openDeals, wonDealsInPeriod, overlappingTargets);
     const pipelineSegments = this.buildPipelineSegments(openDeals, pipeline);
-    const team = this.buildTeamStats(salesUsers, grouped, overlappingTargets, ctx);
+    const team = this.buildTeamStats(teamUsers, grouped, overlappingTargets, ctx);
     const stuckDeals = this.buildStuckDeals(allDeals, pipelineOptions);
     const activityItems = activities.map((row) =>
       this.toActivityStreamItem(row, entityNames),
@@ -326,22 +338,24 @@ export class AdminDashboardService {
   }
 
   private buildTeamStats(
-    salesUsers: AdminUserRow[],
+    teamUsers: AdminUserRow[],
     grouped: GroupedRecords,
     overlappingTargets: UserTargetRow[],
     ctx: DashboardBuildContext,
   ): AdminTeamMemberStats[] {
-    const { period, pipelineOptions } = ctx;
+    const { period, pipelineOptions, teamFilters } = ctx;
     const rows: AdminTeamMemberStats[] = [];
 
-    for (const user of salesUsers) {
+    for (const user of teamUsers) {
       const uid = user.id.trim();
       const numericUid = Number(uid);
       const userLeads = grouped.leadsByOwner.get(uid) ?? [];
       const userDeals = grouped.dealsByOwner.get(uid) ?? [];
-      const statusCounts = countLeadsByStatus(userLeads);
-      const totalLeads = userLeads.length;
-      const convertedLeads = userLeads.filter((l) => isLeadConvertedRow(l)).length;
+      const periodLeads = filterLeadsForTeamPeriod(userLeads, period);
+      const scopedLeads = filterLeadsByTeamStatus(periodLeads, teamFilters.leadStatus);
+      const statusCounts = countLeadsByStatus(scopedLeads);
+      const totalLeads = scopedLeads.length;
+      const convertedLeads = scopedLeads.filter((l) => isLeadConvertedRow(l)).length;
       const junk = statusCounts['Junk'] ?? 0;
       const denom = Math.max(1, totalLeads - junk);
 

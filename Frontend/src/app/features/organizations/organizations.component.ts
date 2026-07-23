@@ -19,6 +19,7 @@ import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
 import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { createIdSelection } from '../../shared/utils/selection-manager';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
 
 export type OrganizationIndustryFilter = 'all' | string;
 export type OrganizationTerritoryFilter = 'all' | string;
@@ -97,7 +98,7 @@ export class OrganizationsComponent {
   });
 
   protected readonly filtered = computed(() => {
-    const q = this.searchQuery().trim().toLowerCase();
+    const q = TextFormatter.search(this.searchQuery());
     const industry = this.industryFilter();
     const territory = this.territoryFilter();
     return this.rows().filter((row) => {
@@ -336,6 +337,7 @@ export class OrganizationsComponent {
   }
 
   protected submitOrganization(): void {
+    TextFormatter.form(this.createForm);
     this.createForm.markAllAsTouched();
     if (this.createForm.invalid) return;
 
@@ -365,7 +367,7 @@ export class OrganizationsComponent {
     const territoryPick = resolveOrgMasterPick(raw.territory, this.orgMaster.territorySelectOptions());
 
     const payload: Omit<OrganizationRow, 'id'> = {
-      name: nameTrim,
+      name: TextFormatter.entityName('organization', nameTrim),
       website: web || '',
       industry:
         industryPick.label ||

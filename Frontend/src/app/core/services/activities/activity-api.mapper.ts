@@ -1,4 +1,11 @@
 import type { ActivityApiRecord, ActivityEntityType, ActivityGroup, ActivityRow } from './activity-api.models';
+import { inboundPerson } from '../../../shared/utils/text-normalizer/inbound-format';
+
+function formatActorName(raw: string): string {
+  const s = raw.trim();
+  if (!s || s === 'Someone' || /^User #\d+$/i.test(s)) return s || 'Someone';
+  return inboundPerson(s) || s;
+}
 
 function readOptionalInt(v: unknown): number | null {
   if (v == null || v === '') return null;
@@ -75,7 +82,7 @@ export function mapActivityApiRecord(raw: unknown): ActivityRow | null {
     entityId,
     actionType,
     actorUserId: readOptionalInt(r['actorUserId'] ?? r['ActorUserId']),
-    actorName: readString(r['actorName'] ?? r['ActorName']) || 'Someone',
+    actorName: formatActorName(readString(r['actorName'] ?? r['ActorName']) || 'Someone'),
     message: message || `${actionType} on record`,
     fieldName: readString(r['fieldName'] ?? r['FieldName']) || null,
     oldValue: r['oldValue'] != null ? String(r['oldValue']) : r['OldValue'] != null ? String(r['OldValue']) : null,

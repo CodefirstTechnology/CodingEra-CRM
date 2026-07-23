@@ -1,8 +1,9 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
+import { debounceTime, distinctUntilChanged, map } from 'rxjs/operators';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { DealsService } from '../../core/services/deals.service';
 import { leadsHttpErrorMessage } from '../../core/services/leads.service';
@@ -10,6 +11,10 @@ import { ToastService } from '../../core/toast/toast.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { AuthService } from '../../core/auth/auth.service';
+import { OrganizationHttpService } from '../../core/services/organizations/organization-http.service';
+import { ContactHttpService } from '../../core/services/contacts/contact-http.service';
+import type { OrganizationRow } from '../organizations/organizations.component';
+import type { ContactRow } from '../contacts/contacts.component';
 import { resolveRecordOwnerIdForSubmit, showOwnerPickerOnCreate, showSelfAssignedOwnerOnCreate } from '../../shared/utils/record-owner-assignment.util';
 import { LeadOwnerOptionsService } from '../../core/services/leads/lead-owner-options.service';
 import { DealMasterSelectService } from '../../core/services/deals/deal-master-select.service';
@@ -27,6 +32,19 @@ import type { DealPipelineStatus } from '../../core/services/deals/deal-pipeline
 import { DEFAULT_DEAL_PIPELINE_STATUS } from '../../core/services/deals/deal-pipeline.constants';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
+import {
+  CrmSearchableSelectComponent,
+} from '../../shared/components/crm-searchable-select/crm-searchable-select.component';
+import type { CrmSearchableSelectOption } from '../../shared/components/crm-searchable-select/crm-searchable-select.model';
+import {
+  ColumnOrderHandleDirective,
+  ColumnOrderItemDirective,
+  ColumnOrderListDirective,
+  ColumnOrderService,
+  sortByColumnOrder,
+  type ColumnOrderConfig,
+  type ColumnReorderEvent,
+} from '../../shared/table-column-order';
 import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { getCrmIntlTelInitOptions, crmIntlTelInputProps } from '../../shared/config/crm-intl-tel.config';
 import { intlTelMobileErrorMessage } from '../../shared/utils/intl-tel.util';
@@ -45,8 +63,8 @@ import {
   optionalUrlValidator,
 } from '../../shared/validators/crm-validators';
 import { createIdSelection } from '../../shared/utils/selection-manager';
-import { leadPersonName } from '../../shared/utils/lead-person-name.util';
-import { fullNameFromLeadParts, splitFullName } from '../leads/lead-full-name.util';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
+import { fullNameFromLeadParts, normalizeFullNameControl, splitFullName } from '../leads/lead-full-name.util';
 
 export type { DealPipelineStatus };
 
@@ -104,6 +122,8 @@ export interface DealRow {
   createdAtAt?: string;
   /** When set, deal appears on the matching contact's detail "Deals" tab. */
   relatedContactId?: string;
+  /** Backend contact FK when linked to an existing contact. */
+  contactId?: string;
   organizationId?: string;
   /** When set, deal appears on the matching organization's detail "Deals" tab. */
   relatedOrganizationId?: string;
@@ -134,6 +154,14 @@ interface DealColumnOption {
   required: boolean;
 }
 
+const DEALS_TABLE_COLUMNS_STORAGE_PREFIX = 'crm.dealsTableColumns';
+const DEALS_COLUMN_ORDER_STORAGE_PREFIX = 'crm.dealsColumnOrder';
+const DEFAULT_OPTIONAL_DEAL_COLUMN_IDS = [
+  'annualRevenue',
+  'dealAmount',
+  'status',
+] as const;
+
 @Component({
   selector: 'app-deals',
   imports: [
@@ -141,16 +169,25 @@ interface DealColumnOption {
     RouterLink,
     CrmAssignPickerComponent,
     CrmPaginationFooterComponent,
+    CrmSearchableSelectComponent,
     IntlTelInputComponent,
+    ColumnOrderListDirective,
+    ColumnOrderItemDirective,
+    ColumnOrderHandleDirective,
   ],
   templateUrl: './deals.component.html',
   styleUrl: './deals.component.scss',
+  host: {
+    '(document:click)': 'onDocumentClickCloseColumnMenu()',
+  },
 })
 export class DealsComponent {
   private readonly fb = inject(FormBuilder);
   private readonly auth = inject(AuthService);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly dealsService = inject(DealsService);
+  private readonly orgHttp = inject(OrganizationHttpService);
+  private readonly contactHttp = inject(ContactHttpService);
   private readonly toast = inject(ToastService);
   private readonly userScope = inject(UserDataScopeService);
   private readonly permissions = inject(PermissionService);
@@ -158,6 +195,7 @@ export class DealsComponent {
   protected readonly dealMaster = inject(DealMasterSelectService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly columnOrderSvc = inject(ColumnOrderService);
 
   protected readonly sel = createIdSelection();
   protected readonly assignPickerOpen = signal(false);
@@ -165,6 +203,8 @@ export class DealsComponent {
   private lastRouteEdit = '';
 
   protected readonly formOpen = signal(false);
+  protected readonly orgDuplicateSuggestions = signal<OrganizationRow[]>([]);
+  private readonly orgSearchSelect = viewChild<CrmSearchableSelectComponent>('orgSearchSelect');
   protected readonly columnMenuOpen = signal(false);
   protected readonly searchQuery = signal('');
   protected readonly statusFilter = signal<DealListStatusFilter>('all');
@@ -217,7 +257,7 @@ export class DealsComponent {
   protected readonly rows = signal<DealRow[]>([]);
 
   protected readonly filtered = computed(() => {
-    const q = this.searchQuery().trim().toLowerCase();
+    const q = TextFormatter.search(this.searchQuery());
     const st = this.statusFilter();
     const owner = this.ownerFilter();
     const filterByOwner = this.isAdminViewer() && owner !== 'all';
@@ -248,14 +288,7 @@ export class DealsComponent {
   protected readonly tablePagination = createClientTablePagination(this.filtered);
 
   private readonly requiredColumnIds = new Set(['contactName', 'organizationName', 'assignedTo']);
-  private readonly selectedColumnIds = signal<string[]>([
-    'contactName',
-    'organizationName',
-    'assignedTo',
-    'annualRevenue',
-    'dealAmount',
-    'status',
-  ]);
+  private readonly selectedColumnIds = signal<string[]>([...DEFAULT_OPTIONAL_DEAL_COLUMN_IDS]);
   private readonly ignoredColumnIds = new Set([
     'id',
     'dealOwnerId',
@@ -285,6 +318,8 @@ export class DealsComponent {
     'probabilityPercent',
     'nextStep',
   ];
+  /** Full column id order (visible + hidden). Independent of visibility prefs. */
+  private readonly columnOrderIds = signal<string[]>([]);
   private readonly columnLabels: Record<string, string> = {
     contactName: 'Name',
     organizationName: 'Organization',
@@ -298,10 +333,23 @@ export class DealsComponent {
     nextStep: 'Next step',
   };
 
+  private readonly dealsColumnOrderConfig: ColumnOrderConfig = {
+    storageKeyPrefix: DEALS_COLUMN_ORDER_STORAGE_PREFIX,
+    preferredOrder: this.preferredColumnOrder,
+    getUserId: () => this.auth.user()?.id ?? null,
+  };
+
   constructor() {
+    this.selectedColumnIds.set(this.loadStoredOptionalColumnIds());
     this.ownerOpts.load();
     this.dealMaster.ensureStatusesLoaded().pipe(take(1)).subscribe();
+    this.setupExistingOrgContactToggles();
+    this.setupOrganizationDuplicateDetection();
     this.refreshDeals();
+    effect(() => {
+      const available = this.availableColumnIds();
+      untracked(() => this.syncColumnOrderWithAvailable(available));
+    });
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'deal') return;
       const created = e.row as DealRow;
@@ -343,7 +391,7 @@ export class DealsComponent {
     this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
   );
 
-  protected readonly columnOptions = computed<DealColumnOption[]>(() => {
+  protected readonly availableColumnIds = computed(() => {
     const ids = new Set(this.preferredColumnOrder);
     for (const row of this.rows()) {
       for (const key of Object.keys(row)) {
@@ -352,13 +400,17 @@ export class DealsComponent {
         }
       }
     }
-    return [...ids]
-      .filter((id) => !this.ignoredColumnIds.has(id))
-      .map((id) => ({
-        id,
-        label: this.columnLabels[id] ?? this.titleizeColumnId(id),
-        required: this.requiredColumnIds.has(id),
-      }));
+    return [...ids].filter((id) => !this.ignoredColumnIds.has(id));
+  });
+
+  protected readonly columnOptions = computed<DealColumnOption[]>(() => {
+    const options = this.availableColumnIds().map((id) => ({
+      id,
+      label: this.columnLabels[id] ?? this.titleizeColumnId(id),
+      required: this.requiredColumnIds.has(id),
+    }));
+    const order = this.columnOrderIds();
+    return order.length > 0 ? sortByColumnOrder(options, order) : options;
   });
 
   protected readonly visibleColumns = computed(() =>
@@ -378,6 +430,8 @@ export class DealsComponent {
   protected readonly createForm = this.fb.nonNullable.group({
     useExistingOrg: [false],
     useExistingContact: [false],
+    selectedOrganizationId: [''],
+    selectedContactId: [''],
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
     employees: ['1-10'],
     annualRevenue: ['', Validators.maxLength(40)],
@@ -464,11 +518,97 @@ export class DealsComponent {
     this.columnMenuOpen.update((open) => !open);
   }
 
+  /** Closes Columns menu on outside click (inside clicks are stopped on the menu root). */
+  protected onDocumentClickCloseColumnMenu(): void {
+    if (this.columnMenuOpen()) {
+      this.columnMenuOpen.set(false);
+    }
+  }
+
   protected toggleColumn(id: string): void {
     if (this.requiredColumnIds.has(id)) return;
-    this.selectedColumnIds.update((selected) =>
-      selected.includes(id) ? selected.filter((columnId) => columnId !== id) : [...selected, id],
+    const next = this.selectedColumnIds().includes(id)
+      ? this.selectedColumnIds().filter((columnId) => columnId !== id)
+      : [...this.selectedColumnIds(), id];
+    this.saveOptionalColumnIds(next);
+  }
+
+  protected onColumnReordered(event: ColumnReorderEvent): void {
+    const current = this.columnOrderIds();
+    if (!current.length) return;
+    const next = this.columnOrderSvc.applyReorder(
+      this.dealsColumnOrderConfig,
+      current,
+      event.fromIndex,
+      event.toIndex,
     );
+    this.columnOrderIds.set(next);
+  }
+
+  protected resetColumnOrder(): void {
+    const next = this.columnOrderSvc.resetOrder(
+      this.dealsColumnOrderConfig,
+      this.availableColumnIds(),
+    );
+    this.columnOrderIds.set(next);
+  }
+
+  private syncColumnOrderWithAvailable(available: readonly string[]): void {
+    const current = this.columnOrderIds();
+    const next = this.columnOrderSvc.reconcileOrder(
+      this.dealsColumnOrderConfig,
+      available,
+      current,
+    );
+    if (next !== current) {
+      this.columnOrderIds.set(next);
+    }
+  }
+
+  private dealsTableColumnsStorageKey(): string {
+    const userId = this.auth.user()?.id?.trim();
+    return userId
+      ? `${DEALS_TABLE_COLUMNS_STORAGE_PREFIX}.${userId}`
+      : DEALS_TABLE_COLUMNS_STORAGE_PREFIX;
+  }
+
+  private loadStoredOptionalColumnIds(): string[] {
+    try {
+      const raw = localStorage.getItem(this.dealsTableColumnsStorageKey());
+      if (!raw?.trim()) return [...DEFAULT_OPTIONAL_DEAL_COLUMN_IDS];
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [...DEFAULT_OPTIONAL_DEAL_COLUMN_IDS];
+      const ids = parsed.filter((v): v is string => typeof v === 'string');
+      return this.normalizeOptionalColumnIds(ids);
+    } catch {
+      return [...DEFAULT_OPTIONAL_DEAL_COLUMN_IDS];
+    }
+  }
+
+  private normalizeOptionalColumnIds(ids: readonly string[]): string[] {
+    const allowed = new Set(
+      this.preferredColumnOrder.filter(
+        (id) => !this.requiredColumnIds.has(id) && !this.ignoredColumnIds.has(id),
+      ),
+    );
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const id of ids) {
+      if (!allowed.has(id) || seen.has(id)) continue;
+      seen.add(id);
+      out.push(id);
+    }
+    return out;
+  }
+
+  private saveOptionalColumnIds(ids: readonly string[]): void {
+    const normalized = this.normalizeOptionalColumnIds(ids);
+    this.selectedColumnIds.set(normalized);
+    try {
+      localStorage.setItem(this.dealsTableColumnsStorageKey(), JSON.stringify(normalized));
+    } catch {
+      /* quota / private browsing */
+    }
   }
 
   protected isColumnVisible(id: string): boolean {
@@ -477,11 +617,7 @@ export class DealsComponent {
 
   /** Primary contact name from `first_name` + `last_name` on the deal row. */
   protected dealContactName(row: DealRow): string {
-    return leadPersonName({
-      firstName: row.firstName,
-      lastName: row.lastName,
-      name: '',
-    });
+    return fullNameFromLeadParts(row) || '—';
   }
 
   protected displayColumnValue(row: DealRow, id: string): string {
@@ -609,9 +745,12 @@ export class DealsComponent {
   private resetCreateForm(): void {
     const defaultIndustry = this.dealMaster.industrySelectOptions()[0];
     const defaultEmployees = this.dealMaster.employeeSelectOptions()[0];
+    this.orgDuplicateSuggestions.set([]);
     this.createForm.reset({
       useExistingOrg: false,
       useExistingContact: false,
+      selectedOrganizationId: '',
+      selectedContactId: '',
       organizationName: '',
       employees: defaultEmployees ? masterOptionFormValue(defaultEmployees) : '1-10',
       annualRevenue: '',
@@ -653,6 +792,10 @@ export class DealsComponent {
           row.dealAmount != null && row.dealAmount !== 0 ? String(row.dealAmount) : '';
         const emailFromRow = row.email.trim() ? row.email : '';
         this.createForm.patchValue({
+          useExistingOrg: false,
+          useExistingContact: false,
+          selectedOrganizationId: row.organizationId ?? row.relatedOrganizationId ?? '',
+          selectedContactId: row.relatedContactId ?? row.contactId ?? '',
           organizationName: row.organizationName,
           employees: masterSelectControlValue(
             row.employeeCountId,
@@ -784,6 +927,11 @@ export class DealsComponent {
     c.setErrors(Object.keys(next).length ? next : null);
   }
 
+  protected isLinkingExistingContact(): boolean {
+    const raw = this.createForm.getRawValue();
+    return raw.useExistingContact || !!raw.selectedContactId.trim();
+  }
+
   protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
   protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
   protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
@@ -796,6 +944,10 @@ export class DealsComponent {
     return !!c && c.invalid && (c.dirty || c.touched);
   }
 
+  protected onFullNameBlur(): void {
+    normalizeFullNameControl(this.createForm.controls.fullName);
+  }
+
   protected onGstinInput(ev: Event): void {
     syncGstinInputFromEvent(ev, this.createForm.controls.gst);
   }
@@ -805,6 +957,7 @@ export class DealsComponent {
   }
 
   protected submitDeal(): void {
+    TextFormatter.form(this.createForm);
     this.createForm.markAllAsTouched();
     if (this.createForm.invalid) return;
 
@@ -812,6 +965,7 @@ export class DealsComponent {
     const emailTrim = raw.primaryEmail.trim();
     const editId = this.editingNumericId();
     if (
+      !this.isLinkingExistingContact() &&
       emailTrim &&
       this.rows().some(
         (r) =>
@@ -833,6 +987,8 @@ export class DealsComponent {
     const indPick = resolveOrgMasterPick(raw.industry, this.dealMaster.industrySelectOptions());
     const statPick = resolveOrgMasterPick(raw.status, this.dealMaster.statusSelectOptions());
     const { firstName, lastName } = splitFullName(raw.fullName);
+    const selectedOrgId = raw.selectedOrganizationId.trim();
+    const selectedContactId = raw.selectedContactId.trim();
     const payload: Omit<DealRow, 'id'> = {
       organizationName: raw.organizationName.trim(),
       employees: empPick.label.trim() || '1-10',
@@ -863,6 +1019,15 @@ export class DealsComponent {
       nextStep: '',
       requirement: raw.requirement.trim() || undefined,
     };
+
+    if (selectedOrgId) {
+      payload.organizationId = selectedOrgId;
+      payload.relatedOrganizationId = selectedOrgId;
+    }
+    if (selectedContactId) {
+      payload.contactId = selectedContactId;
+      payload.relatedContactId = selectedContactId;
+    }
 
     const done = () => {
       this.sel.clear();
@@ -958,5 +1123,205 @@ export class DealsComponent {
       .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
       .replace(/[_-]+/g, ' ')
       .replace(/\b\w/g, (ch) => ch.toUpperCase());
+  }
+
+  protected useExistingOrgEnabled(): boolean {
+    return !!this.createForm.controls.useExistingOrg.value;
+  }
+
+  protected useExistingContactEnabled(): boolean {
+    return !!this.createForm.controls.useExistingContact.value;
+  }
+
+  protected searchOrganizations = (term: string) =>
+    this.orgHttp.search(term).pipe(
+      map((rows) =>
+        rows.map(
+          (o): CrmSearchableSelectOption => ({
+            id: o.id,
+            label: o.name,
+            hint: [o.gst, o.website].filter((v) => !!v?.trim()).join(' · ') || undefined,
+            meta: o,
+          }),
+        ),
+      ),
+    );
+
+  protected searchContacts = (term: string) => {
+    const orgId = Number(this.createForm.controls.selectedOrganizationId.value);
+    return this.contactHttp
+      .search(term, Number.isFinite(orgId) && orgId > 0 ? orgId : undefined)
+      .pipe(
+        map((rows) =>
+          rows.map(
+            (c): CrmSearchableSelectOption => ({
+              id: c.id,
+              label: this.contactDisplayName(c),
+              hint: [c.email !== '—' ? c.email : '', c.phone !== '—' ? c.phone : '']
+                .filter(Boolean)
+                .join(' · ') || undefined,
+              meta: c,
+            }),
+          ),
+        ),
+      );
+  };
+
+  protected onOrganizationPicked(opt: CrmSearchableSelectOption): void {
+    const cached = opt.meta as OrganizationRow | undefined;
+    if (cached?.id) {
+      this.applyExistingOrganization(cached);
+      return;
+    }
+
+    const id = Number(opt.id);
+    if (!Number.isFinite(id) || id <= 0) return;
+    this.orgHttp
+      .getById(id)
+      .pipe(take(1))
+      .subscribe((org) => {
+        if (!org) {
+          this.toast.error('Could not load organization details.');
+          return;
+        }
+        this.applyExistingOrganization(org);
+      });
+  }
+
+  protected onContactPicked(opt: CrmSearchableSelectOption): void {
+    const cached = opt.meta as ContactRow | undefined;
+    if (cached?.id) {
+      this.patchContactFields(cached);
+      return;
+    }
+
+    const id = Number(opt.id);
+    if (!Number.isFinite(id) || id <= 0) return;
+    this.contactHttp
+      .getById(id)
+      .pipe(take(1))
+      .subscribe((contact) => {
+        if (!contact) {
+          this.toast.error('Could not load contact details.');
+          return;
+        }
+        this.patchContactFields(contact);
+      });
+  }
+
+  protected useDuplicateOrganization(org: OrganizationRow): void {
+    this.createForm.controls.useExistingOrg.setValue(true);
+    this.orgDuplicateSuggestions.set([]);
+    queueMicrotask(() => {
+      this.applyExistingOrganization(org);
+      this.orgSearchSelect()?.applySelection({ id: org.id, label: org.name, meta: org });
+    });
+  }
+
+  protected dismissDuplicateOrganization(): void {
+    this.orgDuplicateSuggestions.set([]);
+  }
+
+  private setupExistingOrgContactToggles(): void {
+    this.createForm.controls.useExistingOrg.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((enabled) => {
+        this.orgDuplicateSuggestions.set([]);
+        if (!enabled) {
+          this.createForm.controls.selectedOrganizationId.setValue('');
+        }
+      });
+
+    this.createForm.controls.useExistingContact.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((enabled) => {
+        if (!enabled) {
+          this.createForm.controls.selectedContactId.setValue('');
+        }
+      });
+  }
+
+  private setupOrganizationDuplicateDetection(): void {
+    this.createForm.controls.organizationName.valueChanges
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((name) => {
+        if (this.createForm.controls.useExistingOrg.value) {
+          this.orgDuplicateSuggestions.set([]);
+          return;
+        }
+        const q = name.trim();
+        if (q.length < 2) {
+          this.orgDuplicateSuggestions.set([]);
+          return;
+        }
+        this.orgHttp
+          .search(q)
+          .pipe(take(1))
+          .subscribe((rows) => {
+            const lower = q.toLowerCase();
+            const matches = rows.filter((o) => o.name.trim().toLowerCase().includes(lower));
+            this.orgDuplicateSuggestions.set(matches.slice(0, 3));
+          });
+      });
+  }
+
+  private applyExistingOrganization(org: OrganizationRow): void {
+    this.patchOrganizationFields(org);
+    this.loadLinkedContactForOrganization(org.id);
+  }
+
+  private loadLinkedContactForOrganization(orgId: string): void {
+    const id = Number(orgId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    this.contactHttp
+      .list({ organizationId: id, limit: 10 })
+      .pipe(take(1))
+      .subscribe((contacts) => {
+        const contact = contacts[0];
+        if (!contact) return;
+        this.patchContactFields(contact);
+      });
+  }
+
+  private patchOrganizationFields(org: OrganizationRow): void {
+    const revenue =
+      org.annualRevenue != null && org.annualRevenue !== 0 ? String(org.annualRevenue) : '';
+    this.createForm.patchValue({
+      selectedOrganizationId: org.id,
+      organizationName: org.name,
+      employees: masterSelectControlValue(
+        org.employeeCountId,
+        org.employees,
+        this.dealMaster.employeeSelectOptions(),
+      ),
+      annualRevenue: revenue,
+      website: org.website ?? '',
+      gst: normalizeGstin(org.gst),
+      territory: masterSelectControlValue(
+        org.territoryId,
+        org.territory,
+        this.dealMaster.territorySelectOptions(),
+      ),
+      industry: masterSelectControlValue(
+        org.industryId,
+        org.industry,
+        this.dealMaster.industrySelectOptions(),
+      ),
+    });
+  }
+
+  private patchContactFields(contact: ContactRow): void {
+    this.createForm.patchValue({
+      selectedContactId: contact.id,
+      fullName: fullNameFromLeadParts(contact),
+      primaryEmail: contact.email === '—' ? '' : contact.email,
+      primaryMobile: contact.phone === '—' ? '' : contact.phone,
+      gender: contact.gender,
+    });
+    this.clearEmailDuplicate();
+  }
+
+  private contactDisplayName(contact: ContactRow): string {
+    return fullNameFromLeadParts(contact) || contact.email || contact.phone || 'Contact';
   }
 }
