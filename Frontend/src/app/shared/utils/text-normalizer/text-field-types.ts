@@ -61,18 +61,15 @@ export const CRM_FIELD_KIND_BY_KEY: Record<string, FieldKind> = {
   firstname: 'personName',
   lastname: 'personName',
   contactperson: 'personName',
-  leadowner: 'personName',
+  // User/master ids on forms — do not format as personName (digits would be stripped).
+  // Display-name variants below remain personName.
   leadownername: 'personName',
-  dealowner: 'personName',
   dealownername: 'personName',
-  assignedto: 'personName',
   assignedtoname: 'personName',
   username: 'personName',
   author: 'personName',
   kindattn: 'personName',
   kindattention: 'personName',
-  salutation: 'personName',
-  primarycontact: 'personName',
   contactname: 'personName',
 
   // Company
