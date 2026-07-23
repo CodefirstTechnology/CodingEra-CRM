@@ -27,6 +27,7 @@ import {
 import {
   buildLeadDisplayName,
   fullNameFromLeadParts,
+  normalizeFullNameControl,
   splitFullName,
 } from './lead-full-name.util';
 import { ToastService } from '../../core/toast/toast.service';
@@ -63,6 +64,7 @@ import {
 } from '../../shared/utils/gstin.util';
 import { gstFormValidators } from '../../shared/validators/crm-validators';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
 import type { TaskRow } from '../tasks/tasks.component';
 
@@ -834,6 +836,10 @@ export class LeadDetailComponent {
     this.sidebarPersonOpen.update((o) => !o);
   }
 
+  protected onFullNameBlur(): void {
+    normalizeFullNameControl(this.dataForm.controls.fullName);
+  }
+
   protected patchDataForm(row: LeadRow): void {
     this.dataForm.patchValue(
       {
@@ -951,6 +957,7 @@ export class LeadDetailComponent {
       return;
     }
 
+    TextFormatter.form(this.dataForm);
     if (this.dataForm.invalid) {
       this.dataForm.markAllAsTouched();
       return;
@@ -960,7 +967,11 @@ export class LeadDetailComponent {
     const terrPick = this.resolveMasterPick(v.territory, this.territorySelectOptions());
     const indPick = this.resolveMasterPick(v.industry, this.industrySelectOptions());
     const { firstName, lastName } = splitFullName(v.fullName);
-    const name = buildLeadDisplayName('', firstName, lastName) || v.fullName.trim() || row.name;
+    const name =
+      TextFormatter.entityName(
+        'lead',
+        buildLeadDisplayName('', firstName, lastName) || v.fullName || row.name,
+      ) || row.name;
 
     const ownerId = resolveRecordOwnerIdForSubmit({
       canAssign: this.canAssignLeads(),

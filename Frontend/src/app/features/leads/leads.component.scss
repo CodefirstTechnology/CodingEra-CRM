@@ -578,13 +578,12 @@ select.leads__control {
 .leads__column-option {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.42rem 0.35rem;
+  gap: 0.35rem;
+  padding: 0.35rem 0.25rem;
   border-radius: 8px;
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--text-primary);
-  cursor: pointer;
 
   &:hover {
     background: color-mix(in srgb, var(--tertiary-color) 8%, transparent);
@@ -592,7 +591,85 @@ select.leads__control {
 
   &.is-required {
     color: var(--text-muted);
+  }
+
+  &.is-dragging {
+    opacity: 0.55;
+  }
+
+  &.is-drop-target {
+    background: color-mix(in srgb, var(--tertiary-color) 16%, transparent);
+    outline: 1px dashed color-mix(in srgb, var(--tertiary-color) 55%, transparent);
+  }
+}
+
+.leads__columns-menu.is-reordering {
+  user-select: none;
+  cursor: grabbing;
+}
+
+.leads__column-drag {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: grab;
+  user-select: none;
+  touch-action: none;
+  outline: none;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  &:hover,
+  &:focus-visible {
+    background: color-mix(in srgb, var(--tertiary-color) 12%, transparent);
+    color: var(--text-primary);
+  }
+}
+
+.leads__column-option-label {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+  cursor: pointer;
+
+  .leads__column-option.is-required & {
     cursor: default;
+  }
+}
+
+.leads__columns-reset {
+  display: block;
+  width: 100%;
+  margin-top: 0.45rem;
+  padding: 0.45rem 0.5rem;
+  border: 0;
+  border-top: 1px solid var(--card-border);
+  border-radius: 0 0 6px 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--text-primary);
+    background: color-mix(in srgb, var(--tertiary-color) 8%, transparent);
   }
 }
 

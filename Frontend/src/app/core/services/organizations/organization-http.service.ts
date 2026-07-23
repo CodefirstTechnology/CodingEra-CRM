@@ -1,4 +1,4 @@
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { inject, Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
@@ -60,6 +60,17 @@ export class OrganizationHttpService {
   list(): Observable<OrganizationRow[]> {
     return this.http
       .get<unknown>(this.baseUrl, { headers: this.jsonHeaders() })
+      .pipe(map((raw) => extractOrganizationRecords(raw).map((item) => normalizeOrganizationApiRecord(item))));
+  }
+
+  search(term: string, limit = 20): Observable<OrganizationRow[]> {
+    const q = term.trim();
+    if (q.length < 2) {
+      return of([]);
+    }
+    const params = new HttpParams().set('search', q).set('limit', String(limit));
+    return this.http
+      .get<unknown>(this.baseUrl, { headers: this.jsonHeaders(), params })
       .pipe(map((raw) => extractOrganizationRecords(raw).map((item) => normalizeOrganizationApiRecord(item))));
   }
 

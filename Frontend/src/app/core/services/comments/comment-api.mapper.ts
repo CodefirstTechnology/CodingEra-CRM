@@ -1,5 +1,12 @@
 import { formatActivityWhen } from '../activities/activity-api.mapper';
 import type { EntityCommentItem } from './comment-api.models';
+import { inboundDescription, inboundPerson } from '../../../shared/utils/text-normalizer/inbound-format';
+
+function formatAuthorName(raw: string): string {
+  const s = raw.trim();
+  if (!s || /^User #\d+$/i.test(s)) return s;
+  return inboundPerson(s) || s;
+}
 
 function readOptionalInt(v: unknown): number | null {
   if (v == null || v === '') return null;
@@ -37,9 +44,10 @@ export function mapCommentApiRecord(
   const authorId = readOptionalInt(r['authorId'] ?? r['AuthorId'] ?? r['createdBy'] ?? r['CreatedBy']);
   const createdAt = readString(r['createdAt'] ?? r['CreatedAt']) || new Date().toISOString();
   const body = readString(r['body'] ?? r['Body']);
-  const authorName =
+  const authorName = formatAuthorName(
     readString(r['authorName'] ?? r['AuthorName']) ||
-    (resolveAuthorName ? resolveAuthorName(authorId) : authorId != null ? `User #${authorId}` : 'User');
+      (resolveAuthorName ? resolveAuthorName(authorId) : authorId != null ? `User #${authorId}` : 'User'),
+  );
   const initial = authorName.replace(/[^a-zA-Z0-9]/g, '').charAt(0).toUpperCase() || '?';
 
   return {
@@ -47,7 +55,7 @@ export function mapCommentApiRecord(
     authorId,
     authorName,
     authorInitial: initial,
-    body,
+    body: inboundDescription(body),
     whenLabel: formatActivityWhen(createdAt),
     createdAt,
   };

@@ -3,6 +3,7 @@ import { inject, Injectable } from '@angular/core';
 import { Observable, catchError, map, of, timeout } from 'rxjs';
 import { environment } from '../../../../../environments/environment';
 import { AuthService } from '../../../../core/auth/auth.service';
+import { TextFormatter } from '../../../../shared/utils/text-normalizer';
 import type {
   DealStatusReorderItem,
   MasterFormEntitySlug,
@@ -27,12 +28,15 @@ function extractRows(raw: unknown): Record<string, unknown>[] {
   return [];
 }
 
-function mapRow(raw: Record<string, unknown>): MasterFormRow | null {
+function mapRow(raw: Record<string, unknown>, entity?: MasterFormEntitySlug): MasterFormRow | null {
   const id = Number(raw['id'] ?? raw['Id']);
-  const name = String(raw['name'] ?? raw['Name'] ?? '').trim();
-  if (!Number.isFinite(id) || id <= 0 || !name) return null;
+  const nameRaw = String(raw['name'] ?? raw['Name'] ?? '').trim();
+  if (!Number.isFinite(id) || id <= 0 || !nameRaw) return null;
 
-  const description = String(raw['description'] ?? raw['Description'] ?? '').trim();
+  const name = TextFormatter.entityName(entity ?? 'unknown', nameRaw) || nameRaw;
+  const description = TextFormatter.description(
+    String(raw['description'] ?? raw['Description'] ?? ''),
+  );
   const isActive = raw['isActive'] ?? raw['IsActive'];
   const createdRaw = raw['createdAt'] ?? raw['CreatedAt'];
 
@@ -76,7 +80,7 @@ export class MasterFormsService {
         timeout(30000),
         map((raw) =>
           extractRows(raw)
-            .map((row) => mapRow(row))
+            .map((row) => mapRow(row, entity))
             .filter((row): row is MasterFormRow => row != null),
         ),
         catchError(() => of([])),
@@ -107,7 +111,7 @@ export class MasterFormsService {
         timeout(15000),
         map((raw): MasterFormSaveResult => {
           const rows = extractRows(raw)
-            .map((row) => mapRow(row))
+            .map((row) => mapRow(row, 'deal-statuses'))
             .filter((row): row is MasterFormRow => row != null);
           if (rows.length === 0) {
             return { ok: false, error: 'Unexpected response from server.' };
@@ -133,7 +137,7 @@ export class MasterFormsService {
       .pipe(
         timeout(15000),
         map((raw): MasterFormSaveResult => {
-          const row = raw && typeof raw === 'object' ? mapRow(raw as Record<string, unknown>) : null;
+          const row = raw && typeof raw === 'object' ? mapRow(raw as Record<string, unknown>, entity) : null;
           if (!row) {
             return { ok: false, error: 'Unexpected response from server.' };
           }
@@ -156,8 +160,8 @@ export class MasterFormsService {
 
     const body: Record<string, unknown> = {
       id: payload.id ?? 0,
-      name: payload.name.trim(),
-      description: payload.description.trim(),
+      name: TextFormatter.entityName(entity, payload.name),
+      description: TextFormatter.description(payload.description),
       isActive: payload.isActive,
     };
     if (entity === 'deal-statuses') {
@@ -180,7 +184,7 @@ export class MasterFormsService {
     return request$.pipe(
       timeout(15000),
       map((raw): MasterFormSaveResult => {
-        const row = raw && typeof raw === 'object' ? mapRow(raw as Record<string, unknown>) : null;
+        const row = raw && typeof raw === 'object' ? mapRow(raw as Record<string, unknown>, entity) : null;
         if (!row) {
           return { ok: false, error: 'Unexpected response from server.' };
         }

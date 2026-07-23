@@ -13,6 +13,7 @@ import type {
   QuotationCatalogColumn,
   QuotationCatalogItem,
 } from './item-master-api.models';
+import { TextFormatter } from '../../../shared/utils/text-normalizer';
 
 function readObj(raw: unknown): Record<string, unknown> {
   return raw != null && typeof raw === 'object' && !Array.isArray(raw)
@@ -93,10 +94,13 @@ export function mapItemGroup(raw: unknown): ItemGroup {
   const o = readObj(raw);
   return {
     id: readNum(o, ['id', 'Id']),
-    name: readStr(o, ['name', 'Name']),
+    name: TextFormatter.entityName('itemGroup', readStr(o, ['name', 'Name'])),
     parentId: readOptInt(o, ['parentId', 'ParentId']),
-    parentName: readStr(o, ['parentName', 'ParentName']) || null,
-    description: readStr(o, ['description', 'Description']),
+    parentName: (() => {
+      const n = readStr(o, ['parentName', 'ParentName']);
+      return n ? TextFormatter.entityName('itemGroup', n) : null;
+    })(),
+    description: TextFormatter.description(readStr(o, ['description', 'Description'])),
     sortOrder: readNum(o, ['sortOrder', 'SortOrder']),
     isActive: readBool(o, ['isActive', 'IsActive'], true),
     itemCount: readNum(o, ['itemCount', 'ItemCount']),
@@ -113,7 +117,7 @@ export function mapItemAttribute(raw: unknown): ItemAttribute {
   const valueType = readStr(o, ['valueType', 'ValueType']) as ItemAttributeValueType;
   return {
     id: readNum(o, ['id', 'Id']),
-    name: readStr(o, ['name', 'Name']),
+    name: TextFormatter.entityName('itemAttribute', readStr(o, ['name', 'Name'])),
     code: readStr(o, ['code', 'Code']),
     valueType: valueType || 'Text',
     isVariantAttribute: readBool(o, ['isVariantAttribute', 'IsVariantAttribute']),
@@ -182,10 +186,14 @@ export function toItemGroupBody(dto: {
   sortOrder: number;
   isActive: boolean;
 }): Record<string, unknown> {
-  return {
+  const normalized = TextFormatter.entity('itemGroup', {
     name: dto.name,
-    parentId: dto.parentId,
     description: dto.description,
+  });
+  return {
+    name: String(normalized['name'] ?? ''),
+    parentId: dto.parentId,
+    description: String(normalized['description'] ?? ''),
     sortOrder: dto.sortOrder,
     isActive: dto.isActive,
   };
@@ -201,7 +209,7 @@ export function toItemAttributeBody(dto: {
   values: { id?: number; value: string; sortOrder: number; isActive: boolean }[];
 }): Record<string, unknown> {
   return {
-    name: dto.name,
+    name: TextFormatter.entityName('itemAttribute', dto.name),
     code: dto.code,
     valueType: dto.valueType,
     isVariantAttribute: dto.isVariantAttribute,

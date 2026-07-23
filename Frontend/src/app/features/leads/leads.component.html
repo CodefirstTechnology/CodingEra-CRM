@@ -65,6 +65,7 @@
                   type="text"
                   formControlName="fullName"
                   autocomplete="name"
+                  (blur)="onFullNameBlur()"
                 />
                 @if (fieldInvalid('fullName')) {
                   <span class="leads__err">Full name is required.</span>
@@ -417,20 +418,50 @@
           Columns
         </button>
         @if (columnMenuOpen()) {
-          <div class="leads__columns-menu" role="menu" aria-label="Choose lead table columns">
-            <p class="leads__columns-help">Name, source, and requirement cannot be hidden.</p>
-            @for (column of columnOptions(); track column.id) {
-              <label class="leads__column-option" [class.is-required]="column.required">
-                <input
-                  type="checkbox"
-                  class="leads__checkbox"
-                  [checked]="isColumnVisible(column.id)"
-                  [disabled]="column.required"
-                  (change)="toggleColumn(column.id)"
-                />
-                <span>{{ column.label }}</span>
-              </label>
+          <div
+            class="leads__columns-menu"
+            role="menu"
+            aria-label="Choose lead table columns"
+            crmColumnOrderList
+            (crmColumnReordered)="onColumnReordered($event)"
+          >
+            <p class="leads__columns-help">
+              Name, source, and requirement cannot be hidden. Press and hold ☰, then drag up or down.
+            </p>
+            @for (column of columnOptions(); track column.id; let i = $index) {
+              <div
+                class="leads__column-option"
+                [class.is-required]="column.required"
+                [crmColumnOrderItem]="i"
+                role="menuitem"
+              >
+                <span
+                  class="leads__column-drag"
+                  crmColumnOrderHandle
+                  [attr.aria-label]="'Reorder ' + column.label"
+                  title="Press and hold, then drag"
+                >
+                  ☰
+                </span>
+                <label class="leads__column-option-label">
+                  <input
+                    type="checkbox"
+                    class="leads__checkbox"
+                    [checked]="isColumnVisible(column.id)"
+                    [disabled]="column.required"
+                    (change)="toggleColumn(column.id)"
+                  />
+                  <span>{{ column.label }}</span>
+                </label>
+              </div>
             }
+            <button
+              type="button"
+              class="leads__columns-reset"
+              (click)="resetColumnOrder()"
+            >
+              Reset Column Order
+            </button>
           </div>
         }
       </div>

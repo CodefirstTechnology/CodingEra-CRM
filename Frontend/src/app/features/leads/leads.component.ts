@@ -52,6 +52,7 @@ import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.s
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { resolveRecordOwnerIdForSubmit, showOwnerPickerOnCreate, showSelfAssignedOwnerOnCreate } from '../../shared/utils/record-owner-assignment.util';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
 import { ToastService } from '../../core/toast/toast.service';
 import { CrmAssignPickerComponent } from '../../shared/components/crm-assign-picker/crm-assign-picker.component';
 import {
@@ -67,6 +68,15 @@ import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagina
 import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
 import { createIdSelection } from '../../shared/utils/selection-manager';
+import {
+  ColumnOrderHandleDirective,
+  ColumnOrderItemDirective,
+  ColumnOrderListDirective,
+  ColumnOrderService,
+  sortByColumnOrder,
+  type ColumnOrderConfig,
+  type ColumnReorderEvent,
+} from '../../shared/table-column-order';
 import {
   GSTIN_ERROR_KEY,
   GSTIN_ERROR_MESSAGE,
@@ -86,6 +96,7 @@ import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import {
   buildLeadDisplayName,
   fullNameFromLeadParts,
+  normalizeFullNameControl,
   splitFullName,
 } from './lead-full-name.util';
 import { environment } from '../../../environments/environment';
@@ -129,6 +140,7 @@ const FALLBACK_INDUSTRY_NAMES = [
 ] as const;
 
 const LEADS_TABLE_COLUMNS_STORAGE_PREFIX = 'crm.leadsTableColumns';
+const LEADS_COLUMN_ORDER_STORAGE_PREFIX = 'crm.leadsColumnOrder';
 const DEFAULT_OPTIONAL_LEAD_COLUMN_IDS = ['status', 'owner'] as const;
 
 interface LeadColumnOption {
@@ -150,9 +162,15 @@ interface LeadColumnOption {
     NgComponentOutlet,
     IntlTelInputComponent,
     DatePipe,
+    ColumnOrderListDirective,
+    ColumnOrderItemDirective,
+    ColumnOrderHandleDirective,
   ],
   templateUrl: './leads.component.html',
   styleUrl: './leads.component.scss',
+  host: {
+    '(document:click)': 'onDocumentClickCloseColumnMenu()',
+  },
 })
 export class LeadsComponent {
   private readonly fb = inject(FormBuilder);
@@ -168,6 +186,7 @@ export class LeadsComponent {
   private readonly leadRoundRobin = inject(LeadRoundRobinService);
   private readonly leadSyncApi = inject(LeadSyncHttpService);
   private readonly injector = inject(Injector);
+  private readonly columnOrderSvc = inject(ColumnOrderService);
 
   /** Assigned lead sync sources for the current user (from API). */
   protected readonly leadSyncAccess = signal<LeadSyncMyAccess[]>([]);
@@ -351,6 +370,8 @@ export class LeadsComponent {
     'notes',
   ];
   private readonly selectedColumnIds = signal<string[]>([...DEFAULT_OPTIONAL_LEAD_COLUMN_IDS]);
+  /** Full column id order (visible + hidden). Independent of visibility prefs. */
+  private readonly columnOrderIds = signal<string[]>([]);
   private readonly columnLabels: Record<string, string> = {
     source: 'Source',
     owner: 'Lead owner',
@@ -359,6 +380,12 @@ export class LeadsComponent {
     location: 'Location',
     leadDate: 'Lead date',
     requestType: 'Request type',
+  };
+
+  private readonly leadsColumnOrderConfig: ColumnOrderConfig = {
+    storageKeyPrefix: LEADS_COLUMN_ORDER_STORAGE_PREFIX,
+    preferredOrder: this.preferredColumnOrder,
+    getUserId: () => this.auth.user()?.id ?? null,
   };
 
   /** Manual / API-backed rows only; merged with marketplace lead sources in {@link rows}. */
@@ -381,6 +408,10 @@ export class LeadsComponent {
       .subscribe((active) => this.detailChildActive.set(active));
     this.refreshLeads();
     this.refreshDealConversionIndex();
+    effect(() => {
+      const available = this.availableColumnIds();
+      untracked(() => this.syncColumnOrderWithAvailable(available));
+    });
     forkJoin({
       employeeCounts: this.leadMasterData.loadEmployeeCounts(),
       territories: this.leadMasterData.loadTerritories(),
@@ -573,7 +604,7 @@ export class LeadsComponent {
   }
 
   protected readonly filtered = computed(() => {
-    const q = this.searchQuery().trim().toLowerCase();
+    const q = TextFormatter.search(this.searchQuery());
     const st = this.statusFilter();
     const src = this.sourceFilter();
     const owner = this.ownerFilter();
@@ -610,7 +641,7 @@ export class LeadsComponent {
     this.sel.allSelectedIn(this.filtered().map((r) => r.id)),
   );
 
-  protected readonly columnOptions = computed<LeadColumnOption[]>(() => {
+  protected readonly availableColumnIds = computed(() => {
     const ids = new Set(this.preferredColumnOrder);
     for (const row of this.rows()) {
       for (const key of Object.keys(row)) {
@@ -619,13 +650,17 @@ export class LeadsComponent {
         }
       }
     }
-    return [...ids]
-      .filter((id) => !this.ignoredColumnIds.has(id))
-      .map((id) => ({
-        id,
-        label: this.columnLabels[id] ?? this.titleizeColumnId(id),
-        required: this.requiredColumnIds.has(id),
-      }));
+    return [...ids].filter((id) => !this.ignoredColumnIds.has(id));
+  });
+
+  protected readonly columnOptions = computed<LeadColumnOption[]>(() => {
+    const options = this.availableColumnIds().map((id) => ({
+      id,
+      label: this.columnLabels[id] ?? this.titleizeColumnId(id),
+      required: this.requiredColumnIds.has(id),
+    }));
+    const order = this.columnOrderIds();
+    return order.length > 0 ? sortByColumnOrder(options, order) : options;
   });
 
   protected readonly visibleColumns = computed(() =>
@@ -1301,12 +1336,51 @@ export class LeadsComponent {
     this.columnMenuOpen.update((open) => !open);
   }
 
+  /** Closes Columns menu on outside click (inside clicks are stopped on the menu root). */
+  protected onDocumentClickCloseColumnMenu(): void {
+    if (this.columnMenuOpen()) {
+      this.columnMenuOpen.set(false);
+    }
+  }
+
   protected toggleColumn(id: string): void {
     if (this.requiredColumnIds.has(id)) return;
     const next = this.selectedColumnIds().includes(id)
       ? this.selectedColumnIds().filter((columnId) => columnId !== id)
       : [...this.selectedColumnIds(), id];
     this.saveOptionalColumnIds(next);
+  }
+
+  protected onColumnReordered(event: ColumnReorderEvent): void {
+    const current = this.columnOrderIds();
+    if (!current.length) return;
+    const next = this.columnOrderSvc.applyReorder(
+      this.leadsColumnOrderConfig,
+      current,
+      event.fromIndex,
+      event.toIndex,
+    );
+    this.columnOrderIds.set(next);
+  }
+
+  protected resetColumnOrder(): void {
+    const next = this.columnOrderSvc.resetOrder(
+      this.leadsColumnOrderConfig,
+      this.availableColumnIds(),
+    );
+    this.columnOrderIds.set(next);
+  }
+
+  private syncColumnOrderWithAvailable(available: readonly string[]): void {
+    const current = this.columnOrderIds();
+    const next = this.columnOrderSvc.reconcileOrder(
+      this.leadsColumnOrderConfig,
+      available,
+      current,
+    );
+    if (next !== current) {
+      this.columnOrderIds.set(next);
+    }
   }
 
   private leadsTableColumnsStorageKey(): string {
@@ -1439,6 +1513,7 @@ export class LeadsComponent {
   }
 
   protected submitLead(): void {
+    TextFormatter.form(this.createForm);
     this.createForm.markAllAsTouched();
     if (this.createForm.invalid) return;
 
@@ -1484,7 +1559,11 @@ export class LeadsComponent {
       salutationId: undefined,
       firstName,
       lastName,
-      name: buildLeadDisplayName('', firstName, lastName) || raw.fullName.trim(),
+      name:
+        TextFormatter.entityName(
+          'lead',
+          buildLeadDisplayName('', firstName, lastName) || raw.fullName,
+        ) || firstName,
       mobile: raw.mobile.trim(),
       leadOwnerId,
       gender: raw.gender || undefined,
@@ -1786,6 +1865,10 @@ export class LeadsComponent {
   protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
   protected readonly intlTelMobileInputProps = crmIntlTelInputProps();
   protected intlTelMobileError = intlTelMobileErrorMessage;
+
+  protected onFullNameBlur(): void {
+    normalizeFullNameControl(this.createForm.controls.fullName);
+  }
 
   protected fieldInvalid(name: string): boolean {
     const c = this.createForm.get(name);

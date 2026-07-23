@@ -1,4 +1,4 @@
-import { normalizeGstin } from '../../../shared/utils/gstin.util';
+import { TextFormatter } from '../../../shared/utils/text-normalizer';
 import { resolveImportNameParts } from './lead-import-name.util';
 import type { LeadImportParsedRow, LeadImportProgress } from './lead-import.models';
 import type { LeadImportRowDto } from './lead-import-api.models';
@@ -27,35 +27,55 @@ function mapParsedRowToImportDto(row: LeadImportParsedRow, columns: string[]): L
   const v = row.values;
   const { firstName, lastName } = resolveImportNameParts(v, columns, pickValue);
 
-  return {
+  const dto: LeadImportRowDto = {
     rowNumber: row.rowNumber,
-    salutation: optionalField(pickValue(v, columns, ['salutation'])),
-    firstName: optionalField(firstName),
-    lastName: optionalField(lastName),
-    mobile: optionalField(pickValue(v, columns, ['mobile', 'phone', 'mobile number'])),
-    email: optionalField(pickValue(v, columns, ['email', 'e-mail'])),
-    gender: optionalField(pickValue(v, columns, ['gender'])),
-    organization: optionalField(pickValue(v, columns, ['organization', 'organisation', 'company'])),
-    industry: optionalField(pickValue(v, columns, ['industry'])),
+    salutation: optionalField(TextFormatter.personName(pickValue(v, columns, ['salutation']))),
+    firstName: optionalField(TextFormatter.personName(firstName)),
+    lastName: optionalField(TextFormatter.personName(lastName)),
+    mobile: optionalField(TextFormatter.mobile(pickValue(v, columns, ['mobile', 'phone', 'mobile number']))),
+    email: optionalField(TextFormatter.email(pickValue(v, columns, ['email', 'e-mail']))),
+    gender: optionalField(TextFormatter.gender(pickValue(v, columns, ['gender']))),
+    organization: optionalField(
+      TextFormatter.companyName(pickValue(v, columns, ['organization', 'organisation', 'company'])),
+    ),
+    industry: optionalField(TextFormatter.industry(pickValue(v, columns, ['industry']))),
     noOfEmployees: optionalField(
       pickValue(v, columns, ['no of employees', 'employees', 'employee count', 'no_of_employees']),
     ),
     annualRevenue: optionalField(
       pickValue(v, columns, ['annual revenue', 'revenue', 'annual_revenue']),
     ),
-    website: optionalField(pickValue(v, columns, ['website', 'web site', 'url'])),
-    gst: optionalField(normalizeGstin(pickValue(v, columns, ['gstin', 'gst', 'gst number']))),
-    territory: optionalField(pickValue(v, columns, ['territory'])),
-    location: optionalField(pickValue(v, columns, ['location', 'address'])),
-    status: optionalField(pickValue(v, columns, ['status', 'lead status'])),
-    leadOwner: optionalField(pickValue(v, columns, ['lead owner', 'owner', 'assigned to'])),
+    website: optionalField(
+      TextFormatter.website(pickValue(v, columns, ['website', 'web site', 'url'])),
+    ),
+    gst: optionalField(
+      TextFormatter.gstin(pickValue(v, columns, ['gstin', 'gst', 'gst number'])),
+    ),
+    territory: optionalField(TextFormatter.territory(pickValue(v, columns, ['territory']))),
+    location: optionalField(
+      TextFormatter.address(pickValue(v, columns, ['location', 'address'])),
+    ),
+    status: optionalField(
+      TextFormatter.status(pickValue(v, columns, ['status', 'lead status'])),
+    ),
+    leadOwner: optionalField(
+      TextFormatter.personName(pickValue(v, columns, ['lead owner', 'owner', 'assigned to'])),
+    ),
     requestType: optionalField(pickValue(v, columns, ['request type', 'request_type'])),
-    leadDate: optionalField(pickValue(v, columns, ['lead date', 'lead_date', 'date'])),
-    requirement: optionalField(pickValue(v, columns, ['requirement', 'requirements'])),
+    leadDate: optionalField(
+      TextFormatter.date(pickValue(v, columns, ['lead date', 'lead_date', 'date'])).value,
+    ),
+    requirement: optionalField(
+      TextFormatter.requirement(pickValue(v, columns, ['requirement', 'requirements'])),
+    ),
     additionalDetails: optionalField(
-      pickValue(v, columns, ['additional details', 'notes', 'additional_details']),
+      TextFormatter.description(
+        pickValue(v, columns, ['additional details', 'notes', 'additional_details']),
+      ),
     ),
   };
+
+  return dto;
 }
 
 /** Maps parsed spreadsheet rows to the backend import DTO shape. */

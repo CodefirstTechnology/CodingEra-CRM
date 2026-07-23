@@ -11,6 +11,7 @@ import type {
 } from '../../../core/auth/permission.models';
 import { RbacService } from '../../../core/services/rbac.service';
 import { ToastService } from '../../../core/toast/toast.service';
+import { TextFormatter } from '../../../shared/utils/text-normalizer';
 
 type PanelMode = 'list' | 'create' | 'edit' | 'permissions';
 type RbacSection = 'roles' | 'permissions';
@@ -155,13 +156,14 @@ export class RoleManagementComponent implements OnInit {
   }
 
   protected saveRole(): void {
+    TextFormatter.formForEntity(this.roleForm, 'role');
     this.roleForm.markAllAsTouched();
     if (this.roleForm.invalid) return;
 
     const v = this.roleForm.getRawValue();
     const payload = {
-      name: v.name.trim(),
-      description: v.description.trim(),
+      name: TextFormatter.entityName('role', v.name),
+      description: TextFormatter.description(v.description),
       isActive: v.isActive,
     };
 
@@ -224,8 +226,8 @@ export class RoleManagementComponent implements OnInit {
 
     this.rbac
       .cloneRole(this.auth.token(), role.id, {
-        name: name.trim(),
-        description: role.description,
+        name: TextFormatter.entityName('role', name),
+        description: TextFormatter.description(role.description),
         isActive: true,
       })
       .subscribe({

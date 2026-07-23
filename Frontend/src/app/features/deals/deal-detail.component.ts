@@ -67,6 +67,7 @@ import { IntlTelInputComponent } from 'intl-tel-input/angularWithUtils';
 import { parseEntityDetailTab } from '../../shared/utils/entity-record-nav.util';
 import { dealRecordOwnerUserId } from '../../shared/utils/record-owner-user-id.util';
 import type { DealOwnerOption, DealPipelineStatus, DealRow } from './deals.component';
+import { fullNameFromLeadParts } from '../leads/lead-full-name.util';
 import {
   GSTIN_ERROR_KEY,
   GSTIN_ERROR_MESSAGE,
@@ -76,6 +77,7 @@ import {
 } from '../../shared/utils/gstin.util';
 import { gstFormValidators } from '../../shared/validators/crm-validators';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
 import {
   buildDealQuotationPrefill,
   storeDealQuotationPrefill,
@@ -1056,7 +1058,7 @@ export class DealDetailComponent {
     const d = this.deal();
     if (!d) return '';
 
-    const contact = [d.firstName?.trim(), d.lastName?.trim()].filter(Boolean).join(' ');
+    const contact = fullNameFromLeadParts(d);
     if (contact) return contact;
 
     const id = this.dataForm.controls.dealOwner.value?.trim();
@@ -1092,6 +1094,7 @@ export class DealDetailComponent {
       return;
     }
 
+    TextFormatter.form(this.dataForm);
     if (this.dataForm.invalid) {
       this.dataForm.markAllAsTouched();
       return;
@@ -1355,7 +1358,7 @@ export class DealDetailComponent {
   protected dealPrimaryContactName(): string {
     const d = this.deal();
     if (!d) return 'Contact';
-    const name = [d.firstName?.trim(), d.lastName?.trim()].filter(Boolean).join(' ');
+    const name = fullNameFromLeadParts(d);
     if (name) return name;
     const local = d.email?.split('@')[0]?.trim();
     return local || d.email?.trim() || 'Contact';

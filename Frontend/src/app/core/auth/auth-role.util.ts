@@ -1,5 +1,6 @@
 import type { UserSession } from './auth.models';
 import { parsePermissionsFromApi } from './permission.util';
+import { TextFormatter } from '../../shared/utils/text-normalizer';
 
 /**
  * `users.role_id` in the database:
@@ -209,6 +210,7 @@ export function buildSessionFromApiRecord(
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
       .join(' ');
   }
+  name = TextFormatter.entityName('user', name) || name;
 
   const roleId =
     roleIdOverride != null

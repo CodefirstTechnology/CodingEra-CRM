@@ -5,6 +5,7 @@ import {
 import type { ActivityGroup, ActivityRow } from '../../core/services/activities/activity-api.models';
 import type { DealRow } from '../../features/deals/deals.component';
 import type { LeadRow } from '../../features/leads/lead-row.model';
+import { TextFormatter } from './text-normalizer';
 
 /** Minimum mobile digits for deal–lead contact matching (aligns with import validation). */
 export const LEAD_DEAL_MATCH_MOBILE_MIN_DIGITS = 8;
@@ -78,11 +79,12 @@ export function isLeadConverted(
 }
 
 export function normalizeLeadContactEmail(email: string | undefined): string {
-  return (email ?? '').trim().toLowerCase();
+  return TextFormatter.email(email);
 }
 
 export function normalizeLeadContactMobile(mobile: string | undefined): string {
-  return (mobile ?? '').replace(/\D/g, '');
+  // Matching index uses digits only (legacy); strip non-digits after format.
+  return TextFormatter.mobile(mobile).replace(/\D/g, '');
 }
 
 export function normalizeLeadRecordId(id: string | undefined): string {

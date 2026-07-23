@@ -2,6 +2,7 @@ import type { DealPipelineStatus, DealRow } from '../../../features/deals/deals.
 import { DEFAULT_DEAL_PIPELINE_STATUS, resolveDealStatusLabel } from './deal-pipeline.constants';
 import type { DealNormalized, DealUpsertDto } from './deal-api.models';
 import { normalizeGstin } from '../../../shared/utils/gstin.util';
+import { TextFormatter } from '../../../shared/utils/text-normalizer';
 
 function coerceDealStatus(raw: string | undefined | null): DealPipelineStatus {
   return resolveDealStatusLabel(raw ?? DEFAULT_DEAL_PIPELINE_STATUS);
@@ -245,27 +246,30 @@ export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
   const id = String(dto.id);
   const probabilityPercent = dto.probabilityPercent ?? 10;
   const assignedToUserId = dto.assignedToUserId ?? 0;
-  const ownerName = dto.assignedToName?.trim() ?? '';
+  const ownerName = TextFormatter.personName(dto.assignedToName ?? '') || dto.assignedToName?.trim() || '';
   const assignedInitials =
     dto.assignedInitials?.trim() || (ownerName ? initialsFromDisplayName(ownerName) : '');
   const assignedTo =
     ownerName || (assignedToUserId > 0 ? `User #${assignedToUserId}` : assignedInitials);
 
+  const firstName = TextFormatter.personName(dto.firstName);
+  const lastName = TextFormatter.personName(dto.lastName);
+
   const out: DealRow = {
     id,
-    organizationName: dto.organizationName ?? '',
+    organizationName: TextFormatter.entityName('organization', dto.organizationName ?? ''),
     employees: dto.employees?.trim() ? dto.employees : '1-10',
     annualRevenue:
       dto.annualRevenue != null && Number.isFinite(dto.annualRevenue) ? dto.annualRevenue : 0,
     dealAmount:
       dto.dealAmount != null && Number.isFinite(dto.dealAmount) ? dto.dealAmount : 0,
-    website: dto.website ?? '',
+    website: TextFormatter.website(dto.website ?? ''),
     gst: normalizeGstin(dto.gst),
-    territory: dto.territory ?? '',
-    industry: dto.industry ?? 'Technology',
-    salutation: dto.salutation ?? '',
-    firstName: dto.firstName ?? '',
-    lastName: dto.lastName ?? '',
+    territory: TextFormatter.territory(dto.territory ?? ''),
+    industry: TextFormatter.industry(dto.industry ?? '') || 'Technology',
+    salutation: TextFormatter.personName(dto.salutation ?? ''),
+    firstName,
+    lastName,
     email: dto.email ?? '',
     mobile: dto.mobile ?? '',
     gender: dto.gender ?? '',
@@ -287,6 +291,9 @@ export function mapDealNormalizedToRow(dto: DealNormalized): DealRow {
 
   if (dto.relatedContactId != null && dto.relatedContactId > 0) {
     out.relatedContactId = String(dto.relatedContactId);
+  }
+  if (dto.contactId != null && dto.contactId > 0) {
+    out.contactId = String(dto.contactId);
   }
   if (dto.organizationId != null && dto.organizationId > 0) {
     out.organizationId = String(dto.organizationId);
@@ -399,7 +406,10 @@ function rowToNormalized(row: DealRow, previous?: DealNormalized): DealNormalize
     id: previous?.id ?? (Number.isFinite(Number(row.id)) ? Number(row.id) : 0),
     organizationId:
       parseOptionalPositiveInt(row.organizationId) ?? previous?.organizationId ?? null,
-    contactId: previous?.contactId ?? null,
+    contactId: parseOptionalPositiveInt(row.contactId) ??
+      parseOptionalPositiveInt(row.relatedContactId) ??
+      previous?.contactId ??
+      null,
     organizationName: row.organizationName ?? '',
     salutation: row.salutation ?? '',
     firstName: row.firstName ?? '',

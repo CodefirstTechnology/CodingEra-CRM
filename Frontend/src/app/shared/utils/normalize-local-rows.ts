@@ -5,7 +5,25 @@ import type { NoteRelatedType, NoteRow, NoteVisibility } from '../../features/no
 import type { OrganizationRow } from '../../features/organizations/organizations.component';
 import type { TaskRow } from '../../features/tasks/tasks.component';
 import { normalizeGstin } from './gstin.util';
+import {
+  inboundAddress,
+  inboundCompany,
+  inboundEmail,
+  inboundGender,
+  inboundMaster,
+  inboundMobile,
+  inboundPerson,
+  inboundTitle,
+  inboundDescription,
+  inboundWebsite,
+} from './text-normalizer/inbound-format';
 import { parseRevenueInputToNumber } from './revenue-parse';
+
+function formatDisplayPerson(raw: string): string {
+  const s = raw.trim();
+  if (!s || s === '—' || /^User #\d+$/i.test(s)) return s;
+  return inboundPerson(s) || s;
+}
 
 function parseLegacyNoteRecord(record: string): {
   relatedType: NoteRelatedType;
@@ -51,7 +69,7 @@ function durationMmSsToSeconds(dur: unknown): number {
 
 export function normalizeDealRow(row: Record<string, unknown>): DealRow {
   const id = String(row['id'] ?? '');
-  const orgName = String(row['organizationName'] ?? row['organization'] ?? '');
+  const orgName = inboundCompany(String(row['organizationName'] ?? row['organization'] ?? ''));
   const annualRevenue = parseRevenueInputToNumber(row['annualRevenue'] as string | number);
   const dealAmount = parseRevenueInputToNumber(row['dealAmount'] as string | number);
   const status = resolveDealStatusLabel(String(row['status'] ?? DEFAULT_DEAL_PIPELINE_STATUS));
@@ -64,21 +82,21 @@ export function normalizeDealRow(row: Record<string, unknown>): DealRow {
     employees: String(row['employees'] ?? '1-10'),
     annualRevenue,
     dealAmount,
-    website: String(row['website'] ?? ''),
+    website: inboundWebsite(String(row['website'] ?? '')),
     ...(row['gst'] != null && normalizeGstin(String(row['gst'])) !== ''
       ? { gst: normalizeGstin(String(row['gst'])) }
       : {}),
-    territory: String(row['territory'] ?? ''),
-    industry: String(row['industry'] ?? 'Technology'),
-    salutation: row['salutation'] != null ? String(row['salutation']) : '',
-    firstName: String(row['firstName'] ?? ''),
-    lastName: String(row['lastName'] ?? ''),
-    email: String(row['email'] ?? ''),
-    mobile: String(row['mobile'] ?? ''),
-    gender: row['gender'] != null ? String(row['gender']) : '',
+    territory: inboundMaster('territory', String(row['territory'] ?? '')),
+    industry: inboundMaster('industry', String(row['industry'] ?? '')) || 'Technology',
+    salutation: inboundPerson(String(row['salutation'] ?? '')),
+    firstName: inboundPerson(String(row['firstName'] ?? '')),
+    lastName: inboundPerson(String(row['lastName'] ?? '')),
+    email: inboundEmail(String(row['email'] ?? '')),
+    mobile: inboundMobile(String(row['mobile'] ?? '')),
+    gender: inboundGender(String(row['gender'] ?? '')),
     status,
     dealOwnerId: String(row['dealOwnerId'] ?? ''),
-    assignedTo: String(row['assignedTo'] ?? ''),
+    assignedTo: formatDisplayPerson(String(row['assignedTo'] ?? '')),
     assignedInitials: String(row['assignedInitials'] ?? ''),
     lastModified: String(row['lastModified'] ?? ''),
     ...(row['relatedContactId'] != null && row['relatedContactId'] !== ''
@@ -88,7 +106,7 @@ export function normalizeDealRow(row: Record<string, unknown>): DealRow {
       ? { relatedOrganizationId: String(row['relatedOrganizationId']) }
       : {}),
     probabilityPercent,
-    nextStep: String(row['nextStep'] ?? ''),
+    nextStep: inboundDescription(String(row['nextStep'] ?? '')),
     ...(row['requirement'] != null && row['requirement'] !== ''
       ? { requirement: String(row['requirement']) }
       : {}),
@@ -108,17 +126,19 @@ export function normalizeOrganizationRow(row: Record<string, unknown>): Organiza
   const addressRaw = row['address'];
   return {
     id,
-    name: String(row['name'] ?? ''),
-    website: String(row['website'] ?? ''),
+    name: inboundCompany(String(row['name'] ?? '')),
+    website: inboundWebsite(String(row['website'] ?? '')),
     ...(row['gst'] != null && normalizeGstin(String(row['gst'])) !== ''
       ? { gst: normalizeGstin(String(row['gst'])) }
       : {}),
-    industry: String(row['industry'] ?? ''),
+    industry: inboundMaster('industry', String(row['industry'] ?? '')),
     annualRevenue: parseRevenueInputToNumber(row['annualRevenue'] as string | number),
     employees: String(row['employees'] ?? '1-10'),
-    territory: String(row['territory'] ?? ''),
+    territory: inboundMaster('territory', String(row['territory'] ?? '')),
     lastModified: String(row['lastModified'] ?? ''),
-    ...(addressRaw != null && String(addressRaw).trim() !== '' ? { address: String(addressRaw) } : {}),
+    ...(addressRaw != null && String(addressRaw).trim() !== ''
+      ? { address: inboundAddress(String(addressRaw)) }
+      : {}),
     ...(industryId != null ? { industryId } : {}),
     ...(employeeCountId != null ? { employeeCountId } : {}),
     ...(territoryId != null ? { territoryId } : {}),
@@ -129,15 +149,15 @@ export function normalizeContactRow(row: Record<string, unknown>): ContactRow {
   const id = String(row['id'] ?? '');
   return {
     id,
-    salutation: String(row['salutation'] ?? ''),
-    firstName: String(row['firstName'] ?? ''),
-    lastName: String(row['lastName'] ?? ''),
-    email: String(row['email'] ?? ''),
-    phone: String(row['phone'] ?? ''),
-    gender: String(row['gender'] ?? ''),
-    organization: String(row['organization'] ?? ''),
-    designation: String(row['designation'] ?? ''),
-    address: String(row['address'] ?? ''),
+    salutation: inboundPerson(String(row['salutation'] ?? '')),
+    firstName: inboundPerson(String(row['firstName'] ?? '')),
+    lastName: inboundPerson(String(row['lastName'] ?? '')),
+    email: inboundEmail(String(row['email'] ?? '')),
+    phone: inboundMobile(String(row['phone'] ?? '')),
+    gender: inboundGender(String(row['gender'] ?? '')),
+    organization: inboundCompany(String(row['organization'] ?? '')),
+    designation: inboundMaster('designation', String(row['designation'] ?? '')),
+    address: inboundAddress(String(row['address'] ?? '')),
     lastModified: String(row['lastModified'] ?? ''),
   };
 }
@@ -146,15 +166,16 @@ export function normalizeTaskRow(row: Record<string, unknown>): TaskRow {
   const id = String(row['id'] ?? '');
   const status = (row['status'] as TaskRow['status']) || 'Backlog';
   const priority = (row['priority'] as TaskRow['priority']) || 'Low';
+  const assignedTo = formatDisplayPerson(String(row['assignedTo'] ?? ''));
   return {
     id,
-    title: String(row['title'] ?? ''),
-    description: String(row['description'] ?? ''),
+    title: inboundTitle(String(row['title'] ?? '')) || 'Task',
+    description: inboundDescription(String(row['description'] ?? '')),
     status,
     priority,
     dueDate: String(row['dueDate'] ?? ''),
     dueDateRaw: String(row['dueDateRaw'] ?? ''),
-    assignedTo: String(row['assignedTo'] ?? ''),
+    assignedTo,
     assignedInitials: String(row['assignedInitials'] ?? ''),
     lastModified: String(row['lastModified'] ?? ''),
   };
@@ -162,12 +183,12 @@ export function normalizeTaskRow(row: Record<string, unknown>): TaskRow {
 
 export function normalizeNoteRow(row: Record<string, unknown>): NoteRow {
   const id = String(row['id'] ?? '');
-  const title = String(row['title'] ?? '');
-  const author = String(row['author'] ?? '');
+  const title = inboundTitle(String(row['title'] ?? '')) || 'Note';
+  const author = formatDisplayPerson(String(row['author'] ?? ''));
   const when = String(row['when'] ?? '');
 
   if (row['relatedType'] != null && row['body'] != null) {
-    const body = String(row['body']);
+    const body = inboundDescription(String(row['body']));
     const bodyPreview =
       row['bodyPreview'] != null
         ? String(row['bodyPreview'])
@@ -183,7 +204,9 @@ export function normalizeNoteRow(row: Record<string, unknown>): NoteRow {
       visibility: (row['visibility'] as NoteVisibility) ?? 'team',
       body,
       author,
-      assignedBy: row['assignedBy'] != null ? String(row['assignedBy']) : author,
+      assignedBy: formatDisplayPerson(
+        row['assignedBy'] != null ? String(row['assignedBy']) : author,
+      ),
       when,
       bodyPreview,
     };
@@ -191,7 +214,7 @@ export function normalizeNoteRow(row: Record<string, unknown>): NoteRow {
 
   const record = String(row['record'] ?? '');
   const parsed = parseLegacyNoteRecord(record);
-  const body = String(row['bodyStorage'] ?? row['body'] ?? '');
+  const body = inboundDescription(String(row['bodyStorage'] ?? row['body'] ?? ''));
   const bodyPreview =
     row['bodyPreview'] != null
       ? String(row['bodyPreview'])
@@ -208,7 +231,9 @@ export function normalizeNoteRow(row: Record<string, unknown>): NoteRow {
     visibility: parsed.visibility,
     body,
     author,
-    assignedBy: row['assignedBy'] != null ? String(row['assignedBy']) : author,
+    assignedBy: formatDisplayPerson(
+      row['assignedBy'] != null ? String(row['assignedBy']) : author,
+    ),
     when,
     bodyPreview,
   };
