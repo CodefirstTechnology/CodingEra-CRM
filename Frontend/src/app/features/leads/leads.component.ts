@@ -303,7 +303,7 @@ export class LeadsComponent {
     { id: 'Excel', label: 'Excel' },
     { id: 'IndiaMART', label: 'IndiaMART' },
     { id: 'Justdial', label: 'Justdial' },
-    { id: 'TradeIndia', label: 'TradeIndia' },
+    { id: 'TradeIndia', label: 'Tradeindia' },
   ];
 
   protected readonly statusFilterOptions = computed(() => {
