@@ -137,6 +137,9 @@ export class QuotationPdfService {
     };
 
     let y = 0;
+    const headerHeight = this.measureCompanyHeaderHeight(doc, C, contentW);
+    const pageTopMargin = margin + headerHeight + L.sectionGapMm;
+    const contentBottomY = pageH - L.footerReserveMm;
 
     const drawHeader = (): void => {
       const brandW = L.brandBlockWidthMm;
@@ -165,7 +168,6 @@ export class QuotationPdfService {
 
       const logoFormat = this.logoImageFormat(C.logoContentType);
       const hasLogo = !!(C.logoBase64 && logoFormat);
-      const logoPad = L.logoBoxPaddingMm;
       const logoAspect =
         C.logoPixelWidth && C.logoPixelHeight && C.logoPixelHeight > 0
           ? C.logoPixelWidth / C.logoPixelHeight
@@ -173,20 +175,31 @@ export class QuotationPdfService {
 
       const headerH = textBlockBottom;
 
+      // Full-width brand blue header (right text band starts after 50mm brand column).
       doc.setFillColor(...C.brandBlue);
       doc.rect(headerLeft, headerTop, contentW, headerH, 'F');
 
+      // Narrower white logo plate — full height, centered in the 50mm brand column.
+      const logoBoxW = Math.min(L.logoPlateWidthMm, brandW);
+      const logoBoxH = headerH;
+      const logoBoxX = headerLeft + (brandW - logoBoxW) / 2;
+      const logoBoxY = headerTop;
+      doc.setFillColor(255, 255, 255);
+      doc.rect(logoBoxX, logoBoxY, logoBoxW, logoBoxH, 'F');
+
       if (hasLogo) {
-        const availH = headerH - logoPad * 2;
-        const availW = brandW - logoPad * 2;
-        let fitH = availH;
-        let fitW = fitH * logoAspect;
-        if (fitW > availW) {
-          fitW = availW;
-          fitH = fitW / logoAspect;
+        const logoPad = Math.max(L.logoBoxPaddingMm, 1);
+        const availH = Math.min(logoBoxH - logoPad * 2, L.logoMaxHeightMm);
+        const availW = Math.min(logoBoxW - logoPad * 2, L.logoMaxWidthMm);
+        let fitW = availW;
+        let fitH = fitW / Math.max(logoAspect, 0.01);
+        if (fitH > availH) {
+          fitH = availH;
+          fitW = fitH * logoAspect;
         }
-        const logoX = headerLeft + brandW - logoPad - fitW;
-        const logoY = headerTop + logoPad + (availH - fitH) / 2;
+        // Center logo inside the white logo plate.
+        const logoX = logoBoxX + (logoBoxW - fitW) / 2;
+        const logoY = logoBoxY + (logoBoxH - fitH) / 2;
 
         try {
           doc.addImage(
@@ -257,6 +270,13 @@ export class QuotationPdfService {
         );
       }
       doc.setTextColor(0, 0, 0);
+    };
+
+    /** Repeat company header on autoTable continuation pages (page 1 already drawn). */
+    const ensureHeaderOnTablePage = (tablePageNumber: number): void => {
+      if (tablePageNumber > 1) {
+        drawHeader();
+      }
     };
 
     drawHeader();
@@ -384,24 +404,106 @@ export class QuotationPdfService {
       grandTotal,
       gstPercent,
     );
-    const footerContentReserveMm =
-      this.estimateUnifiedFooterHeight(footerRows) + L.closingRowHeightMm + L.footerGapMm + 2;
-    const reservedBottomMm =
-      margin + L.footerHeightMm + footerContentReserveMm;
-    const lineRows = this.padLineItemRowsForPage(
-      this.lineItemRows(q.lineItems ?? []),
-      y,
-      pageH,
-      reservedBottomMm,
+    const lineRows = this.lineItemRows(q.lineItems ?? []);
+    const termsW = contentW * L.termsWidthRatio;
+    const totalsW = contentW - termsW;
+    const termsDetailW = termsW - L.termsIndexWidthMm - L.termsTitleWidthMm;
+    const totalsLabelW = totalsW * 0.55;
+    const totalsValueW = totalsW - totalsLabelW;
+
+    const closingHeight = this.measureClosingBlocksHeight({
+      contentW,
+      margin,
+      footerReserveMm: L.footerReserveMm,
+      tableStyles,
+      footerRows,
+      termsDetailW,
+      totalsLabelW,
+      totalsValueW,
+      termsW,
+      totalsW,
+      jurisdiction: C.jurisdiction,
+      sigBlock,
+    });
+
+    const productHeadLabels = [
+      'Sr. No.',
+      'Material Description',
+      'Quantity (Nos)',
+      'Rate per Nos. (Rs.)',
+      'Total Amount (Rs.)',
+    ];
+    const productHeadWidths = [
+      L.lineSrWidthMm,
+      lineDescW,
+      L.lineQtyWidthMm,
+      L.lineRateWidthMm,
+      L.lineAmountWidthMm,
+    ];
+    // Use the tallest header cell — narrow columns wrap and drive actual head height.
+    const headHeight = Math.max(
+      ...productHeadLabels.map((label, i) =>
+        this.estimateCellHeightMm(doc, label, productHeadWidths[i], L.fontSize.body, L.cellPaddingMm),
+      ),
+      L.lineItemHeadHeightMm,
     );
+    const blankRowHeight = Math.max(
+      L.blankRowHeightMm,
+      this.estimateCellHeightMm(doc, ' ', lineDescW, L.fontSize.body, L.cellPaddingMm),
+    );
+    const totalRowHeight = Math.max(
+      L.lineItemFootHeightMm,
+      this.estimateCellHeightMm(doc, 'Total', L.lineRateWidthMm, L.fontSize.body, L.cellPaddingMm),
+    );
+    const itemHeights = lineRows.map((row) => {
+      const cells = row as unknown as unknown[];
+      const desc = this.rowCellText(cells[1]);
+      return this.estimateCellHeightMm(doc, desc, lineDescW, L.fontSize.body, L.cellPaddingMm);
+    });
+
+    const blankCount = this.planDynamicBlankRowCount({
+      itemHeights,
+      headHeight,
+      blankRowHeight,
+      totalRowHeight,
+      closingHeight,
+      firstPageTableTop: y,
+      continuationTableTop: pageTopMargin,
+      contentBottomY,
+    });
+
+    const productBody: RowInput[] = [
+      ...lineRows,
+      ...this.blankProductRows(blankCount, blankRowHeight),
+    ];
+    const productColumnStyles = {
+      0: { cellWidth: L.lineSrWidthMm, halign: 'center' as const },
+      1: { cellWidth: lineDescW, halign: 'left' as const },
+      2: { cellWidth: L.lineQtyWidthMm, halign: 'right' as const },
+      3: { cellWidth: L.lineRateWidthMm, halign: 'right' as const },
+      4: { cellWidth: L.lineAmountWidthMm, halign: 'right' as const },
+    };
+    const productHeadStyles = {
+      fillColor: C.tableHeadFill,
+      textColor: [0, 0, 0] as [number, number, number],
+      fontStyle: 'bold' as const,
+      halign: 'center' as const,
+      valign: 'middle' as const,
+    };
+    const productFootStyles = {
+      fillColor: C.tableFootFill,
+      textColor: [255, 255, 255] as [number, number, number],
+      fontStyle: 'bold' as const,
+      valign: 'middle' as const,
+    };
 
     autoTable(doc, {
       startY: y,
-      margin: { left: margin, right: margin, bottom: reservedBottomMm },
+      margin: { left: margin, right: margin, top: pageTopMargin, bottom: L.footerReserveMm },
       tableWidth: contentW,
       theme: 'grid',
-      head: [['Sr. No.', 'Material Description', 'Quantity (Nos)', 'Rate per Nos. (Rs.)', 'Total Amount (Rs.)']],
-      body: lineRows,
+      head: [productHeadLabels],
+      body: productBody,
       foot: [
         [
           { content: '', colSpan: 3 },
@@ -409,37 +511,24 @@ export class QuotationPdfService {
           { content: this.formatMoney(subtotal), styles: { halign: 'right', fontStyle: 'bold' } },
         ],
       ],
+      showHead: 'everyPage',
+      showFoot: 'lastPage',
+      rowPageBreak: 'avoid',
       styles: tableStyles,
-      headStyles: {
-        fillColor: C.tableHeadFill,
-        textColor: [0, 0, 0],
-        fontStyle: 'bold',
-        halign: 'center',
-        valign: 'middle',
-      },
-      footStyles: {
-        fillColor: C.tableFootFill,
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        valign: 'middle',
-      },
-      columnStyles: {
-        0: { cellWidth: L.lineSrWidthMm, halign: 'center' },
-        1: { cellWidth: lineDescW, halign: 'left' },
-        2: { cellWidth: L.lineQtyWidthMm, halign: 'right' },
-        3: { cellWidth: L.lineRateWidthMm, halign: 'right' },
-        4: { cellWidth: L.lineAmountWidthMm, halign: 'right' },
-      },
+      headStyles: productHeadStyles,
+      footStyles: productFootStyles,
+      columnStyles: productColumnStyles,
+      willDrawPage: (data) => ensureHeaderOnTablePage(data.pageNumber),
     });
 
     y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 20;
 
-    const termsW = contentW * L.termsWidthRatio;
-    const totalsW = contentW - termsW;
-    const termsDetailW = termsW - L.termsIndexWidthMm - L.termsTitleWidthMm;
-    const totalsLabelW = totalsW * 0.55;
-    const totalsValueW = totalsW - totalsLabelW;
-    const footerStartY = y;
+    // Closing block (terms/totals/signatory) only after the last product row on the final page.
+    if (y + closingHeight > contentBottomY) {
+      doc.addPage();
+      drawHeader();
+    }
+
     const footerBlockStyles = {
       ...tableStyles,
       fontSize: L.fontSize.terms,
@@ -449,8 +538,8 @@ export class QuotationPdfService {
     };
 
     autoTable(doc, {
-      startY: footerStartY,
-      margin: { left: margin, right: margin },
+      startY: y,
+      margin: { left: margin, right: margin, top: pageTopMargin, bottom: L.footerReserveMm },
       tableWidth: contentW,
       theme: 'grid',
       styles: footerBlockStyles,
@@ -472,16 +561,16 @@ export class QuotationPdfService {
           cellPadding: L.totalsCellPaddingMm,
         },
       },
+      willDrawPage: (data) => ensureHeaderOnTablePage(data.pageNumber),
     });
 
-    y = (doc as DocWithTable).lastAutoTable?.finalY ?? footerStartY + 40;
+    y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 40;
 
     const jurisdictionText = C.jurisdiction?.trim() ? `" ${C.jurisdiction.trim()} "` : '';
-    const closingBottomMargin = margin + L.footerHeightMm + L.footerGapMm;
 
     autoTable(doc, {
       startY: y,
-      margin: { left: margin, right: margin, bottom: closingBottomMargin },
+      margin: { left: margin, right: margin, top: pageTopMargin, bottom: L.footerReserveMm },
       tableWidth: contentW,
       theme: 'grid',
       styles: {
@@ -507,9 +596,8 @@ export class QuotationPdfService {
         0: { cellWidth: termsW },
         1: { cellWidth: totalsW },
       },
+      willDrawPage: (data) => ensureHeaderOnTablePage(data.pageNumber),
     });
-
-    y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + L.closingRowHeightMm;
 
     const totalPages = doc.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
@@ -518,6 +606,255 @@ export class QuotationPdfService {
     }
 
     return doc;
+  }
+
+  private measureCompanyHeaderHeight(
+    doc: jsPDF,
+    company: QuotationPdfCompanyConfig,
+    contentW: number,
+  ): number {
+    const L = QUOTATION_PDF_LAYOUT;
+    const textInnerW = contentW - L.brandBlockWidthMm - L.headerTextPadMm * 2;
+    const lineH = 3.4;
+    const padTop = 5;
+    const padBottom = 1.5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(L.fontSize.headerLegal);
+    const nameLines = doc.splitTextToSize(company.legalName, textInnerW);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(L.fontSize.headerSub + 0.5);
+    const taglineLines = company.brandTagline?.trim()
+      ? doc.splitTextToSize(company.brandTagline, textInnerW)
+      : [];
+
+    const taxY = padTop + nameLines.length * lineH + taglineLines.length * lineH + 0.5;
+    return taxY + lineH * 0.85 + padBottom;
+  }
+
+  /** Approx. wrapped cell height in mm (jsPDF fontSize is pt). Slightly conservative vs autoTable. */
+  private estimateCellHeightMm(
+    doc: jsPDF,
+    text: string,
+    widthMm: number,
+    fontSizePt: number,
+    cellPaddingMm: number | { top: number; right: number; bottom: number; left: number },
+  ): number {
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(fontSizePt);
+    const padY =
+      typeof cellPaddingMm === 'number'
+        ? cellPaddingMm * 2
+        : cellPaddingMm.top + cellPaddingMm.bottom;
+    const innerW =
+      Math.max(widthMm, 1) -
+      (typeof cellPaddingMm === 'number'
+        ? cellPaddingMm * 2
+        : cellPaddingMm.left + cellPaddingMm.right);
+    const lines = doc.splitTextToSize(text?.trim() ? text : ' ', Math.max(innerW, 1)) as string[];
+    const lineHeightFactor =
+      typeof doc.getLineHeightFactor === 'function' ? doc.getLineHeightFactor() : 1.15;
+    const lineHeightMm = fontSizePt * 0.352778 * lineHeightFactor;
+    // Border stroke (~lineWidth) so blank planning does not overfill the page.
+    const borderFudgeMm = 0.12;
+    return Math.max(lineHeightMm + padY, lines.length * lineHeightMm + padY) + borderFudgeMm;
+  }
+
+  private rowCellText(cell: unknown): string {
+    if (cell == null) return '';
+    if (typeof cell === 'string' || typeof cell === 'number') return String(cell);
+    if (typeof cell === 'object' && cell !== null && 'content' in cell) {
+      const content = (cell as { content?: unknown }).content;
+      return content == null ? '' : String(content);
+    }
+    return '';
+  }
+
+  private blankProductRows(count: number, minHeightMm: number): RowInput[] {
+    if (count <= 0) return [];
+    const h = Math.max(minHeightMm, QUOTATION_PDF_LAYOUT.blankRowHeightMm);
+    return Array.from({ length: count }, () => [
+      { content: ' ', styles: { minCellHeight: h } },
+      { content: ' ', styles: { minCellHeight: h } },
+      { content: ' ', styles: { minCellHeight: h } },
+      { content: ' ', styles: { minCellHeight: h } },
+      { content: ' ', styles: { minCellHeight: h } },
+    ]);
+  }
+
+  /**
+   * Fills leftover product-table space with blank rows, shrinking when the closing
+   * block (terms/totals/signatory) needs room on the final page.
+   * Uses a small safety margin so estimation error never pushes closing onto a
+   * new page while blank spacer rows still remain above.
+   */
+  private planDynamicBlankRowCount(opts: {
+    itemHeights: number[];
+    headHeight: number;
+    blankRowHeight: number;
+    totalRowHeight: number;
+    closingHeight: number;
+    firstPageTableTop: number;
+    continuationTableTop: number;
+    contentBottomY: number;
+  }): number {
+    const {
+      itemHeights,
+      headHeight,
+      blankRowHeight,
+      totalRowHeight,
+      closingHeight,
+      firstPageTableTop,
+      continuationTableTop,
+      contentBottomY,
+    } = opts;
+
+    if (blankRowHeight <= 0) return 0;
+
+    // Modest slack — enough to avoid overflow, without leaving a large footer gap.
+    const safetyMm = 1;
+
+    const bodyBudget = (pageIndex: number): number => {
+      const top = pageIndex === 0 ? firstPageTableTop : continuationTableTop;
+      return Math.max(0, contentBottomY - top - headHeight);
+    };
+
+    const heights = itemHeights.length ? [...itemHeights] : [blankRowHeight];
+    let pageIndex = 0;
+    let usedOnPage = 0;
+
+    while (heights.length) {
+      const budget = bodyBudget(pageIndex);
+      usedOnPage = 0;
+      let placed = 0;
+
+      while (heights.length) {
+        const next = heights[0];
+        if (placed > 0 && usedOnPage + next > budget) break;
+        heights.shift();
+        usedOnPage += next;
+        placed += 1;
+        if (usedOnPage >= budget) break;
+      }
+
+      if (heights.length) {
+        pageIndex += 1;
+      }
+    }
+
+    const lastBudget = bodyBudget(pageIndex);
+    const remaining = Math.max(0, lastBudget - usedOnPage);
+    const closingWithTotal = totalRowHeight + closingHeight + safetyMm;
+
+    const blanksThatFit = (spaceMm: number): number => {
+      if (spaceMm <= 0) return 0;
+      // Prefer filling when leftover is most of a blank row (no forced extra rows).
+      return Math.max(0, Math.floor(spaceMm / blankRowHeight + 0.2));
+    };
+
+    if (remaining >= closingWithTotal) {
+      return blanksThatFit(remaining - closingWithTotal);
+    }
+
+    // Fill the remainder of the last product page, then pad the next page so
+    // Total + closing blocks land together after the product table.
+    const blanksOnLastProductPage = blanksThatFit(remaining);
+    const continuationBudget = Math.max(0, contentBottomY - continuationTableTop - headHeight);
+    const blanksOnClosingPage = blanksThatFit(continuationBudget - closingWithTotal);
+
+    return blanksOnLastProductPage + blanksOnClosingPage;
+  }
+
+  /** Probe-render terms + signature with the same styles as the real document. */
+  private measureClosingBlocksHeight(opts: {
+    contentW: number;
+    margin: number;
+    footerReserveMm: number;
+    tableStyles: Record<string, unknown>;
+    footerRows: RowInput[];
+    termsDetailW: number;
+    totalsLabelW: number;
+    totalsValueW: number;
+    termsW: number;
+    totalsW: number;
+    jurisdiction: string;
+    sigBlock: string;
+  }): number {
+    const L = QUOTATION_PDF_LAYOUT;
+    const probe = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+    const pageH = probe.internal.pageSize.getHeight();
+    const jurisdictionText = opts.jurisdiction?.trim()
+      ? `" ${opts.jurisdiction.trim()} "`
+      : '';
+
+    autoTable(probe, {
+      startY: 0,
+      margin: { left: opts.margin, right: opts.margin, bottom: opts.footerReserveMm },
+      tableWidth: opts.contentW,
+      theme: 'grid',
+      styles: {
+        ...opts.tableStyles,
+        fontSize: L.fontSize.terms,
+        cellPadding: L.termsDetailCellPaddingMm,
+        overflow: 'linebreak',
+        minCellHeight: L.footerMinCellHeightMm,
+      },
+      body: opts.footerRows,
+      columnStyles: {
+        0: { cellWidth: L.termsIndexWidthMm, halign: 'center', valign: 'top' },
+        1: { cellWidth: L.termsTitleWidthMm, valign: 'top', fontStyle: 'normal' },
+        2: { cellWidth: opts.termsDetailW, valign: 'top', cellPadding: L.termsDetailCellPaddingMm },
+        3: {
+          cellWidth: opts.totalsLabelW,
+          halign: 'left',
+          valign: 'top',
+          cellPadding: L.totalsCellPaddingMm,
+        },
+        4: {
+          cellWidth: opts.totalsValueW,
+          halign: 'right',
+          valign: 'top',
+          cellPadding: L.totalsCellPaddingMm,
+        },
+      },
+    });
+
+    let y = (probe as DocWithTable).lastAutoTable?.finalY ?? 40;
+
+    autoTable(probe, {
+      startY: y,
+      margin: { left: opts.margin, right: opts.margin, bottom: opts.footerReserveMm },
+      tableWidth: opts.contentW,
+      theme: 'grid',
+      styles: {
+        ...opts.tableStyles,
+        fontSize: L.fontSize.body,
+        cellPadding: L.closingRowPaddingMm,
+        minCellHeight: L.closingRowHeightMm,
+        valign: 'middle',
+      },
+      body: [
+        [
+          {
+            content: jurisdictionText,
+            styles: { halign: 'center', fontStyle: 'italic', valign: 'middle' },
+          },
+          {
+            content: opts.sigBlock,
+            styles: { halign: 'center', fontStyle: 'bold', valign: 'middle' },
+          },
+        ],
+      ],
+      columnStyles: {
+        0: { cellWidth: opts.termsW },
+        1: { cellWidth: opts.totalsW },
+      },
+    });
+
+    y = (probe as DocWithTable).lastAutoTable?.finalY ?? y + L.closingRowHeightMm;
+    const pages = probe.getNumberOfPages();
+    if (pages <= 1) return y;
+    return (pages - 1) * pageH + y;
   }
 
   private lineItemRows(items: QuotationLineItemDto[]): RowInput[] {
@@ -537,67 +874,6 @@ export class QuotationPdfService {
         this.formatMoney(total),
       ];
     });
-  }
-
-  /** Blank row with fixed height so the items table fills the page like the reference template. */
-  private emptyLineItemRow(minHeightMm: number): RowInput {
-    const cell = {
-      content: '',
-      styles: { minCellHeight: minHeightMm, valign: 'middle' as const },
-    };
-    return [cell, cell, cell, cell, cell];
-  }
-
-  private padLineItemRowsForPage(
-    rows: RowInput[],
-    startY: number,
-    pageH: number,
-    reservedBottomMm: number,
-  ): RowInput[] {
-    const L = QUOTATION_PDF_LAYOUT;
-    const minRowH = L.lineItemMinRowHeightMm;
-    const availableBody = pageH - startY - reservedBottomMm - L.lineItemHeadHeightMm - L.lineItemFootHeightMm;
-    if (availableBody <= minRowH) return rows;
-
-    const dataCount = rows.length;
-    const maxRows = Math.floor(availableBody / minRowH);
-    const targetRows = Math.max(L.lineItemMinVisibleRows, maxRows);
-    const fillerCount = Math.max(0, targetRows - dataCount) + L.lineItemExtraEmptyRows;
-
-    const padded = [...rows];
-    for (let i = 0; i < fillerCount; i++) {
-      padded.push(this.emptyLineItemRow(minRowH));
-    }
-    return padded;
-  }
-
-  private rowCells(row: RowInput): unknown[] {
-    return Array.isArray(row) ? row : [row];
-  }
-
-  private cellContentText(cell: unknown): string {
-    if (cell == null) return '';
-    if (typeof cell === 'string' || typeof cell === 'number') return String(cell);
-    if (typeof cell === 'object' && 'content' in cell) {
-      return String((cell as { content?: unknown }).content ?? '');
-    }
-    return '';
-  }
-
-  private estimateUnifiedFooterHeight(rows: RowInput[]): number {
-    const L = QUOTATION_PDF_LAYOUT;
-    const lineH = 3.1;
-    let total = 0;
-    for (const row of rows) {
-      let maxLines = 1;
-      for (const cell of this.rowCells(row)) {
-        const text = this.cellContentText(cell);
-        if (text) maxLines = Math.max(maxLines, text.split('\n').length);
-      }
-      const pad = L.termsDetailCellPaddingMm.top + L.termsDetailCellPaddingMm.bottom;
-      total += Math.max(L.footerMinCellHeightMm, maxLines * lineH + pad);
-    }
-    return total;
   }
 
   private additionalChargesTotal(q: QuotationUpsertDto): number {
