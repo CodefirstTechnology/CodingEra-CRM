@@ -8,6 +8,7 @@ import { normalizeLeadApiRecord } from './lead-api.mapper';
 import type { LeadNormalized, LeadUpsertDto } from './lead-api.models';
 import { stripLeadUpsertForPost } from './lead-upsert-body.util';
 import type { LeadImportCommitResult, LeadImportRowDto } from '../../../features/leads/import/lead-import-api.models';
+import type { LeadExportRequest } from '../../../features/leads/export/lead-export.models';
 
 export interface LeadListQuery {
   leadSource?: string;
@@ -16,6 +17,7 @@ export interface LeadListQuery {
   leadOwnerId?: number;
   assignedToUserId?: number;
   userId?: number;
+  search?: string;
 }
 
 function extractLeadRecords(raw: unknown): unknown[] {
@@ -101,6 +103,9 @@ export class LeadHttpService {
     if (query?.status?.trim()) {
       params = params.set('status', query.status.trim());
     }
+    if (query?.search?.trim()) {
+      params = params.set('search', query.search.trim());
+    }
     const ownerId = query?.leadOwnerId ?? query?.assignedToUserId;
     if (ownerId != null && ownerId > 0) {
       const id = String(ownerId);
@@ -114,6 +119,48 @@ export class LeadHttpService {
         params,
       })
       .pipe(map((raw) => extractLeadRecords(raw).map((item) => normalizeLeadApiRecord(item))));
+  }
+
+  exportLeads(body: LeadExportRequest): Observable<void> {
+    return this.http
+      .post(`${this.baseUrl}/export`, body, {
+        headers: this.jsonHeaders(),
+        responseType: 'blob',
+        observe: 'response',
+      })
+      .pipe(
+        map((res) => {
+          const blob = res.body;
+          if (!blob) {
+            throw new Error('Empty export response.');
+          }
+          const fileName = parseContentDispositionFileName(res.headers.get('content-disposition'))
+            ?? `Leads_Export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+          downloadBlob(blob, fileName);
+        }),
+        catchError((err: HttpErrorResponse) => {
+          if (err.error instanceof Blob) {
+            return new Observable<never>((subscriber) => {
+              err.error
+                .text()
+                .then((text: string) => {
+                  const message = text?.trim() || err.message || 'Export failed';
+                  subscriber.error(
+                    new HttpErrorResponse({
+                      error: message,
+                      headers: err.headers,
+                      status: err.status,
+                      statusText: err.statusText,
+                      url: err.url ?? undefined,
+                    }),
+                  );
+                })
+                .catch(() => subscriber.error(err));
+            });
+          }
+          return throwError(() => err);
+        }),
+      );
   }
 
   getById(id: number): Observable<LeadNormalized | null> {
@@ -147,4 +194,30 @@ export class LeadHttpService {
       .post<unknown>(`${this.baseUrl}/import/commit`, { rows }, { headers: this.jsonHeaders() })
       .pipe(map((raw) => normalizeLeadImportCommitResult(raw)));
   }
+}
+
+function parseContentDispositionFileName(header: string | null): string | null {
+  if (!header) return null;
+  const utfMatch = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (utfMatch?.[1]) {
+    try {
+      return decodeURIComponent(utfMatch[1].trim().replace(/^"|"$/g, ''));
+    } catch {
+      return utfMatch[1].trim().replace(/^"|"$/g, '');
+    }
+  }
+  const plainMatch = /filename="?([^";]+)"?/i.exec(header);
+  return plainMatch?.[1]?.trim() || null;
+}
+
+function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

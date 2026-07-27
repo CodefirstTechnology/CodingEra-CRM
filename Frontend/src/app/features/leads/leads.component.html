@@ -7,6 +7,16 @@
     />
   }
 
+  <app-lead-export-modal
+    [open]="exportModalOpen()"
+    [columnOptions]="exportColumnOptions()"
+    [defaultSelectedKeys]="exportDefaultSelectedKeys()"
+    [listFilters]="exportListFilters()"
+    [sourceOptions]="sourceFilterOptions()"
+    [statusOptions]="statusFilterOptions()"
+    (dismiss)="closeExportModal()"
+  />
+
   <app-convert-lead-modal
     [open]="convertModalOpen()"
     [leadCount]="convertTargets().length"
@@ -312,6 +322,11 @@
       <button type="button" class="leads__btn leads__btn--ghost" (click)="openImportModal()">
         Import leads
       </button>
+      @if (permissions.has('leads.export')) {
+        <button type="button" class="leads__btn leads__btn--ghost" (click)="openExportModal()">
+          Export
+        </button>
+      }
       <button type="button" class="leads__btn leads__btn--solid" (click)="openForm()">+ New lead</button>
     </div>
   </header>
@@ -363,7 +378,7 @@
           [value]="sourceFilter()"
           (change)="onSourceFilterSelect($event)"
         >
-          @for (opt of sourceFilterOptions; track opt.id) {
+          @for (opt of sourceFilterOptions(); track opt.id) {
             <option [value]="opt.id">{{ opt.label }}</option>
           }
         </select>
