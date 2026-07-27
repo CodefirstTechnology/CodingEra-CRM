@@ -88,10 +88,13 @@ export function mapLeadSyncSource(row: unknown): LeadSyncSource {
 
 export function mapLeadSyncMyAccess(row: unknown): LeadSyncMyAccess {
   const o = (row ?? {}) as Record<string, unknown>;
+  const displayName = inboundTitle(str(o['displayName']));
+  const markerName = str(o['markerName'] ?? o['MarkerName']).trim() || displayName;
   return {
     sourceId: num(o['sourceId']),
     code: str(o['code']),
-    displayName: inboundTitle(str(o['displayName'])),
+    displayName,
+    markerName,
     syncButtonLabel: inboundTitle(str(o['syncButtonLabel'])),
     apiIntegrationReady: bool(o['apiIntegrationReady']),
     autoSyncEnabled: bool(o['autoSyncEnabled']),

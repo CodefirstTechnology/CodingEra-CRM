@@ -28,6 +28,7 @@ import type { LeadNormalized, LeadUpsertDto } from './leads/lead-api.models';
 import { buildLeadPutJson } from './leads/lead-upsert-body.util';
 import { LeadHttpService } from './leads/lead-http.service';
 import type { LeadImportCommitResult, LeadImportRowDto } from '../../features/leads/import/lead-import-api.models';
+import type { LeadExportRequest } from '../../features/leads/export/lead-export.models';
 import { PermissionService } from './permission.service';
 
 /** Maps failed lead HTTP calls to a short user-facing message. */
@@ -447,5 +448,9 @@ export class LeadsService {
 
   commitImport(rows: LeadImportRowDto[]): Observable<LeadImportCommitResult> {
     return this.leadHttp.commitImport(rows);
+  }
+
+  exportLeads(body: LeadExportRequest): Observable<void> {
+    return this.leadHttp.exportLeads(body);
   }
 }

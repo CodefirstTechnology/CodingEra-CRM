@@ -84,7 +84,7 @@ export interface LeadRow {
 
 export type LeadListStatusFilter = 'all' | LeadStatus;
 
-export type LeadListSourceFilter = 'all' | LeadSource;
+export type LeadListSourceFilter = 'all' | string;
 
 /** Admin leads list: `'all'` or a {@link LeadOwnerOption.id}. */
 export type LeadListOwnerFilter = 'all' | string;

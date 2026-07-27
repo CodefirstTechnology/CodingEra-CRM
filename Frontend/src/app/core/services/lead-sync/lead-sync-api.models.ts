@@ -40,6 +40,8 @@ export interface LeadSyncMyAccess {
   sourceId: number;
   code: string;
   displayName: string;
+  /** Value stored on `leads.lead_source` for this marketplace. */
+  markerName: string;
   syncButtonLabel: string;
   apiIntegrationReady: boolean;
   autoSyncEnabled: boolean;

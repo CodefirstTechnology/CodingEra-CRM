@@ -45,19 +45,23 @@ export const QUOTATION_PDF_LAYOUT = {
   headerHeightMm: 24,
   /** Footer bar height — mirrors header visual weight */
   footerHeightMm: 18,
-  footerGapMm: 1.5,
-  footerReserveMm: 36,
+  /** Content must stay above this Y offset from page bottom (footer bar top + small gap). */
+  footerReserveMm: 34,
   sectionGapMm: 2,
+  /** Minimum painted height for an empty product-table spacer row (mm). */
+  blankRowHeightMm: 6,
   introGapMm: 4,
   /** Left header column width — logo area; right text uses remaining content width */
   brandBlockWidthMm: 50,
   /** Horizontal inset for header text inside the blue block */
   headerTextPadMm: 2,
+  /** White logo plate width inside the brand column (full header height). */
+  logoPlateWidthMm: 34,
   /** Max logo width/height (mm) inside the blue header */
-  logoMaxWidthMm: 39,
-  logoMaxHeightMm: 20,
-  /** Inset between logo and brand-column edges */
-  logoBoxPaddingMm: 0,
+  logoMaxWidthMm: 30,
+  logoMaxHeightMm: 22,
+  /** Inset between logo and logo-plate edges */
+  logoBoxPaddingMm: 1.5,
   /** Max logo pixel dimension before PDF embed (avoids huge PNG decode in jsPDF) */
   logoMaxPx: 400,
   /** Customer / quotation meta grid */
@@ -69,11 +73,7 @@ export const QUOTATION_PDF_LAYOUT = {
   lineQtyWidthMm: 26,
   lineRateWidthMm: 30,
   lineAmountWidthMm: 30,
-  /** Empty line-item rows expand to fill the page above terms (reference template) */
-  lineItemMinRowHeightMm: 6.2,
-  lineItemMinVisibleRows: 14,
-  /** Extra blank line-item rows added after page-fill calculation */
-  lineItemExtraEmptyRows: 1,
+  /** Fallback minima used when estimating product head / total row height */
   lineItemHeadHeightMm: 8,
   lineItemFootHeightMm: 8,
   /** Jurisdiction + signatory row below Terms & Conditions */
@@ -94,7 +94,6 @@ export const QUOTATION_PDF_LAYOUT = {
   termsDetailCellPaddingMm: { top: 1.2, right: 1.2, bottom: 1.2, left: 1.2 },
   totalsCellPaddingMm: { top: 1.2, right: 1.2, bottom: 1.2, left: 1.2 },
   introCellPaddingMm: { top: 1, right: 1.2, bottom: 1, left: 1.2 },
-  signatureCellPaddingMm: { top: 1, right: 1, bottom: 1, left: 1 },
   fontSize: {
     headerBrand: 13,
     headerLegal: 10.5,

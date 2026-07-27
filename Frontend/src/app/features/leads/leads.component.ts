@@ -64,6 +64,8 @@ import {
 import type { ConvertLeadOptions } from '../../core/services/leads/lead-conversion.types';
 import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import type { LeadImportCommitResult } from './import/lead-import-api.models';
+import { LeadExportModalComponent } from './export/lead-export-modal.component';
+import type { LeadExportColumnOption, LeadExportRequest } from './export/lead-export.models';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
 import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { plainTextFromHtml } from '../../shared/utils/plain-text-from-html';
@@ -159,6 +161,7 @@ interface LeadColumnOption {
     CrmAssignPickerComponent,
     CrmPaginationFooterComponent,
     ConvertLeadModalComponent,
+    LeadExportModalComponent,
     NgComponentOutlet,
     IntlTelInputComponent,
     DatePipe,
@@ -180,7 +183,7 @@ export class LeadsComponent {
   private readonly dealsService = inject(DealsService);
   private readonly conversionStorage = inject(LeadConversionStorageService);
   private readonly userScope = inject(UserDataScopeService);
-  private readonly permissions = inject(PermissionService);
+  protected readonly permissions = inject(PermissionService);
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly leadRoundRobin = inject(LeadRoundRobinService);
@@ -222,6 +225,7 @@ export class LeadsComponent {
   private readonly assignTargetIds = signal<string[]>([]);
   protected readonly importModalOpen = signal(false);
   protected readonly importModalLazyComponent = signal<Type<unknown> | null>(null);
+  protected readonly exportModalOpen = signal(false);
   protected readonly convertModalOpen = signal(false);
   protected readonly convertTargets = signal<LeadRow[]>([]);
   protected readonly openRowMenuId = signal<string | null>(null);
@@ -297,14 +301,37 @@ export class LeadsComponent {
     return chips;
   });
 
-  protected readonly sourceFilterChips: { id: LeadListSourceFilter; label: string }[] = [
-    { id: 'all', label: 'All' },
-    { id: 'Manual', label: 'Manual' },
-    { id: 'Excel', label: 'Excel' },
-    { id: 'IndiaMART', label: 'IndiaMART' },
-    { id: 'Justdial', label: 'Justdial' },
-    { id: 'TradeIndia', label: 'TradeIndia' },
-  ];
+  /**
+   * Source filter options built dynamically from:
+   * - Manual / Excel (always available CRM paths)
+   * - Lead sync sources assigned to the user (API markerName = lead_source)
+   * - Distinct `leadSource` values present in the current lead rows
+   */
+  protected readonly sourceFilterOptions = computed(() => {
+    const byId = new Map<string, string>();
+    byId.set('Manual', 'Manual');
+    byId.set('Excel', 'Excel');
+
+    for (const src of this.leadSyncAccess()) {
+      const id = (src.markerName || src.displayName || src.code || '').trim();
+      if (!id) continue;
+      byId.set(id, src.displayName.trim() || id);
+    }
+
+    for (const row of this.rows()) {
+      const id = (row.leadSource ?? '').trim();
+      if (!id) continue;
+      if (!byId.has(id)) byId.set(id, id);
+    }
+
+    const items: { id: LeadListSourceFilter; label: string }[] = [
+      { id: 'all', label: 'All sources' },
+    ];
+    for (const [id, label] of byId) {
+      items.push({ id, label });
+    }
+    return items;
+  });
 
   protected readonly statusFilterOptions = computed(() => {
     const items: { id: LeadListStatusFilter; label: string }[] = [
@@ -320,11 +347,6 @@ export class LeadsComponent {
     });
     return items;
   });
-
-  protected readonly sourceFilterOptions = this.sourceFilterChips.map((chip) => ({
-    id: chip.id,
-    label: chip.id === 'all' ? 'All sources' : chip.label,
-  }));
 
   protected readonly ownerFilterOptions = computed(() => {
     const items: { id: LeadListOwnerFilter; label: string }[] = [
@@ -667,6 +689,43 @@ export class LeadsComponent {
     this.columnOptions().filter((column) => this.isColumnVisible(column.id)),
   );
 
+  /** Column metadata for export modal (same ids/labels as the listing table). */
+  protected readonly exportColumnOptions = computed<LeadExportColumnOption[]>(() =>
+    this.columnOptions().map((c) => ({ key: c.id, label: c.label })),
+  );
+
+  protected readonly exportDefaultSelectedKeys = computed(() =>
+    this.visibleColumns().map((c) => c.id),
+  );
+
+  /** Active listing filters forwarded to export (same shape as list API). */
+  protected readonly exportListFilters = computed((): Omit<
+    LeadExportRequest,
+    'columns' | 'datePreset' | 'fromDate' | 'toDate'
+  > => {
+    const filters: Omit<LeadExportRequest, 'columns' | 'datePreset' | 'fromDate' | 'toDate'> = {};
+    const search = TextFormatter.search(this.searchQuery());
+    if (search) filters.search = search;
+
+    const src = this.sourceFilter();
+    if (src !== 'all') filters.leadSource = src;
+
+    const st = this.statusFilter();
+    if (st !== 'all') filters.status = st;
+
+    if (this.isAdminViewer()) {
+      const owner = this.ownerFilter();
+      if (owner !== 'all') {
+        const ownerId = Number(owner);
+        if (Number.isFinite(ownerId) && ownerId > 0) {
+          filters.leadOwnerId = ownerId;
+        }
+      }
+    }
+
+    return filters;
+  });
+
   protected readonly assignDefaultOwnerId = computed(() => {
     const ids = this.assignIdsForAction();
     const first = this.rows().find((r) => r.id === ids[0]);
@@ -800,6 +859,14 @@ export class LeadsComponent {
         this.importModalLazyComponent.set(m.LeadsImportModalLazyComponent);
       });
     }
+  }
+
+  protected openExportModal(): void {
+    this.exportModalOpen.set(true);
+  }
+
+  protected closeExportModal(): void {
+    this.exportModalOpen.set(false);
   }
 
   protected importModalOutletInputs(): Record<string, unknown> {
