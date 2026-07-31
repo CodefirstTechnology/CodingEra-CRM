@@ -37,6 +37,19 @@
           </label>
 
           <label class="tasks__field">
+            <span class="tasks__label">Daily Improvement <span class="tasks__req">*</span></span>
+            <textarea
+              class="tasks__control tasks__control--soft tasks__textarea"
+              formControlName="dailyImprovement"
+              rows="3"
+              placeholder="Enter today's improvement..."
+            ></textarea>
+            @if (fieldInvalid('dailyImprovement')) {
+              <span class="tasks__err">Daily Improvement is required.</span>
+            }
+          </label>
+
+          <label class="tasks__field">
             <span class="tasks__label">Description</span>
             <textarea
               class="tasks__control tasks__control--soft tasks__textarea"
@@ -171,6 +184,7 @@
         <thead>
           <tr class="tasks__thead-row">
             <th class="tasks__th">Title</th>
+            <th class="tasks__th">Daily Improvement</th>
             <th class="tasks__th tasks__th--record">Record</th>
             <th class="tasks__th">Status</th>
             <th class="tasks__th">Priority</th>
@@ -187,6 +201,7 @@
                   {{ row.title }}
                 </button>
               </td>
+              <td class="tasks__td">{{ row.dailyImprovement || '—' }}</td>
               <td class="tasks__td tasks__td--record">
                 @if (taskRecordActivityLink(row); as link) {
                   <a

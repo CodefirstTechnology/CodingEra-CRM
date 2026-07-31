@@ -170,6 +170,7 @@ export function normalizeTaskRow(row: Record<string, unknown>): TaskRow {
   return {
     id,
     title: inboundTitle(String(row['title'] ?? '')) || 'Task',
+    dailyImprovement: inboundDescription(String(row['dailyImprovement'] ?? '')),
     description: inboundDescription(String(row['description'] ?? '')),
     status,
     priority,
