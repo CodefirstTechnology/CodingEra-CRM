@@ -227,6 +227,7 @@ export class CreateEntityFormModalComponent {
 
   protected readonly taskForm = this.fb.nonNullable.group({
     title: ['', [Validators.required, Validators.maxLength(200)]],
+    dailyImprovement: ['', Validators.required],
     description: ['', Validators.maxLength(2000)],
     status: this.fb.nonNullable.control<TaskStatus>('Backlog', Validators.required),
     assignee: ['', Validators.required],
@@ -821,6 +822,7 @@ export class CreateEntityFormModalComponent {
 
     const payload: Omit<TaskRow, 'id'> = {
       title: raw.title.trim(),
+      dailyImprovement: raw.dailyImprovement.trim(),
       description: raw.description.trim(),
       status: raw.status,
       priority: raw.priority,
