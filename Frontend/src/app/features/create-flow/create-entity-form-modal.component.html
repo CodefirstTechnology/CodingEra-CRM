@@ -14,6 +14,13 @@
         }
       </label>
       <label class="create-form__field">
+        <span class="create-form__label">Daily Improvement <span class="create-form__req">*</span></span>
+        <textarea class="create-form__control create-form__textarea" rows="3" formControlName="dailyImprovement" placeholder="Enter today's improvement..."></textarea>
+        @if (fieldInvalid('task', 'dailyImprovement')) {
+          <span class="create-form__err">Daily Improvement is required.</span>
+        }
+      </label>
+      <label class="create-form__field">
         <span class="create-form__label">Description</span>
         <textarea class="create-form__control create-form__textarea" rows="3" formControlName="description"></textarea>
       </label>

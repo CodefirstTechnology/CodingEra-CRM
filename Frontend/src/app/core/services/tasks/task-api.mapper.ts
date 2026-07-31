@@ -97,6 +97,7 @@ export function extractTaskRecords(raw: unknown): unknown[] {
 export interface TaskUpsertDto {
   taskId?: number;
   taskTitle?: string | null;
+  dailyImprovement?: string | null;
   taskDescription?: string | null;
   taskStatus?: string | null;
   taskAssignee?: string | null;
@@ -121,6 +122,7 @@ export function mergeTaskRowPatch(
 ): Omit<TaskRow, 'id'> {
   return {
     title: patch.title ?? existing.title,
+    dailyImprovement: patch.dailyImprovement ?? existing.dailyImprovement,
     description: patch.description ?? existing.description,
     status: patch.status ?? existing.status,
     priority: patch.priority ?? existing.priority,
@@ -149,6 +151,9 @@ export function taskRowToUpsertDto(data: Omit<TaskRow, 'id'>, taskId?: number): 
   return {
     taskId: taskId != null && taskId > 0 ? taskId : 0,
     taskTitle: TextFormatter.title(data.title) || '',
+    dailyImprovement: data.dailyImprovement?.trim()
+      ? TextFormatter.description(data.dailyImprovement)
+      : '',
     taskDescription: data.description?.trim()
       ? TextFormatter.description(data.description)
       : null,
@@ -181,6 +186,9 @@ export function mapTaskApiRecord(raw: unknown): TaskRow {
     title:
       inboundTitle(String(r['taskTitle'] ?? r['TaskTitle'] ?? r['title'] ?? r['name'] ?? '')) ||
       'Task',
+    dailyImprovement: inboundDescription(
+      String(r['dailyImprovement'] ?? r['DailyImprovement'] ?? ''),
+    ) || '',
     description: inboundDescription(
       String(r['taskDescription'] ?? r['TaskDescription'] ?? r['description'] ?? ''),
     ),

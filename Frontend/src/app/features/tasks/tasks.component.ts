@@ -32,6 +32,7 @@ export interface AssigneeOption {
 export interface TaskRow {
   id: string;
   title: string;
+  dailyImprovement: string;
   description: string;
   status: TaskStatus;
   priority: TaskPriority;
@@ -245,6 +246,7 @@ export class TasksComponent {
 
   protected readonly createForm = this.fb.nonNullable.group({
     title: ['', [Validators.required, Validators.maxLength(200)]],
+    dailyImprovement: ['', Validators.required],
     description: ['', Validators.maxLength(2000)],
     status: this.fb.nonNullable.control<TaskStatus>('Backlog', Validators.required),
     assignee: ['', Validators.required],
@@ -286,6 +288,7 @@ export class TasksComponent {
     this.clearEditQuery();
     this.createForm.reset({
       title: '',
+      dailyImprovement: '',
       description: '',
       status: 'Backlog',
       assignee: this.defaultAssigneeId(),
@@ -303,6 +306,7 @@ export class TasksComponent {
     this.clearEditQuery();
     this.createForm.reset({
       title: '',
+      dailyImprovement: '',
       description: '',
       status: 'Backlog',
       assignee: this.defaultAssigneeId(),
@@ -331,6 +335,7 @@ export class TasksComponent {
           );
         this.createForm.patchValue({
           title: row.title,
+          dailyImprovement: row.dailyImprovement ?? '',
           description: row.description ?? '',
           status: row.status,
           assignee: person?.id ?? row.assignedToUserId ?? this.defaultAssigneeId(),
@@ -412,6 +417,7 @@ export class TasksComponent {
     const editing = this.editingRow();
     const payload: Omit<TaskRow, 'id'> = {
       title: raw.title.trim(),
+      dailyImprovement: raw.dailyImprovement.trim(),
       description: raw.description.trim(),
       status: raw.status,
       priority: raw.priority,
@@ -508,6 +514,7 @@ export class TasksComponent {
   private taskUpdatePayload(row: TaskRow, status?: TaskStatus): Omit<TaskRow, 'id'> {
     return {
       title: row.title,
+      dailyImprovement: row.dailyImprovement,
       description: row.description,
       status: status ?? row.status,
       priority: row.priority,
