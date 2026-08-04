@@ -28,6 +28,9 @@ export class UserTargetSettingsComponent implements OnInit {
   private readonly permissions = inject(PermissionService);
   private readonly toast = inject(ToastService);
 
+  /** Skip auto date range while patching the form (create/edit open). */
+  private skipTargetDateAuto = false;
+
   protected readonly canManage = computed(
     () =>
       canManageSettings(this.auth.user()) ||
@@ -79,6 +82,11 @@ export class UserTargetSettingsComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.targetForm.controls.targetTypeId.valueChanges.subscribe(() => {
+      if (this.skipTargetDateAuto) return;
+      if (this.viewMode() === 'list') return;
+      this.applyDatesForSelectedType();
+    });
     this.loadMeta();
     this.loadManageList();
   }
@@ -149,21 +157,26 @@ export class UserTargetSettingsComponent implements OnInit {
   protected openCreate(): void {
     if (!this.canManage()) return;
     this.editingId.set(null);
-    const today = new Date().toISOString().slice(0, 10);
+    const today = this.formatLocalDate(new Date());
+    const defaultTypeId = this.preferCustomTargetTypeId() || this.targetTypes()[0]?.id || 0;
+    this.skipTargetDateAuto = true;
     this.targetForm.reset({
       userId: 0,
-      targetTypeId: this.targetTypes()[0]?.id ?? 0,
+      targetTypeId: defaultTypeId,
       targetAmount: 0,
       startDate: today,
       endDate: today,
       isActive: true,
     });
+    this.skipTargetDateAuto = false;
+    this.applyDatesForSelectedType();
     this.viewMode.set('create');
   }
 
   protected openEdit(row: UserTargetRow): void {
     if (!this.canManage()) return;
     this.editingId.set(row.id);
+    this.skipTargetDateAuto = true;
     this.targetForm.patchValue({
       userId: row.userId,
       targetTypeId: row.targetTypeId,
@@ -172,6 +185,7 @@ export class UserTargetSettingsComponent implements OnInit {
       endDate: row.endDate.slice(0, 10),
       isActive: row.isActive,
     });
+    this.skipTargetDateAuto = false;
     this.viewMode.set('edit');
   }
 
@@ -278,5 +292,50 @@ export class UserTargetSettingsComponent implements OnInit {
       currency: 'INR',
       maximumFractionDigits: 0,
     }).format(value);
+  }
+
+  /** Sets end date from start + period for the selected target type. Manual date edits remain allowed afterward. */
+  private applyDatesForSelectedType(): void {
+    const typeId = Number(this.targetForm.getRawValue().targetTypeId);
+    if (!typeId) return;
+
+    const type = this.targetTypes().find((t) => t.id === typeId);
+    if (!type) return;
+
+    const name = type.name.toLowerCase();
+    // Custom: keep whatever dates the user chooses; do not overwrite.
+    if (name.includes('custom')) return;
+
+    const startRaw = this.targetForm.getRawValue().startDate;
+    const start = startRaw ? new Date(`${startRaw}T00:00:00`) : new Date();
+    if (Number.isNaN(start.getTime())) return;
+
+    const end = new Date(start);
+    if (name.includes('week')) {
+      end.setDate(end.getDate() + 7);
+    } else if (name.includes('month')) {
+      end.setMonth(end.getMonth() + 1);
+    }
+    // Hourly / Daily (and unknown): same calendar day
+
+    this.targetForm.patchValue(
+      {
+        startDate: this.formatLocalDate(start),
+        endDate: this.formatLocalDate(end),
+      },
+      { emitEvent: false },
+    );
+  }
+
+  private preferCustomTargetTypeId(): number {
+    const custom = this.targetTypes().find((t) => t.name.toLowerCase().includes('custom'));
+    return custom?.id ?? 0;
+  }
+
+  private formatLocalDate(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
 }
