@@ -60,6 +60,16 @@
   }
 }
 
+.deals__btn--ghost {
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--card-border);
+
+  &:hover {
+    background: color-mix(in srgb, var(--tertiary-color) 8%, var(--surface));
+  }
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--card-border);

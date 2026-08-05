@@ -233,7 +233,9 @@
             <p class="adv-settings__email">{{ profile().email }}</p>
           </div>
         </div>
-        <button type="button" class="adv-settings__pwd-btn">Change Password</button>
+        <button type="button" class="adv-settings__pwd-btn" (click)="openChangePassword()">
+          Change Password
+        </button>
       </header>
 
       <div class="adv-settings__form-grid">
@@ -250,6 +252,12 @@
       <footer class="adv-settings__actions">
         <button type="button" class="adv-settings__update-btn" disabled>Update</button>
       </footer>
+
+      <app-change-password-modal
+        [open]="changePasswordModalOpen()"
+        (changed)="onPasswordChanged()"
+        (dismiss)="closeChangePasswordModal()"
+      />
     </article>
     }
   </section>

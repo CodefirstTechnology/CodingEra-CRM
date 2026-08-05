@@ -4,6 +4,7 @@ import { Observable, of, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { environment } from '../../../../environments/environment';
 import { AuthService } from '../../auth/auth.service';
+import type { DealExportRequest } from '../../../features/deals/export/deal-export.models';
 import { normalizeDealApiRecord } from './deal-api.mapper';
 import type { DealNormalized, DealUpsertDto } from './deal-api.models';
 import { buildDealPutJson, stripDealUpsertForPost } from './deal-upsert-body.util';
@@ -174,4 +175,73 @@ export class DealHttpService {
       })
       .pipe(map((raw) => normalizeDealApiRecord(raw)));
   }
+
+  exportDeals(body: DealExportRequest): Observable<void> {
+    return this.http
+      .post(`${this.baseUrl}/export`, body, {
+        headers: this.jsonHeaders(),
+        responseType: 'blob',
+        observe: 'response',
+      })
+      .pipe(
+        map((res) => {
+          const blob = res.body;
+          if (!blob) {
+            throw new Error('Empty export response.');
+          }
+          const fileName =
+            parseContentDispositionFileName(res.headers.get('content-disposition')) ??
+            `Deals_Export_${new Date().toISOString().slice(0, 10)}.xlsx`;
+          downloadBlob(blob, fileName);
+        }),
+        catchError((err: HttpErrorResponse) => {
+          if (err.error instanceof Blob) {
+            return new Observable<never>((subscriber) => {
+              err.error
+                .text()
+                .then((text: string) => {
+                  const message = text?.trim() || err.message || 'Export failed';
+                  subscriber.error(
+                    new HttpErrorResponse({
+                      error: message,
+                      headers: err.headers,
+                      status: err.status,
+                      statusText: err.statusText,
+                      url: err.url ?? undefined,
+                    }),
+                  );
+                })
+                .catch(() => subscriber.error(err));
+            });
+          }
+          return throwError(() => err);
+        }),
+      );
+  }
+}
+
+function parseContentDispositionFileName(header: string | null): string | null {
+  if (!header) return null;
+  const utfMatch = /filename\*=UTF-8''([^;]+)/i.exec(header);
+  if (utfMatch?.[1]) {
+    try {
+      return decodeURIComponent(utfMatch[1].trim().replace(/^"|"$/g, ''));
+    } catch {
+      return utfMatch[1].trim().replace(/^"|"$/g, '');
+    }
+  }
+  const plainMatch = /filename="?([^";]+)"?/i.exec(header);
+  return plainMatch?.[1]?.trim() || null;
+}
+
+function downloadBlob(blob: Blob, fileName: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = fileName;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

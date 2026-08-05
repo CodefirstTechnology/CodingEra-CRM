@@ -29,3 +29,13 @@ export interface RegisterApiRequest {
   password: string;
   roleId?: number | null;
 }
+
+/** Body for `POST /api/auth/change-password`. */
+export interface ChangePasswordPayload {
+  currentPassword: string;
+  newPassword: string;
+}
+
+export type ChangePasswordResult =
+  | { ok: true }
+  | { ok: false; error: string };

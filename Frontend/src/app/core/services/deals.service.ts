@@ -3,6 +3,7 @@ import { Observable, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
 import { filterDealsForUser } from '../../features/user-dashboard/utils/user-ownership.util';
 import type { DealRow } from '../../features/deals/deals.component';
+import type { DealExportRequest } from '../../features/deals/export/deal-export.models';
 import { LeadConversionStorageService } from './leads/lead-conversion-storage.service';
 import { LeadOwnerOptionsService } from './leads/lead-owner-options.service';
 import {
@@ -139,5 +140,9 @@ export class DealsService {
         return this.ownerOpts.applyOwnerToDealRow(mapDealNormalizedToRow(dto));
       }),
     );
+  }
+
+  exportDeals(body: DealExportRequest): Observable<void> {
+    return this.dealHttp.exportDeals(body);
   }
 }

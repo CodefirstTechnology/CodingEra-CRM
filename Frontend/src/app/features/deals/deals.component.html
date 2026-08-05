@@ -1,10 +1,26 @@
 <div class="deals">
+  <app-deal-export-modal
+    [open]="exportModalOpen()"
+    [columnOptions]="exportColumnOptions()"
+    [defaultSelectedKeys]="exportDefaultSelectedKeys()"
+    [listFilters]="exportListFilters()"
+    [statusOptions]="exportStatusOptions()"
+    [showOwnerFilter]="isAdminViewer()"
+    [ownerOptions]="exportOwnerOptions()"
+    (dismiss)="closeExportModal()"
+  />
+
   <header class="deals__head">
     <div>
       <h1 class="deals__title">Deals</h1>
       <p class="deals__sub">Track opportunities from quotation to close.</p>
     </div>
     <div class="deals__head-actions">
+      @if (permissions.has('deals.export')) {
+        <button type="button" class="deals__btn deals__btn--ghost" (click)="openExportModal()">
+          Export
+        </button>
+      }
       <button type="button" class="deals__btn deals__btn--solid" (click)="openForm()">+ New deal</button>
     </div>
   </header>
