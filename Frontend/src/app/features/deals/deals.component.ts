@@ -65,6 +65,8 @@ import {
 import { createIdSelection } from '../../shared/utils/selection-manager';
 import { TextFormatter } from '../../shared/utils/text-normalizer';
 import { fullNameFromLeadParts, normalizeFullNameControl, splitFullName } from '../leads/lead-full-name.util';
+import { DealExportModalComponent } from './export/deal-export-modal.component';
+import type { DealExportColumnOption, DealExportRequest } from './export/deal-export.models';
 
 export type { DealPipelineStatus };
 
@@ -174,6 +176,7 @@ const DEFAULT_OPTIONAL_DEAL_COLUMN_IDS = [
     ColumnOrderListDirective,
     ColumnOrderItemDirective,
     ColumnOrderHandleDirective,
+    DealExportModalComponent,
   ],
   templateUrl: './deals.component.html',
   styleUrl: './deals.component.scss',
@@ -190,7 +193,7 @@ export class DealsComponent {
   private readonly contactHttp = inject(ContactHttpService);
   private readonly toast = inject(ToastService);
   private readonly userScope = inject(UserDataScopeService);
-  private readonly permissions = inject(PermissionService);
+  protected readonly permissions = inject(PermissionService);
   private readonly ownerOpts = inject(LeadOwnerOptionsService);
   protected readonly dealMaster = inject(DealMasterSelectService);
   private readonly router = inject(Router);
@@ -199,6 +202,7 @@ export class DealsComponent {
 
   protected readonly sel = createIdSelection();
   protected readonly assignPickerOpen = signal(false);
+  protected readonly exportModalOpen = signal(false);
   protected readonly editingNumericId = signal<number | null>(null);
   private lastRouteEdit = '';
 
@@ -415,6 +419,87 @@ export class DealsComponent {
 
   protected readonly visibleColumns = computed(() =>
     this.columnOptions().filter((column) => this.isColumnVisible(column.id)),
+  );
+
+  private readonly exportableColumnIds = new Set([
+    'contactName',
+    'organizationName',
+    'email',
+    'mobile',
+    'annualRevenue',
+    'dealAmount',
+    'status',
+    'assignedTo',
+    'lastModified',
+    'created',
+    'employees',
+    'website',
+    'territory',
+    'industry',
+    'gender',
+    'probabilityPercent',
+    'nextStep',
+    'gst',
+    'salutation',
+    'nextFollowUpDate',
+    'lostReason',
+  ]);
+
+  /** Column metadata for export modal (same ids/labels as the listing table). */
+  protected readonly exportColumnOptions = computed<DealExportColumnOption[]>(() => {
+    const fromListing = this.columnOptions()
+      .filter((c) => this.exportableColumnIds.has(c.id))
+      .map((c) => ({ key: c.id, label: c.label }));
+    const keys = new Set(fromListing.map((c) => c.key));
+    const extras: DealExportColumnOption[] = [];
+    if (!keys.has('created')) {
+      extras.push({ key: 'created', label: 'Created' });
+    }
+    if (!keys.has('nextFollowUpDate')) {
+      extras.push({ key: 'nextFollowUpDate', label: 'Next follow-up' });
+    }
+    if (!keys.has('lostReason')) {
+      extras.push({ key: 'lostReason', label: 'Lost reason' });
+    }
+    return [...fromListing, ...extras];
+  });
+
+  protected readonly exportDefaultSelectedKeys = computed(() =>
+    this.visibleColumns()
+      .map((c) => c.id)
+      .filter((id) => this.exportableColumnIds.has(id)),
+  );
+
+  protected readonly exportListFilters = computed((): Omit<
+    DealExportRequest,
+    'columns' | 'datePreset' | 'fromDate' | 'toDate'
+  > => {
+    const filters: Omit<DealExportRequest, 'columns' | 'datePreset' | 'fromDate' | 'toDate'> = {};
+    const search = TextFormatter.search(this.searchQuery());
+    if (search) filters.search = search;
+
+    const st = this.statusFilter();
+    if (st !== 'all') filters.status = st;
+
+    if (this.isAdminViewer()) {
+      const owner = this.ownerFilter();
+      if (owner !== 'all') {
+        const ownerId = Number(owner);
+        if (Number.isFinite(ownerId) && ownerId > 0) {
+          filters.dealOwnerId = ownerId;
+        }
+      }
+    }
+
+    return filters;
+  });
+
+  protected readonly exportStatusOptions = computed(() =>
+    this.statusFilterOptions().map((o) => ({ id: String(o.id), label: o.label })),
+  );
+
+  protected readonly exportOwnerOptions = computed(() =>
+    this.ownerFilterOptions().map((o) => ({ id: String(o.id), label: o.label })),
   );
 
   protected readonly assignDefaultOwnerId = computed(() => {
@@ -711,6 +796,14 @@ export class DealsComponent {
     this.clearEditQuery();
     this.resetCreateForm();
     this.formOpen.set(true);
+  }
+
+  protected openExportModal(): void {
+    this.exportModalOpen.set(true);
+  }
+
+  protected closeExportModal(): void {
+    this.exportModalOpen.set(false);
   }
 
   protected closeForm(): void {
