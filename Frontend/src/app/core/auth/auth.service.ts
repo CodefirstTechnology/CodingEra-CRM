@@ -23,7 +23,13 @@ import {
   unwrapApiRecord,
 } from './auth-role.util';
 import { parsePermissionsFromApi } from './permission.util';
-import type { RegisterApiRequest, RegisterPayload, UserSession } from './auth.models';
+import type {
+  ChangePasswordPayload,
+  ChangePasswordResult,
+  RegisterApiRequest,
+  RegisterPayload,
+  UserSession,
+} from './auth.models';
 import { SKIP_USER_ID_QUERY } from '../http/skip-user-id-query.context';
 import { TextFormatter } from '../../shared/utils/text-normalizer';
 
@@ -365,6 +371,41 @@ export class AuthService {
   }
 
   /**
+   * Changes the signed-in user's password via POST `{apiUrl}/auth/change-password`.
+   * `userId` is appended by the HTTP interceptor. Passwords are never stored on the client.
+   */
+  changePassword(payload: ChangePasswordPayload): Observable<ChangePasswordResult> {
+    const base = environment.apiUrl?.replace(/\/$/, '');
+    if (!base) {
+      return of({ ok: false, error: 'API is not configured.' });
+    }
+
+    const currentPassword = payload.currentPassword;
+    const newPassword = payload.newPassword;
+    if (!currentPassword || !newPassword) {
+      return of({ ok: false, error: 'Current password and new password are required.' });
+    }
+
+    const token = this._token();
+    const headers =
+      token && token.length > 0
+        ? new HttpHeaders({ Authorization: `Bearer ${token}` })
+        : undefined;
+
+    return this.http
+      .post<unknown>(
+        `${base}/auth/change-password`,
+        { currentPassword, newPassword },
+        { headers },
+      )
+      .pipe(
+        timeout(15000),
+        map(() => ({ ok: true as const })),
+        catchError((err: unknown) => of(this.mapChangePasswordHttpError(err))),
+      );
+  }
+
+  /**
    * Registers a new user via POST `{apiUrl}/auth/register`.
    * Password is only sent over HTTPS to the server; it is never stored in localStorage.
    * Demo mode (no `apiUrl`): succeeds after client validation only.
@@ -423,6 +464,27 @@ export class AuthService {
         map((raw) => pickRegisterRoleId(extractMasterDataRows(raw))),
         catchError(() => of(null)),
       );
+  }
+
+  private mapChangePasswordHttpError(err: unknown): ChangePasswordResult {
+    if (!(err instanceof HttpErrorResponse)) {
+      return { ok: false, error: 'Something went wrong. Please try again.' };
+    }
+    if (err.status === 401) {
+      return { ok: false, error: 'Incorrect current password.' };
+    }
+    if (err.status === 404) {
+      return {
+        ok: false,
+        error:
+          'Change password API not found. Start the CRM API and ensure the latest backend is running.',
+      };
+    }
+    const detail = this.httpErrorDetail(err);
+    if (detail) {
+      return { ok: false, error: detail.slice(0, 220) };
+    }
+    return { ok: false, error: 'Could not change password. Please try again.' };
   }
 
   private mapRegisterHttpError(err: unknown): LoginResult {

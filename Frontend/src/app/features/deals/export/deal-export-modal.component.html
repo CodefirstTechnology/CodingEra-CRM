@@ -1,0 +1,172 @@
+<app-crm-modal
+  [open]="open()"
+  title="Export deals"
+  size="md"
+  [showFooter]="true"
+  (dismiss)="onDismiss()"
+>
+  <p class="deal-export-modal__intro">
+    Choose status and date filters, then select columns. Listing search and owner filters are still applied when set.
+  </p>
+
+  <section class="deal-export-modal__section" aria-labelledby="deal-export-filters-heading">
+    <h3 id="deal-export-filters-heading" class="deal-export-modal__section-title">Filters</h3>
+    <div class="deal-export-modal__filter-row" [class.deal-export-modal__filter-row--single]="!showOwnerFilter()">
+      <label class="deal-export-modal__field">
+        <span class="deal-export-modal__label">Status</span>
+        <select
+          class="deal-export-modal__select"
+          [value]="statusFilter()"
+          (change)="onStatusFilterChange($event)"
+          [disabled]="exporting()"
+        >
+          @for (opt of statusOptions(); track opt.id) {
+            <option [value]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+      </label>
+      @if (showOwnerFilter()) {
+        <label class="deal-export-modal__field">
+          <span class="deal-export-modal__label">Owner</span>
+          <select
+            class="deal-export-modal__select"
+            [value]="ownerFilter()"
+            (change)="onOwnerFilterChange($event)"
+            [disabled]="exporting()"
+          >
+            @for (opt of ownerOptions(); track opt.id) {
+              <option [value]="opt.id">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+      }
+    </div>
+  </section>
+
+  <section class="deal-export-modal__section" aria-labelledby="deal-export-date-heading">
+    <h3 id="deal-export-date-heading" class="deal-export-modal__section-title">Date filter</h3>
+    <p class="deal-export-modal__hint">Filters by deal created date.</p>
+    <label class="deal-export-modal__field">
+      <span class="visually-hidden">Date range</span>
+      <select
+        class="deal-export-modal__select"
+        [value]="datePreset()"
+        (change)="onDatePresetChange($event)"
+        [disabled]="exporting()"
+      >
+        @for (opt of datePresets; track opt.id) {
+          <option [value]="opt.id">{{ opt.label }}</option>
+        }
+      </select>
+    </label>
+
+    @if (isCustomDate()) {
+      <div class="deal-export-modal__date-row">
+        <label class="deal-export-modal__field">
+          <span class="deal-export-modal__label">From</span>
+          <input
+            type="date"
+            class="deal-export-modal__input"
+            [ngModel]="fromDate()"
+            (ngModelChange)="fromDate.set($event)"
+            [disabled]="exporting()"
+          />
+        </label>
+        <label class="deal-export-modal__field">
+          <span class="deal-export-modal__label">To</span>
+          <input
+            type="date"
+            class="deal-export-modal__input"
+            [ngModel]="toDate()"
+            (ngModelChange)="toDate.set($event)"
+            [disabled]="exporting()"
+          />
+        </label>
+      </div>
+    }
+
+    @if (dateError(); as err) {
+      <p class="deal-export-modal__error" role="alert">{{ err }}</p>
+    }
+  </section>
+
+  <section class="deal-export-modal__section" aria-labelledby="deal-export-columns-heading">
+    <div class="deal-export-modal__section-head">
+      <h3 id="deal-export-columns-heading" class="deal-export-modal__section-title">Columns</h3>
+      <span class="deal-export-modal__count">{{ selectedCount() }} selected</span>
+    </div>
+
+    <div class="deal-export-modal__column-toolbar">
+      <label class="deal-export-modal__search">
+        <span class="visually-hidden">Search columns</span>
+        <input
+          type="search"
+          class="deal-export-modal__input"
+          placeholder="Search columns…"
+          [ngModel]="columnSearch()"
+          (ngModelChange)="columnSearch.set($event)"
+          [disabled]="exporting()"
+        />
+      </label>
+      <div class="deal-export-modal__column-actions">
+        <button
+          type="button"
+          class="deal-export-modal__link-btn"
+          (click)="selectAllFiltered()"
+          [disabled]="exporting() || allFilteredSelected()"
+        >
+          Select all
+        </button>
+        <button
+          type="button"
+          class="deal-export-modal__link-btn"
+          (click)="deselectAll()"
+          [disabled]="exporting() || selectedCount() === 0"
+        >
+          Deselect all
+        </button>
+      </div>
+    </div>
+
+    <ul class="deal-export-modal__column-list" role="list">
+      @for (col of filteredColumnOptions(); track col.key) {
+        <li>
+          <label class="deal-export-modal__check">
+            <input
+              type="checkbox"
+              [checked]="isSelected(col.key)"
+              (change)="toggleColumn(col.key, $any($event.target).checked)"
+              [disabled]="exporting()"
+            />
+            <span>{{ col.label }}</span>
+          </label>
+        </li>
+      } @empty {
+        <li class="deal-export-modal__empty">No columns match your search.</li>
+      }
+    </ul>
+  </section>
+
+  <div crmModalFooter class="deal-export-modal__footer">
+    <button
+      type="button"
+      class="deal-export-modal__btn deal-export-modal__btn--ghost"
+      (click)="onDismiss()"
+      [disabled]="exporting()"
+    >
+      Cancel
+    </button>
+    <button
+      type="button"
+      class="deal-export-modal__btn deal-export-modal__btn--solid"
+      (click)="onExport()"
+      [disabled]="exporting() || selectedCount() === 0"
+    >
+      @if (exporting()) {
+        Exporting…
+      } @else {
+        Export Excel
+      }
+    </button>
+  </div>
+</app-crm-modal>

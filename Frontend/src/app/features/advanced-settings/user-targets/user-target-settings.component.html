@@ -143,17 +143,21 @@
                   <span class="utarget__user">{{ row.userName }}</span>
                   <span class="utarget__muted">{{ row.userEmail }}</span>
                 </td>
-                <td>{{ row.targetTypeName }}</td>
+                <td class="utarget__type">{{ row.targetTypeName }}</td>
                 <td>{{ formatMoney(row.targetAmount) }}</td>
                 <td>{{ formatMoney(row.achievedAmount) }}</td>
                 <td>{{ formatMoney(row.remainingAmount) }}</td>
                 <td>
                   <div class="utarget__progress">
-                    <div class="utarget__progress-bar" [style.width.%]="row.achievementPercent"></div>
+                    <div class="utarget__progress-track" aria-hidden="true">
+                      <div class="utarget__progress-bar" [style.width.%]="row.achievementPercent"></div>
+                    </div>
                     <span>{{ row.achievementPercent }}%</span>
                   </div>
                 </td>
-                <td>{{ row.startDate | date: 'mediumDate' }} – {{ row.endDate | date: 'mediumDate' }}</td>
+                <td class="utarget__period">
+                  {{ row.startDate | date: 'mediumDate' }} – {{ row.endDate | date: 'mediumDate' }}
+                </td>
                 <td>
                   <span class="utarget__badge" [class.utarget__badge--active]="row.isActive">
                     {{ row.isActive ? 'Active' : 'Inactive' }}
@@ -227,13 +231,15 @@
             @for (row of monitorRows(); track row.id) {
               <tr>
                 <td>{{ row.userName }}</td>
-                <td>{{ row.targetTypeName }}</td>
+                <td class="utarget__type">{{ row.targetTypeName }}</td>
                 <td>{{ formatMoney(row.targetAmount) }}</td>
                 <td>{{ formatMoney(row.achievedAmount) }}</td>
                 <td>{{ formatMoney(row.remainingAmount) }}</td>
                 <td>
                   <div class="utarget__progress">
-                    <div class="utarget__progress-bar" [style.width.%]="row.achievementPercent"></div>
+                    <div class="utarget__progress-track" aria-hidden="true">
+                      <div class="utarget__progress-bar" [style.width.%]="row.achievementPercent"></div>
+                    </div>
                     <span>{{ row.achievementPercent }}%</span>
                   </div>
                 </td>
