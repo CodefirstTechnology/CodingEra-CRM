@@ -18,6 +18,7 @@ import { UserTargetSettingsComponent } from './user-targets/user-target-settings
 import { LeadSyncManagementSettingsComponent } from './lead-sync-management/lead-sync-management-settings.component';
 import { DeleteUserModalComponent } from './delete-user-modal.component';
 import { EditUserModalComponent } from './edit-user-modal.component';
+import { ChangePasswordModalComponent } from './change-password-modal.component';
 
 type SettingsNavGroup = { title: string; items: readonly string[] };
 
@@ -43,6 +44,7 @@ const PERMISSION_GATED_ITEMS: Record<string, readonly string[]> = {
     LeadSyncManagementSettingsComponent,
     DeleteUserModalComponent,
     EditUserModalComponent,
+    ChangePasswordModalComponent,
     MasterFormsComponent,
     RoleManagementComponent,
   ],
@@ -71,6 +73,7 @@ export class AdvancedSettingsComponent implements OnInit {
   protected readonly deleteTarget = signal<AdminUserRow | null>(null);
   protected readonly editModalOpen = signal(false);
   protected readonly editTarget = signal<AdminUserRow | null>(null);
+  protected readonly changePasswordModalOpen = signal(false);
 
   protected readonly roleFilters = computed(() => {
     const roles = this.rolesFromApi().map((r) => r.name);
@@ -311,6 +314,18 @@ export class AdvancedSettingsComponent implements OnInit {
 
   protected canEditUser(): boolean {
     return this.permissions.hasAny(['users.edit', 'settings.manage']);
+  }
+
+  protected openChangePassword(): void {
+    this.changePasswordModalOpen.set(true);
+  }
+
+  protected closeChangePasswordModal(): void {
+    this.changePasswordModalOpen.set(false);
+  }
+
+  protected onPasswordChanged(): void {
+    this.closeChangePasswordModal();
   }
 
   protected openDeleteUser(user: AdminUserRow): void {
