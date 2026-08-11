@@ -155,7 +155,7 @@ export class ContactsComponent {
   protected readonly createForm = this.fb.nonNullable.group({
     firstName: ['', [Validators.required, Validators.maxLength(80)]],
     lastName: ['', [Validators.required, Validators.maxLength(120)]],
-    email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
+    email: ['', [Validators.email, Validators.maxLength(160)]],
     mobile: ['', Validators.required],
     gender: [''],
     companyName: ['', Validators.maxLength(200)],
@@ -302,6 +302,7 @@ export class ContactsComponent {
     const emailCtrl = this.createForm.get('email');
     const editId = this.editingNumericId();
     if (
+      emailLower &&
       this.rows().some(
         (r) =>
           r.email.toLowerCase() === emailLower && (editId == null || Number(r.id) !== editId),
