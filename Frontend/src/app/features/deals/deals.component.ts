@@ -525,6 +525,7 @@ export class DealsComponent {
     gst: ['', gstFormValidators()],
     territory: [''],
     industry: ['Technology', Validators.required],
+    source: ['Manual', Validators.required],
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
     primaryMobile: [''],
     primaryEmail: ['', [Validators.maxLength(160), optionalEmailValidator()]],
@@ -852,6 +853,7 @@ export class DealsComponent {
       gst: '',
       territory: '',
       industry: defaultIndustry ? masterOptionFormValue(defaultIndustry) : 'Technology',
+      source: 'Manual',
       fullName: '',
       primaryMobile: '',
       primaryEmail: '',
@@ -1111,6 +1113,7 @@ export class DealsComponent {
       probabilityPercent: 10,
       nextStep: '',
       requirement: raw.requirement.trim() || undefined,
+      source: raw.source || 'Manual',
     };
 
     if (selectedOrgId) {

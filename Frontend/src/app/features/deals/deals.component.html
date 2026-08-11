@@ -209,6 +209,16 @@
                   <span class="deals__err">Select an industry.</span>
                 }
               </label>
+              <label class="deals__field">
+                <span class="deals__label">Source <span class="deals__req">*</span></span>
+                <select class="deals__control deals__control--soft" formControlName="source">
+                  <option value="Manual">Manual</option>
+                  <option value="Website">Website</option>
+                </select>
+                @if (fieldInvalid('source')) {
+                  <span class="deals__err">Select a source.</span>
+                }
+              </label>
             </div>
             <label class="deals__field">
               <span class="deals__label">GSTIN</span>
