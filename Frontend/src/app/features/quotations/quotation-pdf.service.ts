@@ -140,6 +140,7 @@ export class QuotationPdfService {
     const headerHeight = this.measureCompanyHeaderHeight(doc, C, contentW);
     const pageTopMargin = margin + headerHeight + L.sectionGapMm;
     const contentBottomY = pageH - L.footerReserveMm;
+    const footerY = pageH - margin - 10;
 
     const drawHeader = (): void => {
       const headerTop = margin;
@@ -235,8 +236,6 @@ export class QuotationPdfService {
     };
 
     const drawFooter = (pageNumber: number, totalPages: number): void => {
-      const footerY = pageH - margin - 10;
-
       // Draw top line
       doc.setDrawColor(200, 200, 200);
       doc.setLineWidth(0.15);
@@ -431,18 +430,11 @@ export class QuotationPdfService {
     const totalsValueW = totalsW - totalsLabelW;
 
     const closingHeight = this.measureClosingBlocksHeight({
+      doc,
+      C,
       contentW,
-      margin,
-      footerReserveMm: L.footerReserveMm,
-      tableStyles,
-      footerRows,
-      termsDetailW,
-      totalsLabelW,
-      totalsValueW,
-      termsW,
-      totalsW,
-      jurisdiction: C.jurisdiction,
-      sigBlock,
+      grandTotal,
+      sigPhone,
     });
 
     const productHeadLabels = [
@@ -634,16 +626,21 @@ export class QuotationPdfService {
       willDrawPage: (data) => ensureHeaderOnTablePage(data.pageNumber),
     });
 
-    y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 20;
+    y = (doc as DocWithTable).lastAutoTable?.finalY ?? y;
 
-    // Check if bottom section fits on this page using the computed closingHeight
-    if (y + closingHeight > contentBottomY) {
+    const gap = 6; // exactly one empty line/row of vertical spacing
+    const targetBottomPinY = footerY - 3 - closingHeight;
+
+    if (y + gap > targetBottomPinY) {
       doc.addPage();
       drawHeader();
+      y = margin + headerHeight + L.sectionGapMm;
+    } else {
+      y = targetBottomPinY;
     }
 
     const startY = y;
-    let leftY = y;
+    let leftY = startY + 4;
 
     // --- LEFT COLUMN: Bank Details & Terms ---
     doc.setFont('helvetica', 'bold');
@@ -754,32 +751,72 @@ export class QuotationPdfService {
     rightY += 4.5;
 
     // Amount in Words
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('helvetica', 'bolditalic');
     doc.setFontSize(8);
-    doc.text('Amount in Words:', rightColX, rightY);
-    rightY += 3.5;
-    doc.setFont('helvetica', 'oblique');
+    doc.setTextColor(80, 80, 80);
+    doc.text('Amount in Words: ', rightColX, rightY);
+
+    const prefixW = doc.getTextWidth('Amount in Words: ');
+
+    doc.setFont('helvetica', 'italic');
     doc.setTextColor(100, 100, 100);
+
     const words = this.amountToWords(grandTotal);
-    const wordLines = doc.splitTextToSize(words, contentW * 0.40) as string[];
-    doc.text(wordLines, rightColX, rightY);
-    rightY += wordLines.length * 3.6;
+    const firstLineMaxW = (contentW * 0.40) - prefixW;
+    const remainingLinesMaxW = contentW * 0.40;
+
+    const wordsArr = words.split(' ');
+    let firstLine = '';
+    let currentLine = '';
+    const otherLines: string[] = [];
+
+    for (let i = 0; i < wordsArr.length; i++) {
+      const word = wordsArr[i];
+      const testLine = firstLine ? `${firstLine} ${word}` : word;
+      if (doc.getTextWidth(testLine) <= firstLineMaxW) {
+        firstLine = testLine;
+      } else {
+        if (currentLine) {
+          const testLine2 = `${currentLine} ${word}`;
+          if (doc.getTextWidth(testLine2) <= remainingLinesMaxW) {
+            currentLine = testLine2;
+          } else {
+            otherLines.push(currentLine);
+            currentLine = word;
+          }
+        } else {
+          currentLine = word;
+        }
+      }
+    }
+    if (currentLine) {
+      otherLines.push(currentLine);
+    }
+
+    doc.text(firstLine, rightColX + prefixW, rightY);
+    let tempY = rightY;
+    otherLines.forEach((line) => {
+      tempY += 3.6;
+      doc.text(line, rightAlignX, tempY, { align: 'right' });
+    });
+    rightY = tempY + 3.6;
 
     // --- SIGNATORY & CLOSING SECTION ---
     y = Math.max(leftY, rightY) + 6;
 
-    const sigHeight = 25;
-    if (y + sigHeight > contentBottomY) {
-      doc.addPage();
-      drawHeader();
-      y = margin + headerHeight + L.sectionGapMm + 6;
-    }
-
     // Subject to Jurisdiction
-    doc.setFont('helvetica', 'oblique');
+    doc.setFont('helvetica', 'italic');
     doc.setFontSize(7.5);
     doc.setTextColor(120, 120, 120);
-    const jText = C.jurisdiction?.trim() ? `Subject to ${C.jurisdiction.trim()} Jurisdiction` : '';
+    let jText = C.jurisdiction?.trim() || '';
+    if (jText) {
+      if (!jText.toLowerCase().startsWith('subject to')) {
+        jText = `Subject to ${jText}`;
+      }
+      if (!jText.toLowerCase().endsWith('jurisdiction')) {
+        jText = `${jText} Jurisdiction`;
+      }
+    }
     doc.text(jText, margin, y + 16);
 
     // Signatory
@@ -960,99 +997,40 @@ export class QuotationPdfService {
     continuationTableTop: number;
     contentBottomY: number;
   }): number {
-    const {
-      itemHeights,
-      headHeight,
-      blankRowHeight,
-      totalRowHeight,
-      closingHeight,
-      firstPageTableTop,
-      continuationTableTop,
-      contentBottomY,
-    } = opts;
-
-    if (blankRowHeight <= 0) return 0;
-
-    // Modest slack — enough to avoid overflow, without leaving a large footer gap.
-    const safetyMm = 1;
-
-    const bodyBudget = (pageIndex: number): number => {
-      const top = pageIndex === 0 ? firstPageTableTop : continuationTableTop;
-      return Math.max(0, contentBottomY - top - headHeight);
-    };
-
-    const heights = itemHeights.length ? [...itemHeights] : [blankRowHeight];
-    let pageIndex = 0;
-    let usedOnPage = 0;
-
-    while (heights.length) {
-      const budget = bodyBudget(pageIndex);
-      usedOnPage = 0;
-      let placed = 0;
-
-      while (heights.length) {
-        const next = heights[0];
-        if (placed > 0 && usedOnPage + next > budget) break;
-        heights.shift();
-        usedOnPage += next;
-        placed += 1;
-        if (usedOnPage >= budget) break;
-      }
-
-      if (heights.length) {
-        pageIndex += 1;
-      }
-    }
-
-    const lastBudget = bodyBudget(pageIndex);
-    const remaining = Math.max(0, lastBudget - usedOnPage);
-    const closingWithTotal = totalRowHeight + closingHeight + safetyMm;
-
-    const blanksThatFit = (spaceMm: number): number => {
-      if (spaceMm <= 0) return 0;
-      // Prefer filling when leftover is most of a blank row (no forced extra rows).
-      return Math.max(0, Math.floor(spaceMm / blankRowHeight + 0.2));
-    };
-
-    if (remaining >= closingWithTotal) {
-      const safetyBufferMm = 12;
-      return blanksThatFit(remaining - closingWithTotal - safetyBufferMm);
-    }
-
-    // Fill the remainder of the last product page, then pad the next page so
-    // Total + closing blocks land together after the product table.
-    const blanksOnLastProductPage = blanksThatFit(remaining);
-    const continuationBudget = Math.max(0, contentBottomY - continuationTableTop - headHeight);
-    const blanksOnClosingPage = blanksThatFit(continuationBudget - closingWithTotal);
-
-    return blanksOnLastProductPage + blanksOnClosingPage;
+    return 0;
   }
 
   /** Probe-render terms + signature with the same styles as the real document. */
   private measureClosingBlocksHeight(opts: {
+    doc: jsPDF;
+    C: QuotationPdfCompanyConfig;
     contentW: number;
-    margin: number;
-    footerReserveMm: number;
-    tableStyles: Record<string, unknown>;
-    footerRows: RowInput[];
-    termsDetailW: number;
-    totalsLabelW: number;
-    totalsValueW: number;
-    termsW: number;
-    totalsW: number;
-    jurisdiction: string;
-    sigBlock: string;
+    grandTotal: number;
+    sigPhone: string;
   }): number {
-    const bankDetailsHeight = 22;
-    const termsCount = opts.footerRows.length;
-    const termsHeight = termsCount * 4.2;
+    const doc = opts.doc;
+    const C = opts.C;
+    const contentW = opts.contentW;
 
-    const leftColHeight = bankDetailsHeight + termsHeight;
-    const rightColHeight = 35;
+    // Left Column Height
+    let leftColHeight = 4 + 3.5 + 4.2 + 4.2 + 7 + 2 + 4.5; // Up to Terms title line (starts at startY + 4)
+    const termsList = C.terms || [];
+    termsList.forEach((term, index) => {
+      const termBodyClean = term.body.replace(/^:\s*/, '').trim();
+      const termText = `${index + 1}. ${term.title}: ${termBodyClean}`;
+      const termLines = doc.splitTextToSize(termText, contentW * 0.55) as string[];
+      leftColHeight += termLines.length * 3.6;
+    });
 
-    const sigHeight = 22;
+    // Right Column Height
+    const words = this.amountToWords(opts.grandTotal);
+    const wordLines = doc.splitTextToSize(words, contentW * 0.40) as string[];
+    const rightColHeight = 34.5 + (wordLines.length * 3.6);
 
-    return Math.max(leftColHeight, rightColHeight) + sigHeight;
+    const colHeight = Math.max(leftColHeight, rightColHeight);
+    const sigHeight = 6 + (opts.sigPhone ? 20 : 16);
+
+    return colHeight + sigHeight;
   }
 
   private lineItemRows(items: QuotationLineItemDto[]): RowInput[] {
