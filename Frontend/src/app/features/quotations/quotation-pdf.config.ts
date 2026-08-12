@@ -35,8 +35,8 @@ export const QUOTATION_PDF_COMPANY = {
   /** Header/footer fill RGB — derived from {@link QUOTATION_PDF_BRAND_BLUE_HEX} */
   brandBlue: pdfHexToRgb(QUOTATION_PDF_BRAND_BLUE_HEX),
   /** Line-items table footer (total row) */
-  tableFootFill: [45, 125, 125] as [number, number, number],
-  tableHeadFill: [230, 236, 245] as [number, number, number],
+  tableFootFill: [255, 255, 255] as [number, number, number],
+  tableHeadFill: [255, 255, 255] as [number, number, number],
 };
 
 /** Page layout (A4 portrait, mm) — keeps tables and totals column-aligned. */

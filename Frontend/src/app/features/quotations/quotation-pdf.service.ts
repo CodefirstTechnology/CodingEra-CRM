@@ -142,65 +142,75 @@ export class QuotationPdfService {
     const contentBottomY = pageH - L.footerReserveMm;
 
     const drawHeader = (): void => {
-      const brandW = L.brandBlockWidthMm;
       const headerTop = margin;
       const headerLeft = margin;
       const headerRight = margin + contentW;
-      const textLeft = headerLeft + brandW;
-      const textWidth = contentW - brandW;
-      const textPad = L.headerTextPadMm;
-      const textInnerW = textWidth - textPad * 2;
-      const lineH = 3.4;
-      const padTop = 5;
-      const padBottom = 1.5;
 
+      doc.setTextColor(0, 0, 0);
+
+      // Left section
+      let textY = headerTop + 4;
+
+      // Legal Name
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(L.fontSize.headerLegal);
-      const nameLines = doc.splitTextToSize(C.legalName, textInnerW);
+      doc.setFontSize(12);
+      const nameLines = doc.splitTextToSize(C.legalName, contentW - 75) as string[];
+      doc.text(nameLines, headerLeft, textY);
+      textY += nameLines.length * 4.2;
+
+      // Business line/tagline
+      const taglineText = C.brandTagline?.trim() || C.businessLine?.trim() || '';
+      if (taglineText) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8.5);
+        doc.setTextColor(100, 100, 100);
+        const taglineLines = doc.splitTextToSize(taglineText, contentW - 75) as string[];
+        doc.text(taglineLines, headerLeft, textY);
+        textY += taglineLines.length * 3.6;
+      }
+
+      // GSTIN & CIN
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(L.fontSize.headerSub + 0.5);
-      const taglineLines = C.brandTagline?.trim()
-        ? doc.splitTextToSize(C.brandTagline, textInnerW)
-        : [];
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      const taxParts: string[] = [];
+      if (C.gstin) taxParts.push(`GSTIN: ${C.gstin}`);
+      if (C.cin) taxParts.push(`CIN: ${C.cin}`);
+      if (taxParts.length) {
+        doc.text(taxParts.join(' | '), headerLeft, textY);
+        textY += 4;
+      }
 
-      const taxY = padTop + nameLines.length * lineH + taglineLines.length * lineH + 0.5;
-      const textBlockBottom = taxY + lineH * 0.85 + padBottom;
+      // Ref (Quotation Number)
+      if (q.quotationNumber) {
+        doc.text(`Ref: ${q.quotationNumber}`, headerLeft, textY);
+        textY += 4;
+      }
 
+      // Date
+      if (q.quotationDate) {
+        doc.text(`Date: ${this.formatDate(q.quotationDate)}`, headerLeft, textY);
+        textY += 4;
+      }
+
+      // Logo on the right
       const logoFormat = this.logoImageFormat(C.logoContentType);
       const hasLogo = !!(C.logoBase64 && logoFormat);
-      const logoAspect =
-        C.logoPixelWidth && C.logoPixelHeight && C.logoPixelHeight > 0
-          ? C.logoPixelWidth / C.logoPixelHeight
-          : 1;
-
-      const headerH = textBlockBottom;
-
-      // Full-width brand blue header (right text band starts after 50mm brand column).
-      doc.setFillColor(...C.brandBlue);
-      doc.rect(headerLeft, headerTop, contentW, headerH, 'F');
-
-      // Narrower white logo plate — full height, centered in the 50mm brand column.
-      const logoBoxW = Math.min(L.logoPlateWidthMm, brandW);
-      const logoBoxH = headerH;
-      const logoBoxX = headerLeft + (brandW - logoBoxW) / 2;
-      const logoBoxY = headerTop;
-      doc.setFillColor(255, 255, 255);
-      doc.rect(logoBoxX, logoBoxY, logoBoxW, logoBoxH, 'F');
-
       if (hasLogo) {
-        const logoPad = Math.max(L.logoBoxPaddingMm, 1);
-        const availH = Math.min(logoBoxH - logoPad * 2, L.logoMaxHeightMm);
-        const availW = Math.min(logoBoxW - logoPad * 2, L.logoMaxWidthMm);
+        const logoAspect =
+          C.logoPixelWidth && C.logoPixelHeight && C.logoPixelHeight > 0
+            ? C.logoPixelWidth / C.logoPixelHeight
+            : 1;
+        const availH = 22;
+        const availW = 40;
         let fitW = availW;
         let fitH = fitW / Math.max(logoAspect, 0.01);
         if (fitH > availH) {
           fitH = availH;
           fitW = fitH * logoAspect;
         }
-        // Center logo inside the white logo plate.
-        const logoX = logoBoxX + (logoBoxW - fitW) / 2;
-        const logoY = logoBoxY + (logoBoxH - fitH) / 2;
-
+        const logoX = headerRight - fitW;
+        const logoY = headerTop;
         try {
           doc.addImage(
             `data:${C.logoContentType};base64,${C.logoBase64}`,
@@ -211,65 +221,49 @@ export class QuotationPdfService {
             fitH,
           );
         } catch {
-          // Logo omitted when image decode fails.
+          // Ignore logo errors
         }
       }
 
-      doc.setTextColor(255, 255, 255);
-      const textCenterX = textLeft + textWidth / 2;
-      let textY = headerTop + padTop;
+      // Draw horizontal line below the header
+      const headerBottomY = headerTop + headerHeight;
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.2);
+      doc.line(headerLeft, headerBottomY, headerRight, headerBottomY);
 
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(L.fontSize.headerLegal);
-      doc.text(nameLines, textCenterX, textY, { align: 'center' });
-      textY += nameLines.length * lineH;
-
-      if (taglineLines.length) {
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(L.fontSize.headerSub + 0.5);
-        doc.text(taglineLines, textCenterX, textY, { align: 'center' });
-      }
-
-      doc.setFontSize(L.fontSize.headerSub);
-      doc.text(`GSTIN : ${C.gstin}`, textLeft + textPad, headerTop + taxY);
-      doc.text(`CIN : ${C.cin}`, headerRight - textPad, headerTop + taxY, { align: 'right' });
-
-      doc.setTextColor(0, 0, 0);
-      y = headerTop + headerH + L.sectionGapMm;
+      y = headerBottomY + L.sectionGapMm;
     };
 
     const drawFooter = (pageNumber: number, totalPages: number): void => {
-      const footerH = L.footerHeightMm;
-      const footerY = pageH - margin - footerH;
-      const textPad = L.headerTextPadMm;
-      const textInnerW = contentW - textPad * 2;
+      const footerY = pageH - margin - 10;
 
-      doc.setFillColor(...C.brandBlue);
-      doc.rect(margin, footerY, contentW, footerH, 'F');
+      // Draw top line
+      doc.setDrawColor(200, 200, 200);
+      doc.setLineWidth(0.15);
+      doc.line(margin, footerY, margin + contentW, footerY);
 
-      doc.setTextColor(255, 255, 255);
+      doc.setTextColor(80, 80, 80);
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(L.fontSize.headerSub);
-      const addr = doc.splitTextToSize(C.address, textInnerW) as string[];
-      const contactLine = `Contact No : ${C.contactPhone}    Email ID : ${C.emails.join(', ')}    Website : ${C.website}`;
-      const contact = doc.splitTextToSize(contactLine, textInnerW) as string[];
-      const lineH = 2.6;
-      const textLineCount = addr.length + contact.length;
-      const textBlockH = textLineCount * lineH;
-      const startY = footerY + (footerH - textBlockH) / 2 + lineH * 0.75;
+      doc.setFontSize(7.5);
 
-      doc.text(addr, pageW / 2, startY, { align: 'center' });
-      doc.text(contact, pageW / 2, startY + addr.length * lineH, { align: 'center' });
+      // Address line
+      const addrLine = `Registered Office: ${C.address}`;
+      doc.text(addrLine, pageW / 2, footerY + 3.5, { align: 'center' });
+
+      const emailPart = C.emails.length ? `Email: ${C.emails.join(', ')}` : '';
+      const webPart = C.website ? `Web: ${C.website}` : '';
+      const contactLine = [emailPart, webPart].filter(Boolean).join(' | ');
+      doc.text(contactLine, pageW / 2, footerY + 7, { align: 'center' });
+
       if (totalPages > 1) {
         doc.setFontSize(6);
         doc.text(
           `Page ${pageNumber} of ${totalPages}`,
-          margin + contentW - textPad,
-          footerY + 2.5,
+          margin + contentW,
+          footerY - 1.5,
           { align: 'right' },
         );
       }
-      doc.setTextColor(0, 0, 0);
     };
 
     /** Repeat company header on autoTable continuation pages (page 1 already drawn). */
@@ -281,101 +275,126 @@ export class QuotationPdfService {
 
     drawHeader();
 
-    autoTable(doc, {
-      startY: y,
-      margin: { left: margin, right: margin },
-      tableWidth: contentW,
-      theme: 'grid',
-      styles: tableStyles,
-      body: [
-        [
-          { content: 'M/s. :', styles: { fontStyle: 'bold' } },
-          this.display(q.companyName || q.customerName),
-          { content: 'Qtn No. :', styles: { fontStyle: 'bold' } },
-          {
-            content: this.display(q.quotationNumber),
-            styles: {
-              fillColor: L.qtnHighlightFill,
-              textColor: L.qtnHighlightText,
-              fontStyle: 'bold',
-            },
-          },
-        ],
-        [
-          { content: 'Office Addr:', styles: { fontStyle: 'bold' } },
-          this.display(q.officeAddress),
-          { content: 'Date :', styles: { fontStyle: 'bold' } },
-          this.formatDate(q.quotationDate),
-        ],
-        [
-          { content: 'Site:', styles: { fontStyle: 'bold' } },
-          this.display(q.siteAddress),
-          { content: 'Ref :', styles: { fontStyle: 'bold' } },
-          this.display(q.referenceNumber),
-        ],
-        [
-          { content: 'Contact Person:', styles: { fontStyle: 'bold' } },
-          this.display(q.contactPerson),
-          { content: 'Ref Date:', styles: { fontStyle: 'bold' } },
-          this.formatDate(q.referenceDate),
-        ],
-        [
-          { content: 'E-mail/Ph.No.:', styles: { fontStyle: 'bold' } },
-          { content: this.contactLine(q), colSpan: 3 },
-        ],
-      ],
-      columnStyles: {
-        0: { cellWidth: L.metaLabelWidthMm },
-        1: { cellWidth: metaValueLeftW },
-        2: { cellWidth: L.metaValueRightLabelWidthMm },
-        3: { cellWidth: L.metaValueRightWidthMm },
-      },
+    // Centered Title "Quotation"
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(13);
+    doc.text('Quotation', pageW / 2, y + 4, { align: 'center' });
+    y += 7;
+
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.2);
+    doc.line(margin, y, margin + contentW, y);
+    y += 5;
+
+    // Two-column layout
+    const colLeftW = 65;
+    const colRightW = 60;
+    const col2X = margin + contentW - colRightW;
+
+    const getTermValue = (regex: RegExp, fallback: string): string => {
+      const found = (C.terms || []).find((t) => regex.test(t.title));
+      if (found) {
+        return found.body.replace(/^:\s*/, '').trim();
+      }
+      return fallback;
+    };
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    doc.text('QUOTATION FOR', margin, y);
+    doc.text('DETAILS & REFERENCES', col2X, y);
+    y += 4.5;
+
+    // Left Column: Customer details
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(0, 0, 0);
+    const custName = q.companyName || q.customerName || '—';
+    const custNameLines = doc.splitTextToSize(custName, colLeftW) as string[];
+    doc.text(custNameLines, margin, y);
+
+    // Right Column: Validity
+    const valText = getTermValue(/validity/i, '15 Days from Issue Date');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.text('Validity:', col2X, y);
+    doc.setFont('helvetica', 'normal');
+    const valLines = doc.splitTextToSize(valText, colRightW - 14) as string[];
+    valLines.forEach((line, idx) => {
+      const x = idx === 0 ? col2X + 14 : col2X;
+      doc.text(line, x, y + idx * 3.8);
     });
 
-    y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 28;
+    let metaLeftY = y + custNameLines.length * 4;
+    let metaRightY = y + valLines.length * 3.8 + 0.8;
 
-    const businessLineBody = C.businessLine?.trim() ?? '';
-    const introBody = C.introText?.trim() ?? '';
-    const introContent = businessLineBody || introBody;
+    // Left Column: Address details
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(50, 50, 50);
+    const addrText = [q.officeAddress, q.siteAddress ? `Site: ${q.siteAddress}` : ''].filter(Boolean).join('\n');
+    const addrLines = doc.splitTextToSize(addrText, colLeftW) as string[];
+    doc.text(addrLines, margin, metaLeftY);
+    metaLeftY += addrLines.length * 3.8;
 
-    const quotationSectionRows: RowInput[] = [
-      [
-        {
-          content: 'Quotation',
-          styles: { fontStyle: 'bold' as const, halign: 'center' as const, fontSize: 11 },
-        },
-      ],
-    ];
-    if (introContent) {
-      const introPad = L.introCellPaddingMm;
-      const introInnerW = contentW - introPad.left - introPad.right;
-      quotationSectionRows.push([
-        {
-          content: this.wrapBusinessLineForCell(doc, introContent, introInnerW, L.fontSize.intro),
-          styles: {
-            fontStyle: 'normal' as const,
-            halign: 'left' as const,
-            valign: 'top' as const,
-            fontSize: L.fontSize.intro,
-          },
-        },
-      ]);
+    // Left Column: Attn line
+    const attnName = q.contactPerson?.trim();
+    const attnPhone = q.mobileNumber?.trim();
+    if (attnName) {
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(0, 0, 0);
+      doc.text('Attn:', margin, metaLeftY);
+      doc.setFont('helvetica', 'normal');
+      const attnValText = attnPhone ? `${attnName} (${attnPhone})` : attnName;
+      const attnValLines = doc.splitTextToSize(attnValText, colLeftW - 10) as string[];
+      attnValLines.forEach((line, idx) => {
+        const x = idx === 0 ? margin + 10 : margin;
+        doc.text(line, x, metaLeftY + idx * 3.8);
+      });
+      metaLeftY += attnValLines.length * 3.8;
     }
 
-    autoTable(doc, {
-      startY: y,
-      margin: { left: margin, right: margin },
-      tableWidth: contentW,
-      theme: 'grid',
-      styles: {
-        ...tableStyles,
-        cellPadding: L.introCellPaddingMm,
-        overflow: 'linebreak',
-      },
-      body: quotationSectionRows,
+    // Right Column: Enquiry Ref
+    const refValText = q.referenceNumber ? (q.referenceDate ? `${q.referenceNumber} dated ${this.formatDate(q.referenceDate)}` : q.referenceNumber) : '—';
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(0, 0, 0);
+    doc.text('Enquiry Ref:', col2X, metaRightY);
+    doc.setFont('helvetica', 'normal');
+    const enquiryRefLines = doc.splitTextToSize(refValText, colRightW - 22) as string[];
+    enquiryRefLines.forEach((line, idx) => {
+      const x = idx === 0 ? col2X + 22 : col2X;
+      doc.text(line, x, metaRightY + idx * 3.8);
     });
+    metaRightY += enquiryRefLines.length * 3.8 + 0.8;
 
-    y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 16;
+    // Right Column: Payment Terms
+    const payText = getTermValue(/payment terms/i, '70% Advance, 30% Before Dispatch');
+    doc.setFont('helvetica', 'bold');
+    doc.text('Payment Terms:', col2X, metaRightY);
+    doc.setFont('helvetica', 'normal');
+    const payLines = doc.splitTextToSize(payText, colRightW - 26) as string[];
+    payLines.forEach((line, idx) => {
+      const x = idx === 0 ? col2X + 26 : col2X;
+      doc.text(line, x, metaRightY + idx * 3.8);
+    });
+    metaRightY += payLines.length * 3.8 + 0.8;
+
+    // Right Column: Dispatch Port
+    const dispText = getTermValue(/dispatch/i, q.transportationLabel || 'Wakad Works, Pune');
+    doc.setFont('helvetica', 'bold');
+    doc.text('Dispatch Port:', col2X, metaRightY);
+    doc.setFont('helvetica', 'normal');
+    const dispLines = doc.splitTextToSize(dispText, colRightW - 24) as string[];
+    dispLines.forEach((line, idx) => {
+      const x = idx === 0 ? col2X + 24 : col2X;
+      doc.text(line, x, metaRightY + idx * 3.8);
+    });
+    metaRightY += dispLines.length * 3.8 + 0.8;
+
+    // Final Y coordinate
+    y = Math.max(metaLeftY, metaRightY) + 5;
 
     const subtotal = this.subtotal(q);
     const additionalTotal = this.additionalChargesTotal(q);
@@ -427,11 +446,11 @@ export class QuotationPdfService {
     });
 
     const productHeadLabels = [
-      'Sr. No.',
-      'Material Description',
-      'Quantity (Nos)',
-      'Rate per Nos. (Rs.)',
-      'Total Amount (Rs.)',
+      '#',
+      'DESCRIPTION',
+      'QTY',
+      'RATE (Rs.)',
+      'AMOUNT (Rs.)',
     ];
     const productHeadWidths = [
       L.lineSrWidthMm,
@@ -443,22 +462,19 @@ export class QuotationPdfService {
     // Use the tallest header cell — narrow columns wrap and drive actual head height.
     const headHeight = Math.max(
       ...productHeadLabels.map((label, i) =>
-        this.estimateCellHeightMm(doc, label, productHeadWidths[i], L.fontSize.body, L.cellPaddingMm),
+        this.estimateCellHeightMm(doc, label, productHeadWidths[i], L.fontSize.body, 2.8),
       ),
       L.lineItemHeadHeightMm,
     );
     const blankRowHeight = Math.max(
       L.blankRowHeightMm,
-      this.estimateCellHeightMm(doc, ' ', lineDescW, L.fontSize.body, L.cellPaddingMm),
+      this.estimateCellHeightMm(doc, ' ', lineDescW, L.fontSize.body, 2.8),
     );
-    const totalRowHeight = Math.max(
-      L.lineItemFootHeightMm,
-      this.estimateCellHeightMm(doc, 'Total', L.lineRateWidthMm, L.fontSize.body, L.cellPaddingMm),
-    );
+    const totalRowHeight = 0; // Removed table footer
     const itemHeights = lineRows.map((row) => {
       const cells = row as unknown as unknown[];
       const desc = this.rowCellText(cells[1]);
-      return this.estimateCellHeightMm(doc, desc, lineDescW, L.fontSize.body, L.cellPaddingMm);
+      return this.estimateCellHeightMm(doc, desc, lineDescW, L.fontSize.body, 2.8);
     });
 
     const blankCount = this.planDynamicBlankRowCount({
@@ -479,9 +495,9 @@ export class QuotationPdfService {
     const productColumnStyles = {
       0: { cellWidth: L.lineSrWidthMm, halign: 'center' as const },
       1: { cellWidth: lineDescW, halign: 'left' as const },
-      2: { cellWidth: L.lineQtyWidthMm, halign: 'right' as const },
-      3: { cellWidth: L.lineRateWidthMm, halign: 'right' as const },
-      4: { cellWidth: L.lineAmountWidthMm, halign: 'right' as const },
+      2: { cellWidth: L.lineQtyWidthMm, halign: 'center' as const },
+      3: { cellWidth: L.lineRateWidthMm, halign: 'center' as const },
+      4: { cellWidth: L.lineAmountWidthMm, halign: 'center' as const },
     };
     const productHeadStyles = {
       fillColor: C.tableHeadFill,
@@ -492,7 +508,7 @@ export class QuotationPdfService {
     };
     const productFootStyles = {
       fillColor: C.tableFootFill,
-      textColor: [255, 255, 255] as [number, number, number],
+      textColor: [0, 0, 0] as [number, number, number],
       fontStyle: 'bold' as const,
       valign: 'middle' as const,
     };
@@ -501,103 +517,282 @@ export class QuotationPdfService {
       startY: y,
       margin: { left: margin, right: margin, top: pageTopMargin, bottom: L.footerReserveMm },
       tableWidth: contentW,
-      theme: 'grid',
+      theme: 'plain',
       head: [productHeadLabels],
       body: productBody,
-      foot: [
-        [
-          { content: '', colSpan: 3 },
-          { content: 'Total', styles: { halign: 'right', fontStyle: 'bold' } },
-          { content: this.formatMoney(subtotal), styles: { halign: 'right', fontStyle: 'bold' } },
-        ],
-      ],
       showHead: 'everyPage',
-      showFoot: 'lastPage',
       rowPageBreak: 'avoid',
-      styles: tableStyles,
-      headStyles: productHeadStyles,
-      footStyles: productFootStyles,
+      styles: {
+        ...tableStyles,
+        cellPadding: 2.8,
+        lineWidth: 0,
+      },
+      headStyles: {
+        ...productHeadStyles,
+        lineWidth: 0,
+      },
       columnStyles: productColumnStyles,
+      willDrawCell: (data) => {
+        if (data.column.index === 1 && data.row.section === 'body' && data.row.index < q.lineItems.length) {
+          // Clear default drawing so didDrawCell can render custom bold/normal text
+          data.cell.text = [];
+        }
+      },
+      didDrawCell: (data) => {
+        // Draw bottom horizontal border
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.15);
+        doc.line(data.cell.x, data.cell.y + data.cell.height, data.cell.x + data.cell.width, data.cell.y + data.cell.height);
+
+        // Header top border
+        if (data.row.section === 'head') {
+          doc.setDrawColor(100, 100, 100);
+          doc.setLineWidth(0.2);
+          doc.line(data.cell.x, data.cell.y, data.cell.x + data.cell.width, data.cell.y);
+          doc.line(data.cell.x, data.cell.y + data.cell.height, data.cell.x + data.cell.width, data.cell.y + data.cell.height);
+        }
+
+        // Custom bold drawing for item name, normal for description (inline)
+        if (data.column.index === 1 && data.row.section === 'body' && data.row.index < q.lineItems.length) {
+          const line = q.lineItems[data.row.index];
+          if (line) {
+            let mainName = line.itemName || line.itemCode || '—';
+            let description = line.description?.trim() || '';
+
+            // If mainName contains parenthesized text, split it so only the prefix is bolded
+            const parenIndex = mainName.indexOf('(');
+            if (parenIndex >= 0) {
+              const extractedDesc = mainName.slice(parenIndex).trim();
+              mainName = mainName.slice(0, parenIndex).trim();
+              description = description ? `${extractedDesc} ${description}` : extractedDesc;
+            }
+
+            // Standardize description with parentheses if not already present
+            if (description && !description.startsWith('(')) {
+              description = `(${description})`;
+            }
+
+            const fullText = description ? `${mainName} ${description}` : mainName;
+
+            doc.setFontSize(8);
+            const lines = doc.splitTextToSize(fullText, data.cell.width - 4) as string[];
+            const cellH = data.cell.height;
+            const textHeight = lines.length * 3.6;
+            const textY = data.cell.y + (cellH - textHeight) / 2 + 2.5;
+
+            let charIndex = 0;
+            lines.forEach((lText, idx) => {
+              const lineY = textY + idx * 3.6;
+              let currentX = data.cell.x + 2;
+
+              // Boundaries in fullText
+              const lineStart = charIndex;
+              const lineEnd = charIndex + lText.length;
+              const L = mainName.length;
+
+              if (lineEnd <= L) {
+                // Entire line is bold
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(0, 0, 0);
+                doc.text(lText, currentX, lineY);
+              } else if (lineStart >= L) {
+                // Entire line is normal grey
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 100, 100);
+                doc.text(lText, currentX, lineY);
+              } else {
+                // Transition line: bold prefix, normal suffix
+                const boldPart = fullText.slice(lineStart, L);
+                const normalPart = fullText.slice(L, lineEnd);
+
+                doc.setFont('helvetica', 'bold');
+                doc.setTextColor(0, 0, 0);
+                doc.text(boldPart, currentX, lineY);
+
+                const boldWidth = doc.getTextWidth(boldPart);
+                currentX += boldWidth;
+
+                doc.setFont('helvetica', 'normal');
+                doc.setTextColor(100, 100, 100);
+                doc.text(normalPart, currentX, lineY);
+              }
+
+              // Update charIndex for next line
+              const foundIndex = fullText.indexOf(lText, charIndex);
+              if (foundIndex >= 0) {
+                charIndex = foundIndex + lText.length;
+              } else {
+                charIndex += lText.length + 1;
+              }
+            });
+
+            // Restore normal font style so other columns/rows are unaffected
+            doc.setFont('helvetica', 'normal');
+          }
+        }
+      },
       willDrawPage: (data) => ensureHeaderOnTablePage(data.pageNumber),
     });
 
     y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 20;
 
-    // Closing block (terms/totals/signatory) only after the last product row on the final page.
+    // Check if bottom section fits on this page using the computed closingHeight
     if (y + closingHeight > contentBottomY) {
       doc.addPage();
       drawHeader();
     }
 
-    const footerBlockStyles = {
-      ...tableStyles,
-      fontSize: L.fontSize.terms,
-      cellPadding: L.termsDetailCellPaddingMm,
-      overflow: 'linebreak' as const,
-      minCellHeight: L.footerMinCellHeightMm,
-    };
+    const startY = y;
+    let leftY = y;
 
-    autoTable(doc, {
-      startY: y,
-      margin: { left: margin, right: margin, top: pageTopMargin, bottom: L.footerReserveMm },
-      tableWidth: contentW,
-      theme: 'grid',
-      styles: footerBlockStyles,
-      body: footerRows,
-      columnStyles: {
-        0: { cellWidth: L.termsIndexWidthMm, halign: 'center', valign: 'top' },
-        1: { cellWidth: L.termsTitleWidthMm, valign: 'top', fontStyle: 'normal' },
-        2: { cellWidth: termsDetailW, valign: 'top', cellPadding: L.termsDetailCellPaddingMm },
-        3: {
-          cellWidth: totalsLabelW,
-          halign: 'left',
-          valign: 'top',
-          cellPadding: L.totalsCellPaddingMm,
-        },
-        4: {
-          cellWidth: totalsValueW,
-          halign: 'right',
-          valign: 'top',
-          cellPadding: L.totalsCellPaddingMm,
-        },
-      },
-      willDrawPage: (data) => ensureHeaderOnTablePage(data.pageNumber),
+    // --- LEFT COLUMN: Bank Details & Terms ---
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    doc.text('BANK DETAILS FOR PAYMENT', margin, leftY);
+    leftY += 3.5;
+
+    doc.setFontSize(8.5);
+    doc.setTextColor(0, 0, 0);
+
+    // Account Name
+    doc.setFont('helvetica', 'bold');
+    doc.text('Account Name:', margin, leftY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(` ${C.legalName || C.signatureEntity}`, margin + 22, leftY);
+    leftY += 4.2;
+
+    // Bank Name
+    doc.setFont('helvetica', 'bold');
+    doc.text('Bank:', margin, leftY);
+    doc.setFont('helvetica', 'normal');
+    const bankVal = C.bankName ? (C.branchName ? `${C.bankName}, ${C.branchName}` : C.bankName) : '—';
+    doc.text(` ${bankVal}`, margin + 9, leftY);
+    leftY += 4.2;
+
+    // A/C No & IFSC
+    doc.setFont('helvetica', 'bold');
+    doc.text('A/C No:', margin, leftY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(` ${C.accountNumber || '—'}`, margin + 12, leftY);
+
+    doc.setFont('helvetica', 'bold');
+    doc.text('|  IFSC:', margin + 45, leftY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(` ${C.ifscCode || '—'}`, margin + 58, leftY);
+    leftY += 7;
+
+    // TERMS & CONDITIONS
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    doc.text('TERMS & CONDITIONS', margin, leftY);
+    leftY += 2;
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.15);
+    doc.line(margin, leftY, margin + contentW * 0.55, leftY);
+    leftY += 4.5;
+
+    doc.setFontSize(8);
+    doc.setTextColor(80, 80, 80);
+    const termsList = C.terms || [];
+    termsList.forEach((term, index) => {
+      doc.setFont('helvetica', 'normal');
+      const termBodyClean = term.body.replace(/^:\s*/, '').trim();
+      const termText = `${index + 1}. ${term.title}: ${termBodyClean}`;
+      const termLines = doc.splitTextToSize(termText, contentW * 0.55) as string[];
+      doc.text(termLines, margin, leftY);
+      leftY += termLines.length * 3.6;
     });
 
-    y = (doc as DocWithTable).lastAutoTable?.finalY ?? y + 40;
+    // --- RIGHT COLUMN: Totals ---
+    let rightY = startY + 4;
+    const rightColX = margin + contentW * 0.60;
+    const rightAlignX = margin + contentW;
 
-    const jurisdictionText = C.jurisdiction?.trim() ? `" ${C.jurisdiction.trim()} "` : '';
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
 
-    autoTable(doc, {
-      startY: y,
-      margin: { left: margin, right: margin, top: pageTopMargin, bottom: L.footerReserveMm },
-      tableWidth: contentW,
-      theme: 'grid',
-      styles: {
-        ...tableStyles,
-        fontSize: L.fontSize.body,
-        cellPadding: L.closingRowPaddingMm,
-        minCellHeight: L.closingRowHeightMm,
-        valign: 'middle',
-      },
-      body: [
-        [
-          {
-            content: jurisdictionText,
-            styles: { halign: 'center', fontStyle: 'italic', valign: 'middle' },
-          },
-          {
-            content: sigBlock,
-            styles: { halign: 'center', fontStyle: 'bold', valign: 'middle' },
-          },
-        ],
-      ],
-      columnStyles: {
-        0: { cellWidth: termsW },
-        1: { cellWidth: totalsW },
-      },
-      willDrawPage: (data) => ensureHeaderOnTablePage(data.pageNumber),
-    });
+    // Subtotal
+    doc.setFont('helvetica', 'normal');
+    doc.text('Subtotal:', rightColX, rightY);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Rs. ${this.formatMoney(subtotal)}`, rightAlignX, rightY, { align: 'right' });
+    rightY += 5;
+
+    // GST
+    doc.setFont('helvetica', 'normal');
+    doc.text(`GST @ ${gstPercent}%:`, rightColX, rightY);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Rs. ${this.formatMoney(taxTotal)}`, rightAlignX, rightY, { align: 'right' });
+    rightY += 5;
+
+    // Freight & Handling
+    doc.setFont('helvetica', 'normal');
+    doc.text('Freight & Handling:', rightColX, rightY);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Rs. ${this.formatMoney(additionalTotal)}`, rightAlignX, rightY, { align: 'right' });
+    rightY += 4.5;
+
+    // Thick divider line
+    doc.setDrawColor(50, 50, 50);
+    doc.setLineWidth(0.4);
+    doc.line(rightColX, rightY, rightAlignX, rightY);
+    rightY += 4.5;
+
+    // Total Amount
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('Total Amount:', rightColX, rightY);
+    doc.text(`Rs. ${this.formatMoney(grandTotal)}`, rightAlignX, rightY, { align: 'right' });
+    rightY += 3.5;
+
+    // Thin divider line
+    doc.setDrawColor(150, 150, 150);
+    doc.setLineWidth(0.15);
+    doc.line(rightColX, rightY, rightAlignX, rightY);
+    rightY += 4.5;
+
+    // Amount in Words
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('Amount in Words:', rightColX, rightY);
+    rightY += 3.5;
+    doc.setFont('helvetica', 'oblique');
+    doc.setTextColor(100, 100, 100);
+    const words = this.amountToWords(grandTotal);
+    const wordLines = doc.splitTextToSize(words, contentW * 0.40) as string[];
+    doc.text(wordLines, rightColX, rightY);
+    rightY += wordLines.length * 3.6;
+
+    // --- SIGNATORY & CLOSING SECTION ---
+    y = Math.max(leftY, rightY) + 6;
+
+    const sigHeight = 25;
+    if (y + sigHeight > contentBottomY) {
+      doc.addPage();
+      drawHeader();
+      y = margin + headerHeight + L.sectionGapMm + 6;
+    }
+
+    // Subject to Jurisdiction
+    doc.setFont('helvetica', 'oblique');
+    doc.setFontSize(7.5);
+    doc.setTextColor(120, 120, 120);
+    const jText = C.jurisdiction?.trim() ? `Subject to ${C.jurisdiction.trim()} Jurisdiction` : '';
+    doc.text(jText, margin, y + 16);
+
+    // Signatory
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(0, 0, 0);
+    doc.text(`For ${C.legalName || C.signatureEntity}`, rightAlignX, y, { align: 'right' });
+    doc.text(sigName, rightAlignX, y + 16, { align: 'right' });
+    if (sigPhone) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text(`Contact: ${sigPhone}`, rightAlignX, y + 20, { align: 'right' });
+    }
 
     const totalPages = doc.getNumberOfPages();
     for (let p = 1; p <= totalPages; p++) {
@@ -608,28 +803,95 @@ export class QuotationPdfService {
     return doc;
   }
 
+  private amountToWords(amount: number): string {
+    const absAmount = Math.floor(Math.abs(amount));
+    if (absAmount === 0) return 'Zero Rupees Only';
+
+    const ones = [
+      '', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+      'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'
+    ];
+    const tens = [
+      '', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'
+    ];
+
+    const convertLessThanOneThousand = (num: number): string => {
+      let str = '';
+      if (num >= 100) {
+        str += ones[Math.floor(num / 100)] + ' Hundred ';
+        num %= 100;
+      }
+      if (num >= 20) {
+        str += tens[Math.floor(num / 10)] + ' ';
+        num %= 10;
+      }
+      if (num > 0) {
+        str += ones[num] + ' ';
+      }
+      return str.trim();
+    };
+
+    let remaining = absAmount;
+    let word = '';
+
+    // Crores
+    if (remaining >= 10000000) {
+      word += convertLessThanOneThousand(Math.floor(remaining / 10000000)) + ' Crore ';
+      remaining %= 10000000;
+    }
+    // Lakhs
+    if (remaining >= 100000) {
+      word += convertLessThanOneThousand(Math.floor(remaining / 100000)) + ' Lakh ';
+      remaining %= 100000;
+    }
+    // Thousands
+    if (remaining >= 1000) {
+      word += convertLessThanOneThousand(Math.floor(remaining / 1000)) + ' Thousand ';
+      remaining %= 1000;
+    }
+    // Hundreds & Tens
+    if (remaining > 0) {
+      word += convertLessThanOneThousand(remaining);
+    }
+
+    const trimmed = word.trim().replace(/\s+/g, ' ');
+    return `${trimmed} Rupees Only.`;
+  }
+
   private measureCompanyHeaderHeight(
     doc: jsPDF,
     company: QuotationPdfCompanyConfig,
     contentW: number,
   ): number {
-    const L = QUOTATION_PDF_LAYOUT;
-    const textInnerW = contentW - L.brandBlockWidthMm - L.headerTextPadMm * 2;
-    const lineH = 3.4;
-    const padTop = 5;
-    const padBottom = 1.5;
+    let height = 4; // padding top
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(L.fontSize.headerLegal);
-    const nameLines = doc.splitTextToSize(company.legalName, textInnerW);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(L.fontSize.headerSub + 0.5);
-    const taglineLines = company.brandTagline?.trim()
-      ? doc.splitTextToSize(company.brandTagline, textInnerW)
-      : [];
+    doc.setFontSize(12);
+    const nameLines = doc.splitTextToSize(company.legalName, contentW - 75) as string[];
+    height += nameLines.length * 4.2;
 
-    const taxY = padTop + nameLines.length * lineH + taglineLines.length * lineH + 0.5;
-    return taxY + lineH * 0.85 + padBottom;
+    const taglineText = company.brandTagline?.trim() || company.businessLine?.trim() || '';
+    if (taglineText) {
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      const taglineLines = doc.splitTextToSize(taglineText, contentW - 75) as string[];
+      height += taglineLines.length * 3.6;
+    }
+
+    if (company.gstin || company.cin) {
+      height += 4;
+    }
+
+    height += 8; // Ref and Date lines
+
+    // Ensure min height for logo if present
+    const logoFormat = this.logoImageFormat(company.logoContentType);
+    const hasLogo = !!(company.logoBase64 && logoFormat);
+    if (hasLogo) {
+      return Math.max(height, 22) + 2;
+    }
+
+    return height + 2;
   }
 
   /** Approx. wrapped cell height in mm (jsPDF fontSize is pt). Slightly conservative vs autoTable. */
@@ -753,7 +1015,8 @@ export class QuotationPdfService {
     };
 
     if (remaining >= closingWithTotal) {
-      return blanksThatFit(remaining - closingWithTotal);
+      const safetyBufferMm = 12;
+      return blanksThatFit(remaining - closingWithTotal - safetyBufferMm);
     }
 
     // Fill the remainder of the last product page, then pad the next page so
@@ -780,81 +1043,16 @@ export class QuotationPdfService {
     jurisdiction: string;
     sigBlock: string;
   }): number {
-    const L = QUOTATION_PDF_LAYOUT;
-    const probe = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
-    const pageH = probe.internal.pageSize.getHeight();
-    const jurisdictionText = opts.jurisdiction?.trim()
-      ? `" ${opts.jurisdiction.trim()} "`
-      : '';
+    const bankDetailsHeight = 22;
+    const termsCount = opts.footerRows.length;
+    const termsHeight = termsCount * 4.2;
 
-    autoTable(probe, {
-      startY: 0,
-      margin: { left: opts.margin, right: opts.margin, bottom: opts.footerReserveMm },
-      tableWidth: opts.contentW,
-      theme: 'grid',
-      styles: {
-        ...opts.tableStyles,
-        fontSize: L.fontSize.terms,
-        cellPadding: L.termsDetailCellPaddingMm,
-        overflow: 'linebreak',
-        minCellHeight: L.footerMinCellHeightMm,
-      },
-      body: opts.footerRows,
-      columnStyles: {
-        0: { cellWidth: L.termsIndexWidthMm, halign: 'center', valign: 'top' },
-        1: { cellWidth: L.termsTitleWidthMm, valign: 'top', fontStyle: 'normal' },
-        2: { cellWidth: opts.termsDetailW, valign: 'top', cellPadding: L.termsDetailCellPaddingMm },
-        3: {
-          cellWidth: opts.totalsLabelW,
-          halign: 'left',
-          valign: 'top',
-          cellPadding: L.totalsCellPaddingMm,
-        },
-        4: {
-          cellWidth: opts.totalsValueW,
-          halign: 'right',
-          valign: 'top',
-          cellPadding: L.totalsCellPaddingMm,
-        },
-      },
-    });
+    const leftColHeight = bankDetailsHeight + termsHeight;
+    const rightColHeight = 35;
 
-    let y = (probe as DocWithTable).lastAutoTable?.finalY ?? 40;
+    const sigHeight = 22;
 
-    autoTable(probe, {
-      startY: y,
-      margin: { left: opts.margin, right: opts.margin, bottom: opts.footerReserveMm },
-      tableWidth: opts.contentW,
-      theme: 'grid',
-      styles: {
-        ...opts.tableStyles,
-        fontSize: L.fontSize.body,
-        cellPadding: L.closingRowPaddingMm,
-        minCellHeight: L.closingRowHeightMm,
-        valign: 'middle',
-      },
-      body: [
-        [
-          {
-            content: jurisdictionText,
-            styles: { halign: 'center', fontStyle: 'italic', valign: 'middle' },
-          },
-          {
-            content: opts.sigBlock,
-            styles: { halign: 'center', fontStyle: 'bold', valign: 'middle' },
-          },
-        ],
-      ],
-      columnStyles: {
-        0: { cellWidth: opts.termsW },
-        1: { cellWidth: opts.totalsW },
-      },
-    });
-
-    y = (probe as DocWithTable).lastAutoTable?.finalY ?? y + L.closingRowHeightMm;
-    const pages = probe.getNumberOfPages();
-    if (pages <= 1) return y;
-    return (pages - 1) * pageH + y;
+    return Math.max(leftColHeight, rightColHeight) + sigHeight;
   }
 
   private lineItemRows(items: QuotationLineItemDto[]): RowInput[] {
@@ -862,14 +1060,21 @@ export class QuotationPdfService {
       return [['—', 'No line items', '—', '—', '—']];
     }
     return items.map((line, i) => {
-      const desc = [line.itemName, line.description].filter((s) => s?.trim()).join(' — ') || line.itemCode || '—';
+      // In reference image: Name (Description) instead of Name — Description.
+      // E.g.: Scaffolding Cuplock Vertical (3.0 Metre, Heavy Duty)
+      const descParts = [line.itemName];
+      if (line.description?.trim()) {
+        descParts.push(`(${line.description.trim()})`);
+      }
+      const desc = descParts.join(' ') || line.itemCode || '—';
       const qty = line.quantity ?? 0;
+      const uom = line.uom?.trim() || 'Nos';
       const rate = line.rate ?? 0;
       const total = line.lineTotal || line.amount || 0;
       return [
         String(i + 1),
         desc,
-        qty > 0 ? this.formatQty(qty) : '—',
+        qty > 0 ? `${this.formatQty(qty)} ${uom}` : '—',
         rate > 0 ? this.formatMoney(rate) : '—',
         this.formatMoney(total),
       ];
