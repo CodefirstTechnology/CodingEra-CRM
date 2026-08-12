@@ -54,7 +54,7 @@ export class ContactDetailComponent {
   protected readonly detailForm = this.fb.nonNullable.group({
     firstName: ['', [Validators.maxLength(80)]],
     lastName: ['', Validators.maxLength(120)],
-    email: ['', [Validators.required, Validators.email, Validators.maxLength(160)]],
+    email: ['', [Validators.email, Validators.maxLength(160)]],
     mobile: ['', Validators.maxLength(40)],
     gender: [''],
     companyName: ['', Validators.maxLength(200)],
@@ -185,7 +185,7 @@ export class ContactDetailComponent {
       .getAll()
       .pipe(take(1))
       .subscribe((all) => {
-        const dup = all.some((c) => c.email.toLowerCase() === emailLower && c.id !== row.id);
+        const dup = emailLower ? all.some((c) => c.email.toLowerCase() === emailLower && c.id !== row.id) : false;
         if (dup) {
           const ec = this.detailForm.get('email');
           ec?.setErrors({ ...(ec.errors ?? {}), duplicate: true });

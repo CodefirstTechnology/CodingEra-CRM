@@ -1,5 +1,6 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ActivatedRoute } from '@angular/router';
 import { isAdmin } from '../../core/auth/auth-role.util';
 import { AuthService } from '../../core/auth/auth.service';
 import { canManageSettings, hasPermission } from '../../core/auth/permission.util';
@@ -58,6 +59,7 @@ export class AdvancedSettingsComponent implements OnInit {
   private readonly rbac = inject(RbacService);
   private readonly permissions = inject(PermissionService);
   private readonly toast = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
 
   protected readonly isAdminViewer = computed(() => canManageSettings(this.auth.user()) || isAdmin(this.auth.user()));
   protected readonly activeItem = signal('Profile');
@@ -121,6 +123,16 @@ export class AdvancedSettingsComponent implements OnInit {
     if (this.canLoadRoles()) {
       this.loadRoles();
     }
+
+    this.route.queryParams.subscribe((params) => {
+      const tab = params['tab'];
+      if (tab === 'User Targets') {
+        const user = this.auth.user();
+        if (this.canAccessNavItem(user, 'User Targets')) {
+          this.activeItem.set('User Targets');
+        }
+      }
+    });
   }
 
   private canLoadRoles(): boolean {
