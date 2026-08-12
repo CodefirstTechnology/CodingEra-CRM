@@ -47,6 +47,7 @@ export interface AdminDashboardKpis {
   periodTarget: number;
   targetAchievedPct: number;
   hasTargetsConfigured: boolean;
+  revenueChangePct?: number;
 }
 
 export interface AdminDealDetail {
@@ -123,6 +124,18 @@ export interface AdminActivityStreamItem {
   rep: string;
 }
 
+import type { UserTargetRow } from '../../../core/services/user-targets/user-target-api.models';
+
+export interface AggregatedTargetPeriod {
+  startDate: string;
+  endDate: string;
+  targetAmount: number;
+  achievedAmount: number;
+  targetAchievedPct: number;
+  hasTargetsConfigured: boolean;
+  targets: UserTargetRow[];
+}
+
 export interface AdminDashboardSnapshot {
   period: AdminDashboardPeriod;
   kpis: AdminDashboardKpis;
@@ -135,6 +148,9 @@ export interface AdminDashboardSnapshot {
   wonDealDetails: AdminDealDetail[];
   activities: AdminActivityStreamItem[];
   focusInsight: string;
+  activeTargetPeriod?: AggregatedTargetPeriod | null;
+  previousTargetPeriod?: AggregatedTargetPeriod | null;
+  previousTargetPeriods?: AggregatedTargetPeriod[];
 }
 
 export const LEAD_STATUS_KEYS: LeadStatus[] = [

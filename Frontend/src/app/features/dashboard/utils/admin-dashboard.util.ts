@@ -452,3 +452,63 @@ export function resolveDefaultSalesTeamRoleFilter(
 
   return 'all';
 }
+
+export function getProportionalTarget(
+  target: UserTargetRow,
+  periodStart: Date,
+  periodEnd: Date,
+): { targetAmount: number; achievedAmount: number } {
+  if (!target.isActive) return { targetAmount: 0, achievedAmount: 0 };
+  const ts = parseDateOnly(target.startDate);
+  const te = parseDateOnly(target.endDate);
+  if (!ts || !te) return { targetAmount: 0, achievedAmount: 0 };
+
+  const targetStartMs = startOfDay(ts).getTime();
+  const targetEndMs = endOfDay(te).getTime();
+  const periodStartMs = startOfDay(periodStart).getTime();
+  const periodEndMs = endOfDay(periodEnd).getTime();
+
+  if (targetStartMs > periodEndMs || targetEndMs < periodStartMs) {
+    return { targetAmount: 0, achievedAmount: 0 };
+  }
+
+  const overlapStartMs = Math.max(targetStartMs, periodStartMs);
+  const overlapEndMs = Math.min(targetEndMs, periodEndMs);
+
+  const oneDayMs = 24 * 60 * 60 * 1000;
+  const targetDurationMs = targetEndMs - targetStartMs;
+  const targetDays = Math.max(1, Math.round(targetDurationMs / oneDayMs) + 1);
+
+  const overlapDurationMs = overlapEndMs - overlapStartMs;
+  const overlapDays = Math.max(0, Math.round(overlapDurationMs / oneDayMs) + 1);
+
+  const ratio = overlapDays / targetDays;
+  return {
+    targetAmount: target.targetAmount * ratio,
+    achievedAmount: target.achievedAmount * ratio,
+  };
+}
+
+export function getPreviousPeriodRange(start: Date, end: Date, key: string): { start: Date; end: Date } {
+  const s = new Date(start);
+  const e = new Date(end);
+  if (key === 'today') {
+    s.setDate(s.getDate() - 1);
+    e.setDate(e.getDate() - 1);
+    return { start: s, end: e };
+  }
+  if (key === 'this_week') {
+    s.setDate(s.getDate() - 7);
+    e.setDate(e.getDate() - 7);
+    return { start: s, end: e };
+  }
+  if (key === 'this_month' || key === 'last_month') {
+    const prevS = new Date(s.getFullYear(), s.getMonth() - 1, 1);
+    const prevE = new Date(s.getFullYear(), s.getMonth(), 0, 23, 59, 59, 999);
+    return { start: prevS, end: prevE };
+  }
+  const durationMs = e.getTime() - s.getTime();
+  const prevS = new Date(s.getTime() - durationMs - 1);
+  const prevE = new Date(e.getTime() - durationMs - 1);
+  return { start: prevS, end: prevE };
+}

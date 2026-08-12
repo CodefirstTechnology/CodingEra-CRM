@@ -92,6 +92,30 @@ export class DashboardComponent {
   protected readonly customStartInput = signal(toDateInputValue(startOfDay(new Date(new Date().getFullYear(), new Date().getMonth(), 1))));
   protected readonly customEndInput = signal(toDateInputValue(endOfDay(new Date())));
   protected readonly customRangeError = signal<string | null>(null);
+  protected readonly Math = Math;
+  protected readonly viewingTargetMode = signal<'active' | 'previous'>('active');
+  protected readonly selectedPreviousTargetPeriodKey = signal<string | null>(null);
+  protected readonly detailTargetSortKey = signal<'pct' | 'achieved' | 'gap'>('pct');
+  protected readonly detailTargetSortDesc = signal(true);
+
+  protected readonly currentTargetPeriod = computed(() => {
+    const data = this.snapshot();
+    if (!data) return null;
+    if (this.viewingTargetMode() === 'active') {
+      return data.activeTargetPeriod;
+    }
+    const key = this.selectedPreviousTargetPeriodKey();
+    if (key && data.previousTargetPeriods) {
+      const match = data.previousTargetPeriods.find((p) => `${p.startDate}_${p.endDate}` === key);
+      if (match) return match;
+    }
+    return data.previousTargetPeriod;
+  });
+
+  protected readonly previousTargetPeriods = computed(() => {
+    const data = this.snapshot();
+    return data?.previousTargetPeriods ?? [];
+  });
 
   protected readonly periodLabel = computed(() => {
     const key = this.periodKey();
@@ -290,6 +314,8 @@ export class DashboardComponent {
     this.loading.set(true);
     this.error.set(null);
     this.streamExpanded.set(false);
+    this.viewingTargetMode.set('active');
+    this.selectedPreviousTargetPeriodKey.set(null);
 
     const key = this.periodKey();
     const customRange =
@@ -449,8 +475,22 @@ export class DashboardComponent {
     const data = this.snapshot();
     if (!data) return;
     this.detailKind.set('targets');
-    this.detailTitle.set(`Sales targets (${data.period.label.toLowerCase()})`);
-    this.detailTeam.set(data.team.filter((t) => t.targetAmount > 0 || t.targetAchieved > 0));
+
+    const period = this.currentTargetPeriod();
+    if (period) {
+      this.detailTitle.set(`Sales targets (${this.formatTargetPeriodLabel(period.startDate, period.endDate)})`);
+      const teamStats = period.targets.map((t) => ({
+        userId: String(t.userId),
+        name: t.userName,
+        targetAmount: t.targetAmount,
+        targetAchieved: t.achievedAmount,
+      }));
+      this.detailTeam.set(teamStats as any[]);
+    } else {
+      this.detailTitle.set('Sales targets');
+      this.detailTeam.set([]);
+    }
+
     this.detailDeals.set([]);
     this.detailLeads.set([]);
     this.detailPipeline.set([]);
@@ -539,8 +579,152 @@ export class DashboardComponent {
     this.openDealDetails(`${name} — open deals (${deals.length})`, deals);
   }
 
-  protected targetGap(row: AdminTeamMemberStats): number {
-    return Math.max(0, row.targetAmount - row.targetAchieved);
+  protected targetGap(row: any): number {
+    return Math.max(0, (row.targetAmount ?? 0) - (row.targetAchieved ?? 0));
+  }
+
+  protected isTargetPeriodSelected(period: any): boolean {
+    const key = `${period.startDate}_${period.endDate}`;
+    const selectedKey = this.selectedPreviousTargetPeriodKey();
+    if (selectedKey) return selectedKey === key;
+    const data = this.snapshot();
+    if (data && data.previousTargetPeriod) {
+      return `${data.previousTargetPeriod.startDate}_${data.previousTargetPeriod.endDate}` === key;
+    }
+    return false;
+  }
+
+  protected onPreviousTargetSelect(event: Event): void {
+    const select = event.target as HTMLSelectElement;
+    if (select.value) {
+      this.selectedPreviousTargetPeriodKey.set(select.value);
+      this.viewingTargetMode.set('previous');
+    }
+  }
+
+  protected formatDropdownOptionLabel(startStr: string, endStr: string): string {
+    const ds = this.parseDateOnly(startStr);
+    const de = this.parseDateOnly(endStr);
+    if (!ds || !de) return `${startStr} - ${endStr}`;
+    const monthsFull = [
+      'january', 'february', 'march', 'april', 'may', 'june',
+      'july', 'august', 'september', 'october', 'november', 'december'
+    ];
+    const fs = `${ds.getDate()} ${monthsFull[ds.getMonth()]}`;
+    const fe = `${de.getDate()} ${monthsFull[de.getMonth()]}`;
+    
+    const currentYear = new Date().getFullYear();
+    let label = `${fs} - ${fe}`;
+    if (ds.getFullYear() !== currentYear || de.getFullYear() !== currentYear) {
+      label += ` ${ds.getFullYear()}`;
+    }
+    return label;
+  }
+
+  protected targetStatusForPeriod(period: any): string {
+    if (!period || period.targetAmount <= 0) return 'No Target';
+    const pct = (period.achievedAmount / period.targetAmount) * 100;
+    if (pct < 70) return 'Behind';
+    if (pct < 100) return 'On Track';
+    if (pct === 100) return 'Achieved';
+    return 'Exceeded';
+  }
+
+  protected targetStatusLabel(targetAmount: number, achievedAmount: number): string {
+    if (targetAmount <= 0) return 'No Target';
+    const pct = (achievedAmount / targetAmount) * 100;
+    if (pct < 70) return 'Behind';
+    if (pct < 100) return 'On Track';
+    if (pct === 100) return 'Achieved';
+    return 'Exceeded';
+  }
+
+  protected targetAchievedPctForPeriod(period: any): number {
+    if (!period || period.targetAmount <= 0) return 0;
+    return Math.round((period.achievedAmount / period.targetAmount) * 100);
+  }
+
+  protected displayProgressPctForPeriod(period: any): number {
+    if (!period || period.targetAmount <= 0) return 0;
+    return Math.min(100, this.targetAchievedPctForPeriod(period));
+  }
+
+  protected gaugeDashOffsetForPeriod(period: any): number {
+    const pct = this.displayProgressPctForPeriod(period);
+    return this.gaugeCircumference * (1 - pct / 100);
+  }
+
+  protected targetRemainingForPeriod(period: any): number {
+    if (!period) return 0;
+    return Math.max(0, period.targetAmount - period.achievedAmount);
+  }
+
+  protected formatTargetPeriodLabel(startStr: string, endStr: string): string {
+    const ds = this.parseDateOnly(startStr);
+    const de = this.parseDateOnly(endStr);
+    if (!ds || !de) return `${startStr} – ${endStr}`;
+    const options: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'short' };
+    if (ds.getFullYear() !== new Date().getFullYear() || de.getFullYear() !== new Date().getFullYear()) {
+      options.year = 'numeric';
+    }
+    try {
+      const fs = new Intl.DateTimeFormat(undefined, options).format(ds);
+      const fe = new Intl.DateTimeFormat(undefined, options).format(de);
+      return `${fs} – ${fe}`;
+    } catch {
+      return `${startStr} – ${endStr}`;
+    }
+  }
+
+  private parseDateOnly(iso: string): Date | null {
+    const s = iso?.trim();
+    if (!s) return null;
+    const t = Date.parse(s.includes('T') ? s : `${s}T00:00:00`);
+    if (Number.isNaN(t)) return null;
+    return new Date(t);
+  }
+
+  protected readonly sortedDetailTeam = computed(() => {
+    const list = this.detailTeam();
+    const key = this.detailTargetSortKey();
+    const desc = this.detailTargetSortDesc();
+    const mul = desc ? -1 : 1;
+
+    return [...list].sort((a, b) => {
+      const valA = this.getDetailSortValue(a, key);
+      const valB = this.getDetailSortValue(b, key);
+      if (valA === valB) return a.name.localeCompare(b.name);
+      return valA < valB ? -1 * mul : 1 * mul;
+    });
+  });
+
+  private getDetailSortValue(row: any, key: 'pct' | 'achieved' | 'gap'): number {
+    const target = row.targetAmount ?? 0;
+    const achieved = row.targetAchieved ?? 0;
+    if (key === 'pct') {
+      return target > 0 ? (achieved / target) * 100 : 0;
+    }
+    if (key === 'achieved') {
+      return achieved;
+    }
+    if (key === 'gap') {
+      return Math.max(0, target - achieved);
+    }
+    return 0;
+  }
+
+  protected setDetailTargetSort(key: 'pct' | 'achieved' | 'gap'): void {
+    if (this.detailTargetSortKey() === key) {
+      this.detailTargetSortDesc.update((d) => !d);
+    } else {
+      this.detailTargetSortKey.set(key);
+      this.detailTargetSortDesc.set(true);
+    }
+  }
+
+  protected detailTargetSortIndicator(key: 'pct' | 'achieved' | 'gap'): string {
+    if (this.detailTargetSortKey() !== key) return '';
+    return this.detailTargetSortDesc() ? ' ↓' : ' ↑';
   }
 
   protected activityKindLabel(item: AdminActivityStreamItem): string {

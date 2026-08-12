@@ -143,11 +143,19 @@
         <header class="sales-dash__target-head">
           <div class="sales-dash__target-head-text">
             <h2 class="sales-dash__target-title">Sales target</h2>
-            <span class="sales-dash__target-period">{{ data.period.label }}</span>
+            @if (currentTargetPeriod(); as period) {
+              <span class="sales-dash__target-period">{{ formatTargetPeriodLabel(period.startDate, period.endDate) }}</span>
+              <span class="sales-dash__pill" [class.sales-dash__pill--pos]="targetStatusForPeriod(period) === 'Achieved' || targetStatusForPeriod(period) === 'Exceeded' || targetStatusForPeriod(period) === 'On Track'" style="margin-left: 0.5rem; display: inline-block; vertical-align: middle;">
+                {{ targetStatusForPeriod(period) }}
+              </span>
+            } @else {
+              <span class="sales-dash__target-period">Current</span>
+            }
           </div>
           <a
             class="sales-dash__target-manage"
             routerLink="/advanced-settings"
+            [queryParams]="{ tab: 'User Targets' }"
             (click)="$event.stopPropagation()"
           >
             Manage
@@ -155,77 +163,136 @@
         </header>
 
         <div class="sales-dash__target-body">
-          <div class="sales-dash__gauge-wrap">
-            <div class="sales-dash__gauge-glow" aria-hidden="true"></div>
-            <svg class="sales-dash__gauge-svg" viewBox="0 0 120 120" aria-hidden="true">
-              <defs>
-                <linearGradient id="salesTargetGaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stop-color="var(--sd-accent-soft)" />
-                  <stop offset="100%" stop-color="var(--sd-accent)" />
-                </linearGradient>
-              </defs>
-              <circle class="sales-dash__gauge-track" cx="60" cy="60" r="46" fill="none" stroke-width="11" />
-              <circle
-                class="sales-dash__gauge-fill"
-                cx="60"
-                cy="60"
-                r="46"
-                fill="none"
-                stroke-width="11"
-                stroke-linecap="round"
-                transform="rotate(-90 60 60)"
-                stroke="url(#salesTargetGaugeGrad)"
-                [attr.stroke-dasharray]="gaugeCircumference"
-                [attr.stroke-dashoffset]="gaugeDashOffset()"
-              />
-            </svg>
-            <div class="sales-dash__gauge-label">
-              <span class="sales-dash__gauge-pct">{{ data.kpis.targetAchievedPct }}%</span>
-              <span class="sales-dash__gauge-sub">Achieved</span>
+          @if (currentTargetPeriod(); as period) {
+            <div class="sales-dash__gauge-wrap">
+              <div class="sales-dash__gauge-glow" aria-hidden="true"></div>
+              <svg class="sales-dash__gauge-svg" viewBox="0 0 120 120" aria-hidden="true">
+                <defs>
+                  <linearGradient id="salesTargetGaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="var(--sd-accent-soft)" />
+                    <stop offset="100%" stop-color="var(--sd-accent)" />
+                  </linearGradient>
+                </defs>
+                <circle class="sales-dash__gauge-track" cx="60" cy="60" r="46" fill="none" stroke-width="11" />
+                <circle
+                  class="sales-dash__gauge-fill"
+                  cx="60"
+                  cy="60"
+                  r="46"
+                  fill="none"
+                  stroke-width="11"
+                  stroke-linecap="round"
+                  transform="rotate(-90 60 60)"
+                  stroke="url(#salesTargetGaugeGrad)"
+                  [attr.stroke-dasharray]="gaugeCircumference"
+                  [attr.stroke-dashoffset]="gaugeDashOffsetForPeriod(period)"
+                />
+              </svg>
+              <div class="sales-dash__gauge-label">
+                <span class="sales-dash__gauge-pct">{{ targetAchievedPctForPeriod(period) }}%</span>
+                <span class="sales-dash__gauge-sub">Achieved</span>
+              </div>
             </div>
-          </div>
 
-          @if (data.kpis.hasTargetsConfigured) {
             <div
               class="sales-dash__target-bar"
               role="progressbar"
-              [attr.aria-valuenow]="data.kpis.targetAchievedPct"
+              [attr.aria-valuenow]="displayProgressPctForPeriod(period)"
               aria-valuemin="0"
               aria-valuemax="100"
-              [attr.aria-label]="'Target progress ' + data.kpis.targetAchievedPct + ' percent'"
+              [attr.aria-label]="'Target progress ' + displayProgressPctForPeriod(period) + ' percent'"
             >
-              <span class="sales-dash__target-bar-fill" [style.width.%]="data.kpis.targetAchievedPct"></span>
+              <span class="sales-dash__target-bar-fill" [style.width.%]="displayProgressPctForPeriod(period)"></span>
             </div>
             <p class="sales-dash__target-remaining">
-              <span>{{ formatMoney(targetRemaining(data.kpis)) }}</span> remaining
+              <span>{{ formatMoney(targetRemainingForPeriod(period)) }}</span> remaining
             </p>
+            @if (data.kpis.revenueChangePct !== undefined) {
+              <span style="font-size: 0.75rem; margin-top: 0.25rem; display: block; font-weight: 500; text-align: center;" [style.color]="data.kpis.revenueChangePct > 0 ? '#10b981' : (data.kpis.revenueChangePct < 0 ? '#ef4444' : 'var(--dash-emphasis-muted)')">
+                {{ data.kpis.revenueChangePct > 0 ? '↑' : (data.kpis.revenueChangePct < 0 ? '↓' : '') }}
+                {{ Math.abs(data.kpis.revenueChangePct) }}% vs last period
+              </span>
+            }
+
+            <div class="sales-dash__target-stats">
+              <div class="sales-dash__target-stat sales-dash__target-stat--achieved">
+                <span class="sales-dash__target-stat-label">Achieved</span>
+                <span class="sales-dash__target-stat-value">{{ formatMoney(period.achievedAmount) }}</span>
+              </div>
+              <div class="sales-dash__target-stat sales-dash__target-stat--goal">
+                <span class="sales-dash__target-stat-label">Target</span>
+                <span class="sales-dash__target-stat-value">{{ formatMoney(period.targetAmount) }}</span>
+              </div>
+            </div>
+
+            @if (viewingTargetMode() === 'active' && previousTargetPeriods().length > 0) {
+              <div style="margin-top: 0.5rem;" (click)="$event.stopPropagation()">
+                <select
+                  class="sales-dash__target-setup"
+                  style="width: 100%; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
+                  (change)="onPreviousTargetSelect($event)"
+                >
+                  <option value="" disabled selected>View Previous Target</option>
+                  @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
+                    <option [value]="p.startDate + '_' + p.endDate" style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
+                      {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
+                    </option>
+                  }
+                </select>
+              </div>
+            } @else if (viewingTargetMode() === 'previous') {
+              <div style="margin-top: 0.5rem; display: flex; gap: 0.35rem;" (click)="$event.stopPropagation()">
+                <select
+                  class="sales-dash__target-setup"
+                  style="flex: 1.3; min-width: 0; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
+                  (change)="onPreviousTargetSelect($event)"
+                >
+                  @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
+                    <option [value]="p.startDate + '_' + p.endDate" [selected]="isTargetPeriodSelected(p)" style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
+                      {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
+                    </option>
+                  }
+                </select>
+
+                <a
+                  class="sales-dash__target-setup"
+                  href="javascript:void(0)"
+                  style="flex: 1; font-size: 0.75rem; padding: 0.35rem 0.5rem; border-radius: 6px; margin: 0; display: flex; align-items: center; justify-content: center; text-align: center;"
+                  (click)="viewingTargetMode.set('active'); $event.stopPropagation();"
+                >
+                  Back
+                </a>
+              </div>
+            }
           } @else {
-            <p class="sales-dash__target-empty">No target configured for {{ data.period.label.toLowerCase() }}.</p>
-          }
-
-          <div class="sales-dash__target-stats">
-            <div class="sales-dash__target-stat sales-dash__target-stat--achieved">
-              <span class="sales-dash__target-stat-label">Achieved</span>
-              <span class="sales-dash__target-stat-value">{{ formatMoney(data.kpis.periodAchieved) }}</span>
-            </div>
-            <div class="sales-dash__target-stat sales-dash__target-stat--goal">
-              <span class="sales-dash__target-stat-label">Target</span>
-              @if (data.kpis.hasTargetsConfigured) {
-                <span class="sales-dash__target-stat-value">{{ formatMoney(data.kpis.periodTarget) }}</span>
-              } @else {
-                <span class="sales-dash__target-stat-value sales-dash__target-stat-value--muted">Not set</span>
-              }
-            </div>
-          </div>
-
-          @if (!data.kpis.hasTargetsConfigured) {
+            <p class="sales-dash__target-empty" style="margin-top: 1rem; margin-bottom: 0.5rem;">No active sales target configured.</p>
+            
             <a
               class="sales-dash__target-setup"
               routerLink="/advanced-settings"
+              [queryParams]="{ tab: 'User Targets' }"
+              style="font-size: 0.75rem; padding: 0.35rem 0.5rem; border-radius: 6px; margin: 0;"
               (click)="$event.stopPropagation()"
             >
-              Set up targets
+              Set New Target
             </a>
+
+            @if (previousTargetPeriods().length > 0) {
+              <div style="margin-top: 0.5rem;" (click)="$event.stopPropagation()">
+                <select
+                  class="sales-dash__target-setup"
+                  style="width: 100%; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
+                  (change)="onPreviousTargetSelect($event)"
+                >
+                  <option value="" disabled selected>View Previous Target</option>
+                  @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
+                    <option [value]="p.startDate + '_' + p.endDate" style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
+                      {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
+                    </option>
+                  }
+                </select>
+              </div>
+            }
           }
         </div>
       </article>
@@ -771,17 +838,33 @@
               <tr>
                 <th scope="col">Rep</th>
                 <th scope="col">Target</th>
-                <th scope="col">Achieved</th>
-                <th scope="col">Gap</th>
+                <th scope="col" style="cursor: pointer; user-select: none;" (click)="setDetailTargetSort('achieved')">
+                  Achieved{{ detailTargetSortIndicator('achieved') }}
+                </th>
+                <th scope="col" style="cursor: pointer; user-select: none;" (click)="setDetailTargetSort('gap')">
+                  Gap{{ detailTargetSortIndicator('gap') }}
+                </th>
+                <th scope="col" style="cursor: pointer; user-select: none;" (click)="setDetailTargetSort('pct')">
+                  % Achieved{{ detailTargetSortIndicator('pct') }}
+                </th>
+                <th scope="col">Status</th>
               </tr>
             </thead>
             <tbody>
-              @for (row of detailTeam(); track row.userId) {
+              @for (row of sortedDetailTeam(); track row.userId) {
                 <tr>
                   <td>{{ row.name }}</td>
                   <td>{{ formatMoney(row.targetAmount) }}</td>
                   <td>{{ formatMoney(row.targetAchieved) }}</td>
                   <td>{{ formatMoney(targetGap(row)) }}</td>
+                  <td>
+                    @if (row.targetAmount > 0) {
+                      {{ Math.round((row.targetAchieved / row.targetAmount) * 100) }}%
+                    } @else {
+                      0%
+                    }
+                  </td>
+                  <td>{{ targetStatusLabel(row.targetAmount, row.targetAchieved) }}</td>
                 </tr>
               }
             </tbody>
