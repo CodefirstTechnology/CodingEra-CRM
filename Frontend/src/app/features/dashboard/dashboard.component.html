@@ -8,210 +8,167 @@
     </div>
     <div class="sales-dash__toolbar-actions">
       <div class="sales-dash__period">
-        <button
-          type="button"
-          class="sales-dash__period-trigger"
-          [attr.aria-expanded]="periodMenuOpen()"
-          aria-haspopup="listbox"
-          [disabled]="loading()"
-          (click)="togglePeriodMenu()"
-        >
+        <button type="button" class="sales-dash__period-trigger" [attr.aria-expanded]="periodMenuOpen()"
+          aria-haspopup="listbox" [disabled]="loading()" (click)="togglePeriodMenu()">
           <span class="sales-dash__period-trigger-label">{{ periodLabel() }}</span>
           <svg class="sales-dash__period-chevron" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           </svg>
         </button>
         @if (periodMenuOpen()) {
-          <button
-            type="button"
-            class="sales-dash__period-backdrop"
-            aria-label="Close date range menu"
-            (click)="closePeriodMenu()"
-          ></button>
-          <div class="sales-dash__period-panel" role="listbox" aria-label="Date range filter">
-            <ul class="sales-dash__period-menu">
-              @for (opt of periodOptions; track opt.key) {
-                <li class="sales-dash__period-item" role="presentation">
-                  <button
-                    type="button"
-                    role="option"
-                    class="sales-dash__period-option"
-                    [class.sales-dash__period-option--active]="
+        <button type="button" class="sales-dash__period-backdrop" aria-label="Close date range menu"
+          (click)="closePeriodMenu()"></button>
+        <div class="sales-dash__period-panel" role="listbox" aria-label="Date range filter">
+          <ul class="sales-dash__period-menu">
+            @for (opt of periodOptions; track opt.key) {
+            <li class="sales-dash__period-item" role="presentation">
+              <button type="button" role="option" class="sales-dash__period-option"
+                [class.sales-dash__period-option--active]="
                       periodKey() === opt.key || (opt.key === 'custom' && customPickerOpen())
-                    "
-                    [attr.aria-selected]="periodKey() === opt.key || (opt.key === 'custom' && customPickerOpen())"
-                    (click)="selectPeriod(opt.key)"
-                  >
-                    {{ opt.label }}
-                  </button>
-                </li>
-              }
-            </ul>
-            @if (customPickerOpen() || periodKey() === 'custom') {
-              <div class="sales-dash__period-custom">
-                <label class="sales-dash__period-custom-field">
-                  <span>From</span>
-                  <input
-                    type="date"
-                    class="sales-dash__period-date"
-                    [value]="customStartInput()"
-                    (change)="onCustomStartChange($any($event.target).value)"
-                  />
-                </label>
-                <label class="sales-dash__period-custom-field">
-                  <span>To</span>
-                  <input
-                    type="date"
-                    class="sales-dash__period-date"
-                    [value]="customEndInput()"
-                    (change)="onCustomEndChange($any($event.target).value)"
-                  />
-                </label>
-                @if (customRangeError(); as rangeErr) {
-                  <p class="sales-dash__period-custom-error" role="alert">{{ rangeErr }}</p>
-                }
-                <button
-                  type="button"
-                  class="sales-dash__period-apply"
-                  (click)="applyCustomRange()"
-                >
-                  Apply
-                </button>
-              </div>
+                    " [attr.aria-selected]="periodKey() === opt.key || (opt.key === 'custom' && customPickerOpen())"
+                (click)="selectPeriod(opt.key)">
+                {{ opt.label }}
+              </button>
+            </li>
             }
+          </ul>
+          @if (customPickerOpen() || periodKey() === 'custom') {
+          <div class="sales-dash__period-custom">
+            <label class="sales-dash__period-custom-field">
+              <span>From</span>
+              <input type="date" class="sales-dash__period-date" [value]="customStartInput()"
+                (change)="onCustomStartChange($any($event.target).value)" />
+            </label>
+            <label class="sales-dash__period-custom-field">
+              <span>To</span>
+              <input type="date" class="sales-dash__period-date" [value]="customEndInput()"
+                (change)="onCustomEndChange($any($event.target).value)" />
+            </label>
+            @if (customRangeError(); as rangeErr) {
+            <p class="sales-dash__period-custom-error" role="alert">{{ rangeErr }}</p>
+            }
+            <button type="button" class="sales-dash__period-apply" (click)="applyCustomRange()">
+              Apply
+            </button>
           </div>
+          }
+        </div>
         }
       </div>
       @if (snapshot(); as data) {
-        <div class="sales-dash__quarterly" aria-label="Target achievement summary">
-          <span class="sales-dash__quarterly-label">Achieved / target</span>
-          <span class="sales-dash__quarterly-values">
-            {{ formatMoney(data.kpis.periodAchieved) }} /
-            @if (data.kpis.hasTargetsConfigured) {
-              {{ formatMoney(data.kpis.periodTarget) }}
-            } @else {
-              <span class="sales-dash__muted-inline">Not set</span>
-            }
-          </span>
-        </div>
+      <div class="sales-dash__quarterly" aria-label="Target achievement summary">
+        <span class="sales-dash__quarterly-label">Achieved / target</span>
+        <span class="sales-dash__quarterly-values">
+          {{ formatMoney(data.kpis.periodAchieved) }} /
+          @if (data.kpis.hasTargetsConfigured) {
+          {{ formatMoney(data.kpis.periodTarget) }}
+          } @else {
+          <span class="sales-dash__muted-inline">Not set</span>
+          }
+        </span>
+      </div>
       }
-      <button
-        type="button"
-        class="sales-dash__btn sales-dash__btn--ghost"
-        [disabled]="loading()"
-        (click)="refreshDashboard()"
-      >
+      <button type="button" class="sales-dash__btn sales-dash__btn--ghost" [disabled]="loading()"
+        (click)="refreshDashboard()">
         {{ loading() ? 'Refreshing…' : 'Refresh' }}
       </button>
     </div>
   </header>
 
   @if (error(); as err) {
-    <p class="sales-dash__banner" role="alert">{{ err }}</p>
+  <p class="sales-dash__banner" role="alert">{{ err }}</p>
   }
 
   @if (loading() && !snapshot()) {
-    <div class="sales-dash__loading" aria-busy="true" aria-label="Loading dashboard">
-      <div class="sales-dash__loading-spinner"></div>
-      <p>Loading live metrics…</p>
-    </div>
+  <div class="sales-dash__loading" aria-busy="true" aria-label="Loading dashboard">
+    <div class="sales-dash__loading-spinner"></div>
+    <p>Loading live metrics…</p>
+  </div>
   } @else if (snapshot(); as data) {
-    <section class="sales-dash__kpi-strip" aria-label="Key performance indicators">
-      <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openKpiLeads('all')">
-        <span class="sales-dash__kpi-label">Total leads</span>
-        <span class="sales-dash__kpi-value">{{ data.kpis.totalLeads }}</span>
-      </button>
-      <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openWonDeals()">
-        <span class="sales-dash__kpi-label">Won deals</span>
-        <span class="sales-dash__kpi-value">{{ data.kpis.wonDeals }}</span>
-      </button>
-      <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openPipelineOverview()">
-        <span class="sales-dash__kpi-label">Pipeline value</span>
-        <span class="sales-dash__kpi-value">{{ formatMoney(data.kpis.pipelineRevenue) }}</span>
-      </button>
-      <article class="sales-dash__kpi">
-        <span class="sales-dash__kpi-label">Conversion ratio</span>
-        <span class="sales-dash__kpi-value">{{ data.kpis.conversionRatePct }}%</span>
-      </article>
-    </section>
+  <section class="sales-dash__kpi-strip" aria-label="Key performance indicators">
+    <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openKpiLeads('all')">
+      <span class="sales-dash__kpi-label">Total leads</span>
+      <span class="sales-dash__kpi-value">{{ data.kpis.totalLeads }}</span>
+    </button>
+    <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openWonDeals()">
+      <span class="sales-dash__kpi-label">Won deals</span>
+      <span class="sales-dash__kpi-value">{{ data.kpis.wonDeals }}</span>
+    </button>
+    <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openPipelineOverview()">
+      <span class="sales-dash__kpi-label">Pipeline value</span>
+      <span class="sales-dash__kpi-value">{{ formatMoney(data.kpis.pipelineRevenue) }}</span>
+    </button>
+    <article class="sales-dash__kpi">
+      <span class="sales-dash__kpi-label">Conversion ratio</span>
+      <span class="sales-dash__kpi-value">{{ data.kpis.conversionRatePct }}%</span>
+    </article>
+  </section>
 
-    <div class="sales-dash__ledger">
-      <article
-        class="sales-dash__card sales-dash__card--target sales-dash__card--click sales-dash__ledger-card"
-        (click)="openTargetDetails()"
-      >
-        <header class="sales-dash__target-head">
-          <div class="sales-dash__target-head-text">
-            <h2 class="sales-dash__target-title">Sales target</h2>
-            @if (currentTargetPeriod(); as period) {
-              <span class="sales-dash__target-period">{{ formatTargetPeriodLabel(period.startDate, period.endDate) }}</span>
-              <span class="sales-dash__pill" [class.sales-dash__pill--pos]="targetStatusForPeriod(period) === 'Achieved' || targetStatusForPeriod(period) === 'Exceeded' || targetStatusForPeriod(period) === 'On Track'" style="margin-left: 0.5rem; display: inline-block; vertical-align: middle;">
-                {{ targetStatusForPeriod(period) }}
-              </span>
-            } @else {
-              <span class="sales-dash__target-period">Current</span>
-            }
-          </div>
-          <a
-            class="sales-dash__target-manage"
-            routerLink="/advanced-settings"
-            [queryParams]="{ tab: 'User Targets' }"
-            (click)="$event.stopPropagation()"
-          >
+  <div class="sales-dash__ledger">
+    <article class="sales-dash__card sales-dash__card--target sales-dash__card--click sales-dash__ledger-card"
+      (click)="openTargetDetails()">
+      <header class="sales-dash__target-head">
+        <div class="sales-dash__target-head-text">
+          <h2 class="sales-dash__target-title">Sales target</h2>
+          @if (currentTargetPeriod(); as period) {
+          <span class="sales-dash__target-period">{{ formatTargetPeriodLabel(period.startDate, period.endDate) }}</span>
+          <span class="sales-dash__pill"
+            [class.sales-dash__pill--pos]="targetStatusForPeriod(period) === 'Achieved' || targetStatusForPeriod(period) === 'Exceeded' || targetStatusForPeriod(period) === 'On Track'"
+            style="margin-left: 0.5rem; display: inline-block; vertical-align: middle;">
+            {{ targetStatusForPeriod(period) }}
+          </span>
+          } @else {
+          <span class="sales-dash__target-period">Current</span>
+          }
+        </div>
+        <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <button type="button" class="sales-dash__target-manage"
+            (click)="toggleTargetViewSource(); $event.stopPropagation();">
+            {{ targetViewSource() === 'current' ? 'Current' : 'Selected' }}
+          </button>
+          <a class="sales-dash__target-manage" routerLink="/advanced-settings" [queryParams]="{ tab: 'User Targets' }"
+            (click)="$event.stopPropagation()">
             Manage
           </a>
-        </header>
+        </div>
+      </header>
 
-        <div class="sales-dash__target-body">
-          @if (currentTargetPeriod(); as period) {
-            <div class="sales-dash__gauge-wrap">
-              <div class="sales-dash__gauge-glow" aria-hidden="true"></div>
-              <svg class="sales-dash__gauge-svg" viewBox="0 0 120 120" aria-hidden="true">
-                <defs>
-                  <linearGradient id="salesTargetGaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="var(--sd-accent-soft)" />
-                    <stop offset="100%" stop-color="var(--sd-accent)" />
-                  </linearGradient>
-                </defs>
-                <circle class="sales-dash__gauge-track" cx="60" cy="60" r="46" fill="none" stroke-width="11" />
-                <circle
-                  class="sales-dash__gauge-fill"
-                  cx="60"
-                  cy="60"
-                  r="46"
-                  fill="none"
-                  stroke-width="11"
-                  stroke-linecap="round"
-                  transform="rotate(-90 60 60)"
-                  stroke="url(#salesTargetGaugeGrad)"
-                  [attr.stroke-dasharray]="gaugeCircumference"
-                  [attr.stroke-dashoffset]="gaugeDashOffsetForPeriod(period)"
-                />
-              </svg>
-              <div class="sales-dash__gauge-label">
-                <span class="sales-dash__gauge-pct">{{ targetAchievedPctForPeriod(period) }}%</span>
-                <span class="sales-dash__gauge-sub">Achieved</span>
-              </div>
-            </div>
+      <div class="sales-dash__target-body">
+        @if (currentTargetPeriod(); as period) {
+        <div class="sales-dash__gauge-wrap">
+          <div class="sales-dash__gauge-glow" aria-hidden="true"></div>
+          <svg class="sales-dash__gauge-svg" viewBox="0 0 120 120" aria-hidden="true">
+            <defs>
+              <linearGradient id="salesTargetGaugeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="var(--sd-accent-soft)" />
+                <stop offset="100%" stop-color="var(--sd-accent)" />
+              </linearGradient>
+            </defs>
+            <circle class="sales-dash__gauge-track" cx="60" cy="60" r="46" fill="none" stroke-width="11" />
+            <circle class="sales-dash__gauge-fill" cx="60" cy="60" r="46" fill="none" stroke-width="11"
+              stroke-linecap="round" transform="rotate(-90 60 60)" stroke="url(#salesTargetGaugeGrad)"
+              [attr.stroke-dasharray]="gaugeCircumference"
+              [attr.stroke-dashoffset]="gaugeDashOffsetForPeriod(period)" />
+          </svg>
+          <div class="sales-dash__gauge-label">
+            <span class="sales-dash__gauge-pct">{{ targetAchievedPctForPeriod(period) }}%</span>
+            <span class="sales-dash__gauge-sub">Achieved</span>
+          </div>
+        </div>
 
-            <div
-              class="sales-dash__target-bar"
-              role="progressbar"
-              [attr.aria-valuenow]="displayProgressPctForPeriod(period)"
-              aria-valuemin="0"
-              aria-valuemax="100"
-              [attr.aria-label]="'Target progress ' + displayProgressPctForPeriod(period) + ' percent'"
-            >
-              <span class="sales-dash__target-bar-fill" [style.width.%]="displayProgressPctForPeriod(period)"></span>
-            </div>
-            <p class="sales-dash__target-remaining">
-              <span>{{ formatMoney(targetRemainingForPeriod(period)) }}</span> remaining
-            </p>
-            @if (data.kpis.revenueChangePct !== undefined) {
-              <span style="font-size: 0.75rem; margin-top: 0.25rem; display: block; font-weight: 500; text-align: center;" [style.color]="data.kpis.revenueChangePct > 0 ? '#10b981' : (data.kpis.revenueChangePct < 0 ? '#ef4444' : 'var(--dash-emphasis-muted)')">
-                {{ data.kpis.revenueChangePct > 0 ? '↑' : (data.kpis.revenueChangePct < 0 ? '↓' : '') }}
-                {{ Math.abs(data.kpis.revenueChangePct) }}% vs last period
-              </span>
+        <div class="sales-dash__target-bar" role="progressbar"
+          [attr.aria-valuenow]="displayProgressPctForPeriod(period)" aria-valuemin="0" aria-valuemax="100"
+          [attr.aria-label]="'Target progress ' + displayProgressPctForPeriod(period) + ' percent'">
+          <span class="sales-dash__target-bar-fill" [style.width.%]="displayProgressPctForPeriod(period)"></span>
+        </div>
+        <p class="sales-dash__target-remaining">
+          <span>{{ formatMoney(targetRemainingForPeriod(period)) }}</span> remaining
+        </p>
+        @if (data.kpis.revenueChangePct !== undefined) {
+        <span style="font-size: 0.75rem; margin-top: 0.25rem; display: block; font-weight: 500; text-align: center;"
+          [style.color]="data.kpis.revenueChangePct > 0 ? '#10b981' : (data.kpis.revenueChangePct < 0 ? '#ef4444' : 'var(--dash-emphasis-muted)')">
+          {{ data.kpis.revenueChangePct > 0 ? '↑' : (data.kpis.revenueChangePct < 0 ? '↓' : '' ) }} {{
+            Math.abs(data.kpis.revenueChangePct) }}% vs last period </span>
             }
 
             <div class="sales-dash__target-stats">
@@ -225,652 +182,590 @@
               </div>
             </div>
 
+            @if (targetViewSource() === 'current') {
             @if (viewingTargetMode() === 'active' && previousTargetPeriods().length > 0) {
-              <div style="margin-top: 0.5rem;" (click)="$event.stopPropagation()">
-                <select
-                  class="sales-dash__target-setup"
-                  style="width: 100%; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
-                  (change)="onPreviousTargetSelect($event)"
-                >
-                  <option value="" disabled selected>View Previous Target</option>
-                  @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
-                    <option [value]="p.startDate + '_' + p.endDate" style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
-                      {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
-                    </option>
-                  }
-                </select>
-              </div>
+            <div style="margin-top: 0.5rem;" (click)="$event.stopPropagation()">
+              <select class="sales-dash__target-setup"
+                style="width: 100%; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
+                (change)="onPreviousTargetSelect($event)">
+                <option value="" disabled selected>View Previous Target</option>
+                @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
+                <option [value]="p.startDate + '_' + p.endDate"
+                  style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
+                  {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
+                </option>
+                }
+              </select>
+            </div>
             } @else if (viewingTargetMode() === 'previous') {
-              <div style="margin-top: 0.5rem; display: flex; gap: 0.35rem;" (click)="$event.stopPropagation()">
-                <select
-                  class="sales-dash__target-setup"
-                  style="flex: 1.3; min-width: 0; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
-                  (change)="onPreviousTargetSelect($event)"
-                >
-                  @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
-                    <option [value]="p.startDate + '_' + p.endDate" [selected]="isTargetPeriodSelected(p)" style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
-                      {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
-                    </option>
-                  }
-                </select>
+            <div style="margin-top: 0.5rem; display: flex; gap: 0.35rem;" (click)="$event.stopPropagation()">
+              <select class="sales-dash__target-setup"
+                style="flex: 1.3; min-width: 0; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
+                (change)="onPreviousTargetSelect($event)">
+                @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
+                <option [value]="p.startDate + '_' + p.endDate" [selected]="isTargetPeriodSelected(p)"
+                  style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
+                  {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
+                </option>
+                }
+              </select>
 
-                <a
-                  class="sales-dash__target-setup"
-                  href="javascript:void(0)"
-                  style="flex: 1; font-size: 0.75rem; padding: 0.35rem 0.5rem; border-radius: 6px; margin: 0; display: flex; align-items: center; justify-content: center; text-align: center;"
-                  (click)="viewingTargetMode.set('active'); $event.stopPropagation();"
-                >
-                  Back
-                </a>
-              </div>
+              <a class="sales-dash__target-setup" href="javascript:void(0)"
+                style="flex: 1; font-size: 0.75rem; padding: 0.35rem 0.5rem; border-radius: 6px; margin: 0; display: flex; align-items: center; justify-content: center; text-align: center;"
+                (click)="viewingTargetMode.set('active'); $event.stopPropagation();">
+                Back
+              </a>
+            </div>
             }
-          } @else {
-            <p class="sales-dash__target-empty" style="margin-top: 1rem; margin-bottom: 0.5rem;">No active sales target configured.</p>
-            
-            <a
-              class="sales-dash__target-setup"
-              routerLink="/advanced-settings"
-              [queryParams]="{ tab: 'User Targets' }"
+            }
+            } @else {
+            <p class="sales-dash__target-empty" style="margin-top: 1rem; margin-bottom: 0.5rem;">No active sales target
+              configured.</p>
+
+            <a class="sales-dash__target-setup" routerLink="/advanced-settings" [queryParams]="{ tab: 'User Targets' }"
               style="font-size: 0.75rem; padding: 0.35rem 0.5rem; border-radius: 6px; margin: 0;"
-              (click)="$event.stopPropagation()"
-            >
+              (click)="$event.stopPropagation()">
               Set New Target
             </a>
 
-            @if (previousTargetPeriods().length > 0) {
-              <div style="margin-top: 0.5rem;" (click)="$event.stopPropagation()">
-                <select
-                  class="sales-dash__target-setup"
-                  style="width: 100%; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
-                  (change)="onPreviousTargetSelect($event)"
-                >
-                  <option value="" disabled selected>View Previous Target</option>
-                  @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
-                    <option [value]="p.startDate + '_' + p.endDate" style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
-                      {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
-                    </option>
-                  }
-                </select>
-              </div>
+            @if (targetViewSource() === 'current' && previousTargetPeriods().length > 0) {
+            <div style="margin-top: 0.5rem;" (click)="$event.stopPropagation()">
+              <select class="sales-dash__target-setup"
+                style="width: 100%; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
+                (change)="onPreviousTargetSelect($event)">
+                <option value="" disabled selected>View Previous Target</option>
+                @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
+                <option [value]="p.startDate + '_' + p.endDate"
+                  style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
+                  {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
+                </option>
+                }
+              </select>
+            </div>
             }
+            }
+      </div>
+    </article>
+
+    <article class="sales-dash__card sales-dash__card--conversion sales-dash__card--click sales-dash__ledger-card"
+      (click)="openKpiLeads('all')">
+      <h2 class="sales-dash__card-title">Conversion ratio</h2>
+      <div class="sales-dash__conversion-head">
+        <span class="sales-dash__big-num">{{ data.kpis.conversionRatePct }}%</span>
+        <span class="sales-dash__pill sales-dash__pill--pos">
+          {{ data.kpis.wonDeals }} won / {{ data.kpis.totalLeads }} leads
+        </span>
+      </div>
+      <div class="sales-dash__conversion-chart-wrap">
+        <svg class="sales-dash__conversion-chart" viewBox="0 0 132 68" preserveAspectRatio="none" role="img"
+          aria-label="Won deals versus total leads for the selected date range">
+          @for (bar of conversionBars(); track bar.label; let i = $index) {
+          @if (bar.ratio > 0) {
+          <rect class="sales-dash__conversion-bar" [attr.x]="8 + i * 42" [attr.y]="68 - conversionBarHeight(bar.ratio)"
+            width="28" [attr.height]="conversionBarHeight(bar.ratio)" rx="3" />
+          }
+          }
+        </svg>
+        <div class="sales-dash__conversion-labels" aria-hidden="true">
+          @for (bar of conversionBars(); track bar.label) {
+          <span class="sales-dash__conversion-label">{{ bar.label }}</span>
           }
         </div>
-      </article>
+      </div>
+    </article>
 
-      <article class="sales-dash__card sales-dash__card--conversion sales-dash__card--click sales-dash__ledger-card" (click)="openKpiLeads('all')">
-        <h2 class="sales-dash__card-title">Conversion ratio</h2>
-        <div class="sales-dash__conversion-head">
-          <span class="sales-dash__big-num">{{ data.kpis.conversionRatePct }}%</span>
-          <span class="sales-dash__pill sales-dash__pill--pos">
-            {{ data.kpis.wonDeals }} won / {{ data.kpis.totalLeads }} leads
-          </span>
-        </div>
-        <div class="sales-dash__conversion-chart-wrap">
-          <svg
-            class="sales-dash__conversion-chart"
-            viewBox="0 0 132 68"
-            preserveAspectRatio="none"
-            role="img"
-            aria-label="Won deals versus total leads for the selected date range"
-          >
-            @for (bar of conversionBars(); track bar.label; let i = $index) {
-              @if (bar.ratio > 0) {
-                <rect
-                  class="sales-dash__conversion-bar"
-                  [attr.x]="8 + i * 42"
-                  [attr.y]="68 - conversionBarHeight(bar.ratio)"
-                  width="28"
-                  [attr.height]="conversionBarHeight(bar.ratio)"
-                  rx="3"
-                />
-              }
-            }
-          </svg>
-          <div class="sales-dash__conversion-labels" aria-hidden="true">
-            @for (bar of conversionBars(); track bar.label) {
-              <span class="sales-dash__conversion-label">{{ bar.label }}</span>
-            }
-          </div>
-        </div>
-      </article>
+    <article class="sales-dash__card sales-dash__card--pipeline sales-dash__ledger-card">
+      <header class="sales-dash__pipe-head">
+        <h2 class="sales-dash__card-title">Pipeline by deal status</h2>
+        <button type="button" class="sales-dash__pipe-all-btn" (click)="openPipelineBreakdown()">
+          All stages
+        </button>
+      </header>
 
-      <article class="sales-dash__card sales-dash__card--pipeline sales-dash__ledger-card">
-        <header class="sales-dash__pipe-head">
-          <h2 class="sales-dash__card-title">Pipeline by deal status</h2>
-          <button type="button" class="sales-dash__pipe-all-btn" (click)="openPipelineBreakdown()">
-            All stages
-          </button>
-        </header>
-
-        <div class="sales-dash__pipe-body">
+      <div class="sales-dash__pipe-body">
         <div class="sales-dash__pipe-summary">
           <p class="sales-dash__forecast-total">{{ formatMoney(data.kpis.pipelineRevenue) }}</p>
           <p class="sales-dash__forecast-sub">{{ data.kpis.activePipelineCount }} open deals</p>
         </div>
 
         @if (pipelineCardSegments().length === 0) {
-          <p class="sales-dash__pipe-empty">No active deals in pipeline.</p>
+        <p class="sales-dash__pipe-empty">No active deals in pipeline.</p>
         } @else {
-          <div
-            class="sales-dash__pipe-stack"
-            role="img"
-            [attr.aria-label]="'Pipeline value split across ' + pipelineCardSegments().length + ' stages'"
-          >
-            @for (seg of pipelineCardSegments(); track seg.label; let i = $index) {
-              <button
-                type="button"
-                class="sales-dash__pipe-stack-seg"
-                [style.flex]="seg.revenue + ' 1 4px'"
-                [style.background]="pipelineStageColor(i)"
-                [attr.title]="seg.label + ' · ' + seg.count + ' deals · ' + formatMoney(seg.revenue)"
-                [attr.aria-label]="seg.label + ', ' + formatMoney(seg.revenue)"
-                (click)="openPipelineSegment(seg.label, seg.deals)"
-              ></button>
-            }
-          </div>
-
-          <ul class="sales-dash__pipe-stages">
-            @for (seg of pipelineCardSegments(); track seg.label; let i = $index) {
-              <li class="sales-dash__pipe-stage-row">
-                <button
-                  type="button"
-                  class="sales-dash__pipe-stage"
-                  (click)="openPipelineSegment(seg.label, seg.deals)"
-                >
-                  <span class="sales-dash__pipe-dot" [style.background]="pipelineStageColor(i)"></span>
-                  <span class="sales-dash__pipe-stage-name">{{ seg.label }}</span>
-                  <span class="sales-dash__pipe-stage-meta">
-                    <span class="sales-dash__pipe-stage-count">{{ seg.count }} deals</span>
-                    <span class="sales-dash__pipe-stage-val">{{ formatMoney(seg.revenue) }}</span>
-                    <span class="sales-dash__pipe-stage-pct">{{ seg.pct }}%</span>
-                  </span>
-                </button>
-              </li>
-            }
-          </ul>
-
-          @if (pipelineCardHiddenCount() > 0 || pipelineEmptyStageCount() > 0) {
-            <p class="sales-dash__pipe-foot">
-              @if (pipelineCardHiddenCount() > 0) {
-                +{{ pipelineCardHiddenCount() }} more active stages
-              }
-              @if (pipelineCardHiddenCount() > 0 && pipelineEmptyStageCount() > 0) {
-                ·
-              }
-              @if (pipelineEmptyStageCount() > 0) {
-                {{ pipelineEmptyStageCount() }} empty stages
-              }
-            </p>
+        <div class="sales-dash__pipe-stack" role="img"
+          [attr.aria-label]="'Pipeline value split across ' + pipelineCardSegments().length + ' stages'">
+          @for (seg of pipelineCardSegments(); track seg.label; let i = $index) {
+          <button type="button" class="sales-dash__pipe-stack-seg" [style.flex]="seg.revenue + ' 1 4px'"
+            [style.background]="pipelineStageColor(i)"
+            [attr.title]="seg.label + ' · ' + seg.count + ' deals · ' + formatMoney(seg.revenue)"
+            [attr.aria-label]="seg.label + ', ' + formatMoney(seg.revenue)"
+            (click)="openPipelineSegment(seg.label, seg.deals)"></button>
           }
+        </div>
+
+        <ul class="sales-dash__pipe-stages">
+          @for (seg of pipelineCardSegments(); track seg.label; let i = $index) {
+          <li class="sales-dash__pipe-stage-row">
+            <button type="button" class="sales-dash__pipe-stage" (click)="openPipelineSegment(seg.label, seg.deals)">
+              <span class="sales-dash__pipe-dot" [style.background]="pipelineStageColor(i)"></span>
+              <span class="sales-dash__pipe-stage-name">{{ seg.label }}</span>
+              <span class="sales-dash__pipe-stage-meta">
+                <span class="sales-dash__pipe-stage-count">{{ seg.count }} deals</span>
+                <span class="sales-dash__pipe-stage-val">{{ formatMoney(seg.revenue) }}</span>
+                <span class="sales-dash__pipe-stage-pct">{{ seg.pct }}%</span>
+              </span>
+            </button>
+          </li>
+          }
+        </ul>
+
+        @if (pipelineCardHiddenCount() > 0 || pipelineEmptyStageCount() > 0) {
+        <p class="sales-dash__pipe-foot">
+          @if (pipelineCardHiddenCount() > 0) {
+          +{{ pipelineCardHiddenCount() }} more active stages
+          }
+          @if (pipelineCardHiddenCount() > 0 && pipelineEmptyStageCount() > 0) {
+          ·
+          }
+          @if (pipelineEmptyStageCount() > 0) {
+          {{ pipelineEmptyStageCount() }} empty stages
+          }
+        </p>
+        }
         }
 
         <button type="button" class="sales-dash__pipe-view-deals" (click)="openPipelineOverview()">
           View all {{ data.kpis.activePipelineCount }} deals
         </button>
-        </div>
-      </article>
-    </div>
+      </div>
+    </article>
+  </div>
 
-    <section class="sales-dash__card sales-dash__card--team" aria-labelledby="team-heading">
-      <div class="sales-dash__team-head">
-        <div class="sales-dash__team-head-text">
-          <h2 id="team-heading" class="sales-dash__card-title">Sales team</h2>
-          @if (snapshot(); as data) {
-            <p class="sales-dash__team-sub">
-              Lead metrics for {{ data.period.label.toLowerCase() }}
-              @if (teamLeadStatusFilter() !== 'all') {
-                · status: {{ teamLeadStatusLabel() }}
-              }
-            </p>
+  <section class="sales-dash__card sales-dash__card--team" aria-labelledby="team-heading">
+    <div class="sales-dash__team-head">
+      <div class="sales-dash__team-head-text">
+        <h2 id="team-heading" class="sales-dash__card-title">Sales team</h2>
+        @if (snapshot(); as data) {
+        <p class="sales-dash__team-sub">
+          Lead metrics for {{ data.period.label.toLowerCase() }}
+          @if (teamLeadStatusFilter() !== 'all') {
+          · status: {{ teamLeadStatusLabel() }}
           }
-        </div>
-        <div class="sales-dash__team-filters" aria-label="Sales team filters">
-          <label class="sales-dash__team-filter">
-            <span class="sales-dash__team-filter-label">Role</span>
-            <select
-              class="sales-dash__team-select"
-              [disabled]="loading()"
-              [ngModel]="teamRoleSelectValue(teamRoleFilter())"
-              (ngModelChange)="onTeamRoleFilterChange($event)"
-            >
-              @for (opt of teamRoleOptions(); track opt.value) {
-                <option [value]="teamRoleOptionValue(opt.value)">
-                  {{ opt.label }}
-                </option>
+        </p>
+        }
+      </div>
+      <div class="sales-dash__team-filters" aria-label="Sales team filters">
+        <label class="sales-dash__team-filter">
+          <span class="sales-dash__team-filter-label">Role</span>
+          <select class="sales-dash__team-select" [disabled]="loading()"
+            [ngModel]="teamRoleSelectValue(teamRoleFilter())" (ngModelChange)="onTeamRoleFilterChange($event)">
+            @for (opt of teamRoleOptions(); track opt.value) {
+            <option [value]="teamRoleOptionValue(opt.value)">
+              {{ opt.label }}
+            </option>
+            }
+          </select>
+        </label>
+        <label class="sales-dash__team-filter">
+          <span class="sales-dash__team-filter-label">Lead status</span>
+          <select class="sales-dash__team-select" [disabled]="loading()" [ngModel]="teamLeadStatusFilter()"
+            (ngModelChange)="onTeamLeadStatusFilterChange($event)">
+            @for (opt of teamLeadStatusOptions; track opt.value) {
+            <option [value]="opt.value">{{ opt.label }}</option>
+            }
+          </select>
+        </label>
+      </div>
+    </div>
+    <div class="sales-dash__team-scroll">
+      <table class="sales-dash__team-table">
+        <thead>
+          <tr>
+            <th scope="col">Rep</th>
+            <th scope="col">Leads</th>
+            <th scope="col">Contacted</th>
+            <th scope="col">
+              <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('qualifiedLeads')">
+                Qualified{{ teamSortIndicator('qualifiedLeads') }}
+              </button>
+            </th>
+            <th scope="col">
+              <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('convertedLeads')">
+                Converted{{ teamSortIndicator('convertedLeads') }}
+              </button>
+            </th>
+            <th scope="col">Conv %</th>
+            <th scope="col">
+              <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('activeDeals')">
+                Active deals{{ teamSortIndicator('activeDeals') }}
+              </button>
+            </th>
+            <th scope="col">Deal won</th>
+            <th scope="col">Deal lost</th>
+            <th scope="col">
+              <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('targetAchieved')">
+                Achieved{{ teamSortIndicator('targetAchieved') }}
+              </button>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loading()) {
+          @for (sk of [1, 2, 3]; track sk) {
+          <tr class="sales-dash__team-row sales-dash__team-row--skeleton">
+            <td colspan="10"><span class="sales-dash__skel-bar"></span></td>
+          </tr>
+          }
+          } @else if (sortedTeam().length === 0) {
+          <tr>
+            <td colspan="10" class="sales-dash__team-empty">
+              No users found for {{ teamRoleFilterLabel().toLowerCase() }}
+              @if (teamLeadStatusFilter() !== 'all') {
+              with status “{{ teamLeadStatusLabel() }}”
               }
-            </select>
-          </label>
-          <label class="sales-dash__team-filter">
-            <span class="sales-dash__team-filter-label">Lead status</span>
-            <select
-              class="sales-dash__team-select"
-              [disabled]="loading()"
-              [ngModel]="teamLeadStatusFilter()"
-              (ngModelChange)="onTeamLeadStatusFilterChange($event)"
-            >
-              @for (opt of teamLeadStatusOptions; track opt.value) {
-                <option [value]="opt.value">{{ opt.label }}</option>
-              }
-            </select>
-          </label>
+              in {{ periodLabel().toLowerCase() }}. Try another role or date range.
+            </td>
+          </tr>
+          } @else {
+          @for (row of sortedTeam(); track row.userId) {
+          <tr>
+            <td>
+              <span class="sales-dash__team-name">{{ row.name }}</span>
+              <span class="sales-dash__team-email">{{ row.email }}</span>
+            </td>
+            <td>{{ row.totalLeads }}</td>
+            <td>{{ row.contactedLeads }}</td>
+            <td>{{ row.qualifiedLeads }}</td>
+            <td>{{ row.convertedLeads }}</td>
+            <td>{{ row.conversionRatePct }}%</td>
+            <td>
+              <button type="button" class="sales-dash__cell-link" (click)="openTeamMemberDeals(row.userId, row.name)">
+                {{ row.activeDeals }}
+              </button>
+            </td>
+            <td>{{ row.dealsClosedWon }}</td>
+            <td>{{ row.dealsClosedLost }}</td>
+            <td>{{ formatMoney(row.targetAchieved > 0 ? row.targetAchieved : row.monthlyRevenue) }}</td>
+          </tr>
+          }
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="sales-dash__main">
+    <section class="sales-dash__card sales-dash__card--stream" aria-labelledby="stream-heading">
+      <div class="sales-dash__stream-head">
+        <h2 id="stream-heading" class="sales-dash__card-title">Activity Stream</h2>
+        <div class="sales-dash__tabs" role="tablist" aria-label="Filter activities">
+          <button type="button" role="tab" class="sales-dash__tab" [attr.aria-selected]="streamTab() === 'all'"
+            [class.sales-dash__tab--active]="streamTab() === 'all'" (click)="setStreamTab('all')">
+            All Activities
+          </button>
+          <button type="button" role="tab" class="sales-dash__tab" [attr.aria-selected]="streamTab() === 'calls'"
+            [class.sales-dash__tab--active]="streamTab() === 'calls'" (click)="setStreamTab('calls')">
+            Calls
+          </button>
+          <button type="button" role="tab" class="sales-dash__tab" [attr.aria-selected]="streamTab() === 'meetings'"
+            [class.sales-dash__tab--active]="streamTab() === 'meetings'" (click)="setStreamTab('meetings')">
+            Meetings
+          </button>
         </div>
       </div>
-      <div class="sales-dash__team-scroll">
-        <table class="sales-dash__team-table">
-          <thead>
-            <tr>
-              <th scope="col">Rep</th>
-              <th scope="col">Leads</th>
-              <th scope="col">Contacted</th>
-              <th scope="col">
-                <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('qualifiedLeads')">
-                  Qualified{{ teamSortIndicator('qualifiedLeads') }}
-                </button>
-              </th>
-              <th scope="col">
-                <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('convertedLeads')">
-                  Converted{{ teamSortIndicator('convertedLeads') }}
-                </button>
-              </th>
-              <th scope="col">Conv %</th>
-              <th scope="col">
-                <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('activeDeals')">
-                  Active deals{{ teamSortIndicator('activeDeals') }}
-                </button>
-              </th>
-              <th scope="col">Deal won</th>
-              <th scope="col">Deal lost</th>
-              <th scope="col">
-                <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('targetAchieved')">
-                  Achieved{{ teamSortIndicator('targetAchieved') }}
-                </button>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            @if (loading()) {
-              @for (sk of [1, 2, 3]; track sk) {
-                <tr class="sales-dash__team-row sales-dash__team-row--skeleton">
-                  <td colspan="10"><span class="sales-dash__skel-bar"></span></td>
-                </tr>
-              }
-            } @else if (sortedTeam().length === 0) {
-              <tr>
-                <td colspan="10" class="sales-dash__team-empty">
-                  No users found for {{ teamRoleFilterLabel().toLowerCase() }}
-                  @if (teamLeadStatusFilter() !== 'all') {
-                    with status “{{ teamLeadStatusLabel() }}”
-                  }
-                  in {{ periodLabel().toLowerCase() }}. Try another role or date range.
-                </td>
-              </tr>
-            } @else {
-              @for (row of sortedTeam(); track row.userId) {
-                <tr>
-                  <td>
-                    <span class="sales-dash__team-name">{{ row.name }}</span>
-                    <span class="sales-dash__team-email">{{ row.email }}</span>
-                  </td>
-                  <td>{{ row.totalLeads }}</td>
-                  <td>{{ row.contactedLeads }}</td>
-                  <td>{{ row.qualifiedLeads }}</td>
-                  <td>{{ row.convertedLeads }}</td>
-                  <td>{{ row.conversionRatePct }}%</td>
-                  <td>
-                    <button
-                      type="button"
-                      class="sales-dash__cell-link"
-                      (click)="openTeamMemberDeals(row.userId, row.name)"
-                    >
-                      {{ row.activeDeals }}
-                    </button>
-                  </td>
-                  <td>{{ row.dealsClosedWon }}</td>
-                  <td>{{ row.dealsClosedLost }}</td>
-                  <td>{{ formatMoney(row.targetAchieved > 0 ? row.targetAchieved : row.monthlyRevenue) }}</td>
-                </tr>
-              }
+      <ul class="sales-dash__stream-list">
+        @if (loading()) {
+        <li class="sales-dash__stream-item sales-dash__stream-item--empty">Loading activity…</li>
+        } @else if (filteredActivities().length === 0) {
+        <li class="sales-dash__stream-item sales-dash__stream-item--empty">No recent activity.</li>
+        } @else {
+        @for (item of visibleActivities(); track item.id) {
+        <li class="sales-dash__stream-item">
+          <span class="sales-dash__stream-icon" aria-hidden="true">
+            @switch (item.kind) {
+            @case ('call') {
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path
+                d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+            </svg>
             }
-          </tbody>
-        </table>
+            @case ('meeting') {
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            }
+            @case ('email') {
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+            }
+            @case ('lead') {
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+              <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            }
+            @case ('deal') {
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="2" y="7" width="20" height="14" rx="2" />
+              <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+            </svg>
+            }
+            @case ('item') {
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path
+                d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+              <line x1="12" y1="22.08" x2="12" y2="12" />
+            </svg>
+            }
+            @default {
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path
+                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            }
+            }
+          </span>
+          <div class="sales-dash__stream-body">
+            <p class="sales-dash__stream-title">
+              <span [class]="activityKindClass(item)">{{ activityKindLabel(item) }}</span>
+              {{ item.title }}
+              @if (item.recordRoute) {
+              <a class="sales-dash__link" [routerLink]="item.recordRoute">{{ item.company }}</a>
+              } @else {
+              <span class="sales-dash__stream-co">{{ item.company }}</span>
+              }
+            </p>
+            <p class="sales-dash__stream-desc">{{ item.description }}</p>
+          </div>
+          <div class="sales-dash__stream-aside">
+            <time class="sales-dash__stream-time">{{ item.timeLabel }}</time>
+            <span class="sales-dash__stream-rep">{{ item.rep }}</span>
+          </div>
+        </li>
+        }
+        }
+      </ul>
+      <div class="sales-dash__stream-footer">
+        @if (showStreamSeeMore()) {
+        <button type="button" class="sales-dash__see-more" (click)="expandStream()">
+          See more ({{ streamHiddenCount() }} more)
+        </button>
+        }
+        @if (showStreamShowLess()) {
+        <button type="button" class="sales-dash__see-more sales-dash__see-more--less" (click)="collapseStream()">
+          Show less
+        </button>
+        }
       </div>
     </section>
 
-    <div class="sales-dash__main">
-      <section class="sales-dash__card sales-dash__card--stream" aria-labelledby="stream-heading">
-        <div class="sales-dash__stream-head">
-          <h2 id="stream-heading" class="sales-dash__card-title">Activity Stream</h2>
-          <div class="sales-dash__tabs" role="tablist" aria-label="Filter activities">
-            <button
-              type="button"
-              role="tab"
-              class="sales-dash__tab"
-              [attr.aria-selected]="streamTab() === 'all'"
-              [class.sales-dash__tab--active]="streamTab() === 'all'"
-              (click)="setStreamTab('all')"
-            >
-              All Activities
-            </button>
-            <button
-              type="button"
-              role="tab"
-              class="sales-dash__tab"
-              [attr.aria-selected]="streamTab() === 'calls'"
-              [class.sales-dash__tab--active]="streamTab() === 'calls'"
-              (click)="setStreamTab('calls')"
-            >
-              Calls
-            </button>
-            <button
-              type="button"
-              role="tab"
-              class="sales-dash__tab"
-              [attr.aria-selected]="streamTab() === 'meetings'"
-              [class.sales-dash__tab--active]="streamTab() === 'meetings'"
-              (click)="setStreamTab('meetings')"
-            >
-              Meetings
-            </button>
-          </div>
+    <aside class="sales-dash__aside">
+      <section class="sales-dash__card sales-dash__card--stuck" aria-labelledby="stuck-heading">
+        <div class="sales-dash__stuck-head">
+          <span class="sales-dash__stuck-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </span>
+          <h2 id="stuck-heading" class="sales-dash__card-title">Stuck Deals</h2>
+          <span class="sales-dash__badge-auto">24+ hours idle</span>
         </div>
-        <ul class="sales-dash__stream-list">
-          @if (loading()) {
-            <li class="sales-dash__stream-item sales-dash__stream-item--empty">Loading activity…</li>
-          } @else if (filteredActivities().length === 0) {
-            <li class="sales-dash__stream-item sales-dash__stream-item--empty">No recent activity.</li>
-          } @else {
-            @for (item of visibleActivities(); track item.id) {
-              <li class="sales-dash__stream-item">
-                <span class="sales-dash__stream-icon" aria-hidden="true">
-                  @switch (item.kind) {
-                    @case ('call') {
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path
-                          d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"
-                        />
-                      </svg>
-                    }
-                    @case ('meeting') {
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                        <circle cx="9" cy="7" r="4" />
-                        <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-                      </svg>
-                    }
-                    @case ('email') {
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                        <polyline points="22,6 12,13 2,6" />
-                      </svg>
-                    }
-                    @case ('lead') {
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-                        <circle cx="9" cy="7" r="4" />
-                        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                      </svg>
-                    }
-                    @case ('deal') {
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <rect x="2" y="7" width="20" height="14" rx="2" />
-                        <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
-                      </svg>
-                    }
-                    @case ('item') {
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-                        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-                        <line x1="12" y1="22.08" x2="12" y2="12" />
-                      </svg>
-                    }
-                    @default {
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path
-                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                        />
-                      </svg>
-                    }
-                  }
-                </span>
-                <div class="sales-dash__stream-body">
-                  <p class="sales-dash__stream-title">
-                    <span [class]="activityKindClass(item)">{{ activityKindLabel(item) }}</span>
-                    {{ item.title }}
-                    @if (item.recordRoute) {
-                      <a class="sales-dash__link" [routerLink]="item.recordRoute">{{ item.company }}</a>
-                    } @else {
-                      <span class="sales-dash__stream-co">{{ item.company }}</span>
-                    }
-                  </p>
-                  <p class="sales-dash__stream-desc">{{ item.description }}</p>
-                </div>
-                <div class="sales-dash__stream-aside">
-                  <time class="sales-dash__stream-time">{{ item.timeLabel }}</time>
-                  <span class="sales-dash__stream-rep">{{ item.rep }}</span>
-                </div>
-              </li>
-            }
+        <ul class="sales-dash__stuck-list">
+          @for (deal of stuckDealsPreview(); track deal.id) {
+          <li class="sales-dash__stuck-item">
+            <div class="sales-dash__stuck-top">
+              <span class="sales-dash__stuck-co">{{ deal.dealName }}</span>
+              <span class="sales-dash__stuck-val">{{ formatMoney(deal.revenue) }}</span>
+            </div>
+            <p class="sales-dash__stuck-stage">{{ deal.company }} · {{ deal.stage }} · {{ deal.owner }}</p>
+            <div class="sales-dash__stuck-meta">
+              <span class="sales-dash__inactive">{{ deal.inactiveHours }} hours inactive</span>
+              <a class="sales-dash__stuck-action" [routerLink]="['/deals', deal.id]">Open deal</a>
+            </div>
+          </li>
+          } @empty {
+          <li class="sales-dash__stuck-item sales-dash__stuck-item--empty">No stuck deals right now.</li>
           }
         </ul>
-        <div class="sales-dash__stream-footer">
-          @if (showStreamSeeMore()) {
-            <button type="button" class="sales-dash__see-more" (click)="expandStream()">
-              See more ({{ streamHiddenCount() }} more)
-            </button>
-          }
-          @if (showStreamShowLess()) {
-            <button type="button" class="sales-dash__see-more sales-dash__see-more--less" (click)="collapseStream()">
-              Show less
-            </button>
-          }
-        </div>
+        @if (stuckDealsHiddenCount() > 0) {
+        <button type="button" class="sales-dash__see-more" (click)="openStuckDealsAll()">
+          View all stuck deals ({{ data.stuckDeals.length }})
+        </button>
+        }
       </section>
 
-      <aside class="sales-dash__aside">
-        <section class="sales-dash__card sales-dash__card--stuck" aria-labelledby="stuck-heading">
-          <div class="sales-dash__stuck-head">
-            <span class="sales-dash__stuck-icon" aria-hidden="true">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-                <line x1="12" y1="9" x2="12" y2="13" />
-                <line x1="12" y1="17" x2="12.01" y2="17" />
-              </svg>
-            </span>
-            <h2 id="stuck-heading" class="sales-dash__card-title">Stuck Deals</h2>
-            <span class="sales-dash__badge-auto">24+ hours idle</span>
-          </div>
-          <ul class="sales-dash__stuck-list">
-            @for (deal of stuckDealsPreview(); track deal.id) {
-              <li class="sales-dash__stuck-item">
-                <div class="sales-dash__stuck-top">
-                  <span class="sales-dash__stuck-co">{{ deal.dealName }}</span>
-                  <span class="sales-dash__stuck-val">{{ formatMoney(deal.revenue) }}</span>
-                </div>
-                <p class="sales-dash__stuck-stage">{{ deal.company }} · {{ deal.stage }} · {{ deal.owner }}</p>
-                <div class="sales-dash__stuck-meta">
-                  <span class="sales-dash__inactive">{{ deal.inactiveHours }} hours inactive</span>
-                  <a class="sales-dash__stuck-action" [routerLink]="['/deals', deal.id]">Open deal</a>
-                </div>
-              </li>
-            } @empty {
-              <li class="sales-dash__stuck-item sales-dash__stuck-item--empty">No stuck deals right now.</li>
-            }
-          </ul>
-          @if (stuckDealsHiddenCount() > 0) {
-            <button type="button" class="sales-dash__see-more" (click)="openStuckDealsAll()">
-              View all stuck deals ({{ data.stuckDeals.length }})
-            </button>
-          }
-        </section>
-
-        <section class="sales-dash__card sales-dash__card--focus" aria-labelledby="focus-heading">
-          <h2 id="focus-heading" class="visually-hidden">Focus assistant</h2>
-          <p class="sales-dash__focus-text">{{ data.focusInsight }}</p>
-          <div class="sales-dash__focus-actions">
-            <a class="sales-dash__focus-btn sales-dash__focus-btn--primary" routerLink="/leads">View leads</a>
-            <a class="sales-dash__focus-btn sales-dash__focus-btn--ghost" routerLink="/deals">View deals</a>
-          </div>
-        </section>
-      </aside>
-    </div>
+      <section class="sales-dash__card sales-dash__card--focus" aria-labelledby="focus-heading">
+        <h2 id="focus-heading" class="visually-hidden">Focus assistant</h2>
+        <p class="sales-dash__focus-text">{{ data.focusInsight }}</p>
+        <div class="sales-dash__focus-actions">
+          <a class="sales-dash__focus-btn sales-dash__focus-btn--primary" routerLink="/leads">View leads</a>
+          <a class="sales-dash__focus-btn sales-dash__focus-btn--ghost" routerLink="/deals">View deals</a>
+        </div>
+      </section>
+    </aside>
+  </div>
   }
 
   <app-crm-modal [open]="detailOpen()" [title]="detailTitle()" size="lg" (dismiss)="closeDetail()">
     @if (detailKind() === 'deals') {
-      @if (detailDeals().length === 0) {
-        <p class="sales-dash__detail-empty">No records to show.</p>
-      } @else {
-        <div class="sales-dash__detail-scroll">
-          <table class="sales-dash__detail-table">
-            <thead>
-              <tr>
-                <th scope="col">Deal</th>
-                <th scope="col">Company</th>
-                <th scope="col">Stage</th>
-                <th scope="col">Owner</th>
-                <th scope="col">Value</th>
-                <th scope="col"></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (deal of detailDeals(); track deal.id) {
-                <tr>
-                  <td>{{ deal.dealName }}</td>
-                  <td>{{ deal.company }}</td>
-                  <td>{{ deal.stage }}</td>
-                  <td>{{ deal.owner }}</td>
-                  <td>{{ formatMoney(deal.value) }}</td>
-                  <td>
-                    @if (deal.inactiveHours != null) {
-                      <span class="sales-dash__detail-meta">{{ deal.inactiveHours }}h idle</span>
-                    }
-                    <a class="sales-dash__detail-link" [routerLink]="['/deals', deal.id]" (click)="closeDetail()">Open</a>
-                  </td>
-                </tr>
+    @if (detailDeals().length === 0) {
+    <p class="sales-dash__detail-empty">No records to show.</p>
+    } @else {
+    <div class="sales-dash__detail-scroll">
+      <table class="sales-dash__detail-table">
+        <thead>
+          <tr>
+            <th scope="col">Deal</th>
+            <th scope="col">Company</th>
+            <th scope="col">Stage</th>
+            <th scope="col">Owner</th>
+            <th scope="col">Value</th>
+            <th scope="col"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (deal of detailDeals(); track deal.id) {
+          <tr>
+            <td>{{ deal.dealName }}</td>
+            <td>{{ deal.company }}</td>
+            <td>{{ deal.stage }}</td>
+            <td>{{ deal.owner }}</td>
+            <td>{{ formatMoney(deal.value) }}</td>
+            <td>
+              @if (deal.inactiveHours != null) {
+              <span class="sales-dash__detail-meta">{{ deal.inactiveHours }}h idle</span>
               }
-            </tbody>
-          </table>
-        </div>
-      }
+              <a class="sales-dash__detail-link" [routerLink]="['/deals', deal.id]" (click)="closeDetail()">Open</a>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    }
     } @else if (detailKind() === 'leads') {
-      @if (detailLeads().length === 0) {
-        <p class="sales-dash__detail-empty">No records to show.</p>
-      } @else {
-        <div class="sales-dash__detail-scroll">
-          <table class="sales-dash__detail-table">
-            <thead>
-              <tr>
-                <th scope="col">Lead</th>
-                <th scope="col">Company</th>
-                <th scope="col">Status</th>
-                <th scope="col">Owner</th>
-                <th scope="col"></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (lead of detailLeads(); track lead.id) {
-                <tr>
-                  <td>{{ lead.name }}</td>
-                  <td>{{ lead.company }}</td>
-                  <td>{{ lead.status }}</td>
-                  <td>{{ lead.owner }}</td>
-                  <td>
-                    <a class="sales-dash__detail-link" [routerLink]="['/leads', lead.id]" (click)="closeDetail()">Open</a>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-      }
+    @if (detailLeads().length === 0) {
+    <p class="sales-dash__detail-empty">No records to show.</p>
+    } @else {
+    <div class="sales-dash__detail-scroll">
+      <table class="sales-dash__detail-table">
+        <thead>
+          <tr>
+            <th scope="col">Lead</th>
+            <th scope="col">Company</th>
+            <th scope="col">Status</th>
+            <th scope="col">Owner</th>
+            <th scope="col"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (lead of detailLeads(); track lead.id) {
+          <tr>
+            <td>{{ lead.name }}</td>
+            <td>{{ lead.company }}</td>
+            <td>{{ lead.status }}</td>
+            <td>{{ lead.owner }}</td>
+            <td>
+              <a class="sales-dash__detail-link" [routerLink]="['/leads', lead.id]" (click)="closeDetail()">Open</a>
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    }
     } @else if (detailKind() === 'pipeline') {
-      @if (detailPipeline().length === 0) {
-        <p class="sales-dash__detail-empty">No pipeline stages configured.</p>
-      } @else {
-        <div class="sales-dash__detail-scroll">
-          <table class="sales-dash__detail-table sales-dash__detail-table--pipeline">
-            <thead>
-              <tr>
-                <th scope="col">Stage</th>
-                <th scope="col">Deals</th>
-                <th scope="col">Value</th>
-                <th scope="col">Share</th>
-                <th scope="col"></th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (seg of detailPipeline(); track seg.label) {
-                <tr [class.sales-dash__detail-row--inactive]="seg.count === 0">
-                  <td>{{ seg.label }}</td>
-                  <td>{{ seg.count }}</td>
-                  <td>{{ formatMoney(seg.revenue) }}</td>
-                  <td>{{ seg.pct }}%</td>
-                  <td>
-                    @if (seg.count > 0) {
-                      <button
-                        type="button"
-                        class="sales-dash__detail-link sales-dash__detail-link--btn"
-                        (click)="openPipelineSegment(seg.label, seg.deals)"
-                      >
-                        View deals
-                      </button>
-                    } @else {
-                      <span class="sales-dash__detail-meta">—</span>
-                    }
-                  </td>
-                </tr>
+    @if (detailPipeline().length === 0) {
+    <p class="sales-dash__detail-empty">No pipeline stages configured.</p>
+    } @else {
+    <div class="sales-dash__detail-scroll">
+      <table class="sales-dash__detail-table sales-dash__detail-table--pipeline">
+        <thead>
+          <tr>
+            <th scope="col">Stage</th>
+            <th scope="col">Deals</th>
+            <th scope="col">Value</th>
+            <th scope="col">Share</th>
+            <th scope="col"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (seg of detailPipeline(); track seg.label) {
+          <tr [class.sales-dash__detail-row--inactive]="seg.count === 0">
+            <td>{{ seg.label }}</td>
+            <td>{{ seg.count }}</td>
+            <td>{{ formatMoney(seg.revenue) }}</td>
+            <td>{{ seg.pct }}%</td>
+            <td>
+              @if (seg.count > 0) {
+              <button type="button" class="sales-dash__detail-link sales-dash__detail-link--btn"
+                (click)="openPipelineSegment(seg.label, seg.deals)">
+                View deals
+              </button>
+              } @else {
+              <span class="sales-dash__detail-meta">—</span>
               }
-            </tbody>
-          </table>
-        </div>
-      }
+            </td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    }
     } @else if (detailKind() === 'targets') {
-      @if (detailTeam().length === 0) {
-        <p class="sales-dash__detail-empty">
-          No targets configured for this period.
-          <a routerLink="/advanced-settings" (click)="closeDetail()">Set targets in Advanced Settings</a>
-        </p>
-      } @else {
-        <div class="sales-dash__detail-scroll">
-          <table class="sales-dash__detail-table">
-            <thead>
-              <tr>
-                <th scope="col">Rep</th>
-                <th scope="col">Target</th>
-                <th scope="col" style="cursor: pointer; user-select: none;" (click)="setDetailTargetSort('achieved')">
-                  Achieved{{ detailTargetSortIndicator('achieved') }}
-                </th>
-                <th scope="col" style="cursor: pointer; user-select: none;" (click)="setDetailTargetSort('gap')">
-                  Gap{{ detailTargetSortIndicator('gap') }}
-                </th>
-                <th scope="col" style="cursor: pointer; user-select: none;" (click)="setDetailTargetSort('pct')">
-                  % Achieved{{ detailTargetSortIndicator('pct') }}
-                </th>
-                <th scope="col">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (row of sortedDetailTeam(); track row.userId) {
-                <tr>
-                  <td>{{ row.name }}</td>
-                  <td>{{ formatMoney(row.targetAmount) }}</td>
-                  <td>{{ formatMoney(row.targetAchieved) }}</td>
-                  <td>{{ formatMoney(targetGap(row)) }}</td>
-                  <td>
-                    @if (row.targetAmount > 0) {
-                      {{ Math.round((row.targetAchieved / row.targetAmount) * 100) }}%
-                    } @else {
-                      0%
-                    }
-                  </td>
-                  <td>{{ targetStatusLabel(row.targetAmount, row.targetAchieved) }}</td>
-                </tr>
+    @if (detailTeam().length === 0) {
+    <p class="sales-dash__detail-empty">
+      No targets configured for this period.
+      <a routerLink="/advanced-settings" (click)="closeDetail()">Set targets in Advanced Settings</a>
+    </p>
+    } @else {
+    <div class="sales-dash__detail-scroll">
+      <table class="sales-dash__detail-table">
+        <thead>
+          <tr>
+            <th scope="col">Rep</th>
+            <th scope="col">Target</th>
+            <th scope="col" style="cursor: pointer; user-select: none;" (click)="setDetailTargetSort('achieved')">
+              Achieved{{ detailTargetSortIndicator('achieved') }}
+            </th>
+            <th scope="col" style="cursor: pointer; user-select: none;" (click)="setDetailTargetSort('gap')">
+              Gap{{ detailTargetSortIndicator('gap') }}
+            </th>
+            <th scope="col" style="cursor: pointer; user-select: none;" (click)="setDetailTargetSort('pct')">
+              % Achieved{{ detailTargetSortIndicator('pct') }}
+            </th>
+            <th scope="col">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (row of sortedDetailTeam(); track row.userId) {
+          <tr>
+            <td>{{ row.name }}</td>
+            <td>{{ formatMoney(row.targetAmount) }}</td>
+            <td>{{ formatMoney(row.targetAchieved) }}</td>
+            <td>{{ formatMoney(targetGap(row)) }}</td>
+            <td>
+              @if (row.targetAmount > 0) {
+              {{ Math.round((row.targetAchieved / row.targetAmount) * 100) }}%
+              } @else {
+              0%
               }
-            </tbody>
-          </table>
-        </div>
-      }
+            </td>
+            <td>{{ targetStatusLabel(row.targetAmount, row.targetAchieved) }}</td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    }
     }
   </app-crm-modal>
 </div>

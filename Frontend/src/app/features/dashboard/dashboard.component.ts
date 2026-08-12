@@ -97,10 +97,22 @@ export class DashboardComponent {
   protected readonly selectedPreviousTargetPeriodKey = signal<string | null>(null);
   protected readonly detailTargetSortKey = signal<'pct' | 'achieved' | 'gap'>('pct');
   protected readonly detailTargetSortDesc = signal(true);
+  protected readonly targetViewSource = signal<'current' | 'selected'>('current');
 
   protected readonly currentTargetPeriod = computed(() => {
     const data = this.snapshot();
     if (!data) return null;
+    if (this.targetViewSource() === 'selected') {
+      return {
+        startDate: this.formatDateToLocalDateString(data.period.start),
+        endDate: this.formatDateToLocalDateString(data.period.end),
+        targetAmount: data.kpis.periodTarget,
+        achievedAmount: data.kpis.periodAchieved,
+        targetAchievedPct: data.kpis.targetAchievedPct,
+        hasTargetsConfigured: data.kpis.hasTargetsConfigured,
+        targets: [],
+      };
+    }
     if (this.viewingTargetMode() === 'active') {
       return data.activeTargetPeriod;
     }
@@ -316,6 +328,7 @@ export class DashboardComponent {
     this.streamExpanded.set(false);
     this.viewingTargetMode.set('active');
     this.selectedPreviousTargetPeriodKey.set(null);
+    this.targetViewSource.set('current');
 
     const key = this.periodKey();
     const customRange =
@@ -476,19 +489,31 @@ export class DashboardComponent {
     if (!data) return;
     this.detailKind.set('targets');
 
-    const period = this.currentTargetPeriod();
-    if (period) {
-      this.detailTitle.set(`Sales targets (${this.formatTargetPeriodLabel(period.startDate, period.endDate)})`);
-      const teamStats = period.targets.map((t) => ({
-        userId: String(t.userId),
-        name: t.userName,
+    const mode = this.targetViewSource();
+    if (mode === 'selected') {
+      this.detailTitle.set(`Sales targets (${data.period.label})`);
+      const teamStats = data.team.map((t) => ({
+        userId: t.userId,
+        name: t.name,
         targetAmount: t.targetAmount,
-        targetAchieved: t.achievedAmount,
+        targetAchieved: t.targetAchieved,
       }));
       this.detailTeam.set(teamStats as any[]);
     } else {
-      this.detailTitle.set('Sales targets');
-      this.detailTeam.set([]);
+      const period = this.currentTargetPeriod();
+      if (period) {
+        this.detailTitle.set(`Sales targets (${this.formatTargetPeriodLabel(period.startDate, period.endDate)})`);
+        const teamStats = period.targets.map((t) => ({
+          userId: String(t.userId),
+          name: t.userName,
+          targetAmount: t.targetAmount,
+          targetAchieved: t.achievedAmount,
+        }));
+        this.detailTeam.set(teamStats as any[]);
+      } else {
+        this.detailTitle.set('Sales targets');
+        this.detailTeam.set([]);
+      }
     }
 
     this.detailDeals.set([]);
@@ -581,6 +606,17 @@ export class DashboardComponent {
 
   protected targetGap(row: any): number {
     return Math.max(0, (row.targetAmount ?? 0) - (row.targetAchieved ?? 0));
+  }
+
+  protected toggleTargetViewSource(): void {
+    this.targetViewSource.update((src) => (src === 'current' ? 'selected' : 'current'));
+  }
+
+  private formatDateToLocalDateString(d: Date): string {
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   }
 
   protected isTargetPeriodSelected(period: any): boolean {
