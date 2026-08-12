@@ -68,8 +68,6 @@
             />
             @if (createForm.get('email')?.errors?.['duplicate']) {
               <span class="contacts__err">A contact with this email already exists.</span>
-            } @else if (fieldInvalid('email') && createForm.get('email')?.errors?.['required']) {
-              <span class="contacts__err">Email is required.</span>
             } @else if (fieldInvalid('email') && createForm.get('email')?.errors?.['email']) {
               <span class="contacts__err">Enter a valid email address.</span>
             }

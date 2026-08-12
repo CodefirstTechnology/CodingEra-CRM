@@ -310,7 +310,11 @@ export class LeadsComponent {
   protected readonly sourceFilterOptions = computed(() => {
     const byId = new Map<string, string>();
     byId.set('Manual', 'Manual');
+    byId.set('Website', 'Website');
     byId.set('Excel', 'Excel');
+    byId.set('IndiaMART', 'IndiaMART');
+    byId.set('Justdial', 'Justdial');
+    byId.set('TradeIndia', 'TradeIndia');
 
     for (const src of this.leadSyncAccess()) {
       const id = (src.markerName || src.displayName || src.code || '').trim();
@@ -559,14 +563,20 @@ export class LeadsComponent {
 
   private buildMergedRows(): LeadRow[] {
     const manual = this.manualRows().map((r) => {
+      const srcVal = (r.leadSource || r.source || '').trim();
+      const lower = srcVal.toLowerCase();
       const leadSource: LeadSource =
-        r.leadSource === 'IndiaMART' ||
-        r.leadSource === 'Justdial' ||
-        r.leadSource === 'TradeIndia'
-          ? r.leadSource
-          : r.leadSource === 'Excel'
-            ? 'Excel'
-            : 'Manual';
+        lower === 'indiamart'
+          ? 'IndiaMART'
+          : lower === 'justdial'
+            ? 'Justdial'
+            : lower === 'tradeindia'
+              ? 'TradeIndia'
+              : lower === 'website'
+                ? 'Website'
+                : lower === 'excel'
+                  ? 'Excel'
+                  : 'Manual';
       const idNum = Number(r.id);
       return {
         ...r,
@@ -633,7 +643,7 @@ export class LeadsComponent {
     const filterByOwner = this.isAdminViewer() && owner !== 'all';
     return this.rows().filter((row) => {
       if (filterByOwner && !this.rowMatchesOwnerFilter(row, owner)) return false;
-      if (src !== 'all' && (row.leadSource ?? 'Manual') !== src) return false;
+      if (src !== 'all' && (row.leadSource ?? 'Manual').toLowerCase() !== src.toLowerCase()) return false;
       if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) {
         return false;
       }
@@ -828,6 +838,7 @@ export class LeadsComponent {
     gst: ['', gstFormValidators()],
     territory: [''],
     industry: ['', Validators.required],
+    source: ['Manual', Validators.required],
     status: ['', Validators.required],
     leadOwner: ['', Validators.required],
     requestType: [''],
@@ -925,6 +936,7 @@ export class LeadsComponent {
       gst: '',
       territory: '',
       industry: '',
+      source: 'Manual',
       status: '',
       leadOwner: this.defaultLeadOwnerForForm(),
       requestType: '',
@@ -955,6 +967,7 @@ export class LeadsComponent {
       gst: '',
       territory: '',
       industry: '',
+      source: 'Manual',
       status: '',
       leadOwner: this.defaultLeadOwnerForForm(),
       requestType: '',
@@ -1016,6 +1029,7 @@ export class LeadsComponent {
             gst: normalizeGstin(row.gst),
             territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
             industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
+            source: row.source || row.leadSource || 'Manual',
             status: this.masterSelectControlValue(row.leadStatusId, row.status, this.statusSelectOptions()),
             leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? this.leadOwnerOpts.defaultOwnerId(),
             requestType: this.masterSelectControlValue(
@@ -1658,7 +1672,8 @@ export class LeadsComponent {
       leadOwnerName,
       owner: initials,
       updated: 'Just now',
-      leadSource: 'Manual',
+      leadSource: (raw.source as LeadSource) || 'Manual',
+      source: raw.source || 'Manual',
     };
 
     const done = () => {

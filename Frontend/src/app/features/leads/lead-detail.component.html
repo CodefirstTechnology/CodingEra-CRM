@@ -518,7 +518,12 @@
             </label>
             <label class="lead-detail__field">
               <span class="lead-detail__label">Email</span>
-              <input type="email" class="lead-detail__input" formControlName="email" />
+              <input type="email" class="lead-detail__input" formControlName="email" [class.is-invalid]="dataForm.controls.email.invalid && dataForm.controls.email.touched" />
+              @if (dataForm.controls.email.errors?.['duplicate']) {
+                <span class="lead-detail__field-error">A lead with this email already exists.</span>
+              } @else if (dataForm.controls.email.invalid && dataForm.controls.email.touched) {
+                <span class="lead-detail__field-error">Enter a valid email address.</span>
+              }
             </label>
             <div class="lead-detail__field">
               <span class="lead-detail__label">Mobile No</span>
@@ -870,10 +875,16 @@
               <input
                 type="email"
                 class="lead-detail__side-field"
+                [class.lead-detail__side-field--invalid]="dataForm.controls.email.invalid && dataForm.controls.email.touched"
                 [formControl]="dataForm.controls.email"
                 [placeholder]="sidebarAddLabel('Email')"
                 autocomplete="email"
               />
+              @if (dataForm.controls.email.errors?.['duplicate']) {
+                <span class="lead-detail__field-error">A lead with this email already exists.</span>
+              } @else if (dataForm.controls.email.invalid && dataForm.controls.email.touched) {
+                <span class="lead-detail__field-error">Enter a valid email address.</span>
+              }
             </dd>
             <dt>Mobile No</dt>
             <dd class="lead-detail__kv-dd">

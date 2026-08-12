@@ -31,8 +31,12 @@ export function coerceLeadStatus(raw: string | undefined | null): LeadStatus {
 
 function coerceLeadSource(raw: string | undefined | null): LeadSource {
   const s = (raw ?? 'Manual').trim();
-  if (s === 'IndiaMART' || s === 'Justdial' || s === 'TradeIndia') return s;
-  if (s === 'Excel') return 'Excel';
+  const lower = s.toLowerCase();
+  if (lower === 'indiamart') return 'IndiaMART';
+  if (lower === 'justdial') return 'Justdial';
+  if (lower === 'tradeindia') return 'TradeIndia';
+  if (lower === 'excel') return 'Excel';
+  if (lower === 'website') return 'Website';
   return 'Manual';
 }
 
@@ -238,6 +242,20 @@ function parseLeadOwnerIdForApi(leadOwnerId: string | undefined | null): number 
   return Number.isFinite(n) && n > 0 ? Math.trunc(n) : null;
 }
 
+function readLeadSourceFromRaw(r: Record<string, unknown>): string {
+  const keys = ['leadSource', 'lead_source', 'LeadSource', 'Lead_Source', 'source', 'Source', 'sourceName', 'source_name'];
+  for (const k of keys) {
+    const val = r[k];
+    if (val != null && typeof val === 'string' && val.trim()) return val.trim();
+    if (val != null && typeof val === 'object') {
+      const o = val as Record<string, unknown>;
+      const name = String(o['name'] ?? o['Name'] ?? o['displayName'] ?? '').trim();
+      if (name) return name;
+    }
+  }
+  return '';
+}
+
 /**
  * Flattens nested `GET /api/leads` JSON (organization, leadStatus, salutation, …) into {@link LeadNormalized}.
  */
@@ -393,9 +411,10 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
       String(r['requirement'] ?? r['Requirement'] ?? ''),
       notesTrim,
     ),
+
     leadOwnerId: readLeadOwnerFk(r),
     leadOwnerName: readLeadOwnerDisplayName(r),
-    leadSource: String(r['leadSource'] ?? r['source'] ?? r['Source'] ?? '').trim(),
+    leadSource: readLeadSourceFromRaw(r),
     updatedAt,
     createdAt,
     territoryId,

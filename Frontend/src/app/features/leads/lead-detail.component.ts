@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { forkJoin, of } from 'rxjs';
+import { firstValueFrom, forkJoin, of } from 'rxjs';
 import { catchError, take } from 'rxjs/operators';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
@@ -62,7 +62,7 @@ import {
   normalizeGstin,
   syncGstinInputFromEvent,
 } from '../../shared/utils/gstin.util';
-import { gstFormValidators } from '../../shared/validators/crm-validators';
+import { gstFormValidators, optionalEmailValidator } from '../../shared/validators/crm-validators';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { TextFormatter } from '../../shared/utils/text-normalizer';
 import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
@@ -294,7 +294,7 @@ export class LeadDetailComponent {
     location: [''],
     leadDate: [todayIsoDateLocal()],
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
-    email: [''],
+    email: ['', [Validators.maxLength(160), optionalEmailValidator()]],
     mobile: [''],
   });
 
@@ -966,6 +966,16 @@ export class LeadDetailComponent {
     }
 
     const v = this.dataForm.getRawValue();
+    const emailTrim = v.email.trim();
+    const emailLower = emailTrim.toLowerCase();
+    if (emailTrim) {
+      const all = await firstValueFrom(this.leadsService.getAll());
+      if (all.some((l) => l.email.toLowerCase() === emailLower && Number(l.id) !== idn)) {
+        this.dataForm.controls.email.setErrors({ duplicate: true });
+        this.dataForm.controls.email.markAsTouched();
+        return;
+      }
+    }
     const terrPick = this.resolveMasterPick(v.territory, this.territorySelectOptions());
     const indPick = this.resolveMasterPick(v.industry, this.industrySelectOptions());
     const { firstName, lastName } = splitFullName(v.fullName);

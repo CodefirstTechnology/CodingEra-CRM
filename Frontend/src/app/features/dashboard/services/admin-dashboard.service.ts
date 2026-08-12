@@ -34,6 +34,7 @@ import type {
   AdminPipelineSegment,
   AdminStuckDealRow,
   AdminTeamMemberStats,
+  AggregatedTargetPeriod,
 } from '../models/admin-dashboard.models';
 import { DEFAULT_ADMIN_DASHBOARD_TEAM_FILTERS } from '../models/admin-dashboard.models';
 import {
@@ -60,6 +61,11 @@ import {
   isStuckDealCandidate,
   STUCK_DEAL_INACTIVE_HOURS,
   targetOverlapsPeriod,
+  parseDateOnly,
+  startOfDay,
+  endOfDay,
+  getProportionalTarget,
+  getPreviousPeriodRange,
 } from '../utils/admin-dashboard.util';
 
 interface GroupedRecords {
@@ -200,7 +206,29 @@ export class AdminDashboardService {
     );
     const wonDealDetails = wonDealsInPeriod.map((d) => this.toDealDetail(d));
 
-    const kpis = this.buildKpis(periodLeads, openDeals, wonDealsInPeriod, overlappingTargets);
+    const prevRange = getPreviousPeriodRange(period.start, period.end, period.key);
+    const wonDealsInPrevPeriod = allDeals.filter((d) =>
+      isDealWonInPeriod(d, pipelineOptions, prevRange.start, prevRange.end),
+    );
+    const currentWonRevenue = wonDealsInPeriod.reduce((sum, d) => sum + resolveDealValue(d), 0);
+    const prevWonRevenue = wonDealsInPrevPeriod.reduce((sum, d) => sum + resolveDealValue(d), 0);
+
+    let revenueChangePct = 0;
+    if (prevWonRevenue > 0) {
+      revenueChangePct = Math.round(((currentWonRevenue - prevWonRevenue) / prevWonRevenue) * 100);
+    } else if (currentWonRevenue > 0) {
+      revenueChangePct = 100;
+    }
+
+    const kpis = this.buildKpis(
+      periodLeads,
+      openDeals,
+      wonDealsInPeriod,
+      overlappingTargets,
+      period.start,
+      period.end,
+      revenueChangePct,
+    );
     const pipelineSegments = this.buildPipelineSegments(openDeals, pipeline);
     const team = this.buildTeamStats(teamUsers, grouped, overlappingTargets, ctx);
     const stuckDeals = this.buildStuckDeals(allDeals, pipelineOptions);
@@ -208,6 +236,8 @@ export class AdminDashboardService {
       this.toActivityStreamItem(row, entityNames),
     );
     const focusInsight = this.buildFocusInsight(allLeads, period);
+
+    const { activeTargetPeriod, previousTargetPeriod, previousTargetPeriods } = this.calculateTargetPeriods(targets);
 
     return {
       period,
@@ -221,6 +251,9 @@ export class AdminDashboardService {
       wonDealDetails,
       activities: activityItems,
       focusInsight,
+      activeTargetPeriod,
+      previousTargetPeriod,
+      previousTargetPeriods,
     };
   }
 
@@ -252,6 +285,9 @@ export class AdminDashboardService {
     openDeals: DealRow[],
     wonDealsInPeriod: DealRow[],
     overlappingTargets: UserTargetRow[],
+    periodStart: Date,
+    periodEnd: Date,
+    revenueChangePct: number,
   ): AdminDashboardSnapshot['kpis'] {
     const totalLeads = periodLeads.length;
     const qualifiedLeads = periodLeads.filter((l) => l.status === 'Qualified').length;
@@ -262,8 +298,14 @@ export class AdminDashboardService {
 
     const pipelineRevenue = openDeals.reduce((sum, d) => sum + resolveDealValue(d), 0);
 
-    const periodTarget = overlappingTargets.reduce((sum, t) => sum + t.targetAmount, 0);
-    const periodAchieved = overlappingTargets.reduce((sum, t) => sum + t.achievedAmount, 0);
+    let periodTarget = 0;
+    let periodAchieved = 0;
+    for (const t of overlappingTargets) {
+      const prop = getProportionalTarget(t, periodStart, periodEnd);
+      periodTarget += prop.targetAmount;
+      periodAchieved += prop.achievedAmount;
+    }
+
     const targetAchievedPct =
       periodTarget > 0
         ? Math.min(100, Math.round((periodAchieved / periodTarget) * 100))
@@ -282,6 +324,7 @@ export class AdminDashboardService {
       periodTarget,
       targetAchievedPct,
       hasTargetsConfigured: overlappingTargets.length > 0 && periodTarget > 0,
+      revenueChangePct,
     };
   }
 
@@ -370,8 +413,13 @@ export class AdminDashboardService {
       );
 
       const userTargets = overlappingTargets.filter((t) => t.userId === numericUid);
-      const targetAmount = userTargets.reduce((sum, t) => sum + t.targetAmount, 0);
-      const targetAchieved = userTargets.reduce((sum, t) => sum + t.achievedAmount, 0);
+      let targetAmount = 0;
+      let targetAchieved = 0;
+      for (const t of userTargets) {
+        const prop = getProportionalTarget(t, period.start, period.end);
+        targetAmount += prop.targetAmount;
+        targetAchieved += prop.achievedAmount;
+      }
       const wonDealRevenue = closedWonPeriod.reduce((sum, d) => sum + resolveDealValue(d), 0);
       const monthlyRevenue = userTargets.length > 0 ? targetAchieved : wonDealRevenue;
 
@@ -515,5 +563,64 @@ export class AdminDashboardService {
       timeLabel,
       rep: row.actorName || 'System',
     };
+  }
+
+  private calculateTargetPeriods(targets: UserTargetRow[]): {
+    activeTargetPeriod: AggregatedTargetPeriod | null;
+    previousTargetPeriod: AggregatedTargetPeriod | null;
+    previousTargetPeriods: AggregatedTargetPeriod[];
+  } {
+    const activeTargets = targets.filter(t => t.isActive);
+    if (activeTargets.length === 0) {
+      return { activeTargetPeriod: null, previousTargetPeriod: null, previousTargetPeriods: [] };
+    }
+
+    const groups = new Map<string, UserTargetRow[]>();
+    for (const t of activeTargets) {
+      const key = `${t.startDate}_${t.endDate}`;
+      const list = groups.get(key) ?? [];
+      list.push(t);
+      groups.set(key, list);
+    }
+
+    const periods: AggregatedTargetPeriod[] = [];
+    for (const [key, list] of groups.entries()) {
+      const [startDate, endDate] = key.split('_');
+      const targetAmount = list.reduce((sum, t) => sum + t.targetAmount, 0);
+      const achievedAmount = list.reduce((sum, t) => sum + t.achievedAmount, 0);
+      const targetAchievedPct = targetAmount > 0 ? Math.round((achievedAmount / targetAmount) * 100) : 0;
+      periods.push({
+        startDate,
+        endDate,
+        targetAmount,
+        achievedAmount,
+        targetAchievedPct,
+        hasTargetsConfigured: targetAmount > 0,
+        targets: list,
+      });
+    }
+
+    periods.sort((a, b) => {
+      const da = parseDateOnly(a.endDate)?.getTime() ?? 0;
+      const db = parseDateOnly(b.endDate)?.getTime() ?? 0;
+      return db - da;
+    });
+
+    const todayTime = startOfDay(new Date()).getTime();
+
+    const activeTargetPeriod = periods.find(p => {
+      const ts = parseDateOnly(p.startDate)?.getTime() ?? 0;
+      const te = parseDateOnly(p.endDate)?.getTime() ?? 0;
+      return todayTime >= ts && todayTime <= te;
+    }) ?? null;
+
+    const previousTargetPeriods = periods.filter(p => {
+      const te = parseDateOnly(p.endDate)?.getTime() ?? 0;
+      return te < todayTime;
+    });
+
+    const previousTargetPeriod = previousTargetPeriods[0] ?? null;
+
+    return { activeTargetPeriod, previousTargetPeriod, previousTargetPeriods };
   }
 }
