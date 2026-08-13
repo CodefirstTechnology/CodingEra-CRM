@@ -10,6 +10,8 @@ import {
 import { ContactHttpService } from './contacts/contact-http.service';
 import { OrganizationHttpService } from './organizations/organization-http.service';
 import { OrganizationResolveService } from './organizations/organization-resolve.service';
+import type { ContactImportCommitResult, ContactImportRowDto } from '../../features/contacts/import/contact-import-api.models';
+
 
 @Injectable({ providedIn: 'root' })
 export class ContactsService {
@@ -44,6 +46,10 @@ export class ContactsService {
 
   delete(id: number): Observable<void> {
     return this.contactHttp.delete(id);
+  }
+
+  commitImport(rows: ContactImportRowDto[]): Observable<ContactImportCommitResult> {
+    return this.contactHttp.commitImport(rows);
   }
 
   private mergeContactRow(data: Partial<Omit<ContactRow, 'id'>>): Omit<ContactRow, 'id'> {

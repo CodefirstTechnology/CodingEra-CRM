@@ -4,7 +4,12 @@
       <h1 class="contacts__title">Contacts</h1>
       <p class="contacts__sub">People and companies you work with.</p>
     </div>
-    <button type="button" class="contacts__btn contacts__btn--solid" (click)="openForm()">+ New contact</button>
+    <div style="display: flex; gap: 0.5rem;">
+      <button type="button" class="contacts__btn contacts__btn--ghost" (click)="openImportModal()">
+        Import contacts
+      </button>
+      <button type="button" class="contacts__btn contacts__btn--solid" (click)="openForm()">+ New contact</button>
+    </div>
   </header>
 
   @if (formOpen()) {
@@ -217,3 +222,7 @@
     }
   </div>
 </div>
+
+@if (importModalOpen() && importModalLazyComponent(); as importCmp) {
+  <ng-container *ngComponentOutlet="importCmp; inputs: importModalOutletInputs()" />
+}

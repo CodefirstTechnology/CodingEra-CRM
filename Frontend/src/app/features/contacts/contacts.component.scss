@@ -48,6 +48,16 @@
   }
 }
 
+.contacts__btn--ghost {
+  background: transparent;
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+
+  &:hover {
+    background: color-mix(in srgb, var(--card-border) 40%, transparent);
+  }
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--card-border);
