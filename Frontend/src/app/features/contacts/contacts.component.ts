@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { NgComponentOutlet } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
@@ -38,7 +39,7 @@ export interface ContactRow {
 
 @Component({
   selector: 'app-contacts',
-  imports: [ReactiveFormsModule, RouterLink, IntlTelInputComponent, IntlTelDisplayPipe, CrmPaginationFooterComponent],
+  imports: [ReactiveFormsModule, RouterLink, IntlTelInputComponent, IntlTelDisplayPipe, CrmPaginationFooterComponent, NgComponentOutlet],
   templateUrl: './contacts.component.html',
   styleUrl: './contacts.component.scss',
 })
@@ -61,6 +62,9 @@ export class ContactsComponent {
   private lastRouteEdit = '';
 
   protected readonly formOpen = signal(false);
+
+  protected readonly importModalOpen = signal(false);
+  protected readonly importModalLazyComponent = signal<any | null>(null);
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
   protected readonly addressOptions = [
@@ -217,6 +221,37 @@ export class ContactsComponent {
       address: '',
     });
     this.createForm.markAsUntouched();
+  }
+
+  private readonly importModalRequestClose = (): void => this.closeImportModal();
+
+  private readonly importModalRequestImportCompleted = (value: unknown): void =>
+    this.onContactsImportCompleted(value);
+
+  protected openImportModal(): void {
+    this.importModalOpen.set(true);
+    if (!this.importModalLazyComponent()) {
+      void import('./contacts-import-modal-lazy.component').then((m) => {
+        this.importModalLazyComponent.set(m.ContactsImportModalLazyComponent);
+      });
+    }
+  }
+
+  protected closeImportModal(): void {
+    this.importModalOpen.set(false);
+  }
+
+  protected onContactsImportCompleted(result: any): void {
+    this.importModalOpen.set(false);
+    this.refreshContacts();
+  }
+
+  protected importModalOutletInputs(): Record<string, unknown> {
+    return {
+      open: this.importModalOpen(),
+      requestClose: this.importModalRequestClose,
+      requestImportCompleted: this.importModalRequestImportCompleted,
+    };
   }
 
   private beginEditFromRoute(idStr: string): void {
