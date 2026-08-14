@@ -55,19 +55,6 @@
         </div>
         }
       </div>
-      @if (snapshot(); as data) {
-      <div class="sales-dash__quarterly" aria-label="Target achievement summary">
-        <span class="sales-dash__quarterly-label">Achieved / target</span>
-        <span class="sales-dash__quarterly-values">
-          {{ formatMoney(data.kpis.periodAchieved) }} /
-          @if (data.kpis.hasTargetsConfigured) {
-          {{ formatMoney(data.kpis.periodTarget) }}
-          } @else {
-          <span class="sales-dash__muted-inline">Not set</span>
-          }
-        </span>
-      </div>
-      }
       <button type="button" class="sales-dash__btn sales-dash__btn--ghost" [disabled]="loading()"
         (click)="refreshDashboard()">
         {{ loading() ? 'Refreshing…' : 'Refresh' }}
@@ -340,119 +327,6 @@
     </article>
   </div>
 
-  <section class="sales-dash__card sales-dash__card--team" aria-labelledby="team-heading">
-    <div class="sales-dash__team-head">
-      <div class="sales-dash__team-head-text">
-        <h2 id="team-heading" class="sales-dash__card-title">Sales team</h2>
-        @if (snapshot(); as data) {
-        <p class="sales-dash__team-sub">
-          Lead metrics for {{ data.period.label.toLowerCase() }}
-          @if (teamLeadStatusFilter() !== 'all') {
-          · status: {{ teamLeadStatusLabel() }}
-          }
-        </p>
-        }
-      </div>
-      <div class="sales-dash__team-filters" aria-label="Sales team filters">
-        <label class="sales-dash__team-filter">
-          <span class="sales-dash__team-filter-label">Role</span>
-          <select class="sales-dash__team-select" [disabled]="loading()"
-            [ngModel]="teamRoleSelectValue(teamRoleFilter())" (ngModelChange)="onTeamRoleFilterChange($event)">
-            @for (opt of teamRoleOptions(); track opt.value) {
-            <option [value]="teamRoleOptionValue(opt.value)">
-              {{ opt.label }}
-            </option>
-            }
-          </select>
-        </label>
-        <label class="sales-dash__team-filter">
-          <span class="sales-dash__team-filter-label">Lead status</span>
-          <select class="sales-dash__team-select" [disabled]="loading()" [ngModel]="teamLeadStatusFilter()"
-            (ngModelChange)="onTeamLeadStatusFilterChange($event)">
-            @for (opt of teamLeadStatusOptions; track opt.value) {
-            <option [value]="opt.value">{{ opt.label }}</option>
-            }
-          </select>
-        </label>
-      </div>
-    </div>
-    <div class="sales-dash__team-scroll">
-      <table class="sales-dash__team-table">
-        <thead>
-          <tr>
-            <th scope="col">Rep</th>
-            <th scope="col">Leads</th>
-            <th scope="col">Contacted</th>
-            <th scope="col">
-              <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('qualifiedLeads')">
-                Qualified{{ teamSortIndicator('qualifiedLeads') }}
-              </button>
-            </th>
-            <th scope="col">
-              <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('convertedLeads')">
-                Converted{{ teamSortIndicator('convertedLeads') }}
-              </button>
-            </th>
-            <th scope="col">Conv %</th>
-            <th scope="col">
-              <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('activeDeals')">
-                Active deals{{ teamSortIndicator('activeDeals') }}
-              </button>
-            </th>
-            <th scope="col">Deal won</th>
-            <th scope="col">Deal lost</th>
-            <th scope="col">
-              <button type="button" class="sales-dash__th-sort" (click)="setTeamSort('targetAchieved')">
-                Achieved{{ teamSortIndicator('targetAchieved') }}
-              </button>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          @if (loading()) {
-          @for (sk of [1, 2, 3]; track sk) {
-          <tr class="sales-dash__team-row sales-dash__team-row--skeleton">
-            <td colspan="10"><span class="sales-dash__skel-bar"></span></td>
-          </tr>
-          }
-          } @else if (sortedTeam().length === 0) {
-          <tr>
-            <td colspan="10" class="sales-dash__team-empty">
-              No users found for {{ teamRoleFilterLabel().toLowerCase() }}
-              @if (teamLeadStatusFilter() !== 'all') {
-              with status “{{ teamLeadStatusLabel() }}”
-              }
-              in {{ periodLabel().toLowerCase() }}. Try another role or date range.
-            </td>
-          </tr>
-          } @else {
-          @for (row of sortedTeam(); track row.userId) {
-          <tr>
-            <td>
-              <span class="sales-dash__team-name">{{ row.name }}</span>
-              <span class="sales-dash__team-email">{{ row.email }}</span>
-            </td>
-            <td>{{ row.totalLeads }}</td>
-            <td>{{ row.contactedLeads }}</td>
-            <td>{{ row.qualifiedLeads }}</td>
-            <td>{{ row.convertedLeads }}</td>
-            <td>{{ row.conversionRatePct }}%</td>
-            <td>
-              <button type="button" class="sales-dash__cell-link" (click)="openTeamMemberDeals(row.userId, row.name)">
-                {{ row.activeDeals }}
-              </button>
-            </td>
-            <td>{{ row.dealsClosedWon }}</td>
-            <td>{{ row.dealsClosedLost }}</td>
-            <td>{{ formatMoney(row.targetAchieved > 0 ? row.targetAchieved : row.monthlyRevenue) }}</td>
-          </tr>
-          }
-          }
-        </tbody>
-      </table>
-    </div>
-  </section>
-
   <div class="sales-dash__main">
     <section class="sales-dash__card sales-dash__card--stream" aria-labelledby="stream-heading">
       <div class="sales-dash__stream-head">
@@ -596,19 +470,12 @@
           }
         </ul>
         @if (stuckDealsHiddenCount() > 0) {
-        <button type="button" class="sales-dash__see-more" (click)="openStuckDealsAll()">
-          View all stuck deals ({{ data.stuckDeals.length }})
-        </button>
-        }
-      </section>
-
-      <section class="sales-dash__card sales-dash__card--focus" aria-labelledby="focus-heading">
-        <h2 id="focus-heading" class="visually-hidden">Focus assistant</h2>
-        <p class="sales-dash__focus-text">{{ data.focusInsight }}</p>
-        <div class="sales-dash__focus-actions">
-          <a class="sales-dash__focus-btn sales-dash__focus-btn--primary" routerLink="/leads">View leads</a>
-          <a class="sales-dash__focus-btn sales-dash__focus-btn--ghost" routerLink="/deals">View deals</a>
+        <div class="sales-dash__stuck-footer">
+          <button type="button" class="sales-dash__see-more" (click)="openStuckDealsAll()">
+            View all stuck deals ({{ data.stuckDeals.length }})
+          </button>
         </div>
+        }
       </section>
     </aside>
   </div>
