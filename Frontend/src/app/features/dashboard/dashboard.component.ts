@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
+import { ChangeDetectorRef, Component, computed, inject, OnDestroy, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Subscription, take } from 'rxjs';
@@ -125,6 +125,7 @@ export class DashboardComponent implements OnDestroy {
   private readonly rbac = inject(RbacService);
   private readonly sessionTracker = inject(UserSessionTrackerService);
   private readonly userStatusSignalR = inject(UserStatusSignalRService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   private signalRSub: Subscription | null = null;
 
@@ -337,12 +338,15 @@ export class DashboardComponent implements OnDestroy {
     void this.userStatusSignalR.start();
 
     this.signalRSub = this.userStatusSignalR.userStatusChanged$.subscribe((evt) => {
-      if (!evt?.userId) return;
-      const uidStr = String(evt.userId).trim();
+      if (!evt?.userId && !evt?.email) return;
+      const uidStr = evt?.userId ? String(evt.userId).trim() : '';
+      const emailLower = evt?.email?.trim().toLowerCase() ?? '';
 
       this.cachedUsers.update((users) =>
         users.map((u) => {
-          if (String(u.id).trim() === uidStr) {
+          const matchId = uidStr && String(u.id).trim() === uidStr;
+          const matchEmail = emailLower && u.email?.trim().toLowerCase() === emailLower;
+          if (matchId || matchEmail) {
             return {
               ...u,
               isOnline: evt.isOnline,
@@ -353,6 +357,7 @@ export class DashboardComponent implements OnDestroy {
           return u;
         }),
       );
+      this.cdr.markForCheck();
     });
   }
 
