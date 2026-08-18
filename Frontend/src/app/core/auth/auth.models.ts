@@ -9,6 +9,9 @@ export interface UserSession {
   roleId: number;
   /** Effective permissions loaded from RBAC (session / login). */
   permissions?: UserPermission[];
+  lastActiveAt?: string | null;
+  firstLoginAt?: string | null;
+  isOnline?: boolean;
 }
 
 /** Sent to POST /auth/register — password is never persisted on the client. */

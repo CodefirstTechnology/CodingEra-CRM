@@ -12,6 +12,13 @@ export const DASHBOARD_ROUTES: Routes = [
         loadComponent: () => import('./dashboard.component').then((m) => m.DashboardComponent),
       },
       {
+        path: 'employee/:userId',
+        loadComponent: () =>
+          import('./employee-performance/employee-performance.component').then(
+            (m) => m.EmployeePerformanceComponent,
+          ),
+      },
+      {
         path: 'indiamart-leads',
         pathMatch: 'full',
         canActivate: [indiamartLeadsLegacyRedirectGuard],

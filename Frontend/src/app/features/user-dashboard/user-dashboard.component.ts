@@ -15,6 +15,7 @@ import {
   CRM_TABLE_PAGE_SIZE_OPTIONS,
 } from '../../shared/components/crm-pagination-footer/crm-table-pagination.model';
 import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
+import { UserSessionTrackerService } from '../../core/services/user-session-tracker.service';
 import type { UserDashboardFollowUpItem, UserDashboardKpiDetailKind, UserDashboardSnapshot } from './models/user-dashboard.models';
 import { UserDashboardService } from './services/user-dashboard.service';
 
@@ -31,6 +32,7 @@ export class UserDashboardComponent {
   private readonly createFlow = inject(CreateFlowService);
   private readonly permissions = inject(PermissionService);
   private readonly userTargets = inject(UserTargetHttpService);
+  private readonly sessionTracker = inject(UserSessionTrackerService);
   private readonly router = inject(Router);
 
   protected readonly loading = signal(true);
@@ -87,6 +89,7 @@ export class UserDashboardComponent {
   }
 
   protected refresh(): void {
+    this.sessionTracker.sendHeartbeat(true);
     this.loading.set(true);
     this.error.set(null);
     this.dashboard
