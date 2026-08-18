@@ -18,6 +18,9 @@ export interface AdminUserRow {
   email: string;
   role: string;
   roleId?: number;
+  lastActiveAt?: string | null;
+  firstLoginAt?: string | null;
+  isOnline?: boolean;
 }
 
 function pickStr(obj: Record<string, unknown>, keys: string[]): string | undefined {
@@ -160,7 +163,7 @@ export class AdminUsersService {
   }
 
   /** GET `{apiUrl}/auth/users` (Bearer token when provided). */
-  listUsers(bearerToken: string | null): Observable<AdminUserRow[]> {
+  listUsers(bearerToken: string | null, forceFresh = false): Observable<AdminUserRow[]> {
     const base = environment.apiUrl?.replace(/\/$/, '');
     if (!base) return of([]);
 
@@ -176,7 +179,7 @@ export class AdminUsersService {
     }
 
     const tokenKey = bearerToken ?? '';
-    if (this.listUsersCache$ && this.listUsersCacheToken === tokenKey) {
+    if (!forceFresh && this.listUsersCache$ && this.listUsersCacheToken === tokenKey) {
       return this.listUsersCache$;
     }
 
@@ -236,12 +239,32 @@ export class AdminUsersService {
     const id =
       pickStr(o, ['id', 'Id', 'userId', 'UserId']) ?? email;
 
+    const lastActiveAt =
+      pickStr(o, ['lastActiveAt', 'LastActiveAt', 'last_active_at', 'Last_Active_At']) ?? null;
+    const firstLoginAt =
+      pickStr(o, ['firstLoginAt', 'FirstLoginAt', 'first_login_at', 'First_Login_At']) ?? null;
+
+    let isOnline = false;
+    if (typeof o['isOnline'] === 'boolean') {
+      isOnline = o['isOnline'];
+    } else if (typeof o['IsOnline'] === 'boolean') {
+      isOnline = o['IsOnline'];
+    } else if (lastActiveAt) {
+      const d = new Date(lastActiveAt);
+      if (!Number.isNaN(d.getTime())) {
+        isOnline = Date.now() - d.getTime() <= 10 * 60 * 1000;
+      }
+    }
+
     return {
       id,
       name,
       email,
       role: roleRaw,
       roleId: roleId ?? undefined,
+      lastActiveAt,
+      firstLoginAt,
+      isOnline,
     };
   }
 
