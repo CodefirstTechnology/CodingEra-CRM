@@ -122,6 +122,8 @@ export interface AdminActivityStreamItem {
   description: string;
   timeLabel: string;
   rep: string;
+  actorUserId?: number | null;
+  createdAt?: string;
 }
 
 import type { UserTargetRow } from '../../../core/services/user-targets/user-target-api.models';

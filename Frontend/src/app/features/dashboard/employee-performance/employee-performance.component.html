@@ -1,0 +1,390 @@
+<div class="emp-perf">
+  <!-- Top Navigation & Back Action -->
+  <div class="emp-perf__nav">
+    <button type="button" class="emp-perf__back-btn" (click)="goBack()" aria-label="Back to Performance Dashboard">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <line x1="19" y1="12" x2="5" y2="12"></line>
+        <polyline points="12 19 5 12 12 5"></polyline>
+      </svg>
+      <span>Back to Dashboard</span>
+    </button>
+
+    <div class="emp-perf__nav-period">
+      <label for="emp-period-select" class="emp-perf__period-label">Period:</label>
+      <select
+        id="emp-period-select"
+        class="emp-perf__period-select"
+        [ngModel]="periodKey()"
+        (ngModelChange)="setPeriod($event)"
+        [disabled]="loading()"
+      >
+        @for (opt of periodOptions; track opt.key) {
+        <option [value]="opt.key">{{ opt.label }}</option>
+        }
+      </select>
+    </div>
+  </div>
+
+  @if (error()) {
+  <p class="emp-perf__banner" role="alert">{{ error() }}</p>
+  }
+
+  @if (loading() && !currentUser()) {
+  <div class="emp-perf__loading" aria-busy="true" aria-label="Loading employee performance profile">
+    <div class="emp-perf__loading-spinner"></div>
+    <p>Loading employee performance profile…</p>
+  </div>
+  } @else if (employee(); as emp) {
+  <!-- Clean Employee Profile Card with Simple Today Stats -->
+  <header class="emp-perf__hero">
+    <div class="emp-perf__hero-left">
+      <div class="emp-perf__avatar-wrap">
+        <div class="emp-perf__avatar" [style.background]="emp.avatarBg">
+          {{ emp.initials }}
+        </div>
+        <span
+          class="emp-perf__online-dot"
+          [class.emp-perf__online-dot--active]="todayStats().isOnline"
+          [attr.title]="todayStats().statusLabel"
+        ></span>
+      </div>
+
+      <div class="emp-perf__profile-info">
+        <div class="emp-perf__title-row">
+          <h1 class="emp-perf__name">{{ emp.name }}</h1>
+          <span
+            class="emp-perf__status-badge"
+            [class.emp-perf__status-badge--active]="todayStats().isOnline"
+            [class.emp-perf__status-badge--idle]="!todayStats().isOnline"
+          >
+            <span class="emp-perf__status-dot"></span>
+            {{ todayStats().statusLabel }}
+          </span>
+        </div>
+
+        <p class="emp-perf__meta">
+          <span class="emp-perf__role">{{ emp.role }}</span>
+          @if (emp.email) {
+          <span class="emp-perf__dot-sep">·</span>
+          <span class="emp-perf__email">{{ emp.email }}</span>
+          }
+        </p>
+
+        <!-- Simple Today Activity Stats Strip -->
+        <div class="emp-perf__today-strip">
+          <div class="emp-perf__today-chip" title="First login timestamp today">
+            <svg class="emp-perf__chip-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+              <polyline points="10 17 15 12 10 7"></polyline>
+              <line x1="15" y1="12" x2="3" y2="12"></line>
+            </svg>
+            <span class="emp-perf__chip-label">First Login:</span>
+            <span class="emp-perf__chip-val" [class.emp-perf__chip-val--muted]="!todayStats().isLoggedInToday">
+              {{ todayStats().firstLoginTimeLabel }}
+            </span>
+          </div>
+
+          <div class="emp-perf__today-chip" title="Last recorded activity timestamp">
+            @if (todayStats().isOnline) {
+            <span class="emp-perf__pulse-dot" aria-hidden="true"></span>
+            } @else {
+            <svg class="emp-perf__chip-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            }
+            <span class="emp-perf__chip-label">Last Active:</span>
+            <span class="emp-perf__chip-val">{{ todayStats().lastActiveTimeLabel }}</span>
+          </div>
+
+          <div class="emp-perf__today-chip emp-perf__today-chip--work" title="Calculated working hours today">
+            <svg class="emp-perf__chip-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span class="emp-perf__chip-label">Working Hours:</span>
+            <span class="emp-perf__chip-val emp-perf__chip-val--highlight">{{ todayStats().workingHoursLabel }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Top KPI Cards Grid -->
+  <section class="emp-perf__kpi-grid" aria-label="Performance Summary Key Metrics">
+    <div class="emp-perf__kpi-card">
+      <div class="emp-perf__kpi-icon emp-perf__kpi-icon--leads">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+      </div>
+      <div class="emp-perf__kpi-text">
+        <span class="emp-perf__kpi-label">Leads Assigned</span>
+        <span class="emp-perf__kpi-value">{{ emp.totalLeads }}</span>
+      </div>
+    </div>
+
+    <div class="emp-perf__kpi-card">
+      <div class="emp-perf__kpi-icon emp-perf__kpi-icon--deals">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
+          <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
+          <path d="M4 22h16" />
+          <path d="M10 14.66V17c0 .55-.45 1-1 1H7" />
+          <path d="M14 14.66V17c0 .55.45 1 1 1h2" />
+          <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+        </svg>
+      </div>
+      <div class="emp-perf__kpi-text">
+        <span class="emp-perf__kpi-label">Deals Won</span>
+        <span class="emp-perf__kpi-value">{{ emp.dealsClosedWon }}</span>
+      </div>
+    </div>
+
+    <div class="emp-perf__kpi-card">
+      <div class="emp-perf__kpi-icon emp-perf__kpi-icon--revenue">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="12" y1="1" x2="12" y2="23" />
+          <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+        </svg>
+      </div>
+      <div class="emp-perf__kpi-text">
+        <span class="emp-perf__kpi-label">Won Deal Revenue</span>
+        <span class="emp-perf__kpi-value emp-perf__kpi-value--pos">{{ formatMoney(emp.wonRevenue) }}</span>
+      </div>
+    </div>
+
+    <div class="emp-perf__kpi-card">
+      <div class="emp-perf__kpi-icon emp-perf__kpi-icon--activity">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+        </svg>
+      </div>
+      <div class="emp-perf__kpi-text">
+        <span class="emp-perf__kpi-label">Total Activities</span>
+        <span class="emp-perf__kpi-value">{{ emp.activitiesCount }}</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Tabbed Content Section -->
+  <main class="emp-perf__content-card">
+    <div class="emp-perf__tabs-header">
+      <div class="emp-perf__tabs" role="tablist" aria-label="Performance details tabs">
+        <button
+          type="button"
+          role="tab"
+          class="emp-perf__tab"
+          [attr.aria-selected]="activeTab() === 'activities'"
+          [class.emp-perf__tab--active]="activeTab() === 'activities'"
+          (click)="activeTab.set('activities')"
+        >
+          Activities ({{ employeeActivities().length }})
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="emp-perf__tab"
+          [attr.aria-selected]="activeTab() === 'leads'"
+          [class.emp-perf__tab--active]="activeTab() === 'leads'"
+          (click)="activeTab.set('leads')"
+        >
+          Leads ({{ employeeLeads().length }})
+        </button>
+        <button
+          type="button"
+          role="tab"
+          class="emp-perf__tab"
+          [attr.aria-selected]="activeTab() === 'deals'"
+          [class.emp-perf__tab--active]="activeTab() === 'deals'"
+          (click)="activeTab.set('deals')"
+        >
+          Deals ({{ employeeDeals().length }})
+        </button>
+      </div>
+
+      <div class="emp-perf__search-box">
+        <svg class="emp-perf__search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="8" />
+          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+        </svg>
+        <input
+          type="text"
+          class="emp-perf__search-input"
+          placeholder="Filter current tab…"
+          [ngModel]="itemSearchQuery()"
+          (ngModelChange)="onSearchInput($event)"
+          (input)="onSearchInput($any($event.target).value)"
+          aria-label="Filter items"
+        />
+        @if (itemSearchQuery()) {
+        <button type="button" class="emp-perf__search-clear" (click)="onSearchInput('')" aria-label="Clear filter">✕</button>
+        }
+      </div>
+    </div>
+
+    <!-- Tab 1: Activities -->
+    @if (activeTab() === 'activities') {
+      @if (employeeActivities().length === 0) {
+      <div class="emp-perf__empty">
+        @if (itemSearchQuery()) {
+        <p>No activity logs found matching “{{ itemSearchQuery() }}”.</p>
+        } @else {
+        <p>No activity logs found for {{ emp.name }} in this date range.</p>
+        }
+      </div>
+      } @else {
+      <div class="emp-perf__list-wrap">
+        <ul class="emp-perf__stream-list">
+          @for (act of employeeActivities(); track act.id) {
+          <li class="emp-perf__stream-item">
+            <span class="emp-perf__stream-icon" aria-hidden="true">
+              @switch (act.kind) {
+                @case ('call') {
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                </svg>
+                }
+                @case ('meeting') {
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                }
+                @case ('email') {
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                  <polyline points="22,6 12,13 2,6" />
+                </svg>
+                }
+                @case ('deal') {
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="7" width="20" height="14" rx="2" />
+                  <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" />
+                </svg>
+                }
+                @default {
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                </svg>
+                }
+              }
+            </span>
+            <div class="emp-perf__stream-body">
+              <p class="emp-perf__stream-title">
+                <span [class]="activityKindClass(act)">{{ activityKindLabel(act) }}</span>
+                {{ act.title }}
+                @if (act.recordRoute) {
+                <a class="emp-perf__link" [routerLink]="act.recordRoute">{{ act.company }}</a>
+                } @else if (act.company) {
+                <span class="emp-perf__stream-co">{{ act.company }}</span>
+                }
+              </p>
+              @if (act.description) {
+              <p class="emp-perf__stream-desc">{{ act.description }}</p>
+              }
+            </div>
+            <div class="emp-perf__stream-aside">
+              <time class="emp-perf__stream-time">{{ act.timeLabel }}</time>
+            </div>
+          </li>
+          }
+        </ul>
+      </div>
+      }
+    }
+
+    <!-- Tab 2: Leads -->
+    @if (activeTab() === 'leads') {
+      @if (employeeLeads().length === 0) {
+      <div class="emp-perf__empty">
+        @if (itemSearchQuery()) {
+        <p>No leads found matching “{{ itemSearchQuery() }}”.</p>
+        } @else {
+        <p>No leads assigned to {{ emp.name }} in this period.</p>
+        }
+      </div>
+      } @else {
+      <div class="emp-perf__table-container">
+        <table class="emp-perf__table">
+          <thead>
+            <tr>
+              <th scope="col" style="min-width: 220px;">Lead Name</th>
+              <th scope="col" style="min-width: 180px;">Company / Organization</th>
+              <th scope="col" style="min-width: 140px;">Status</th>
+              <th scope="col" style="width: 100px; text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (lead of employeeLeads(); track lead.id) {
+            <tr class="emp-perf__row">
+              <td>
+                <span class="emp-perf__cell-bold">{{ lead.name }}</span>
+              </td>
+              <td>{{ lead.company || '—' }}</td>
+              <td>
+                <span class="emp-perf__status-pill">{{ lead.status }}</span>
+              </td>
+              <td style="text-align: right;">
+                <a class="emp-perf__action-link" [routerLink]="['/leads', lead.id]">Open Lead →</a>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      }
+    }
+
+    <!-- Tab 3: Deals -->
+    @if (activeTab() === 'deals') {
+      @if (employeeDeals().length === 0) {
+      <div class="emp-perf__empty">
+        @if (itemSearchQuery()) {
+        <p>No deals found matching “{{ itemSearchQuery() }}”.</p>
+        } @else {
+        <p>No deals found for {{ emp.name }} in this period.</p>
+        }
+      </div>
+      } @else {
+      <div class="emp-perf__table-container">
+        <table class="emp-perf__table">
+          <thead>
+            <tr>
+              <th scope="col" style="min-width: 220px;">Deal Name</th>
+              <th scope="col" style="min-width: 180px;">Company</th>
+              <th scope="col" style="min-width: 140px;">Stage</th>
+              <th scope="col" style="min-width: 130px; text-align: right;">Value</th>
+              <th scope="col" style="width: 100px; text-align: right;">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (deal of employeeDeals(); track deal.id) {
+            <tr class="emp-perf__row">
+              <td>
+                <span class="emp-perf__cell-bold">{{ deal.dealName }}</span>
+              </td>
+              <td>{{ deal.company || '—' }}</td>
+              <td>
+                <span class="emp-perf__stage-pill">{{ deal.stage }}</span>
+              </td>
+              <td style="text-align: right;">
+                <span class="emp-perf__deal-val">{{ formatMoney(deal.value) }}</span>
+              </td>
+              <td style="text-align: right;">
+                <a class="emp-perf__action-link" [routerLink]="['/deals', deal.id]">Open Deal →</a>
+              </td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      }
+    }
+  </main>
+  }
+</div>

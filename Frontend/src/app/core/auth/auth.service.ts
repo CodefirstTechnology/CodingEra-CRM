@@ -8,6 +8,7 @@ import { environment } from '../../../environments/environment';
 import { CreateFlowService } from '../create-flow/create-flow.service';
 import { ProfilePanelService } from '../profile/profile-panel.service';
 import { ToastService } from '../toast/toast.service';
+import { UserSessionTrackerService } from '../services/user-session-tracker.service';
 import { AUTH_LEGACY_KEYS, AUTH_TOKEN_KEY, AUTH_USER_KEY } from './auth.constants';
 import { maskEmail, writeLoginLog } from './login-log';
 import {
@@ -113,7 +114,7 @@ interface LoginApiResponse {
   userId?: string | number;
   roleId?: number;
   role_id?: number;
-  
+
   id?: string | number;
 }
 
@@ -124,6 +125,7 @@ export class AuthService {
   private readonly toast = inject(ToastService);
   private readonly createFlow = inject(CreateFlowService);
   private readonly profilePanel = inject(ProfilePanelService);
+  private readonly sessionTracker = inject(UserSessionTrackerService);
 
   private readonly _token = signal<string | null>(null);
   private readonly _user = signal<UserSession | null>(null);
@@ -160,6 +162,9 @@ export class AuthService {
       const normalized = this.normalizeStoredSession(user);
       this._user.set(normalized);
       localStorage.setItem(AUTH_USER_KEY, JSON.stringify(normalized));
+      if (normalized.id) {
+        this.sessionTracker.startTracking(normalized.id, token);
+      }
       if (!(normalized.permissions?.length)) {
         this.refreshSessionPermissions();
       }
@@ -185,6 +190,9 @@ export class AuthService {
     localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
     sessionStorage.removeItem(AUTH_TOKEN_KEY);
     sessionStorage.removeItem(AUTH_USER_KEY);
+    if (user.id) {
+      this.sessionTracker.startTracking(user.id, token);
+    }
   }
 
   loginWithCredentials(email: string, password: string): Observable<LoginResult> {
@@ -238,9 +246,9 @@ export class AuthService {
               const resRecord = res as Record<string, unknown>;
               const perms = parsePermissionsFromApi(
                 profile?.['permissions'] ??
-                  profile?.['Permissions'] ??
-                  resRecord['permissions'] ??
-                  resRecord['Permissions'],
+                profile?.['Permissions'] ??
+                resRecord['permissions'] ??
+                resRecord['Permissions'],
               );
 
               const roleName =
@@ -270,9 +278,9 @@ export class AuthService {
                     'user',
                     String(
                       u?.['name'] ??
-                        u?.['fullName'] ??
-                        profile?.['fullName'] ??
-                        this.displayNameFromEmail(trimmed),
+                      u?.['fullName'] ??
+                      profile?.['fullName'] ??
+                      this.displayNameFromEmail(trimmed),
                     ),
                   ),
                   role: sessionRoleLabel(roleId, roleName),
@@ -560,15 +568,27 @@ export class AuthService {
     });
     this.profilePanel.close();
     this.createFlow.closeAll();
+    this.sessionTracker.stopTracking();
 
     const base = environment.apiUrl?.replace(/\/$/, '');
     if (token && base) {
       try {
+        const uid = sessionUser?.id ? Number(sessionUser.id) : null;
+        const email = sessionUser?.email?.trim() || null;
+        let params = new HttpParams();
+        if (uid && uid > 0) params = params.set('userId', String(uid));
+        if (email) params = params.set('email', email);
+
         await firstValueFrom(
           this.http
-            .post(`${base}/auth/logout`, {}, {
-              headers: new HttpHeaders({ Authorization: `Bearer ${token}` }),
-            })
+            .post(
+              `${base}/auth/logout`,
+              { userId: uid, email },
+              {
+                headers: new HttpHeaders({ Authorization: `Bearer ${token}` }),
+                params,
+              },
+            )
             .pipe(timeout(8000), catchError(() => of(null))),
         );
       } catch {
@@ -752,7 +772,7 @@ export class AuthService {
           this._user.set(updated);
           localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
         },
-        error: () => {},
+        error: () => { },
       });
   }
 
@@ -772,7 +792,7 @@ export class AuthService {
         this._user.set(updated);
         localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));
       },
-      error: () => {},
+      error: () => { },
     });
   }
 

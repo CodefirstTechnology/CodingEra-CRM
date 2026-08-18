@@ -562,6 +562,8 @@ export class AdminDashboardService {
       description,
       timeLabel,
       rep: row.actorName || 'System',
+      actorUserId: row.actorUserId,
+      createdAt: row.createdAt,
     };
   }
 

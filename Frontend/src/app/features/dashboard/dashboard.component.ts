@@ -1,7 +1,7 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { take } from 'rxjs';
+import { Router, RouterLink } from '@angular/router';
+import { Subscription, take } from 'rxjs';
 import { catchError, forkJoin, of } from 'rxjs';
 import { AuthService } from '../../core/auth/auth.service';
 import { ROLE_ID_ADMIN } from '../../core/auth/auth-role.util';
@@ -11,6 +11,7 @@ import { RbacService } from '../../core/services/rbac.service';
 import { formatInrCompact } from '../../shared/utils/format-inr.util';
 import { CrmEntityCacheService } from '../../core/services/crm-entity-cache.service';
 import type { AdminUserRow } from '../../core/services/admin-users.service';
+import { UserStatusSignalRService } from '../../core/services/user-status-signalr.service';
 import type {
   AdminActivityStreamItem,
   AdminDashboardPeriodKey,
@@ -28,6 +29,7 @@ import {
   ADMIN_DASHBOARD_PERIOD_OPTIONS,
   ADMIN_TEAM_LEAD_STATUS_OPTIONS,
 } from './models/admin-dashboard.models';
+import { UserSessionTrackerService } from '../../core/services/user-session-tracker.service';
 import { AdminDashboardService } from './services/admin-dashboard.service';
 import {
   isAdminRoleLabel,
@@ -41,6 +43,49 @@ import {
 
 type StreamTab = 'all' | 'calls' | 'meetings';
 type DetailKind = 'deals' | 'leads' | 'targets' | 'pipeline';
+
+export interface EmployeeLedgerItem {
+  userId: string;
+  name: string;
+  email: string;
+  role: string;
+  initials: string;
+  avatarBg: string;
+  lastActive: string;
+  isOnline: boolean;
+  isActive: boolean;
+  firstLoginTimeLabel: string;
+  totalLeads: number;
+  dealsClosedWon: number;
+  wonRevenue: number;
+  activitiesCount: number;
+}
+
+function getEmployeeInitials(name: string): string {
+  const parts = (name || '').trim().split(/\s+/);
+  if (!parts.length || !parts[0]) return 'EP';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+const AVATAR_COLORS = [
+  'linear-gradient(135deg, #6366f1, #4f46e5)',
+  'linear-gradient(135deg, #0ea5e9, #0284c7)',
+  'linear-gradient(135deg, #10b981, #059669)',
+  'linear-gradient(135deg, #f59e0b, #d97706)',
+  'linear-gradient(135deg, #ec4899, #db2777)',
+  'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+  'linear-gradient(135deg, #14b8a6, #0d9488)',
+  'linear-gradient(135deg, #f97316, #ea580c)',
+];
+
+function getAvatarBg(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < (name || '').length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+}
 
 function toDateInputValue(d: Date): string {
   const y = d.getFullYear();
@@ -72,11 +117,16 @@ const PIPELINE_STAGE_COLORS = [
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })
-export class DashboardComponent {
+export class DashboardComponent implements OnDestroy {
+  private readonly router = inject(Router);
   private readonly dashboardService = inject(AdminDashboardService);
   private readonly entityCache = inject(CrmEntityCacheService);
   private readonly auth = inject(AuthService);
   private readonly rbac = inject(RbacService);
+  private readonly sessionTracker = inject(UserSessionTrackerService);
+  private readonly userStatusSignalR = inject(UserStatusSignalRService);
+
+  private signalRSub: Subscription | null = null;
 
   protected readonly periodOptions = ADMIN_DASHBOARD_PERIOD_OPTIONS;
   protected readonly teamLeadStatusOptions = ADMIN_TEAM_LEAD_STATUS_OPTIONS;
@@ -203,8 +253,114 @@ export class DashboardComponent {
     return segments.filter((s) => s.count === 0).length;
   });
 
+  protected readonly cachedUsers = signal<AdminUserRow[]>([]);
+  protected readonly employeeSearchQuery = signal('');
+
+  protected readonly filteredEmployeeLedger = computed<EmployeeLedgerItem[]>(() => {
+    const data = this.snapshot();
+    if (!data) return [];
+    const team = data.team ?? [];
+    const activities = data.activities ?? [];
+    const users = this.cachedUsers();
+    const roles = this.teamRoles();
+    const query = this.employeeSearchQuery().trim().toLowerCase();
+
+    const items: EmployeeLedgerItem[] = team.map((row) => {
+      const uObj = users.find(
+        (u) => u.id === row.userId || String(u.id) === String(row.userId),
+      );
+      const rObj = uObj?.roleId ? roles.find((r) => r.id === uObj.roleId) : null;
+      const roleName = uObj?.role || rObj?.name || 'Sales Representative';
+
+      const repActivities = activities.filter(
+        (a) =>
+          a.rep?.toLowerCase() === row.name?.toLowerCase() ||
+          a.rep?.toLowerCase() === row.email?.toLowerCase(),
+      );
+
+      const todayStats = this.sessionTracker.computeTodayStats(
+        row.userId,
+        repActivities.map((a) => ({
+          createdAt: a.createdAt,
+          timeLabel: a.timeLabel,
+        })),
+        uObj,
+      );
+
+      const lastActive = todayStats.lastActiveTimeLabel;
+      const isOnline = todayStats.isOnline;
+      const isActive =
+        isOnline ||
+        todayStats.isLoggedInToday ||
+        repActivities.length > 0 ||
+        row.totalLeads > 0 ||
+        row.dealsClosedWon > 0;
+
+      const activitiesCount = Math.max(
+        repActivities.length,
+        row.contactedLeads +
+        row.qualifiedLeads +
+        row.convertedLeads +
+        row.dealsClosedWon +
+        row.dealsClosedLost,
+      );
+
+      return {
+        userId: row.userId,
+        name: row.name,
+        email: row.email,
+        role: roleName,
+        initials: getEmployeeInitials(row.name),
+        avatarBg: getAvatarBg(row.name),
+        lastActive,
+        isOnline,
+        isActive,
+        firstLoginTimeLabel: todayStats.firstLoginTimeLabel,
+        totalLeads: row.totalLeads,
+        dealsClosedWon: row.dealsClosedWon,
+        wonRevenue: row.targetAchieved > 0 ? row.targetAchieved : row.monthlyRevenue,
+        activitiesCount,
+      };
+    });
+
+    if (!query) return items;
+    return items.filter(
+      (emp) =>
+        emp.name.toLowerCase().includes(query) ||
+        emp.email.toLowerCase().includes(query) ||
+        emp.role.toLowerCase().includes(query),
+    );
+  });
+
   constructor() {
     this.loadTeamRolesAndDashboard();
+    void this.userStatusSignalR.start();
+
+    this.signalRSub = this.userStatusSignalR.userStatusChanged$.subscribe((evt) => {
+      if (!evt?.userId) return;
+      const uidStr = String(evt.userId).trim();
+
+      this.cachedUsers.update((users) =>
+        users.map((u) => {
+          if (String(u.id).trim() === uidStr) {
+            return {
+              ...u,
+              isOnline: evt.isOnline,
+              lastActiveAt: evt.lastActiveAt !== undefined ? evt.lastActiveAt : u.lastActiveAt,
+              firstLoginAt: evt.firstLoginAt !== undefined ? evt.firstLoginAt : u.firstLoginAt,
+            };
+          }
+          return u;
+        }),
+      );
+    });
+  }
+
+  ngOnDestroy(): void {
+    if (this.signalRSub) {
+      this.signalRSub.unsubscribe();
+      this.signalRSub = null;
+    }
   }
 
   private loadTeamRolesAndDashboard(): void {
@@ -220,11 +376,13 @@ export class DashboardComponent {
       .subscribe({
         next: ({ roles, users }) => {
           this.teamRoles.set(roles);
+          this.cachedUsers.set(users);
           this.teamRoleFilter.set(resolveDefaultSalesTeamRoleFilter(roles, users));
           this.refreshDashboard();
         },
         error: () => {
           this.teamRoles.set([]);
+          this.cachedUsers.set([]);
           this.refreshDashboard();
         },
       });
@@ -334,9 +492,9 @@ export class DashboardComponent {
     const customRange =
       key === 'custom'
         ? {
-            start: parseDateInputValue(this.customStartInput()) ?? startOfDay(new Date()),
-            end: parseDateInputValue(this.customEndInput()) ?? endOfDay(new Date()),
-          }
+          start: parseDateInputValue(this.customStartInput()) ?? startOfDay(new Date()),
+          end: parseDateInputValue(this.customEndInput()) ?? endOfDay(new Date()),
+        }
         : null;
 
     this.dashboardService
@@ -604,6 +762,12 @@ export class DashboardComponent {
     this.openDealDetails(`${name} — open deals (${deals.length})`, deals);
   }
 
+  protected openEmployeeDetail(emp: EmployeeLedgerItem): void {
+    this.router.navigate(['/dashboard/employee', emp.userId], {
+      queryParams: { period: 'today' },
+    });
+  }
+
   protected targetGap(row: any): number {
     return Math.max(0, (row.targetAmount ?? 0) - (row.targetAchieved ?? 0));
   }
@@ -648,7 +812,7 @@ export class DashboardComponent {
     ];
     const fs = `${ds.getDate()} ${monthsFull[ds.getMonth()]}`;
     const fe = `${de.getDate()} ${monthsFull[de.getMonth()]}`;
-    
+
     const currentYear = new Date().getFullYear();
     let label = `${fs} - ${fe}`;
     if (ds.getFullYear() !== currentYear || de.getFullYear() !== currentYear) {

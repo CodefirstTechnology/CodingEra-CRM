@@ -221,6 +221,30 @@ export function buildSessionFromApiRecord(
 
   const permissions = parsePermissionsFromApi(raw['permissions'] ?? raw['Permissions']);
 
+  const lastActiveAt =
+    (typeof raw['lastActiveAt'] === 'string' && raw['lastActiveAt'].trim()) ||
+    (typeof raw['LastActiveAt'] === 'string' && raw['LastActiveAt'].trim()) ||
+    (typeof raw['last_active_at'] === 'string' && raw['last_active_at'].trim()) ||
+    undefined;
+
+  const firstLoginAt =
+    (typeof raw['firstLoginAt'] === 'string' && raw['firstLoginAt'].trim()) ||
+    (typeof raw['FirstLoginAt'] === 'string' && raw['FirstLoginAt'].trim()) ||
+    (typeof raw['first_login_at'] === 'string' && raw['first_login_at'].trim()) ||
+    undefined;
+
+  let isOnline: boolean | undefined = undefined;
+  if (typeof raw['isOnline'] === 'boolean') {
+    isOnline = raw['isOnline'];
+  } else if (typeof raw['IsOnline'] === 'boolean') {
+    isOnline = raw['IsOnline'];
+  } else if (lastActiveAt) {
+    const d = new Date(lastActiveAt);
+    if (!Number.isNaN(d.getTime())) {
+      isOnline = Date.now() - d.getTime() <= 10 * 60 * 1000;
+    }
+  }
+
   return {
     id: String(idVal),
     email,
@@ -228,5 +252,8 @@ export function buildSessionFromApiRecord(
     role: sessionRoleLabel(roleId, roleName),
     roleId,
     permissions: permissions.length ? permissions : undefined,
+    lastActiveAt,
+    firstLoginAt,
+    isOnline,
   };
 }

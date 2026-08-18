@@ -45,8 +45,11 @@ export class CrmEntityCacheService {
     this.adminUsers.invalidateListCache();
   }
 
-  listUsers(): Observable<AdminUserRow[]> {
-    return this.cached('users', () => this.adminUsers.listUsers(this.auth.token()));
+  listUsers(forceFresh = false): Observable<AdminUserRow[]> {
+    if (forceFresh) {
+      this.entries.delete('users');
+    }
+    return this.cached('users', () => this.adminUsers.listUsers(this.auth.token(), forceFresh));
   }
 
   listLeads(): Observable<LeadRow[]> {

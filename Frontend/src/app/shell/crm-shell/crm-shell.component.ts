@@ -2,6 +2,7 @@ import { NgComponentOutlet } from '@angular/common';
 import { Component, effect, inject, signal, Type, untracked } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { AuthService } from '../../core/auth/auth.service';
+import { UserSessionTrackerService } from '../../core/services/user-session-tracker.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { SidebarCollapseService } from '../../core/layout/sidebar-collapse.service';
 import { ProfilePanelService } from '../../core/profile/profile-panel.service';
@@ -21,6 +22,7 @@ export class CrmShellComponent {
   protected readonly sidebarCollapse = inject(SidebarCollapseService);
 
   private readonly auth = inject(AuthService);
+  private readonly sessionTracker = inject(UserSessionTrackerService);
   private readonly createFlow = inject(CreateFlowService);
   private readonly notificationsPanel = inject(NotificationsPanelService);
   private readonly profilePanel = inject(ProfilePanelService);
@@ -30,6 +32,10 @@ export class CrmShellComponent {
 
   constructor() {
     this.auth.refreshSessionPermissions();
+    const user = this.auth.user();
+    if (user?.id) {
+      this.sessionTracker.startTracking(user.id, this.auth.token());
+    }
     effect(() => {
       const needsOverlays =
         this.createFlow.pickerOpen() ||

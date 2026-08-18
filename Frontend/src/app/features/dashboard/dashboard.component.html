@@ -479,6 +479,115 @@
       </section>
     </aside>
   </div>
+
+  <!-- Employee Performance Ledger Card -->
+  <section class="sales-dash__card sales-dash__card--emp-ledger" aria-labelledby="emp-ledger-heading">
+    <div class="sales-dash__emp-head">
+      <div class="sales-dash__emp-head-info">
+        <h2 id="emp-ledger-heading" class="sales-dash__card-title">Employee Performance Ledger</h2>
+        <p class="sales-dash__emp-sub">
+          Performance metrics for {{ data.period.label.toLowerCase() }} · {{ filteredEmployeeLedger().length }} team members
+        </p>
+      </div>
+      <div class="sales-dash__emp-search-wrap">
+        <div class="sales-dash__emp-search">
+          <svg class="sales-dash__emp-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input
+            type="text"
+            class="sales-dash__emp-search-input"
+            placeholder="Search employee by name, email, or role..."
+            [ngModel]="employeeSearchQuery()"
+            (ngModelChange)="employeeSearchQuery.set($event)"
+            aria-label="Search employee ledger"
+          />
+          @if (employeeSearchQuery()) {
+          <button type="button" class="sales-dash__emp-search-clear" (click)="employeeSearchQuery.set('')" aria-label="Clear search">
+            ✕
+          </button>
+          }
+        </div>
+      </div>
+    </div>
+
+    <div class="sales-dash__emp-table-wrap">
+      <table class="sales-dash__emp-table">
+        <thead>
+          <tr>
+            <th scope="col" style="min-width: 250px;">Employee</th>
+            <th scope="col" style="min-width: 170px;">Status / Last Active</th>
+            <th scope="col" style="min-width: 130px; text-align: right;">Leads Created</th>
+            <th scope="col" style="min-width: 180px; text-align: right;">Deals (Won / Value)</th>
+            <th scope="col" style="min-width: 140px; text-align: right;">Activity Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loading()) {
+            @for (sk of [1, 2, 3, 4]; track sk) {
+            <tr class="sales-dash__emp-row sales-dash__emp-row--skel">
+              <td colspan="5"><div class="sales-dash__skel-bar"></div></td>
+            </tr>
+            }
+          } @else if (filteredEmployeeLedger().length === 0) {
+            <tr>
+              <td colspan="5" class="sales-dash__emp-empty">
+                @if (employeeSearchQuery()) {
+                  No team members found matching “{{ employeeSearchQuery() }}”.
+                } @else {
+                  No employee performance data available for this date period.
+                }
+              </td>
+            </tr>
+          } @else {
+            @for (emp of filteredEmployeeLedger(); track emp.userId) {
+            <tr class="sales-dash__emp-row" (click)="openEmployeeDetail(emp)" tabindex="0" role="button" [attr.aria-label]="'View performance profile for ' + emp.name">
+              <td>
+                <div class="sales-dash__emp-profile">
+                  <div class="sales-dash__emp-avatar" [style.background]="emp.avatarBg">
+                    {{ emp.initials }}
+                  </div>
+                  <div class="sales-dash__emp-meta">
+                    <span class="sales-dash__emp-name">{{ emp.name }}</span>
+                    <span class="sales-dash__emp-subtext">{{ emp.role }} · <span class="sales-dash__emp-email">{{ emp.email }}</span></span>
+                  </div>
+                </div>
+              </td>
+              <td>
+                <div class="sales-dash__emp-status-box">
+                  <span class="sales-dash__emp-status-badge" [class.sales-dash__emp-status-badge--active]="emp.isOnline" [class.sales-dash__emp-status-badge--idle]="!emp.isOnline">
+                    <span class="sales-dash__emp-status-dot"></span>
+                    {{ emp.isOnline ? 'Online' : 'Offline' }}
+                  </span>
+                  <span class="sales-dash__emp-last-time">{{ emp.lastActive }}</span>
+                </div>
+              </td>
+              <td style="text-align: right;">
+                <span class="sales-dash__emp-count">{{ emp.totalLeads }}</span>
+                <span class="sales-dash__emp-unit">leads</span>
+              </td>
+              <td style="text-align: right;">
+                <div class="sales-dash__emp-deal-stat">
+                  <span class="sales-dash__emp-deal-won">{{ emp.dealsClosedWon }} won</span>
+                  <span class="sales-dash__emp-deal-rev">{{ formatMoney(emp.wonRevenue) }}</span>
+                </div>
+              </td>
+              <td style="text-align: right;">
+                <span class="sales-dash__emp-act-pill">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                  </svg>
+                  {{ emp.activitiesCount }} actions
+                </span>
+              </td>
+            </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
   }
 
   <app-crm-modal [open]="detailOpen()" [title]="detailTitle()" size="lg" (dismiss)="closeDetail()">
