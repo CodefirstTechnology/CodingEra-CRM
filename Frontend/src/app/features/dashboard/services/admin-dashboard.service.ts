@@ -42,6 +42,7 @@ import {
   dealDisplayName,
   dealOwnerLabel,
   dealLastModifiedDate,
+  dealRecordDate,
   filterLeadsByTeamStatus,
   filterLeadsForTeamPeriod,
   filterTeamUsers,
@@ -199,7 +200,11 @@ export class AdminDashboardService {
     });
     const leadDetails = this.buildLeadDetails(periodLeads);
     const newLeadDetails = leadDetails;
-    const openDeals = allDeals.filter((d) => isActiveDealStatus(d.status, pipelineOptions));
+    const openDeals = allDeals.filter((d) => {
+      if (!isActiveDealStatus(d.status, pipelineOptions)) return false;
+      const t = dealRecordDate(d);
+      return t != null && isDateInRange(t, period.start, period.end);
+    });
     const openDealDetails = openDeals.map((d) => this.toDealDetail(d));
     const wonDealsInPeriod = allDeals.filter((d) =>
       isDealWonInPeriod(d, pipelineOptions, period.start, period.end),
@@ -299,12 +304,20 @@ export class AdminDashboardService {
     const pipelineRevenue = openDeals.reduce((sum, d) => sum + resolveDealValue(d), 0);
 
     let periodTarget = 0;
-    let periodAchieved = 0;
+    const targetUserIds = new Set<number>();
     for (const t of overlappingTargets) {
       const prop = getProportionalTarget(t, periodStart, periodEnd);
       periodTarget += prop.targetAmount;
-      periodAchieved += prop.achievedAmount;
+      if (prop.targetAmount > 0) {
+        targetUserIds.add(t.userId);
+      }
     }
+
+    const wonDealsByTargetUsers = wonDealsInPeriod.filter((d) => {
+      const ownerId = Number(ownerKeyFromDeal(d));
+      return Number.isFinite(ownerId) && targetUserIds.has(ownerId);
+    });
+    const periodAchieved = wonDealsByTargetUsers.reduce((sum, d) => sum + resolveDealValue(d), 0);
 
     const targetAchievedPct =
       periodTarget > 0
@@ -402,9 +415,11 @@ export class AdminDashboardService {
       const junk = statusCounts['Junk'] ?? 0;
       const denom = Math.max(1, totalLeads - junk);
 
-      const activeDeals = userDeals.filter((d) =>
-        isActiveDealStatus(d.status, pipelineOptions),
-      );
+      const activeDeals = userDeals.filter((d) => {
+        if (!isActiveDealStatus(d.status, pipelineOptions)) return false;
+        const t = dealRecordDate(d);
+        return t != null && isDateInRange(t, period.start, period.end);
+      });
       const closedWonPeriod = userDeals.filter((d) =>
         isDealWonInPeriod(d, pipelineOptions, period.start, period.end),
       );
@@ -414,14 +429,13 @@ export class AdminDashboardService {
 
       const userTargets = overlappingTargets.filter((t) => t.userId === numericUid);
       let targetAmount = 0;
-      let targetAchieved = 0;
       for (const t of userTargets) {
         const prop = getProportionalTarget(t, period.start, period.end);
         targetAmount += prop.targetAmount;
-        targetAchieved += prop.achievedAmount;
       }
       const wonDealRevenue = closedWonPeriod.reduce((sum, d) => sum + resolveDealValue(d), 0);
-      const monthlyRevenue = userTargets.length > 0 ? targetAchieved : wonDealRevenue;
+      const targetAchieved = targetAmount > 0 ? wonDealRevenue : 0;
+      const monthlyRevenue = wonDealRevenue;
 
       rows.push({
         userId: uid,
