@@ -102,15 +102,32 @@
             </label>
           </div>
 
-          <label class="contacts__field">
+          <div class="contacts__field">
             <span class="contacts__label">Company Name</span>
             <input
               class="contacts__control contacts__control--soft"
               type="text"
               formControlName="companyName"
               placeholder="Company Name"
+              autocomplete="organization"
             />
-          </label>
+            @if (orgDuplicateSuggestions().length > 0) {
+              <div class="contacts__duplicate-hint" role="status">
+                <p class="contacts__duplicate-title">Similar organizations found</p>
+                @for (org of orgDuplicateSuggestions(); track org.id) {
+                  <div class="contacts__duplicate-row">
+                    <span>{{ org.name }}</span>
+                    <button type="button" class="contacts__duplicate-use" (click)="useDuplicateOrganization(org)">
+                      Use existing
+                    </button>
+                  </div>
+                }
+                <button type="button" class="contacts__duplicate-dismiss" (click)="dismissDuplicateOrganization()">
+                  Continue creating new
+                </button>
+              </div>
+            }
+          </div>
 
           <label class="contacts__field">
             <span class="contacts__label">Designation</span>

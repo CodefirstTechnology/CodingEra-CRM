@@ -191,7 +191,7 @@
                   <a class="org-detail__org-link" [routerLink]="['/deals', d.id]">{{ d.organizationName }}</a>
                 </span>
               </td>
-              <td>{{ d.annualRevenue }}</td>
+              <td>{{ formatDealAmount(d.dealAmount) }}</td>
               <td>
                 <span class="org-detail__status-cell">
                   <span class="org-detail__status-dot" [class]="dealStatusDotClass(d.status)" aria-hidden="true"></span>

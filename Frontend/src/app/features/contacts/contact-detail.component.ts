@@ -252,6 +252,14 @@ export class ContactDetailComponent {
     return t ? t.charAt(0).toUpperCase() : '?';
   }
 
+  protected formatDealAmount(value: number | null | undefined): string {
+    if (value == null || !Number.isFinite(value) || value === 0) return '₹0.00';
+    return `₹${value.toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+
   protected dealOwnerInitials(d: DealRow): string {
     const i = d.assignedInitials?.trim();
     if (i) return i.charAt(0).toUpperCase();
