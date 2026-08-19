@@ -1382,38 +1382,44 @@ export class DealsComponent {
   private patchOrganizationFields(org: OrganizationRow): void {
     const revenue =
       org.annualRevenue != null && org.annualRevenue !== 0 ? String(org.annualRevenue) : '';
-    this.createForm.patchValue({
-      selectedOrganizationId: org.id,
-      organizationName: org.name,
-      employees: masterSelectControlValue(
-        org.employeeCountId,
-        org.employees,
-        this.dealMaster.employeeSelectOptions(),
-      ),
-      annualRevenue: revenue,
-      website: org.website ?? '',
-      gst: normalizeGstin(org.gst),
-      territory: masterSelectControlValue(
-        org.territoryId,
-        org.territory,
-        this.dealMaster.territorySelectOptions(),
-      ),
-      industry: masterSelectControlValue(
-        org.industryId,
-        org.industry,
-        this.dealMaster.industrySelectOptions(),
-      ),
-    });
+    this.createForm.patchValue(
+      {
+        selectedOrganizationId: org.id,
+        organizationName: org.name,
+        employees: masterSelectControlValue(
+          org.employeeCountId,
+          org.employees,
+          this.dealMaster.employeeSelectOptions(),
+        ),
+        annualRevenue: revenue,
+        website: org.website ?? '',
+        gst: normalizeGstin(org.gst),
+        territory: masterSelectControlValue(
+          org.territoryId,
+          org.territory,
+          this.dealMaster.territorySelectOptions(),
+        ),
+        industry: masterSelectControlValue(
+          org.industryId,
+          org.industry,
+          this.dealMaster.industrySelectOptions(),
+        ),
+      },
+      { emitEvent: false },
+    );
   }
 
   private patchContactFields(contact: ContactRow): void {
-    this.createForm.patchValue({
-      selectedContactId: contact.id,
-      fullName: fullNameFromLeadParts(contact),
-      primaryEmail: contact.email === '—' ? '' : contact.email,
-      primaryMobile: contact.phone === '—' ? '' : contact.phone,
-      gender: contact.gender,
-    });
+    this.createForm.patchValue(
+      {
+        selectedContactId: contact.id,
+        fullName: fullNameFromLeadParts(contact),
+        primaryEmail: contact.email === '—' ? '' : contact.email,
+        primaryMobile: contact.phone === '—' ? '' : contact.phone,
+        gender: contact.gender,
+      },
+      { emitEvent: false },
+    );
     this.clearEmailDuplicate();
   }
 

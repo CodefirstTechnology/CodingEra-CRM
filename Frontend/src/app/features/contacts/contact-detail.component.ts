@@ -40,16 +40,6 @@ export class ContactDetailComponent {
   protected readonly detailsOpen = signal(true);
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
-  protected readonly addressOptions = [
-    '',
-    'Mumbai, Maharashtra',
-    'Bengaluru, Karnataka',
-    'Hyderabad, Telangana',
-    'Pune, Maharashtra',
-    'Chennai, Tamil Nadu',
-    'New Delhi, Delhi',
-    'Other',
-  ] as const;
 
   protected readonly detailForm = this.fb.nonNullable.group({
     firstName: ['', [Validators.maxLength(80)]],

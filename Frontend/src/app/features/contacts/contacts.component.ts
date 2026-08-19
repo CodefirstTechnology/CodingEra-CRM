@@ -67,16 +67,6 @@ export class ContactsComponent {
   protected readonly importModalLazyComponent = signal<any | null>(null);
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
-  protected readonly addressOptions = [
-    '',
-    'Mumbai, Maharashtra',
-    'Bengaluru, Karnataka',
-    'Hyderabad, Telangana',
-    'Pune, Maharashtra',
-    'Chennai, Tamil Nadu',
-    'New Delhi, Delhi',
-    'Other',
-  ] as const;
 
   protected readonly rows = signal<ContactRow[]>([]);
   protected readonly searchQuery = signal('');

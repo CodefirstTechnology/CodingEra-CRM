@@ -107,11 +107,12 @@
             </label>
             <label class="contact-detail__row">
               <span class="contact-detail__row-label">Address</span>
-              <select class="contact-detail__input" formControlName="address">
-                @for (a of addressOptions; track a) {
-                <option [value]="a">{{ a === '' ? sidebarPlaceholder('Address') : a }}</option>
-                }
-              </select>
+              <input
+                type="text"
+                class="contact-detail__input"
+                formControlName="address"
+                placeholder="Enter address"
+              />
             </label>
           </div>
         </div>

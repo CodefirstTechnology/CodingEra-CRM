@@ -50,17 +50,6 @@ export class OrganizationDetailComponent {
   protected readonly resolved = signal(false);
   protected readonly detailsOpen = signal(true);
 
-  protected readonly addressOptions = [
-    '',
-    'Mumbai, Maharashtra',
-    'Bengaluru, Karnataka',
-    'Hyderabad, Telangana',
-    'Pune, Maharashtra',
-    'Chennai, Tamil Nadu',
-    'New Delhi, Delhi',
-    'Other',
-  ] as const;
-
   protected readonly detailForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
     website: ['', Validators.maxLength(200)],

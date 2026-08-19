@@ -124,11 +124,12 @@
 
           <label class="contacts__field">
             <span class="contacts__label">Address</span>
-            <select class="contacts__control contacts__control--soft" formControlName="address">
-              @for (a of addressOptions; track a) {
-                <option [value]="a">{{ a === '' ? 'Address' : a }}</option>
-              }
-            </select>
+            <input
+              class="contacts__control contacts__control--soft"
+              type="text"
+              formControlName="address"
+              placeholder="Enter address"
+            />
           </label>
 
           <footer class="contacts__modal-foot">
