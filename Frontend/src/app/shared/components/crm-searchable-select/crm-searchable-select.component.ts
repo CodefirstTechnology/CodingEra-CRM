@@ -1,3 +1,4 @@
+import { NgClass } from '@angular/common';
 import {
   Component,
   ElementRef,
@@ -21,6 +22,7 @@ import {
 @Component({
   selector: 'app-crm-searchable-select',
   standalone: true,
+  imports: [NgClass],
   templateUrl: './crm-searchable-select.component.html',
   styleUrl: './crm-searchable-select.component.scss',
   providers: [

@@ -740,11 +740,21 @@
   flex-direction: column;
   gap: 0.35rem;
   min-width: 0;
+  width: 100%;
+}
+
+.deals__field:has(.crm-searchable-select) {
+  position: relative;
 }
 
 .deals__field:has(.crm-searchable-select--open) {
   position: relative;
-  z-index: 50;
+  z-index: 60;
+}
+
+app-crm-searchable-select {
+  display: block;
+  width: 100%;
 }
 
 .deals__field--span2 {
