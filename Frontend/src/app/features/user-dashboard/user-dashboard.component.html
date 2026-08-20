@@ -26,6 +26,112 @@
     <p class="udash__banner udash__banner--error" role="alert">{{ err }}</p>
   }
 
+  <!-- Top Filter Bar Component (Matching Admin Dashboard style with dark theme dropdown pills) -->
+  <section class="udash__filters" aria-label="Dashboard filters">
+    <div class="udash__filters-group">
+      <!-- Date Range / Time Period Dropdown Pill -->
+      <div class="udash__filter-pill-wrap">
+        <span class="udash__filter-label">Period:</span>
+        <div class="udash__period">
+          <button
+            type="button"
+            class="udash__filter-select-btn"
+            [attr.aria-expanded]="periodMenuOpen()"
+            aria-haspopup="listbox"
+            [disabled]="loading()"
+            (click)="togglePeriodMenu()"
+          >
+            <svg class="udash__filter-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+              <line x1="16" y1="2" x2="16" y2="6"></line>
+              <line x1="8" y1="2" x2="8" y2="6"></line>
+              <line x1="3" y1="10" x2="21" y2="10"></line>
+            </svg>
+            <span class="udash__filter-btn-text">{{ periodLabel() }}</span>
+            <svg class="udash__filter-chevron" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+          </button>
+
+          @if (periodMenuOpen()) {
+            <button
+              type="button"
+              class="udash__period-backdrop"
+              aria-label="Close date range menu"
+              (click)="closePeriodMenu()"
+            ></button>
+            <div class="udash__period-panel" role="listbox" aria-label="Date range filter">
+              <ul class="udash__period-menu">
+                @for (opt of periodOptions; track opt.key) {
+                  <li class="udash__period-item" role="presentation">
+                    <button
+                      type="button"
+                      role="option"
+                      class="udash__period-option"
+                      [class.udash__period-option--active]="periodKey() === opt.key || (opt.key === 'custom' && customPickerOpen())"
+                      [attr.aria-selected]="periodKey() === opt.key || (opt.key === 'custom' && customPickerOpen())"
+                      (click)="selectPeriod(opt.key)"
+                    >
+                      {{ opt.label }}
+                    </button>
+                  </li>
+                }
+              </ul>
+              @if (customPickerOpen() || periodKey() === 'custom') {
+                <div class="udash__period-custom">
+                  <label class="udash__period-custom-field">
+                    <span>From</span>
+                    <input
+                      type="date"
+                      class="udash__period-date"
+                      [value]="customStartInput()"
+                      (change)="onCustomStartChange($any($event.target).value)"
+                    />
+                  </label>
+                  <label class="udash__period-custom-field">
+                    <span>To</span>
+                    <input
+                      type="date"
+                      class="udash__period-date"
+                      [value]="customEndInput()"
+                      (change)="onCustomEndChange($any($event.target).value)"
+                    />
+                  </label>
+                  @if (customRangeError(); as rangeErr) {
+                    <p class="udash__period-custom-error" role="alert">{{ rangeErr }}</p>
+                  }
+                  <button type="button" class="udash__period-apply" (click)="applyCustomRange()">
+                    Apply
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+
+      <!-- Reset Filters Button if any non-default filter is active -->
+      @if (hasActiveFilters()) {
+        <button type="button" class="udash__filter-reset-btn" (click)="resetFilters()" title="Reset to this month">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <line x1="18" y1="6" x2="6" y2="18"></line>
+            <line x1="6" y1="6" x2="18" y2="18"></line>
+          </svg>
+          Reset
+        </button>
+      }
+    </div>
+
+    <div class="udash__filters-meta">
+      <span class="udash__filter-active-summary">
+        <svg class="udash__filter-active-dot" width="7" height="7" viewBox="0 0 8 8" fill="currentColor" aria-hidden="true">
+          <circle cx="4" cy="4" r="4" />
+        </svg>
+        {{ periodLabel() }}
+      </span>
+    </div>
+  </section>
+
   @if (loading()) {
     <section class="udash__kpis" aria-busy="true" aria-label="Loading metrics">
       @for (i of [1, 2, 3, 4, 5, 6]; track i) {
@@ -47,7 +153,7 @@
         <p class="udash__kpi-value">{{ data.kpis.activeDeals }}</p>
       </button>
       <button type="button" class="udash__kpi udash__kpi--follow udash__kpi--click" (click)="openKpiDetail('followUps')">
-        <p class="udash__kpi-label">Follow-ups Today</p>
+        <p class="udash__kpi-label">{{ periodKey() === 'today' ? 'Follow-ups Today' : 'Follow-ups' }}</p>
         <p class="udash__kpi-value">{{ data.kpis.followUpsToday }}</p>
       </button>
       <button type="button" class="udash__kpi udash__kpi--tasks udash__kpi--click" (click)="openKpiDetail('tasks')">
@@ -55,11 +161,11 @@
         <p class="udash__kpi-value">{{ data.kpis.tasksPending }}</p>
       </button>
       <button type="button" class="udash__kpi udash__kpi--meet udash__kpi--click" (click)="openKpiDetail('meetings')">
-        <p class="udash__kpi-label">Meetings</p>
+        <p class="udash__kpi-label">{{ periodKey() === 'today' ? 'Meetings Today' : 'Meetings' }}</p>
         <p class="udash__kpi-value">{{ data.kpis.meetingsToday }}</p>
       </button>
       <button type="button" class="udash__kpi udash__kpi--rev udash__kpi--click" (click)="openKpiDetail('revenue')">
-        <p class="udash__kpi-label">Monthly Revenue</p>
+        <p class="udash__kpi-label">{{ periodKey() === 'this_month' ? 'Monthly Revenue' : 'Period Revenue' }}</p>
         <p class="udash__kpi-value">{{ formatRevenue(data.kpis.monthlyRevenue) }}</p>
       </button>
     </section>
@@ -72,113 +178,7 @@
     </section>
 
     <section class="udash__grid udash__grid--main">
-      <div class="udash__col udash__col--wide">
-        <article class="udash__panel udash__panel--table">
-          <header class="udash__panel-head">
-            <div class="udash__panel-heading">
-              <h2 class="udash__panel-title">My assigned leads</h2>
-              @if (data.assignedLeads.length > 0) {
-                <span class="udash__count-badge">{{ data.assignedLeads.length }}</span>
-              }
-            </div>
-            <a routerLink="/leads" class="udash__link">View all</a>
-          </header>
-          @if (data.assignedLeads.length === 0) {
-            <div class="udash__empty">
-              <p>No leads assigned to you yet.</p>
-              <button type="button" class="udash__btn udash__btn--solid" (click)="openCreate('lead')">Create lead</button>
-            </div>
-          } @else {
-            <div class="udash__table-wrap">
-              <table class="udash__table">
-                <thead>
-                  <tr>
-                    <th>Lead Name</th>
-                    <th>Company</th>
-                    <th>Status</th>
-                    <th>Priority</th>
-                    <th>Assigned Date</th>
-                    <th>Source</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  @for (row of assignedLeadsPagination.paginatedItems(); track row.id) {
-                    <tr>
-                      <td>
-                        <a [routerLink]="['/leads', row.id]" class="udash__row-link">{{ row.leadName }}</a>
-                      </td>
-                      <td>{{ row.company }}</td>
-                      <td>
-                        <span class="udash__status" [attr.data-status]="row.status">{{ row.status }}</span>
-                      </td>
-                      <td>
-                        <span class="udash__priority" [attr.data-priority]="row.priority">{{ row.priority }}</span>
-                      </td>
-                      <td>{{ row.assignedDate }}</td>
-                      <td>{{ row.source }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-            @if (assignedLeadsPagination.totalItems() > assignedLeadsPagination.pageSize()) {
-              <div class="udash__pagination">
-                <app-crm-pagination-footer
-                  ariaLabel="Assigned leads pages"
-                  [page]="assignedLeadsPagination.page()"
-                  [pageSize]="assignedLeadsPagination.pageSize()"
-                  [pageSizeOptions]="dashboardPageSizeOptions"
-                  [totalItems]="assignedLeadsPagination.totalItems()"
-                  (pageChange)="assignedLeadsPagination.setPage($event)"
-                  (pageSizeChange)="assignedLeadsPagination.setPageSize($event)"
-                />
-              </div>
-            }
-          }
-        </article>
-
-        <article class="udash__panel udash__panel--timeline">
-          <header class="udash__panel-head">
-            <div class="udash__panel-heading">
-              <h2 class="udash__panel-title">Recent activity</h2>
-              @if (data.activities.length > 0) {
-                <span class="udash__count-badge">{{ data.activities.length }}</span>
-              }
-            </div>
-          </header>
-          @if (data.activities.length === 0) {
-            <p class="udash__muted udash__empty-inline">No recent activity on your records.</p>
-          } @else {
-            <ul class="udash__timeline">
-              @for (item of activitiesPagination.paginatedItems(); track item.id) {
-                <li class="udash__timeline-item" [attr.data-type]="item.type">
-                  <span class="udash__timeline-dot" aria-hidden="true"></span>
-                  <div class="udash__timeline-body">
-                    <p class="udash__timeline-title">{{ item.title }}</p>
-                    <p class="udash__timeline-sub">{{ item.subtitle }}</p>
-                    <time class="udash__timeline-time">{{ item.timeLabel }}</time>
-                  </div>
-                </li>
-              }
-            </ul>
-            @if (activitiesPagination.totalItems() > activitiesPagination.pageSize()) {
-              <div class="udash__pagination">
-                <app-crm-pagination-footer
-                  ariaLabel="Recent activity pages"
-                  [page]="activitiesPagination.page()"
-                  [pageSize]="activitiesPagination.pageSize()"
-                  [pageSizeOptions]="dashboardPageSizeOptions"
-                  [totalItems]="activitiesPagination.totalItems()"
-                  (pageChange)="activitiesPagination.setPage($event)"
-                  (pageSizeChange)="activitiesPagination.setPageSize($event)"
-                />
-              </div>
-            }
-          }
-        </article>
-      </div>
-
-      <div class="udash__col udash__col--side">
+      <div class="udash__col">
         @if (showTargets()) {
           <article class="udash__panel udash__panel--targets">
             <header class="udash__panel-head">
@@ -192,22 +192,64 @@
               <div class="udash__target-grid">
                 @for (t of targetWidgets(); track t.targetId) {
                   <div class="udash__target-card">
-                    <p class="udash__target-type">{{ t.targetTypeName }}</p>
-                    <p class="udash__target-amount">{{ formatRevenue(t.targetAmount) }}</p>
-                    <dl class="udash__target-stats">
-                      <div>
-                        <dt>Achieved</dt>
-                        <dd>{{ formatRevenue(t.achievedAmount) }}</dd>
+                    <!-- Left Side: Metrics & Legend -->
+                    <div class="udash__target-left">
+                      <div class="udash__target-header">
+                        <span class="udash__target-type">{{ t.targetTypeName }}</span>
+                        <span class="udash__target-amount">{{ formatRevenue(t.targetAmount) }}</span>
                       </div>
-                      <div>
-                        <dt>Remaining</dt>
-                        <dd>{{ formatRevenue(t.remainingAmount) }}</dd>
+
+                      <div class="udash__target-legends">
+                        <div class="udash__target-legend">
+                          <span class="udash__target-dot udash__target-dot--achieved" aria-hidden="true"></span>
+                          <span class="udash__target-legend-label">Achieved</span>
+                          <span class="udash__target-legend-val">{{ formatRevenue(t.achievedAmount) }}</span>
+                        </div>
+                        <div class="udash__target-legend">
+                          <span class="udash__target-dot udash__target-dot--remaining" aria-hidden="true"></span>
+                          <span class="udash__target-legend-label">Remaining</span>
+                          <span class="udash__target-legend-val">{{ formatRevenue(t.remainingAmount) }}</span>
+                        </div>
                       </div>
-                    </dl>
-                    <div class="udash__target-track" role="progressbar" [attr.aria-valuenow]="t.achievementPercent" aria-valuemin="0" aria-valuemax="100">
-                      <div class="udash__target-fill" [style.width.%]="t.achievementPercent"></div>
+
+                      <p class="udash__target-status-text">
+                        {{ t.achievementPercent | number: '1.0-1' }}% achieved of total target
+                      </p>
                     </div>
-                    <p class="udash__target-pct">{{ t.achievementPercent | number: '1.0-1' }}% achieved</p>
+
+                    <!-- Right Side: Circular Donut Chart -->
+                    <div class="udash__target-right" [title]="'Achieved: ' + formatRevenue(t.achievedAmount) + ' (' + (t.achievementPercent | number: '1.0-1') + '%), Remaining: ' + formatRevenue(t.remainingAmount)">
+                      <div class="udash__donut-wrap">
+                        <svg class="udash__donut-svg" viewBox="0 0 100 100" aria-hidden="true">
+                          <!-- Remaining Background Ring (#1f2937) -->
+                          <circle
+                            class="udash__donut-bg"
+                            cx="50"
+                            cy="50"
+                            r="38"
+                            fill="none"
+                            stroke-width="10"
+                          />
+                          <!-- Achieved Cyan/Teal Ring (#06b6d4) -->
+                          <circle
+                            class="udash__donut-fill"
+                            cx="50"
+                            cy="50"
+                            r="38"
+                            fill="none"
+                            stroke-width="10"
+                            stroke-linecap="round"
+                            transform="rotate(-90 50 50)"
+                            [attr.stroke-dasharray]="targetDonutCircumference"
+                            [attr.stroke-dashoffset]="getDonutOffset(t.achievementPercent)"
+                          />
+                        </svg>
+                        <!-- Percentage in Center Hole -->
+                        <div class="udash__donut-center">
+                          <span class="udash__donut-pct">{{ t.achievementPercent | number: '1.0-1' }}%</span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 }
               </div>
@@ -260,23 +302,78 @@
           }
         </article>
 
-        <article class="udash__panel">
-          <header class="udash__panel-head">
-            <h2 class="udash__panel-title">Lead status</h2>
-          </header>
-          <ul class="udash__status-bars">
-            @for (s of data.statusSummary; track s.status) {
-              <li>
-                <div class="udash__status-row">
-                  <span>{{ s.status }}</span>
-                  <span class="udash__muted">{{ s.count }}</span>
-                </div>
-                <div class="udash__bar-track">
-                  <div class="udash__bar-fill" [style.width.%]="s.pct"></div>
-                </div>
-              </li>
+        @if (data.todaysLeads.length > 0) {
+          <article class="udash__panel">
+            <header class="udash__panel-head">
+              <div class="udash__panel-heading">
+                <h2 class="udash__panel-title">Today&apos;s leads</h2>
+                <span class="udash__count-badge">{{ data.todaysLeads.length }}</span>
+              </div>
+            </header>
+            <ul class="udash__mini-list">
+              @for (l of todaysLeadsPagination.paginatedItems(); track l.id) {
+                <li>
+                  <a [routerLink]="['/leads', l.id]" class="udash__row-link">{{ l.leadName }}</a>
+                  <span class="udash__muted">{{ l.company }}</span>
+                </li>
+              }
+            </ul>
+            @if (todaysLeadsPagination.totalItems() > todaysLeadsPagination.pageSize()) {
+              <div class="udash__pagination">
+                <app-crm-pagination-footer
+                  ariaLabel="Today's leads pages"
+                  [page]="todaysLeadsPagination.page()"
+                  [pageSize]="todaysLeadsPagination.pageSize()"
+                  [pageSizeOptions]="dashboardPageSizeOptions"
+                  [totalItems]="todaysLeadsPagination.totalItems()"
+                  (pageChange)="todaysLeadsPagination.setPage($event)"
+                  (pageSizeChange)="todaysLeadsPagination.setPageSize($event)"
+                />
+              </div>
             }
-          </ul>
+          </article>
+        }
+      </div>
+
+      <div class="udash__col">
+        <article class="udash__panel udash__panel--timeline">
+          <header class="udash__panel-head">
+            <div class="udash__panel-heading">
+              <h2 class="udash__panel-title">Recent activity</h2>
+              @if (data.activities.length > 0) {
+                <span class="udash__count-badge">{{ data.activities.length }}</span>
+              }
+            </div>
+          </header>
+          @if (data.activities.length === 0) {
+            <p class="udash__muted udash__empty-inline">No recent activity on your records.</p>
+          } @else {
+            <ul class="udash__timeline">
+              @for (item of activitiesPagination.paginatedItems(); track item.id) {
+                <li class="udash__timeline-item" [attr.data-type]="item.type">
+                  <span class="udash__timeline-dot" aria-hidden="true"></span>
+                  <div class="udash__timeline-body">
+                    <p class="udash__timeline-title">{{ item.title }}</p>
+                    <p class="udash__timeline-sub">{{ item.subtitle }}</p>
+                    <time class="udash__timeline-time">{{ item.timeLabel }}</time>
+                  </div>
+                </li>
+              }
+            </ul>
+            @if (activitiesPagination.totalItems() > activitiesPagination.pageSize()) {
+              <div class="udash__pagination">
+                <app-crm-pagination-footer
+                  ariaLabel="Recent activity pages"
+                  [page]="activitiesPagination.page()"
+                  [pageSize]="activitiesPagination.pageSize()"
+                  [pageSizeOptions]="dashboardPageSizeOptions"
+                  [totalItems]="activitiesPagination.totalItems()"
+                  (pageChange)="activitiesPagination.setPage($event)"
+                  (pageSizeChange)="activitiesPagination.setPageSize($event)"
+                />
+              </div>
+            }
+          }
         </article>
 
         <article class="udash__panel udash__panel--perf">
@@ -312,37 +409,24 @@
           <p class="udash__muted udash__target-pct">{{ data.performance.targetProgressPct }}% of goal</p>
         </article>
 
-        @if (data.todaysLeads.length > 0) {
-          <article class="udash__panel">
-            <header class="udash__panel-head">
-              <div class="udash__panel-heading">
-                <h2 class="udash__panel-title">Today&apos;s leads</h2>
-                <span class="udash__count-badge">{{ data.todaysLeads.length }}</span>
-              </div>
-            </header>
-            <ul class="udash__mini-list">
-              @for (l of todaysLeadsPagination.paginatedItems(); track l.id) {
-                <li>
-                  <a [routerLink]="['/leads', l.id]" class="udash__row-link">{{ l.leadName }}</a>
-                  <span class="udash__muted">{{ l.company }}</span>
-                </li>
-              }
-            </ul>
-            @if (todaysLeadsPagination.totalItems() > todaysLeadsPagination.pageSize()) {
-              <div class="udash__pagination">
-                <app-crm-pagination-footer
-                  ariaLabel="Today's leads pages"
-                  [page]="todaysLeadsPagination.page()"
-                  [pageSize]="todaysLeadsPagination.pageSize()"
-                  [pageSizeOptions]="dashboardPageSizeOptions"
-                  [totalItems]="todaysLeadsPagination.totalItems()"
-                  (pageChange)="todaysLeadsPagination.setPage($event)"
-                  (pageSizeChange)="todaysLeadsPagination.setPageSize($event)"
-                />
-              </div>
+        <article class="udash__panel">
+          <header class="udash__panel-head">
+            <h2 class="udash__panel-title">Lead status</h2>
+          </header>
+          <ul class="udash__status-bars">
+            @for (s of data.statusSummary; track s.status) {
+              <li>
+                <div class="udash__status-row">
+                  <span>{{ s.status }}</span>
+                  <span class="udash__muted">{{ s.count }}</span>
+                </div>
+                <div class="udash__bar-track">
+                  <div class="udash__bar-fill" [style.width.%]="s.pct"></div>
+                </div>
+              </li>
             }
-          </article>
-        }
+          </ul>
+        </article>
       </div>
     </section>
   }

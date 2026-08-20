@@ -1,5 +1,42 @@
 import type { LeadStatus } from '../../leads/lead-row.model';
 
+export type UserDashboardPeriodKey =
+  | 'today'
+  | 'this_week'
+  | 'this_month'
+  | 'last_month'
+  | 'custom';
+
+export interface UserDashboardPeriodOption {
+  key: UserDashboardPeriodKey;
+  label: string;
+}
+
+export const USER_DASHBOARD_PERIOD_OPTIONS: readonly UserDashboardPeriodOption[] = [
+  { key: 'today', label: 'Today' },
+  { key: 'this_week', label: 'This week' },
+  { key: 'this_month', label: 'This month' },
+  { key: 'last_month', label: 'Last month' },
+  { key: 'custom', label: 'Custom range' },
+] as const;
+
+export interface UserDashboardCustomRange {
+  start: Date;
+  end: Date;
+}
+
+export interface UserDashboardPeriodInfo {
+  key: UserDashboardPeriodKey;
+  label: string;
+  start: Date;
+  end: Date;
+}
+
+export interface UserDashboardFilters {
+  periodKey: UserDashboardPeriodKey;
+  customRange?: UserDashboardCustomRange | null;
+}
+
 export interface UserDashboardKpis {
   myLeads: number;
   activeDeals: number;
@@ -85,6 +122,7 @@ export interface UserDashboardRevenueDealDetail {
 }
 
 export interface UserDashboardSnapshot {
+  period: UserDashboardPeriodInfo;
   kpis: UserDashboardKpis;
   assignedLeads: UserDashboardLeadTableRow[];
   todaysLeads: UserDashboardLeadTableRow[];
