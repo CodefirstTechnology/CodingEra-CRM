@@ -106,11 +106,12 @@
               </label>
               <label class="org-detail__row">
                 <span class="org-detail__row-label">Address</span>
-                <select class="org-detail__input" formControlName="address">
-                  @for (a of addressOptions; track a) {
-                  <option [value]="a">{{ a === '' ? sidebarPlaceholder('Address') : a }}</option>
-                  }
-                </select>
+                <input
+                  type="text"
+                  class="org-detail__input"
+                  formControlName="address"
+                  placeholder="Enter address"
+                />
               </label>
             </div>
           </div>
@@ -190,7 +191,7 @@
                   <a class="org-detail__org-link" [routerLink]="['/deals', d.id]">{{ d.organizationName }}</a>
                 </span>
               </td>
-              <td>{{ d.annualRevenue }}</td>
+              <td>{{ formatDealAmount(d.dealAmount) }}</td>
               <td>
                 <span class="org-detail__status-cell">
                   <span class="org-detail__status-dot" [class]="dealStatusDotClass(d.status)" aria-hidden="true"></span>

@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
+import { ChangeDetectorRef, Component, computed, inject, OnDestroy, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Subscription, take } from 'rxjs';
@@ -125,6 +125,7 @@ export class DashboardComponent implements OnDestroy {
   private readonly rbac = inject(RbacService);
   private readonly sessionTracker = inject(UserSessionTrackerService);
   private readonly userStatusSignalR = inject(UserStatusSignalRService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   private signalRSub: Subscription | null = null;
 
@@ -147,31 +148,26 @@ export class DashboardComponent implements OnDestroy {
   protected readonly selectedPreviousTargetPeriodKey = signal<string | null>(null);
   protected readonly detailTargetSortKey = signal<'pct' | 'achieved' | 'gap'>('pct');
   protected readonly detailTargetSortDesc = signal(true);
-  protected readonly targetViewSource = signal<'current' | 'selected'>('current');
-
   protected readonly currentTargetPeriod = computed(() => {
     const data = this.snapshot();
     if (!data) return null;
-    if (this.targetViewSource() === 'selected') {
-      return {
-        startDate: this.formatDateToLocalDateString(data.period.start),
-        endDate: this.formatDateToLocalDateString(data.period.end),
-        targetAmount: data.kpis.periodTarget,
-        achievedAmount: data.kpis.periodAchieved,
-        targetAchievedPct: data.kpis.targetAchievedPct,
-        hasTargetsConfigured: data.kpis.hasTargetsConfigured,
-        targets: [],
-      };
+    if (this.viewingTargetMode() === 'previous') {
+      const key = this.selectedPreviousTargetPeriodKey();
+      if (key && data.previousTargetPeriods) {
+        const match = data.previousTargetPeriods.find((p) => `${p.startDate}_${p.endDate}` === key);
+        if (match) return match;
+      }
+      return data.previousTargetPeriod;
     }
-    if (this.viewingTargetMode() === 'active') {
-      return data.activeTargetPeriod;
-    }
-    const key = this.selectedPreviousTargetPeriodKey();
-    if (key && data.previousTargetPeriods) {
-      const match = data.previousTargetPeriods.find((p) => `${p.startDate}_${p.endDate}` === key);
-      if (match) return match;
-    }
-    return data.previousTargetPeriod;
+    return {
+      startDate: this.formatDateToLocalDateString(data.period.start),
+      endDate: this.formatDateToLocalDateString(data.period.end),
+      targetAmount: data.kpis.periodTarget,
+      achievedAmount: data.kpis.periodAchieved,
+      targetAchievedPct: data.kpis.targetAchievedPct,
+      hasTargetsConfigured: data.kpis.hasTargetsConfigured,
+      targets: data.activeTargetPeriod?.targets ?? [],
+    };
   });
 
   protected readonly previousTargetPeriods = computed(() => {
@@ -337,12 +333,15 @@ export class DashboardComponent implements OnDestroy {
     void this.userStatusSignalR.start();
 
     this.signalRSub = this.userStatusSignalR.userStatusChanged$.subscribe((evt) => {
-      if (!evt?.userId) return;
-      const uidStr = String(evt.userId).trim();
+      if (!evt?.userId && !evt?.email) return;
+      const uidStr = evt?.userId ? String(evt.userId).trim() : '';
+      const emailLower = evt?.email?.trim().toLowerCase() ?? '';
 
       this.cachedUsers.update((users) =>
         users.map((u) => {
-          if (String(u.id).trim() === uidStr) {
+          const matchId = uidStr && String(u.id).trim() === uidStr;
+          const matchEmail = emailLower && u.email?.trim().toLowerCase() === emailLower;
+          if (matchId || matchEmail) {
             return {
               ...u,
               isOnline: evt.isOnline,
@@ -353,6 +352,7 @@ export class DashboardComponent implements OnDestroy {
           return u;
         }),
       );
+      this.cdr.markForCheck();
     });
   }
 
@@ -486,7 +486,6 @@ export class DashboardComponent implements OnDestroy {
     this.streamExpanded.set(false);
     this.viewingTargetMode.set('active');
     this.selectedPreviousTargetPeriodKey.set(null);
-    this.targetViewSource.set('current');
 
     const key = this.periodKey();
     const customRange =
@@ -647,17 +646,7 @@ export class DashboardComponent implements OnDestroy {
     if (!data) return;
     this.detailKind.set('targets');
 
-    const mode = this.targetViewSource();
-    if (mode === 'selected') {
-      this.detailTitle.set(`Sales targets (${data.period.label})`);
-      const teamStats = data.team.map((t) => ({
-        userId: t.userId,
-        name: t.name,
-        targetAmount: t.targetAmount,
-        targetAchieved: t.targetAchieved,
-      }));
-      this.detailTeam.set(teamStats as any[]);
-    } else {
+    if (this.viewingTargetMode() === 'previous') {
       const period = this.currentTargetPeriod();
       if (period) {
         this.detailTitle.set(`Sales targets (${this.formatTargetPeriodLabel(period.startDate, period.endDate)})`);
@@ -672,6 +661,15 @@ export class DashboardComponent implements OnDestroy {
         this.detailTitle.set('Sales targets');
         this.detailTeam.set([]);
       }
+    } else {
+      this.detailTitle.set(`Sales targets (${this.periodLabel()})`);
+      const teamStats = data.team.map((t) => ({
+        userId: t.userId,
+        name: t.name,
+        targetAmount: t.targetAmount,
+        targetAchieved: t.targetAchieved,
+      }));
+      this.detailTeam.set(teamStats as any[]);
     }
 
     this.detailDeals.set([]);
@@ -772,10 +770,6 @@ export class DashboardComponent implements OnDestroy {
     return Math.max(0, (row.targetAmount ?? 0) - (row.targetAchieved ?? 0));
   }
 
-  protected toggleTargetViewSource(): void {
-    this.targetViewSource.update((src) => (src === 'current' ? 'selected' : 'current'));
-  }
-
   private formatDateToLocalDateString(d: Date): string {
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -870,6 +864,9 @@ export class DashboardComponent implements OnDestroy {
     try {
       const fs = new Intl.DateTimeFormat(undefined, options).format(ds);
       const fe = new Intl.DateTimeFormat(undefined, options).format(de);
+      if (fs === fe) {
+        return fs;
+      }
       return `${fs} – ${fe}`;
     } catch {
       return `${startStr} – ${endStr}`;

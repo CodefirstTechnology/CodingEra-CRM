@@ -242,11 +242,8 @@ export function isLeadConvertedRow(lead: LeadRow): boolean {
 }
 
 export function resolveDealValue(deal: DealRow): number {
-  if (Number.isFinite(deal.dealAmount) && deal.dealAmount > 0) {
+  if (deal.dealAmount != null && Number.isFinite(deal.dealAmount) && deal.dealAmount > 0) {
     return deal.dealAmount;
-  }
-  if (Number.isFinite(deal.annualRevenue) && deal.annualRevenue > 0) {
-    return deal.annualRevenue;
   }
   return 0;
 }

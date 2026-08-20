@@ -42,7 +42,10 @@ export function mapLeadToDealDraft(lead: LeadRow): LeadToDealDraft {
     contactEmail: lead.email ?? '',
     contactPhone: (lead.mobile ?? '').trim(),
     stage: 'New',
-    value: parseLeadNumericValue(lead),
+    value:
+      lead.dealAmount != null && Number.isFinite(lead.dealAmount) && lead.dealAmount > 0
+        ? lead.dealAmount
+        : 0,
     source: 'Converted Lead',
     assignedTo: lead.leadOwnerName?.trim() ? lead.leadOwnerName : null,
     createdAt: new Date().toISOString(),

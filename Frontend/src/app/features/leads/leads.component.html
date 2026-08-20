@@ -68,13 +68,29 @@
           <section class="leads__form-section" aria-label="Organization details">
             <h3 class="leads__form-section-title">Organization details</h3>
             <div class="leads__form-grid leads__form-grid--3">
-              <label class="leads__field">
+              <div class="leads__field">
                 <span class="leads__label">Organization <span class="leads__req">*</span></span>
                 <input class="leads__control leads__control--soft" type="text" formControlName="organization" autocomplete="organization" />
+                @if (orgDuplicateSuggestions().length > 0) {
+                  <div class="leads__duplicate-hint" role="status">
+                    <p class="leads__duplicate-title">Similar organizations found</p>
+                    @for (org of orgDuplicateSuggestions(); track org.id) {
+                      <div class="leads__duplicate-row">
+                        <span>{{ org.name }}</span>
+                        <button type="button" class="leads__duplicate-use" (click)="useDuplicateOrganization(org)">
+                          Use existing
+                        </button>
+                      </div>
+                    }
+                    <button type="button" class="leads__duplicate-dismiss" (click)="dismissDuplicateOrganization()">
+                      Continue creating new
+                    </button>
+                  </div>
+                }
                 @if (fieldInvalid('organization')) {
                   <span class="leads__err">Organization is required.</span>
                 }
-              </label>
+              </div>
               <label class="leads__field">
                 <span class="leads__label">No. of employees</span>
                 <select class="leads__control leads__control--soft" formControlName="employees">
@@ -149,8 +165,9 @@
               <label class="leads__field">
                 <span class="leads__label">Source <span class="leads__req">*</span></span>
                 <select class="leads__control leads__control--soft" formControlName="source">
-                  <option value="Manual">Manual</option>
-                  <option value="Website">Website</option>
+                  @for (opt of sourceSelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
+                  }
                 </select>
                 @if (fieldInvalid('source')) {
                   <span class="leads__err">Select a source.</span>
@@ -168,7 +185,7 @@
           <section class="leads__form-section" aria-label="Person info">
             <h3 class="leads__form-section-title">Person info</h3>
             <div class="leads__form-grid leads__form-grid--3">
-              <label class="leads__field">
+              <div class="leads__field">
                 <span class="leads__label">Full name <span class="leads__req">*</span></span>
                 <input
                   class="leads__control leads__control--soft"
@@ -177,10 +194,26 @@
                   autocomplete="name"
                   (blur)="onFullNameBlur()"
                 />
+                @if (contactDuplicateSuggestions().length > 0) {
+                  <div class="leads__duplicate-hint" role="status">
+                    <p class="leads__duplicate-title">Similar contacts found</p>
+                    @for (contact of contactDuplicateSuggestions(); track contact.id) {
+                      <div class="leads__duplicate-row">
+                        <span>{{ contactDisplayName(contact) }}</span>
+                        <button type="button" class="leads__duplicate-use" (click)="useDuplicateContact(contact)">
+                          Use existing
+                        </button>
+                      </div>
+                    }
+                    <button type="button" class="leads__duplicate-dismiss" (click)="dismissDuplicateContact()">
+                      Continue creating new
+                    </button>
+                  </div>
+                }
                 @if (fieldInvalid('fullName')) {
                   <span class="leads__err">Full name is required.</span>
                 }
-              </label>
+              </div>
               <div class="leads__field">
                 <span class="leads__label">Mobile no.</span>
                 <div class="crm-intl-tel-field crm-intl-tel-field--soft">

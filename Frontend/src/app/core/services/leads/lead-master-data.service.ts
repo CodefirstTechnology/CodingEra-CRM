@@ -15,6 +15,7 @@ function masterEntityForSegment(segment: string): string {
   if (s.includes('deal-status') || s.includes('dealstatus')) return 'dealStatus';
   if (s.includes('request')) return 'requestType';
   if (s.includes('employee')) return 'employeeCount';
+  if (s.includes('source')) return 'source';
   return 'unknown';
 }
 
@@ -165,6 +166,11 @@ export class LeadMasterDataService {
   /** Active deal pipeline statuses for dropdowns (`/api/MasterData/deal-statuses`). */
   loadDealStatuses(): Observable<MasterDataOption[]> {
     return this.loadMasterOptions('deal-statuses');
+  }
+
+  /** Active lead sources for dropdowns (`/api/MasterData/sources`). */
+  loadSources(): Observable<MasterDataOption[]> {
+    return this.loadMasterOptions('sources');
   }
 
   private loadMasterOptions(segment: string): Observable<MasterDataOption[]> {

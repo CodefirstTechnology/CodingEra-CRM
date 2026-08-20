@@ -4,6 +4,9 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin, take } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { OrganizationHttpService } from '../../core/services/organizations/organization-http.service';
+import type { OrganizationRow } from '../organizations/organizations.component';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { ContactsService } from '../../core/services/contacts.service';
@@ -52,6 +55,7 @@ export class ContactsComponent {
   private readonly permissions = inject(PermissionService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+  private readonly orgHttp = inject(OrganizationHttpService);
 
   protected canDeleteContacts(): boolean {
     return this.permissions.has('contacts.delete');
@@ -62,21 +66,14 @@ export class ContactsComponent {
   private lastRouteEdit = '';
 
   protected readonly formOpen = signal(false);
+  protected readonly orgDuplicateSuggestions = signal<OrganizationRow[]>([]);
+  private selectedExistingOrgName = '';
+  private selectedOrganizationId: string | null = null;
 
   protected readonly importModalOpen = signal(false);
   protected readonly importModalLazyComponent = signal<any | null>(null);
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
-  protected readonly addressOptions = [
-    '',
-    'Mumbai, Maharashtra',
-    'Bengaluru, Karnataka',
-    'Hyderabad, Telangana',
-    'Pune, Maharashtra',
-    'Chennai, Tamil Nadu',
-    'New Delhi, Delhi',
-    'Other',
-  ] as const;
 
   protected readonly rows = signal<ContactRow[]>([]);
   protected readonly searchQuery = signal('');
@@ -123,6 +120,7 @@ export class ContactsComponent {
 
   constructor() {
     this.refreshContacts();
+    this.setupOrganizationDuplicateDetection();
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
       if (e.kind !== 'contact') return;
       this.refreshContacts();
@@ -191,6 +189,9 @@ export class ContactsComponent {
 
   protected openForm(): void {
     this.editingNumericId.set(null);
+    this.selectedExistingOrgName = '';
+    this.selectedOrganizationId = null;
+    this.orgDuplicateSuggestions.set([]);
     this.clearEditQuery();
     this.createForm.reset({
       firstName: '',
@@ -209,6 +210,9 @@ export class ContactsComponent {
   protected closeForm(): void {
     this.formOpen.set(false);
     this.editingNumericId.set(null);
+    this.selectedExistingOrgName = '';
+    this.selectedOrganizationId = null;
+    this.orgDuplicateSuggestions.set([]);
     this.clearEditQuery();
     this.createForm.reset({
       firstName: '',
@@ -221,6 +225,52 @@ export class ContactsComponent {
       address: '',
     });
     this.createForm.markAsUntouched();
+  }
+
+  protected useDuplicateOrganization(org: OrganizationRow): void {
+    this.selectedExistingOrgName = org.name.trim();
+    this.selectedOrganizationId = String(org.id);
+    this.orgDuplicateSuggestions.set([]);
+    this.createForm.patchValue(
+      {
+        companyName: org.name,
+        ...(org.address?.trim() ? { address: org.address.trim() } : {}),
+      },
+      { emitEvent: false },
+    );
+  }
+
+  protected dismissDuplicateOrganization(): void {
+    this.orgDuplicateSuggestions.set([]);
+  }
+
+  private setupOrganizationDuplicateDetection(): void {
+    this.createForm.controls.companyName.valueChanges
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((name) => {
+        const q = name.trim();
+        if (
+          this.selectedExistingOrgName &&
+          q.toLowerCase() === this.selectedExistingOrgName.toLowerCase()
+        ) {
+          this.orgDuplicateSuggestions.set([]);
+          return;
+        }
+        this.selectedExistingOrgName = '';
+        this.selectedOrganizationId = null;
+        if (q.length < 2) {
+          this.orgDuplicateSuggestions.set([]);
+          return;
+        }
+        this.orgHttp
+          .search(q)
+          .pipe(take(1))
+          .subscribe((rows) => {
+            const lower = q.toLowerCase();
+            const matches = rows.filter((o) => o.name.trim().toLowerCase().includes(lower));
+            this.orgDuplicateSuggestions.set(matches.slice(0, 3));
+          });
+      });
   }
 
   private readonly importModalRequestClose = (): void => this.closeImportModal();
@@ -265,6 +315,9 @@ export class ContactsComponent {
       .subscribe((row) => {
         if (!row) return;
         this.editingNumericId.set(id);
+        this.selectedExistingOrgName = row.organization ?? '';
+        this.selectedOrganizationId = row.organizationId ?? null;
+        this.orgDuplicateSuggestions.set([]);
         this.createForm.patchValue({
           firstName: row.firstName ?? '',
           lastName: row.lastName ?? '',
@@ -274,7 +327,6 @@ export class ContactsComponent {
           companyName: row.organization ?? '',
           designation: row.designation ?? '',
           address: row.address ?? '',
-         
         });
         this.formOpen.set(true);
       });
@@ -356,10 +408,10 @@ export class ContactsComponent {
       phone: raw.mobile.trim(),
       gender: raw.gender,
       organization: raw.companyName.trim(),
+      organizationId: this.selectedOrganizationId ?? undefined,
       designation: raw.designation.trim(),
       address: raw.address,
       lastModified: 'Just now',
-    
     };
 
     const done = () => {

@@ -99,6 +99,7 @@ export interface OrganizationCreateInput {
   industryId?: number | null;
   website?: string;
   gst?: string;
+  address?: string;
   employees?: string;
   employeeCountId?: number | null;
   /** Sent as `annualRevenue` on `OrganizationUpsertDto`; defaults to `0` when omitted. */
@@ -119,6 +120,7 @@ export function organizationCreatePayload(input: OrganizationCreateInput): Recor
     name: String(normalized['name'] ?? ''),
     website: String(normalized['website'] ?? ''),
     gst: String(normalized['gst'] ?? ''),
+    address: input.address?.trim() ?? '',
     annualRevenue:
       input.annualRevenue != null && Number.isFinite(Number(input.annualRevenue))
         ? Number(input.annualRevenue)

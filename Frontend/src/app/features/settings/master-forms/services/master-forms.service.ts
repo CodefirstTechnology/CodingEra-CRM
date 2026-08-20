@@ -147,6 +147,24 @@ export class MasterFormsService {
       );
   }
 
+  delete(entity: MasterFormEntitySlug, id: number): Observable<{ ok: boolean; error?: string }> {
+    const base = this.apiBase();
+    if (!base) {
+      return of({ ok: false, error: 'API URL is not configured.' });
+    }
+
+    return this.http
+      .delete<unknown>(`${base}/master-data/${entity}/${id}`, { headers: this.jsonHeaders() })
+      .pipe(
+        timeout(15000),
+        map((): { ok: boolean; error?: string } => ({ ok: true })),
+        catchError((err) => {
+          const errRes = this.mapError(err);
+          return of({ ok: false, error: errRes.ok ? undefined : errRes.error });
+        }),
+      );
+  }
+
   private upsert(
     entity: MasterFormEntitySlug,
     method: 'POST' | 'PUT',

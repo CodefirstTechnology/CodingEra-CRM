@@ -11,6 +11,7 @@ import { environment } from '../../../environments/environment';
 
 export interface UserStatusChangedEvent {
   userId: string | number;
+  email?: string | null;
   isOnline: boolean;
   lastActiveAt?: string | null;
   firstLoginAt?: string | null;
@@ -32,6 +33,21 @@ export class UserStatusSignalRService {
 
   private isStarting = false;
 
+  private resolveHubUrl(): string {
+    const rawApi = (environment.apiUrl || '').trim().replace(/\/$/, '');
+
+    // 1. If apiUrl is an absolute URL e.g. "https://localhost:7172/api" or "http://localhost:5152/api"
+    if (rawApi.startsWith('http://') || rawApi.startsWith('https://')) {
+      return rawApi.endsWith('/api')
+        ? `${rawApi.slice(0, -4)}/hubs/user-status`
+        : `${rawApi}/hubs/user-status`;
+    }
+
+    // 2. If relative URL e.g. "/api"
+    // Use /hubs/user-status which is proxied by proxy.conf.json in dev and reverse proxy in prod
+    return '/hubs/user-status';
+  }
+
   /**
    * Starts or resumes the SignalR connection to `/hubs/user-status`.
    */
@@ -44,48 +60,45 @@ export class UserStatusSignalRService {
       return;
     }
 
-    const base = (environment.apiUrl || '').replace(/\/$/, '');
-    if (!base) {
-      return;
-    }
-
-    // Convert api base URL (e.g. http://localhost:5000/api -> http://localhost:5000/hubs/user-status)
-    const hubUrl = base.endsWith('/api')
-      ? `${base.slice(0, -4)}/hubs/user-status`
-      : `${base}/hubs/user-status`;
-
+    const hubUrl = this.resolveHubUrl();
     this.isStarting = true;
 
     try {
       if (!this.hubConnection) {
+        console.info('[SignalR] Initializing connection to:', hubUrl);
+
         this.hubConnection = new HubConnectionBuilder()
           .withUrl(hubUrl, {
             skipNegotiation: false,
             transport: HttpTransportType.WebSockets | HttpTransportType.LongPolling,
           })
           .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-          .configureLogging(LogLevel.None)
+          .configureLogging(LogLevel.Information)
           .build();
 
         this.hubConnection.on('UserStatusChanged', (payload: UserStatusChangedEvent) => {
+          console.info('[SignalR] Event received: UserStatusChanged ->', payload);
           this.zone.run(() => {
             this.statusChangedSubject.next(payload);
           });
         });
 
-        this.hubConnection.onreconnecting(() => {
+        this.hubConnection.onreconnecting((err) => {
+          console.warn('[SignalR] Reconnecting...', err);
           this.zone.run(() => {
             this.isConnected.set(false);
           });
         });
 
-        this.hubConnection.onreconnected(() => {
+        this.hubConnection.onreconnected((connectionId) => {
+          console.info('[SignalR] Reconnected! Connection ID:', connectionId);
           this.zone.run(() => {
             this.isConnected.set(true);
           });
         });
 
-        this.hubConnection.onclose(() => {
+        this.hubConnection.onclose((err) => {
+          console.warn('[SignalR] Connection closed:', err);
           this.zone.run(() => {
             this.isConnected.set(false);
           });
@@ -94,11 +107,13 @@ export class UserStatusSignalRService {
 
       if (this.hubConnection.state === HubConnectionState.Disconnected) {
         await this.hubConnection.start();
+        console.info('[SignalR] Connection established successfully! State:', this.hubConnection.state);
         this.zone.run(() => {
           this.isConnected.set(true);
         });
       }
-    } catch {
+    } catch (err) {
+      console.warn('[SignalR] Failed to connect to user-status hub:', err);
       this.zone.run(() => {
         this.isConnected.set(false);
       });

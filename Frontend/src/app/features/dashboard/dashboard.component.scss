@@ -525,7 +525,7 @@
 
 .sales-dash__target-head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 0.85rem;
@@ -537,7 +537,7 @@
 }
 
 .sales-dash__target-title {
-  margin: 0 0 0.35rem;
+  margin: 0;
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--dash-emphasis-muted);

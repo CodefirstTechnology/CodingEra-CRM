@@ -20,6 +20,7 @@ function toCreateInput(data: Omit<OrganizationRow, 'id'>): OrganizationCreateInp
     employees: data.employees,
     employeeCountId: data.employeeCountId,
     annualRevenue: data.annualRevenue,
+    address: data.address,
   };
 }
 

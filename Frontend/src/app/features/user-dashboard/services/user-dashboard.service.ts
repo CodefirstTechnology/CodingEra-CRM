@@ -126,7 +126,7 @@ export class UserDashboardService {
     const monthlyRevenue = closedDeals.reduce((sum, d) => {
       const t = this.parseDate(d.lastModified);
       if (!t || t < monthStart) return sum;
-      return sum + (Number.isFinite(d.annualRevenue) ? d.annualRevenue : 0);
+      return sum + (Number.isFinite(d.dealAmount) && d.dealAmount > 0 ? d.dealAmount : 0);
     }, 0);
 
     const converted = myLeads.filter((l) => l.status === 'Converted' || l.isConverted === true).length;
@@ -171,7 +171,7 @@ export class UserDashboardService {
       dealName: dealDisplayName(deal),
       company: deal.organizationName?.trim() || '—',
       status: deal.status,
-      value: Number.isFinite(deal.dealAmount) ? deal.dealAmount : deal.annualRevenue,
+      value: Number.isFinite(deal.dealAmount) && deal.dealAmount > 0 ? deal.dealAmount : 0,
     };
   }
 
@@ -190,7 +190,7 @@ export class UserDashboardService {
       id: deal.id,
       dealName: dealDisplayName(deal),
       company: deal.organizationName?.trim() || '—',
-      value: Number.isFinite(deal.annualRevenue) ? deal.annualRevenue : deal.dealAmount,
+      value: Number.isFinite(deal.dealAmount) && deal.dealAmount > 0 ? deal.dealAmount : 0,
       closedDate: deal.lastModified?.trim() || '—',
     };
   }
