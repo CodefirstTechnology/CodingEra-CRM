@@ -629,37 +629,50 @@ export class QuotationPdfService {
     doc.setFontSize(7.5);
     doc.setTextColor(0, 0, 0);
     doc.text('BANK DETAILS FOR PAYMENT', margin + 3, leftY + 3.3);
-    leftY += bankBannerH + 2.5;
+
+    const padBankY = 3.0;
+    leftY += bankBannerH + padBankY + 2.4;
 
     doc.setFontSize(8);
     doc.setTextColor(0, 0, 0);
 
     // Account Name
+    let acctX = margin + 3;
     doc.setFont('helvetica', 'bold');
-    doc.text('Account Name:', margin + 3, leftY);
+    doc.text('Account Name: ', acctX, leftY);
+    acctX += doc.getTextWidth('Account Name: ');
     doc.setFont('helvetica', 'normal');
-    doc.text(` ${C.legalName || C.signatureEntity}`, margin + 24, leftY);
+    doc.text(`${C.legalName || C.signatureEntity}`, acctX, leftY);
     leftY += 3.8;
 
     // Bank Name
+    let bankX = margin + 3;
     doc.setFont('helvetica', 'bold');
-    doc.text('Bank:', margin + 3, leftY);
+    doc.text('Bank: ', bankX, leftY);
+    bankX += doc.getTextWidth('Bank: ');
     doc.setFont('helvetica', 'normal');
     const bankVal = C.bankName ? (C.branchName ? `${C.bankName}, ${C.branchName}` : C.bankName) : '—';
-    doc.text(` ${bankVal}`, margin + 11, leftY);
+    doc.text(`${bankVal}`, bankX, leftY);
     leftY += 3.8;
 
     // A/C No & IFSC
+    let noX = margin + 3;
     doc.setFont('helvetica', 'bold');
-    doc.text('A/C No:', margin + 3, leftY);
+    doc.text('A/C No: ', noX, leftY);
+    noX += doc.getTextWidth('A/C No: ');
+
     doc.setFont('helvetica', 'normal');
-    doc.text(` ${C.accountNumber || '—'}`, margin + 14, leftY);
+    const acctNumText = `${C.accountNumber || '—'}  |  `;
+    doc.text(acctNumText, noX, leftY);
+    noX += doc.getTextWidth(acctNumText);
 
     doc.setFont('helvetica', 'bold');
-    doc.text('|  IFSC:', margin + 48, leftY);
+    doc.text('IFSC: ', noX, leftY);
+    noX += doc.getTextWidth('IFSC: ');
+
     doc.setFont('helvetica', 'normal');
-    doc.text(` ${C.ifscCode || '—'}`, margin + 61, leftY);
-    leftY += 4.5;
+    doc.text(`${C.ifscCode || '—'}`, noX, leftY);
+    leftY += padBankY + 1.2;
 
     // Terms Banner
     const termsBannerH = 4.8;
@@ -721,6 +734,19 @@ export class QuotationPdfService {
     doc.text('Freight & Handling:', rLabelX, rightY);
     doc.setFont('helvetica', 'bold');
     doc.text(`Rs. ${this.formatMoney(additionalTotal)}`, rValX, rightY, { align: 'right' });
+    rightY += 1.8;
+    doc.line(dividerX, rightY, margin + contentW, rightY);
+
+    // Transportation Label Row
+    const transLabel =
+      q.transportationLabel?.trim() ||
+      (q as unknown as Record<string, unknown>)['transportation_label']?.toString().trim() ||
+      'Extra at actual';
+    rightY += 3.5;
+    doc.setFont('helvetica', 'normal');
+    doc.text('Transportation:', rLabelX, rightY);
+    doc.setFont('helvetica', 'normal');
+    doc.text(transLabel, rValX, rightY, { align: 'right' });
     rightY += 1.8;
     doc.line(dividerX, rightY, margin + contentW, rightY);
 
@@ -1004,7 +1030,7 @@ export class QuotationPdfService {
     const leftW = contentW - rightW;
 
     // Left Column Height
-    let leftColHeight = 4.8 + 2.5 + 3.8 + 3.8 + 4.5 + 4.8 + 2.5; // Bank banner, details, terms banner
+    let leftColHeight = 4.8 + 3.0 + 2.4 + 3.8 + 3.8 + (3.0 + 1.2) + 4.8 + 2.5; // Bank banner, details, terms banner
     const termsList = C.terms || [];
     termsList.forEach((term, index) => {
       const termBodyClean = term.body.replace(/^:\s*/, '').trim();
@@ -1013,10 +1039,10 @@ export class QuotationPdfService {
       leftColHeight += termLines.length * 3.3;
     });
 
-    // Right Column Height
+    // Right Column Height (Subtotal, GST, Freight, Transportation, Total, Amount in Words)
     const words = this.amountToWords(opts.grandTotal);
     const wordLines = doc.splitTextToSize(words, rightW - 6) as string[];
-    const rightColHeight = (3.5 + 1.8) * 3 + 6.5 + 2.5 + 3.5 + (wordLines.length * 3.3);
+    const rightColHeight = (3.5 + 1.8) * 4 + 6.5 + 2.5 + 3.5 + (wordLines.length * 3.3);
 
     const summaryHeight = Math.max(leftColHeight, rightColHeight, 38) + 2;
     const sigHeight = 22; // Signatory block height
