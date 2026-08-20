@@ -14,6 +14,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { concat, defaultIfEmpty, filter, forkJoin, last, map, Observable, startWith, take, tap } from 'rxjs';
+import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { OrganizationHttpService } from '../../core/services/organizations/organization-http.service';
+import { ContactHttpService } from '../../core/services/contacts/contact-http.service';
+import type { OrganizationRow } from '../organizations/organizations.component';
+import type { ContactRow } from '../contacts/contacts.component';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
 import {
@@ -232,7 +237,12 @@ export class LeadsComponent {
   protected readonly editingNumericId = signal<number | null>(null);
   private lastRouteEdit = '';
 
+  private readonly orgHttp = inject(OrganizationHttpService);
+  private readonly contactHttp = inject(ContactHttpService);
+
   protected readonly formOpen = signal(false);
+  protected readonly orgDuplicateSuggestions = signal<OrganizationRow[]>([]);
+  protected readonly contactDuplicateSuggestions = signal<ContactRow[]>([]);
   /** True when `/leads/:id` detail child route is active. */
   protected readonly detailChildActive = signal(false);
   /** Shown read-only in the lead modal (manual CRM flows only; IndiaMART rows never open this form). */
@@ -253,6 +263,7 @@ export class LeadsComponent {
   private readonly requestTypesFromApi = signal<MasterDataOption[]>([]);
   private readonly industriesFromApi = signal<MasterDataOption[]>([]);
   private readonly leadStatusesFromApi = signal<MasterDataOption[]>([]);
+  private readonly sourcesFromApi = signal<MasterDataOption[]>([]);
 
   /** Dropdown options: API rows when available, else legacy labels (`id` 0 → value is {@link MasterDataOption.name}). */
   protected readonly employeeSelectOptions = computed<MasterDataOption[]>(() => {
@@ -271,6 +282,9 @@ export class LeadsComponent {
     const api = this.industriesFromApi();
     return api.length > 0 ? api : FALLBACK_INDUSTRY_NAMES.map((name) => ({ id: 0, name }));
   });
+  protected readonly sourceSelectOptions = computed<MasterDataOption[]>(() =>
+    this.sourcesFromApi(),
+  );
   protected readonly statusSelectOptions = computed<MasterDataOption[]>(() => {
     const api = this.leadStatusesFromApi();
     const base = api.length > 0 ? api : [...FALLBACK_LEAD_STATUS_OPTIONS];
@@ -421,6 +435,8 @@ export class LeadsComponent {
 
   constructor() {
     this.selectedColumnIds.set(this.loadStoredOptionalColumnIds());
+    this.setupOrganizationDuplicateDetection();
+    this.setupContactDuplicateDetection();
     this.leadOwnerOpts.load();
     this.loadLeadSyncAccess();
     this.detailChildActive.set(!!this.route.firstChild);
@@ -443,6 +459,7 @@ export class LeadsComponent {
       territories: this.leadMasterData.loadTerritories(),
       requestTypes: this.leadMasterData.loadRequestTypes(),
       industries: this.leadMasterData.loadIndustries(),
+      sources: this.leadMasterData.loadSources(),
       leadStatuses: this.leadMasterData.loadLeadStatuses(),
     })
       .pipe(takeUntilDestroyed())
@@ -452,6 +469,7 @@ export class LeadsComponent {
           this.territoriesFromApi.set(r.territories);
           this.requestTypesFromApi.set(r.requestTypes);
           this.industriesFromApi.set(r.industries);
+          this.sourcesFromApi.set(r.sources);
           this.leadStatusesFromApi.set(r.leadStatuses);
         },
       });
@@ -919,8 +937,18 @@ export class LeadsComponent {
     });
   }
 
+  private defaultLeadSourceControlValue(): string {
+    const opts = this.sourceSelectOptions();
+    const manualOpt = opts.find((o) => o.name.trim().toLowerCase() === 'manual') ?? opts[0];
+    return manualOpt ? this.masterOptionFormValue(manualOpt) : 'Manual';
+  }
+
   protected openForm(): void {
     this.editingNumericId.set(null);
+    this.selectedExistingOrgName = '';
+    this.selectedExistingContactName = '';
+    this.orgDuplicateSuggestions.set([]);
+    this.contactDuplicateSuggestions.set([]);
     this.modalLeadSource.set('Manual');
     this.clearEditQuery();
     this.createForm.reset({
@@ -936,7 +964,7 @@ export class LeadsComponent {
       gst: '',
       territory: '',
       industry: '',
-      source: 'Manual',
+      source: this.defaultLeadSourceControlValue(),
       status: '',
       leadOwner: this.defaultLeadOwnerForForm(),
       requestType: '',
@@ -952,6 +980,10 @@ export class LeadsComponent {
   protected closeForm(): void {
     this.formOpen.set(false);
     this.editingNumericId.set(null);
+    this.selectedExistingOrgName = '';
+    this.selectedExistingContactName = '';
+    this.orgDuplicateSuggestions.set([]);
+    this.contactDuplicateSuggestions.set([]);
     this.modalLeadSource.set('Manual');
     this.clearEditQuery();
     this.createForm.reset({
@@ -967,7 +999,7 @@ export class LeadsComponent {
       gst: '',
       territory: '',
       industry: '',
-      source: 'Manual',
+      source: this.defaultLeadSourceControlValue(),
       status: '',
       leadOwner: this.defaultLeadOwnerForForm(),
       requestType: '',
@@ -1029,7 +1061,11 @@ export class LeadsComponent {
             gst: normalizeGstin(row.gst),
             territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
             industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
-            source: row.source || row.leadSource || 'Manual',
+            source: this.masterSelectControlValue(
+              undefined,
+              row.source || row.leadSource || 'Manual',
+              this.sourceSelectOptions(),
+            ),
             status: this.masterSelectControlValue(row.leadStatusId, row.status, this.statusSelectOptions()),
             leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? this.leadOwnerOpts.defaultOwnerId(),
             requestType: this.masterSelectControlValue(
@@ -1635,6 +1671,9 @@ export class LeadsComponent {
     }
     const { firstName, lastName } = splitFullName(raw.fullName);
 
+    const srcPick = this.resolveMasterPick(raw.source, this.sourceSelectOptions());
+    const sourceLabel = (srcPick.label.trim() || raw.source || 'Manual') as LeadSource;
+
     const payload: Omit<LeadRow, 'id'> = {
       salutation: undefined,
       salutationId: undefined,
@@ -1672,8 +1711,8 @@ export class LeadsComponent {
       leadOwnerName,
       owner: initials,
       updated: 'Just now',
-      leadSource: (raw.source as LeadSource) || 'Manual',
-      source: raw.source || 'Manual',
+      leadSource: sourceLabel,
+      source: sourceLabel,
     };
 
     const done = () => {
@@ -2031,5 +2070,166 @@ export class LeadsComponent {
       .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
       .replace(/[_-]+/g, ' ')
       .replace(/\b\w/g, (ch) => ch.toUpperCase());
+  }
+
+  private selectedExistingOrgName = '';
+  private selectedExistingContactName = '';
+
+  protected useDuplicateOrganization(org: OrganizationRow): void {
+    this.selectedExistingOrgName = org.name.trim();
+    this.orgDuplicateSuggestions.set([]);
+    this.applyExistingOrganization(org);
+  }
+
+  protected dismissDuplicateOrganization(): void {
+    this.orgDuplicateSuggestions.set([]);
+  }
+
+  private setupOrganizationDuplicateDetection(): void {
+    this.createForm.controls.organization.valueChanges
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((name) => {
+        const q = name.trim();
+        if (this.selectedExistingOrgName && q.toLowerCase() === this.selectedExistingOrgName.toLowerCase()) {
+          this.orgDuplicateSuggestions.set([]);
+          return;
+        }
+        this.selectedExistingOrgName = '';
+        if (q.length < 2) {
+          this.orgDuplicateSuggestions.set([]);
+          return;
+        }
+        this.orgHttp
+          .search(q)
+          .pipe(take(1))
+          .subscribe((rows) => {
+            const lower = q.toLowerCase();
+            const matches = rows.filter((o) => o.name.trim().toLowerCase().includes(lower));
+            this.orgDuplicateSuggestions.set(matches.slice(0, 3));
+          });
+      });
+  }
+
+  private applyExistingOrganization(org: OrganizationRow): void {
+    this.patchOrganizationFields(org);
+    this.loadLinkedContactForOrganization(org.id);
+  }
+
+  private loadLinkedContactForOrganization(orgId: string): void {
+    const id = Number(orgId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    this.contactHttp
+      .list({ organizationId: id, limit: 10 })
+      .pipe(take(1))
+      .subscribe((contacts) => {
+        const contact = contacts[0];
+        if (!contact) return;
+        this.patchContactFields(contact);
+      });
+  }
+
+  private patchOrganizationFields(org: OrganizationRow): void {
+    const revenue =
+      org.annualRevenue != null && org.annualRevenue !== 0 ? String(org.annualRevenue) : '';
+    this.createForm.patchValue(
+      {
+        organization: org.name,
+        employees: this.masterSelectControlValue(
+          org.employeeCountId,
+          org.employees,
+          this.employeeSelectOptions(),
+        ),
+        annualRevenue: revenue,
+        website: org.website ?? '',
+        gst: normalizeGstin(org.gst),
+        territory: this.masterSelectControlValue(
+          org.territoryId,
+          org.territory,
+          this.territorySelectOptions(),
+        ),
+        industry: this.masterSelectControlValue(
+          org.industryId,
+          org.industry,
+          this.industrySelectOptions(),
+        ),
+        location: (org as any).location ?? (org as any).city ?? (this.createForm.get('location')?.value ?? ''),
+      },
+      { emitEvent: false },
+    );
+  }
+
+  protected useDuplicateContact(contact: ContactRow): void {
+    const name = fullNameFromLeadParts(contact).trim();
+    this.selectedExistingContactName = name;
+    this.contactDuplicateSuggestions.set([]);
+    this.patchContactFields(contact);
+    if (contact.organizationId) {
+      this.loadLinkedOrganizationForContact(String(contact.organizationId));
+    }
+  }
+
+  protected dismissDuplicateContact(): void {
+    this.contactDuplicateSuggestions.set([]);
+  }
+
+  private setupContactDuplicateDetection(): void {
+    this.createForm.controls.fullName.valueChanges
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed())
+      .subscribe((name) => {
+        const q = name.trim();
+        if (this.selectedExistingContactName && q.toLowerCase() === this.selectedExistingContactName.toLowerCase()) {
+          this.contactDuplicateSuggestions.set([]);
+          return;
+        }
+        this.selectedExistingContactName = '';
+        if (q.length < 2) {
+          this.contactDuplicateSuggestions.set([]);
+          return;
+        }
+        this.contactHttp
+          .list({ search: q, limit: 10 })
+          .pipe(take(1))
+          .subscribe((rows) => {
+            const lower = q.toLowerCase();
+            const matches = rows.filter((c) => {
+              const full = fullNameFromLeadParts(c).toLowerCase();
+              return full.includes(lower);
+            });
+            this.contactDuplicateSuggestions.set(matches.slice(0, 3));
+          });
+      });
+  }
+
+  private loadLinkedOrganizationForContact(orgId: string): void {
+    const id = Number(orgId);
+    if (!Number.isFinite(id) || id <= 0) return;
+    this.orgHttp
+      .getById(id)
+      .pipe(take(1))
+      .subscribe((org) => {
+        if (!org) return;
+        this.patchOrganizationFields(org);
+      });
+  }
+
+  private patchContactFields(contact: ContactRow): void {
+    this.createForm.patchValue(
+      {
+        fullName: fullNameFromLeadParts(contact),
+        email: contact.email === '—' ? '' : (contact.email ?? ''),
+        mobile: contact.phone === '—' ? '' : (contact.phone ?? ''),
+        gender: contact.gender ?? '',
+      },
+      { emitEvent: false },
+    );
+    this.clearEmailDuplicate();
+  }
+
+  protected contactDisplayName(contact: ContactRow): string {
+    const name = fullNameFromLeadParts(contact).trim();
+    const extra = [contact.phone, contact.email, contact.organization]
+      .filter((x) => x && x !== '—')
+      .join(' · ');
+    return extra ? `${name} (${extra})` : name;
   }
 }

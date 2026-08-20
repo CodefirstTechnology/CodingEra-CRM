@@ -83,10 +83,18 @@
                 type="button"
                 class="mf-panel__action"
                 [class.mf-panel__action--warn]="row.isActive"
-                [disabled]="togglingId() === row.id"
+                [disabled]="togglingId() === row.id || deleting()"
                 (click)="toggleActive(row)"
               >
                 {{ togglingId() === row.id ? '…' : row.isActive ? 'Disable' : 'Enable' }}
+              </button>
+              <button
+                type="button"
+                class="mf-panel__action mf-panel__action--danger"
+                [disabled]="deleting() || togglingId() === row.id"
+                (click)="confirmDelete(row)"
+              >
+                Delete
               </button>
             </td>
           </tr>
@@ -156,6 +164,29 @@
       [disabled]="saving()"
     >
       {{ submitLabel() }}
+    </button>
+  </div>
+</app-crm-modal>
+
+<app-crm-modal
+  [open]="deleteModalOpen()"
+  [title]="'Delete ' + config().singularLabel"
+  [showFooter]="true"
+  (dismiss)="closeDeleteModal()"
+>
+  <div class="mf-panel__delete-confirm">
+    <p>Are you sure you want to delete <strong>{{ deletingRow()?.name }}</strong>? This action cannot be undone.</p>
+  </div>
+
+  <div crmModalFooter>
+    <button type="button" class="mf-panel__btn mf-panel__btn--ghost" (click)="closeDeleteModal()">Cancel</button>
+    <button
+      type="button"
+      class="mf-panel__btn mf-panel__btn--danger"
+      [disabled]="deleting()"
+      (click)="executeDelete()"
+    >
+      {{ deleting() ? 'Deleting…' : 'Delete' }}
     </button>
   </div>
 </app-crm-modal>

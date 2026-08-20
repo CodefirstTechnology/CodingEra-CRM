@@ -40,16 +40,6 @@ export class ContactDetailComponent {
   protected readonly detailsOpen = signal(true);
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
-  protected readonly addressOptions = [
-    '',
-    'Mumbai, Maharashtra',
-    'Bengaluru, Karnataka',
-    'Hyderabad, Telangana',
-    'Pune, Maharashtra',
-    'Chennai, Tamil Nadu',
-    'New Delhi, Delhi',
-    'Other',
-  ] as const;
 
   protected readonly detailForm = this.fb.nonNullable.group({
     firstName: ['', [Validators.maxLength(80)]],
@@ -260,6 +250,14 @@ export class ContactDetailComponent {
   protected orgDealInitial(org: string): string {
     const t = org.trim();
     return t ? t.charAt(0).toUpperCase() : '?';
+  }
+
+  protected formatDealAmount(value: number | null | undefined): string {
+    if (value == null || !Number.isFinite(value) || value === 0) return '₹0.00';
+    return `₹${value.toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
   }
 
   protected dealOwnerInitials(d: DealRow): string {

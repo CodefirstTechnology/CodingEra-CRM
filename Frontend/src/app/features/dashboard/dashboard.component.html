@@ -97,22 +97,11 @@
       <header class="sales-dash__target-head">
         <div class="sales-dash__target-head-text">
           <h2 class="sales-dash__target-title">Sales target</h2>
-          @if (currentTargetPeriod(); as period) {
-          <span class="sales-dash__target-period">{{ formatTargetPeriodLabel(period.startDate, period.endDate) }}</span>
-          <span class="sales-dash__pill"
-            [class.sales-dash__pill--pos]="targetStatusForPeriod(period) === 'Achieved' || targetStatusForPeriod(period) === 'Exceeded' || targetStatusForPeriod(period) === 'On Track'"
-            style="margin-left: 0.5rem; display: inline-block; vertical-align: middle;">
-            {{ targetStatusForPeriod(period) }}
-          </span>
-          } @else {
-          <span class="sales-dash__target-period">Current</span>
-          }
         </div>
         <div style="display: flex; align-items: center; gap: 0.5rem;">
-          <button type="button" class="sales-dash__target-manage"
-            (click)="toggleTargetViewSource(); $event.stopPropagation();">
-            {{ targetViewSource() === 'current' ? 'Current' : 'Selected' }}
-          </button>
+          @if (currentTargetPeriod(); as period) {
+          <span class="sales-dash__target-period">{{ formatTargetPeriodLabel(period.startDate, period.endDate) }}</span>
+          }
           <a class="sales-dash__target-manage" routerLink="/advanced-settings" [queryParams]="{ tab: 'User Targets' }"
             (click)="$event.stopPropagation()">
             Manage
@@ -151,14 +140,8 @@
         <p class="sales-dash__target-remaining">
           <span>{{ formatMoney(targetRemainingForPeriod(period)) }}</span> remaining
         </p>
-        @if (data.kpis.revenueChangePct !== undefined) {
-        <span style="font-size: 0.75rem; margin-top: 0.25rem; display: block; font-weight: 500; text-align: center;"
-          [style.color]="data.kpis.revenueChangePct > 0 ? '#10b981' : (data.kpis.revenueChangePct < 0 ? '#ef4444' : 'var(--dash-emphasis-muted)')">
-          {{ data.kpis.revenueChangePct > 0 ? '↑' : (data.kpis.revenueChangePct < 0 ? '↓' : '' ) }} {{
-            Math.abs(data.kpis.revenueChangePct) }}% vs last period </span>
-            }
 
-            <div class="sales-dash__target-stats">
+        <div class="sales-dash__target-stats">
               <div class="sales-dash__target-stat sales-dash__target-stat--achieved">
                 <span class="sales-dash__target-stat-label">Achieved</span>
                 <span class="sales-dash__target-stat-value">{{ formatMoney(period.achievedAmount) }}</span>
@@ -169,7 +152,6 @@
               </div>
             </div>
 
-            @if (targetViewSource() === 'current') {
             @if (viewingTargetMode() === 'active' && previousTargetPeriods().length > 0) {
             <div style="margin-top: 0.5rem;" (click)="$event.stopPropagation()">
               <select class="sales-dash__target-setup"
@@ -204,7 +186,6 @@
               </a>
             </div>
             }
-            }
             } @else {
             <p class="sales-dash__target-empty" style="margin-top: 1rem; margin-bottom: 0.5rem;">No active sales target
               configured.</p>
@@ -215,7 +196,7 @@
               Set New Target
             </a>
 
-            @if (targetViewSource() === 'current' && previousTargetPeriods().length > 0) {
+            @if (previousTargetPeriods().length > 0) {
             <div style="margin-top: 0.5rem;" (click)="$event.stopPropagation()">
               <select class="sales-dash__target-setup"
                 style="width: 100%; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"

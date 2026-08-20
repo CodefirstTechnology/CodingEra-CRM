@@ -28,6 +28,9 @@ export class MasterFormPanelComponent {
   protected readonly editingId = signal<number | null>(null);
   protected readonly saving = signal(false);
   protected readonly togglingId = signal<number | null>(null);
+  protected readonly deleteModalOpen = signal(false);
+  protected readonly deletingRow = signal<MasterFormRow | null>(null);
+  protected readonly deleting = signal(false);
 
   protected readonly form = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(128)]],
@@ -70,6 +73,7 @@ export class MasterFormPanelComponent {
       const cfg = this.config();
       this.searchQuery.set('');
       this.closeModal();
+      this.closeDeleteModal();
       this.reload(cfg);
     });
   }
@@ -241,6 +245,42 @@ export class MasterFormPanelComponent {
           this.toast.error('Could not reorder stages.');
         },
       });
+  }
+
+  protected confirmDelete(row: MasterFormRow): void {
+    this.deletingRow.set(row);
+    this.deleteModalOpen.set(true);
+  }
+
+  protected closeDeleteModal(): void {
+    this.deleteModalOpen.set(false);
+    this.deletingRow.set(null);
+    this.deleting.set(false);
+  }
+
+  protected executeDelete(): void {
+    const row = this.deletingRow();
+    if (!row || this.deleting()) return;
+
+    const cfg = this.config();
+    this.deleting.set(true);
+
+    this.api.delete(cfg.slug, row.id).subscribe({
+      next: (res) => {
+        this.deleting.set(false);
+        if (!res.ok) {
+          this.toast.error(res.error || 'Could not delete record.');
+          return;
+        }
+        this.toast.success('Record deleted.');
+        this.closeDeleteModal();
+        this.reload(cfg);
+      },
+      error: () => {
+        this.deleting.set(false);
+        this.toast.error('Could not delete record. Please try again.');
+      },
+    });
   }
 
   protected formatDate(value: string | null): string {

@@ -445,3 +445,44 @@ select.contacts__control.contacts__control--soft {
     text-decoration: underline;
   }
 }
+
+.contacts__duplicate-hint {
+  margin-top: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--tertiary-color) 25%, var(--card-border));
+  background: color-mix(in srgb, var(--tertiary-color) 8%, var(--surface));
+}
+
+.contacts__duplicate-title {
+  margin: 0 0 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.contacts__duplicate-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.35rem 0;
+  font-size: 0.8125rem;
+}
+
+.contacts__duplicate-use,
+.contacts__duplicate-dismiss {
+  border: none;
+  background: transparent;
+  color: var(--tertiary-color);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+.contacts__duplicate-dismiss {
+  margin-top: 0.35rem;
+  color: var(--text-muted);
+}
+

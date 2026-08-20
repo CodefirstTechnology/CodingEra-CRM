@@ -107,11 +107,12 @@
             </label>
             <label class="contact-detail__row">
               <span class="contact-detail__row-label">Address</span>
-              <select class="contact-detail__input" formControlName="address">
-                @for (a of addressOptions; track a) {
-                <option [value]="a">{{ a === '' ? sidebarPlaceholder('Address') : a }}</option>
-                }
-              </select>
+              <input
+                type="text"
+                class="contact-detail__input"
+                formControlName="address"
+                placeholder="Enter address"
+              />
             </label>
           </div>
         </div>
@@ -168,7 +169,7 @@
                   <a class="contact-detail__org-link" [routerLink]="['/deals', d.id]">{{ d.organizationName }}</a>
                 </span>
               </td>
-              <td>{{ d.annualRevenue }}</td>
+              <td>{{ formatDealAmount(d.dealAmount) }}</td>
               <td>
                 <span class="contact-detail__status-cell">
                   <span class="contact-detail__status-dot" [class]="dealStatusDotClass(d.status)" aria-hidden="true"></span>

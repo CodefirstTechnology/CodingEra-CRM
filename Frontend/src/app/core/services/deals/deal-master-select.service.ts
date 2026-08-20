@@ -38,6 +38,7 @@ export class DealMasterSelectService {
     territoryWithBlank(labelsToMasterOptions([...ORG_TERRITORY_FALLBACK_LABELS])),
   );
   private readonly industries = signal<MasterDataOption[]>(INDUSTRY_FALLBACK);
+  private readonly sources = signal<MasterDataOption[]>([]);
   private readonly statuses = signal<MasterDataOption[]>([...FALLBACK_DEAL_STATUS_OPTIONS]);
   private statusesReady$?: Observable<readonly MasterDataOption[]>;
 
@@ -47,6 +48,7 @@ export class DealMasterSelectService {
   readonly employeeSelectOptions = computed(() => this.employees());
   readonly territorySelectOptions = computed(() => this.territories());
   readonly industrySelectOptions = computed(() => this.industries());
+  readonly sourceSelectOptions = computed(() => this.sources());
   readonly statusSelectOptions = computed(() => this.statuses());
 
   /** Resolves when deal-status master data is loaded (needed before POST /api/deals). */
@@ -66,9 +68,10 @@ export class DealMasterSelectService {
       employees: this.master.loadEmployeeCounts(),
       territories: this.master.loadTerritories(),
       industries: this.master.loadIndustries(),
+      sources: this.master.loadSources(),
       statuses: this.master.loadDealStatuses(),
     }).pipe(
-      tap(({ salutations, employees, territories, industries, statuses }) => {
+      tap(({ salutations, employees, territories, industries, sources, statuses }) => {
         this.salutations.set(buildSalutationSelectOptions(salutations));
         this.employees.set(mergeApiOrFallback(employees, EMPLOYEE_FALLBACK));
         const tMid = territories.length
@@ -76,6 +79,7 @@ export class DealMasterSelectService {
           : labelsToMasterOptions([...ORG_TERRITORY_FALLBACK_LABELS]);
         this.territories.set(territoryWithBlank(tMid));
         this.industries.set(mergeApiOrFallback(industries, INDUSTRY_FALLBACK));
+        this.sources.set(sources);
         this.statuses.set(
           statuses.length ? mergeApiOrFallback(statuses, [...FALLBACK_DEAL_STATUS_OPTIONS]) : [...FALLBACK_DEAL_STATUS_OPTIONS],
         );

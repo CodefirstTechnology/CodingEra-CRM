@@ -1,7 +1,14 @@
 {
+  "/hubs/**": {
+    "target": "https://localhost:7172",
+    "secure": false,
+    "ws": true,
+    "changeOrigin": true
+  },
   "/api/**": {
     "target": "https://localhost:7172",
     "secure": false,
+    "ws": true,
     "changeOrigin": true
   },
   "/indiamart-mapi/**": {
