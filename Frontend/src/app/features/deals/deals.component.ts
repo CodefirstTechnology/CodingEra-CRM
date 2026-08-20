@@ -839,6 +839,7 @@ export class DealsComponent {
   private resetCreateForm(): void {
     const defaultIndustry = this.dealMaster.industrySelectOptions()[0];
     const defaultEmployees = this.dealMaster.employeeSelectOptions()[0];
+    const defaultSource = this.dealMaster.sourceSelectOptions()[0];
     this.orgDuplicateSuggestions.set([]);
     this.createForm.reset({
       useExistingOrg: false,
@@ -853,7 +854,7 @@ export class DealsComponent {
       gst: '',
       territory: '',
       industry: defaultIndustry ? masterOptionFormValue(defaultIndustry) : 'Technology',
-      source: 'Manual',
+      source: defaultSource ? masterOptionFormValue(defaultSource) : 'Manual',
       fullName: '',
       primaryMobile: '',
       primaryEmail: '',
@@ -1080,6 +1081,7 @@ export class DealsComponent {
     const empPick = resolveOrgMasterPick(raw.employees, this.dealMaster.employeeSelectOptions());
     const terrPick = resolveOrgMasterPick(raw.territory, this.dealMaster.territorySelectOptions());
     const indPick = resolveOrgMasterPick(raw.industry, this.dealMaster.industrySelectOptions());
+    const srcPick = resolveOrgMasterPick(raw.source, this.dealMaster.sourceSelectOptions());
     const statPick = resolveOrgMasterPick(raw.status, this.dealMaster.statusSelectOptions());
     const { firstName, lastName } = splitFullName(raw.fullName);
     const selectedOrgId = raw.selectedOrganizationId.trim();
@@ -1113,7 +1115,7 @@ export class DealsComponent {
       probabilityPercent: 10,
       nextStep: '',
       requirement: raw.requirement.trim() || undefined,
-      source: raw.source || 'Manual',
+      source: srcPick.label.trim() || raw.source || 'Manual',
     };
 
     if (selectedOrgId) {

@@ -5,7 +5,8 @@ export type MasterFormEntitySlug =
   | 'request-types'
   | 'industries'
   | 'employee-counts'
-  | 'territories';
+  | 'territories'
+  | 'sources';
 
 export interface MasterFormEntityConfig {
   slug: MasterFormEntitySlug;
@@ -83,6 +84,12 @@ export const MASTER_FORM_ENTITIES: readonly MasterFormEntityConfig[] = [
     label: 'Territories',
     singularLabel: 'Territory',
     description: 'Sales territories and regions.',
+  },
+  {
+    slug: 'sources',
+    label: 'Sources',
+    singularLabel: 'Source',
+    description: 'Lead generation sources (Manual, Website, marketplaces, referrals, outreach).',
   },
 ] as const;
 

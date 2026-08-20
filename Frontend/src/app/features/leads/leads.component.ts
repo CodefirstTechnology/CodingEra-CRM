@@ -263,6 +263,7 @@ export class LeadsComponent {
   private readonly requestTypesFromApi = signal<MasterDataOption[]>([]);
   private readonly industriesFromApi = signal<MasterDataOption[]>([]);
   private readonly leadStatusesFromApi = signal<MasterDataOption[]>([]);
+  private readonly sourcesFromApi = signal<MasterDataOption[]>([]);
 
   /** Dropdown options: API rows when available, else legacy labels (`id` 0 → value is {@link MasterDataOption.name}). */
   protected readonly employeeSelectOptions = computed<MasterDataOption[]>(() => {
@@ -281,6 +282,9 @@ export class LeadsComponent {
     const api = this.industriesFromApi();
     return api.length > 0 ? api : FALLBACK_INDUSTRY_NAMES.map((name) => ({ id: 0, name }));
   });
+  protected readonly sourceSelectOptions = computed<MasterDataOption[]>(() =>
+    this.sourcesFromApi(),
+  );
   protected readonly statusSelectOptions = computed<MasterDataOption[]>(() => {
     const api = this.leadStatusesFromApi();
     const base = api.length > 0 ? api : [...FALLBACK_LEAD_STATUS_OPTIONS];
@@ -455,6 +459,7 @@ export class LeadsComponent {
       territories: this.leadMasterData.loadTerritories(),
       requestTypes: this.leadMasterData.loadRequestTypes(),
       industries: this.leadMasterData.loadIndustries(),
+      sources: this.leadMasterData.loadSources(),
       leadStatuses: this.leadMasterData.loadLeadStatuses(),
     })
       .pipe(takeUntilDestroyed())
@@ -464,6 +469,7 @@ export class LeadsComponent {
           this.territoriesFromApi.set(r.territories);
           this.requestTypesFromApi.set(r.requestTypes);
           this.industriesFromApi.set(r.industries);
+          this.sourcesFromApi.set(r.sources);
           this.leadStatusesFromApi.set(r.leadStatuses);
         },
       });
@@ -931,6 +937,12 @@ export class LeadsComponent {
     });
   }
 
+  private defaultLeadSourceControlValue(): string {
+    const opts = this.sourceSelectOptions();
+    const manualOpt = opts.find((o) => o.name.trim().toLowerCase() === 'manual') ?? opts[0];
+    return manualOpt ? this.masterOptionFormValue(manualOpt) : 'Manual';
+  }
+
   protected openForm(): void {
     this.editingNumericId.set(null);
     this.selectedExistingOrgName = '';
@@ -952,7 +964,7 @@ export class LeadsComponent {
       gst: '',
       territory: '',
       industry: '',
-      source: 'Manual',
+      source: this.defaultLeadSourceControlValue(),
       status: '',
       leadOwner: this.defaultLeadOwnerForForm(),
       requestType: '',
@@ -987,7 +999,7 @@ export class LeadsComponent {
       gst: '',
       territory: '',
       industry: '',
-      source: 'Manual',
+      source: this.defaultLeadSourceControlValue(),
       status: '',
       leadOwner: this.defaultLeadOwnerForForm(),
       requestType: '',
@@ -1049,7 +1061,11 @@ export class LeadsComponent {
             gst: normalizeGstin(row.gst),
             territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
             industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
-            source: row.source || row.leadSource || 'Manual',
+            source: this.masterSelectControlValue(
+              undefined,
+              row.source || row.leadSource || 'Manual',
+              this.sourceSelectOptions(),
+            ),
             status: this.masterSelectControlValue(row.leadStatusId, row.status, this.statusSelectOptions()),
             leadOwner: ownerOpt?.id ?? row.leadOwnerId ?? this.leadOwnerOpts.defaultOwnerId(),
             requestType: this.masterSelectControlValue(
@@ -1655,6 +1671,9 @@ export class LeadsComponent {
     }
     const { firstName, lastName } = splitFullName(raw.fullName);
 
+    const srcPick = this.resolveMasterPick(raw.source, this.sourceSelectOptions());
+    const sourceLabel = (srcPick.label.trim() || raw.source || 'Manual') as LeadSource;
+
     const payload: Omit<LeadRow, 'id'> = {
       salutation: undefined,
       salutationId: undefined,
@@ -1692,8 +1711,8 @@ export class LeadsComponent {
       leadOwnerName,
       owner: initials,
       updated: 'Just now',
-      leadSource: (raw.source as LeadSource) || 'Manual',
-      source: raw.source || 'Manual',
+      leadSource: sourceLabel,
+      source: sourceLabel,
     };
 
     const done = () => {

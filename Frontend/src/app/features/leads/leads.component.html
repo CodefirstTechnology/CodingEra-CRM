@@ -165,8 +165,9 @@
               <label class="leads__field">
                 <span class="leads__label">Source <span class="leads__req">*</span></span>
                 <select class="leads__control leads__control--soft" formControlName="source">
-                  <option value="Manual">Manual</option>
-                  <option value="Website">Website</option>
+                  @for (opt of sourceSelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
+                  }
                 </select>
                 @if (fieldInvalid('source')) {
                   <span class="leads__err">Select a source.</span>
