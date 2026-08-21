@@ -1,9 +1,48 @@
 import type { LeadStatus } from '../../leads/lead-row.model';
 
+export type UserDashboardPeriodKey =
+  | 'today'
+  | 'this_week'
+  | 'this_month'
+  | 'last_month'
+  | 'custom';
+
+export interface UserDashboardPeriodOption {
+  key: UserDashboardPeriodKey;
+  label: string;
+}
+
+export const USER_DASHBOARD_PERIOD_OPTIONS: readonly UserDashboardPeriodOption[] = [
+  { key: 'today', label: 'Today' },
+  { key: 'this_week', label: 'This week' },
+  { key: 'this_month', label: 'This month' },
+  { key: 'last_month', label: 'Last month' },
+  { key: 'custom', label: 'Custom range' },
+] as const;
+
+export interface UserDashboardCustomRange {
+  start: Date;
+  end: Date;
+}
+
+export interface UserDashboardPeriodInfo {
+  key: UserDashboardPeriodKey;
+  label: string;
+  start: Date;
+  end: Date;
+}
+
+export interface UserDashboardFilters {
+  periodKey: UserDashboardPeriodKey;
+  customRange?: UserDashboardCustomRange | null;
+}
+
 export interface UserDashboardKpis {
   myLeads: number;
+  wonDeals: number;
   activeDeals: number;
   followUpsToday: number;
+  quotations: number;
   tasksPending: number;
   meetingsToday: number;
   monthlyRevenue: number;
@@ -54,8 +93,10 @@ export interface UserDashboardLeadStatusSummary {
 export type UserDashboardKpiDetailKind =
   | 'leads'
   | 'deals'
+  | 'wonDeals'
   | 'followUps'
   | 'followUpsAll'
+  | 'quotations'
   | 'tasks'
   | 'meetings'
   | 'revenue';
@@ -66,6 +107,16 @@ export interface UserDashboardDealDetail {
   company: string;
   status: string;
   value: number;
+}
+
+export interface UserDashboardQuotationDetail {
+  id: number;
+  quotationNumber: string;
+  customerName: string;
+  companyName: string;
+  status: string;
+  grandTotal: number;
+  quotationDate: string;
 }
 
 export interface UserDashboardTaskDetail {
@@ -85,6 +136,7 @@ export interface UserDashboardRevenueDealDetail {
 }
 
 export interface UserDashboardSnapshot {
+  period: UserDashboardPeriodInfo;
   kpis: UserDashboardKpis;
   assignedLeads: UserDashboardLeadTableRow[];
   todaysLeads: UserDashboardLeadTableRow[];
@@ -93,6 +145,8 @@ export interface UserDashboardSnapshot {
   performance: UserDashboardPerformance;
   statusSummary: UserDashboardLeadStatusSummary[];
   activeDealDetails: UserDashboardDealDetail[];
+  wonDealDetails: UserDashboardDealDetail[];
+  quotationDetails: UserDashboardQuotationDetail[];
   pendingTaskDetails: UserDashboardTaskDetail[];
   monthlyRevenueDeals: UserDashboardRevenueDealDetail[];
 }
