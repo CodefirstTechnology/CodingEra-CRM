@@ -267,10 +267,6 @@ export class UserDashboardComponent {
     this.createFlow.selectEntity(kind);
   }
 
-  protected scheduleMeeting(): void {
-    this.createFlow.selectEntity('task');
-  }
-
   protected readonly targetDonutCircumference = 238.76;
 
   protected getDonutOffset(achievementPercent: number): number {
@@ -287,10 +283,12 @@ export class UserDashboardComponent {
     if (!data) return;
 
     const titles: Record<UserDashboardKpiDetailKind, string> = {
-      leads: `My leads (${data.kpis.myLeads})`,
+      leads: `Total leads (${data.kpis.myLeads})`,
       deals: `Active deals (${data.kpis.activeDeals})`,
+      wonDeals: `Won deals (${data.kpis.wonDeals})`,
       followUps: `Follow-ups (${data.kpis.followUpsToday})`,
       followUpsAll: `Follow-ups & meetings (${data.followUps.length})`,
+      quotations: `Quotations (${data.kpis.quotations})`,
       tasks: `Tasks pending (${data.kpis.tasksPending})`,
       meetings: `Meetings (${data.kpis.meetingsToday})`,
       revenue: `Revenue in period (${this.formatRevenue(data.kpis.monthlyRevenue)})`,

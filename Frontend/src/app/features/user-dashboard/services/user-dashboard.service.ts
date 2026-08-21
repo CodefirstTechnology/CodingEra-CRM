@@ -36,10 +36,12 @@ import type {
   UserDashboardLeadTableRow,
   UserDashboardPerformance,
   UserDashboardPeriodKey,
+  UserDashboardQuotationDetail,
   UserDashboardRevenueDealDetail,
   UserDashboardSnapshot,
   UserDashboardTaskDetail,
 } from '../models/user-dashboard.models';
+import type { QuotationListItem } from '../../../core/services/quotations/quotation-api.models';
 
 @Injectable({ providedIn: 'root' })
 export class UserDashboardService {
@@ -67,8 +69,9 @@ export class UserDashboardService {
       leads: this.entityCache.listLeads().pipe(catchError(() => of([] as LeadRow[]))),
       deals: this.entityCache.listDeals().pipe(catchError(() => of([] as DealRow[]))),
       tasks: this.scope.listTasks().pipe(catchError(() => of([] as TaskRow[]))),
+      quotations: this.scope.listQuotations().pipe(catchError(() => of([] as QuotationListItem[]))),
     }).pipe(
-      switchMap(({ leads, deals, tasks }) => {
+      switchMap(({ leads, deals, tasks, quotations }) => {
         const enriched = this.leadOwnerOpts.enrichRows(leads);
 
         const leadIds = new Set(
@@ -85,7 +88,7 @@ export class UserDashboardService {
             map((activities) => {
               const entityNames = buildActivityEntityNameMap(enriched, deals);
               return {
-                data: this.buildSnapshot(enriched, deals, tasks, activities, entityNames, filters),
+                data: this.buildSnapshot(enriched, deals, tasks, quotations, activities, entityNames, filters),
                 error: null as string | null,
               };
             }),
@@ -101,6 +104,7 @@ export class UserDashboardService {
     allUserLeads: LeadRow[],
     allUserDeals: DealRow[],
     allUserTasks: TaskRow[],
+    quotations: QuotationListItem[],
     activities: ActivityRow[],
     entityNames: Map<string, string>,
     filters?: Partial<UserDashboardFilters>,
@@ -127,6 +131,12 @@ export class UserDashboardService {
     // Filter Tasks by active period
     const filteredTasks = allUserTasks.filter((t) => {
       const recDate = parseDashboardDate(t.dueDateRaw || t.dueDate || t.lastModified);
+      return recDate ? this.isDateInPeriod(recDate, periodStart, periodEnd) : true;
+    });
+
+    // Filter Quotations by active period
+    const filteredQuotations = (quotations || []).filter((q) => {
+      const recDate = parseDashboardDate(q.quotationDate || q.createdAt || q.updatedAt);
       return recDate ? this.isDateInPeriod(recDate, periodStart, periodEnd) : true;
     });
 
@@ -173,6 +183,16 @@ export class UserDashboardService {
       })
       .map((row) => this.toDashboardActivityItem(row, entityNames));
 
+    const quotationDetails: UserDashboardQuotationDetail[] = filteredQuotations.map((q) => ({
+      id: q.id,
+      quotationNumber: q.quotationNumber || `QT-${q.id}`,
+      customerName: q.customerName || q.contactPerson || '—',
+      companyName: q.companyName || '—',
+      status: q.status || 'Draft',
+      grandTotal: Number.isFinite(q.grandTotal) ? q.grandTotal : 0,
+      quotationDate: q.quotationDate || q.createdAt || '—',
+    }));
+
     return {
       period: {
         key: period.key as UserDashboardPeriodKey,
@@ -182,8 +202,10 @@ export class UserDashboardService {
       },
       kpis: {
         myLeads: filteredLeads.length,
+        wonDeals: closedWonDeals.length,
         activeDeals: activeDeals.length,
         followUpsToday: followUps.filter((f) => f.kind !== 'meeting').length,
+        quotations: filteredQuotations.length,
         tasksPending: pendingTasks.length,
         meetingsToday: followUps.filter((f) => f.kind === 'meeting').length,
         monthlyRevenue: periodRevenue,
@@ -202,6 +224,8 @@ export class UserDashboardService {
       } satisfies UserDashboardPerformance,
       statusSummary: this.buildStatusSummary(filteredLeads),
       activeDealDetails: activeDeals.map((d) => this.toDealDetail(d)),
+      wonDealDetails: closedWonDeals.map((d) => this.toDealDetail(d)),
+      quotationDetails,
       pendingTaskDetails: pendingTasks.map((t) => this.toTaskDetail(t)),
       monthlyRevenueDeals: closedWonDeals.map((d) => this.toRevenueDealDetail(d)),
     };

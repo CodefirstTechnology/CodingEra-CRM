@@ -39,8 +39,10 @@ export interface UserDashboardFilters {
 
 export interface UserDashboardKpis {
   myLeads: number;
+  wonDeals: number;
   activeDeals: number;
   followUpsToday: number;
+  quotations: number;
   tasksPending: number;
   meetingsToday: number;
   monthlyRevenue: number;
@@ -91,8 +93,10 @@ export interface UserDashboardLeadStatusSummary {
 export type UserDashboardKpiDetailKind =
   | 'leads'
   | 'deals'
+  | 'wonDeals'
   | 'followUps'
   | 'followUpsAll'
+  | 'quotations'
   | 'tasks'
   | 'meetings'
   | 'revenue';
@@ -103,6 +107,16 @@ export interface UserDashboardDealDetail {
   company: string;
   status: string;
   value: number;
+}
+
+export interface UserDashboardQuotationDetail {
+  id: number;
+  quotationNumber: string;
+  customerName: string;
+  companyName: string;
+  status: string;
+  grandTotal: number;
+  quotationDate: string;
 }
 
 export interface UserDashboardTaskDetail {
@@ -131,6 +145,8 @@ export interface UserDashboardSnapshot {
   performance: UserDashboardPerformance;
   statusSummary: UserDashboardLeadStatusSummary[];
   activeDealDetails: UserDashboardDealDetail[];
+  wonDealDetails: UserDashboardDealDetail[];
+  quotationDetails: UserDashboardQuotationDetail[];
   pendingTaskDetails: UserDashboardTaskDetail[];
   monthlyRevenueDeals: UserDashboardRevenueDealDetail[];
 }

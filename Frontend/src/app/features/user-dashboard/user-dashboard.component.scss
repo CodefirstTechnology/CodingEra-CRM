@@ -163,33 +163,40 @@
 
 .udash__kpis {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.85rem;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
 
-  @media (max-width: 1100px) {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+  @media (max-width: 960px) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  @media (max-width: 560px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
   }
 }
 
 .udash__kpi {
-  padding: 1rem 1.1rem;
-  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 76px;
+  max-height: 80px;
+  padding: 0.7rem 1rem;
+  border-radius: 12px;
   background: color-mix(in srgb, var(--surface) 88%, transparent);
   border: 1px solid var(--card-border);
   backdrop-filter: blur(10px);
   box-shadow: var(--shadow-card);
+  box-sizing: border-box;
   transition:
-    transform 0.25s ease,
-    box-shadow 0.25s ease;
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 
   &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 12px 32px rgb(15 23 42 / 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgb(15 23 42 / 0.08);
   }
 
   &--click {
@@ -212,7 +219,8 @@
   }
 
   &--skeleton {
-    min-height: 88px;
+    height: 76px;
+    max-height: 80px;
     animation: udash-pulse 1.2s ease-in-out infinite;
     background: linear-gradient(
       90deg,
@@ -227,10 +235,13 @@
     border-color: color-mix(in srgb, #3b82f6 35%, var(--card-border));
   }
   &--deals {
-    border-color: color-mix(in srgb, #8b5cf6 35%, var(--card-border));
+    border-color: color-mix(in srgb, #10b981 35%, var(--card-border));
   }
   &--follow {
     border-color: color-mix(in srgb, #f59e0b 35%, var(--card-border));
+  }
+  &--quotes {
+    border-color: color-mix(in srgb, #8b5cf6 35%, var(--card-border));
   }
   &--tasks {
     border-color: color-mix(in srgb, #10b981 35%, var(--card-border));
@@ -255,18 +266,20 @@
 
 .udash__kpi-label {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: 0.71875rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
+  line-height: 1.2;
 }
 
 .udash__kpi-value {
-  margin: 0.35rem 0 0;
-  font-size: 1.65rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  margin: 0.2rem 0 0;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
 }
 
 /* Filter Bar Controls */
@@ -584,6 +597,51 @@
   }
 }
 
+/* Add Follow-up Filter Bar Action Button */
+.udash__filter-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--tertiary-color) 32%, var(--card-border));
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.06);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease,
+    color 0.15s ease,
+    transform 0.15s ease;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    border-color: color-mix(in srgb, var(--tertiary-color) 55%, var(--card-border));
+    background: color-mix(in srgb, var(--tertiary-color) 8%, var(--surface));
+    color: var(--tertiary-color);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--tertiary-color) 16%, transparent);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--tertiary-color);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+}
+
+.udash__filter-add-icon {
+  flex-shrink: 0;
+  color: var(--tertiary-color);
+}
+
 /* Filter Summary Meta */
 .udash__filters-meta {
   display: flex;
@@ -605,38 +663,6 @@
 
 .udash__filter-active-dot {
   color: var(--tertiary-color);
-}
-
-.udash__quick {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.55rem;
-  margin-bottom: 1.5rem;
-  padding: 0.85rem 1rem;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--surface) 90%, transparent);
-  border: 1px solid var(--card-border);
-}
-
-.udash__quick-btn {
-  border: 1px solid color-mix(in srgb, var(--tertiary-color) 30%, var(--card-border));
-  border-radius: 999px;
-  padding: 0.45rem 0.95rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-  color: var(--text-primary);
-  background: var(--surface);
-  transition:
-    transform 0.2s ease,
-    background 0.2s ease,
-    box-shadow 0.2s ease;
-
-  &:hover {
-    transform: translateY(-2px);
-    background: color-mix(in srgb, var(--tertiary-color) 8%, var(--surface));
-    box-shadow: 0 8px 24px rgb(37 99 235 / 0.12);
-  }
 }
 
 .udash__grid--main {
@@ -901,22 +927,26 @@
 }
 
 .udash__follow {
-  padding: 0.75rem 0.85rem;
+  padding: 0.85rem 1rem;
   margin-bottom: 0.5rem;
-  border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--card-border) 80%, transparent);
-  background: color-mix(in srgb, var(--surface) 95%, transparent);
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--card-border) 60%, rgba(51, 65, 85, 0.6));
+  background: color-mix(in srgb, var(--surface) 90%, #0f172a);
+  color: var(--text-primary, #f8fafc);
   transition:
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease,
+    box-shadow 0.15s ease;
 
   &--overdue {
-    border-color: #fecaca;
-    background: #fef2f2;
+    border: 1px solid color-mix(in srgb, #f43f5e 35%, rgba(136, 19, 55, 0.45));
+    background: color-mix(in srgb, #f43f5e 8%, #111827);
 
     .udash__follow-badge {
-      background: #fee2e2;
-      color: #b91c1c;
+      background: rgba(244, 63, 94, 0.18);
+      color: #fb7185;
+      border: 1px solid rgba(244, 63, 94, 0.35);
     }
   }
 
@@ -934,8 +964,16 @@
     appearance: none;
 
     &:hover {
-      border-color: color-mix(in srgb, var(--tertiary-color) 35%, var(--card-border));
-      box-shadow: 0 4px 12px color-mix(in srgb, var(--tertiary-color) 8%, transparent);
+      transform: translateY(-1px);
+      border-color: color-mix(in srgb, var(--tertiary-color) 45%, var(--card-border));
+      background: color-mix(in srgb, var(--tertiary-color) 10%, var(--surface));
+      box-shadow: 0 4px 16px color-mix(in srgb, var(--tertiary-color) 12%, transparent);
+    }
+
+    &.udash__follow--overdue:hover {
+      border-color: rgba(244, 63, 94, 0.6);
+      background: color-mix(in srgb, #f43f5e 14%, #111827);
+      box-shadow: 0 4px 16px rgba(244, 63, 94, 0.16);
     }
 
     &:focus-visible {
@@ -946,24 +984,34 @@
 }
 
 .udash__follow-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   font-size: 0.6875rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  padding: 0.12rem 0.45rem;
+  letter-spacing: 0.04em;
+  padding: 0.15rem 0.55rem;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--tertiary-color) 12%, transparent);
+  background: color-mix(in srgb, var(--tertiary-color) 14%, transparent);
   color: var(--tertiary-color);
+  border: 1px solid color-mix(in srgb, var(--tertiary-color) 25%, transparent);
+
+  &[data-kind='overdue'] {
+    background: rgba(244, 63, 94, 0.18);
+    color: #fb7185;
+    border-color: rgba(244, 63, 94, 0.35);
+  }
 
   &[data-kind='meeting'] {
-    color: #be185d;
-    background: #fce7f3;
+    color: #f472b6;
+    background: rgba(236, 72, 153, 0.16);
+    border-color: rgba(236, 72, 153, 0.3);
   }
 
   &[data-kind='upcoming'] {
-    color: #0369a1;
-    background: #e0f2fe;
+    color: #38bdf8;
+    background: rgba(56, 189, 248, 0.16);
+    border-color: rgba(56, 189, 248, 0.3);
   }
 }
 
@@ -971,12 +1019,16 @@
   margin: 0.35rem 0 0;
   font-size: 0.875rem;
   font-weight: 600;
+  color: var(--text-primary, #f8fafc);
+  line-height: 1.35;
 }
 
 .udash__follow-due {
-  margin: 0.15rem 0 0;
-  font-size: 0.75rem;
-  color: var(--text-muted);
+  margin: 0.2rem 0 0;
+  font-size: 0.78125rem;
+  font-weight: 500;
+  color: var(--text-muted, #94a3b8);
+  line-height: 1.3;
 }
 
 .udash__status-bars {
