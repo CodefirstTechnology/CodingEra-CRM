@@ -23,3 +23,31 @@ export function formatInrCompact(inr: number): string {
   }
   return `₹${Math.round(inr).toLocaleString('en-IN')}`;
 }
+
+/**
+ * Formats currency in the Indian Numbering System:
+ * - >= 1 Crore (1,00,00,000): ₹X.XX Cr (e.g. ₹1.25 Cr)
+ * - >= 1 Lakh (1,00,000): ₹X.XX Lakh (e.g. ₹6.00 Lakh)
+ * - >= 1 Thousand (1,000): ₹X,XXX (e.g. ₹4,500)
+ * - < 1 Thousand: ₹XXX (e.g. ₹500)
+ */
+export function formatIndianCurrency(inr: number | null | undefined): string {
+  if (inr == null || !Number.isFinite(inr)) return '₹0';
+  const sign = inr < 0 ? '-' : '';
+  const abs = Math.abs(inr);
+
+  if (abs >= 10_000_000) {
+    const cr = abs / 10_000_000;
+    const formatted = cr >= 100 ? cr.toFixed(1) : cr.toFixed(2);
+    return `${sign}₹${formatted} Cr`;
+  }
+  if (abs >= 100_000) {
+    const lakhs = abs / 100_000;
+    const formatted = lakhs >= 100 ? lakhs.toFixed(1) : lakhs.toFixed(2);
+    return `${sign}₹${formatted} Lakh`;
+  }
+  if (abs >= 1_000) {
+    return `${sign}₹${Math.round(abs).toLocaleString('en-IN')}`;
+  }
+  return `${sign}₹${Math.round(abs)}`;
+}

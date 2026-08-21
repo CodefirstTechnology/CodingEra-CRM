@@ -1,0 +1,340 @@
+<div class="stuck-page">
+  <!-- Top Navigation / Hero Header -->
+  <header class="stuck-page__hero">
+    <div class="stuck-page__hero-glow" aria-hidden="true"></div>
+    <div class="stuck-page__hero-inner">
+      <div class="stuck-page__hero-copy">
+        <div class="stuck-page__breadcrumb">
+          <a [routerLink]="[backRoute()]" class="stuck-page__back-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            <span>Dashboard</span>
+          </a>
+          <span class="stuck-page__breadcrumb-sep">/</span>
+          <span class="stuck-page__breadcrumb-curr">Pipeline Bottlenecks</span>
+        </div>
+        <h1 class="stuck-page__title">Attention Required</h1>
+        <p class="stuck-page__sub">
+          Track uncontacted leads &amp; inactive pipeline deals to restore sales momentum and protect velocity.
+        </p>
+      </div>
+
+      <div class="stuck-page__hero-actions">
+        <button type="button" class="stuck-page__btn stuck-page__btn--ghost" (click)="loadData()" [disabled]="loading()">
+          <svg class="stuck-page__btn-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+          </svg>
+          <span>Refresh</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- KPI Metric Banner (Top 4 Cards) -->
+  <section class="stuck-page__kpis" aria-label="Bottleneck metrics">
+    @if (loading() && !data()) {
+      @for (i of [1, 2, 3, 4]; track i) {
+        <div class="stuck-page__kpi stuck-page__kpi--skeleton"></div>
+      }
+    } @else {
+      <!-- 1. STUCK VALUE -->
+      <article class="stuck-page__kpi stuck-page__kpi--val">
+        <p class="stuck-page__kpi-label">Stuck Value</p>
+        <p class="stuck-page__kpi-value text-rose-400">{{ formatCurrency(summary()?.stuckValue ?? 0) }}</p>
+      </article>
+
+      <!-- 2. STUCK DEALS -->
+      <article class="stuck-page__kpi stuck-page__kpi--deals">
+        <p class="stuck-page__kpi-label">Stuck Deals</p>
+        <p class="stuck-page__kpi-value">{{ summary()?.stuckDealsCount ?? 0 }}</p>
+      </article>
+
+      <!-- 3. AVG IDLE TIME -->
+      <article class="stuck-page__kpi stuck-page__kpi--time">
+        <p class="stuck-page__kpi-label">Avg Idle Time</p>
+        <p class="stuck-page__kpi-value">{{ summary()?.avgIdleTimeFormatted || '0h' }}</p>
+      </article>
+
+      <!-- 4. IDLE LEADS -->
+      <article class="stuck-page__kpi stuck-page__kpi--leads">
+        <p class="stuck-page__kpi-label">Idle Leads</p>
+        <p class="stuck-page__kpi-value text-amber-400">{{ summary()?.idleLeadsCount ?? 0 }}</p>
+      </article>
+    }
+  </section>
+
+  <!-- Main Card Container with Segmented Tabs & Filter Table -->
+  <main class="stuck-page__panel">
+    <header class="stuck-page__panel-head">
+      <div class="stuck-page__tabs" role="tablist" aria-label="Pipeline bottleneck views">
+        <button
+          type="button"
+          role="tab"
+          class="stuck-page__tab"
+          [class.stuck-page__tab--active]="activeTab() === 'deals'"
+          [attr.aria-selected]="activeTab() === 'deals'"
+          (click)="setTab('deals')"
+        >
+          <span>Stuck Deals</span>
+          <span class="stuck-page__tab-badge stuck-page__tab-badge--rose">{{ summary()?.stuckDealsCount ?? 0 }}</span>
+        </button>
+
+        <button
+          type="button"
+          role="tab"
+          class="stuck-page__tab"
+          [class.stuck-page__tab--active]="activeTab() === 'leads'"
+          [attr.aria-selected]="activeTab() === 'leads'"
+          (click)="setTab('leads')"
+        >
+          <span>Idle Leads</span>
+          <span class="stuck-page__tab-badge stuck-page__tab-badge--amber">{{ summary()?.idleLeadsCount ?? 0 }}</span>
+        </button>
+      </div>
+
+      <div class="stuck-page__search-wrap">
+        <svg class="stuck-page__search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <input
+          type="text"
+          class="stuck-page__search-input"
+          [placeholder]="activeTab() === 'deals' ? 'Search deals, org, stage...' : 'Search leads, org, contact...'"
+          [ngModel]="searchQuery()"
+          (ngModelChange)="searchQuery.set($event)"
+        />
+      </div>
+    </header>
+
+    <!-- Table: Stuck Deals View -->
+    @if (activeTab() === 'deals') {
+      @if (loading() && !data()) {
+        <div class="stuck-page__loading">Loading stuck deals…</div>
+      } @else if (filteredStuckDeals().length === 0) {
+        <div class="stuck-page__empty">
+          <svg class="stuck-page__empty-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M8 12l2 2 4-4"></path>
+          </svg>
+          <p class="stuck-page__empty-title">No Stuck Deals Found</p>
+          <p class="stuck-page__empty-sub">All active deals have recorded updates or touchpoints within the last 24 hours.</p>
+        </div>
+      } @else {
+        <div class="stuck-page__table-scroll">
+          <table class="stuck-page__table">
+            <thead>
+              <tr>
+                <th scope="col">Deal / Org</th>
+                <th scope="col">Stage</th>
+                <th scope="col">Value</th>
+                <th scope="col">Idle Since</th>
+                <th scope="col">Owner</th>
+                <th scope="col" class="stuck-page__th-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (deal of filteredStuckDeals(); track deal.dealId) {
+                <tr>
+                  <!-- Deal / Org -->
+                  <td class="stuck-page__td-title">
+                    <a [routerLink]="['/deals', deal.dealId]" class="stuck-page__link-title">
+                      {{ deal.dealTitle }}
+                    </a>
+                    @if (deal.organizationName && deal.organizationName !== deal.dealTitle) {
+                      <span class="stuck-page__td-sub">{{ deal.organizationName }}</span>
+                    }
+                  </td>
+
+                  <!-- Stage -->
+                  <td>
+                    <span class="stuck-page__stage-pill">{{ deal.stage }}</span>
+                  </td>
+
+                  <!-- Value -->
+                  <td class="stuck-page__td-value">
+                    {{ formatCurrency(deal.dealAmount) }}
+                  </td>
+
+                  <!-- Idle Since -->
+                  <td>
+                    <span class="stuck-page__idle-badge stuck-page__idle-badge--rose">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                      </svg>
+                      {{ deal.idleDurationFormatted || (deal.idleHours + 'h Inactive') }}
+                    </span>
+                  </td>
+
+                  <!-- Owner -->
+                  <td class="stuck-page__td-owner">
+                    {{ deal.ownerName }}
+                  </td>
+
+                  <!-- Action Buttons -->
+                  <td class="stuck-page__td-actions">
+                    <div class="stuck-page__action-group">
+                      <button
+                        type="button"
+                        class="stuck-page__action-btn"
+                        (click)="openCreateFollowUp('deal', deal.dealId)"
+                        title="Add Follow-up"
+                      >
+                        + Follow-up
+                      </button>
+                      <button
+                        type="button"
+                        class="stuck-page__action-btn"
+                        (click)="openAddNote('deal', deal.dealId, deal.dealTitle)"
+                        title="Add Note"
+                      >
+                        + Note
+                      </button>
+                      <a [routerLink]="['/deals', deal.dealId]" class="stuck-page__action-link">
+                        Open &rarr;
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+
+    <!-- Table: Idle Leads View -->
+    @if (activeTab() === 'leads') {
+      @if (loading() && !data()) {
+        <div class="stuck-page__loading">Loading idle leads…</div>
+      } @else if (filteredIdleLeads().length === 0) {
+        <div class="stuck-page__empty">
+          <svg class="stuck-page__empty-icon" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M8 12l2 2 4-4"></path>
+          </svg>
+          <p class="stuck-page__empty-title">No Idle Leads Found</p>
+          <p class="stuck-page__empty-sub">All assigned leads have been contacted or interacted with within 48 hours.</p>
+        </div>
+      } @else {
+        <div class="stuck-page__table-scroll">
+          <table class="stuck-page__table">
+            <thead>
+              <tr>
+                <th scope="col">Lead / Contact</th>
+                <th scope="col">Company</th>
+                <th scope="col">Status</th>
+                <th scope="col">Idle Since</th>
+                <th scope="col">Owner</th>
+                <th scope="col" class="stuck-page__th-actions">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (lead of filteredIdleLeads(); track lead.leadId) {
+                <tr>
+                  <!-- Lead / Contact -->
+                  <td class="stuck-page__td-title">
+                    <a [routerLink]="['/leads', lead.leadId]" class="stuck-page__link-title">
+                      {{ lead.leadName }}
+                    </a>
+                    @if (lead.email || lead.mobile) {
+                      <span class="stuck-page__td-sub">{{ lead.email || lead.mobile }}</span>
+                    }
+                  </td>
+
+                  <!-- Company -->
+                  <td>
+                    <span>{{ lead.organizationName || '—' }}</span>
+                  </td>
+
+                  <!-- Status -->
+                  <td>
+                    <span class="stuck-page__status-pill">{{ lead.status }}</span>
+                  </td>
+
+                  <!-- Idle Since -->
+                  <td>
+                    <span class="stuck-page__idle-badge stuck-page__idle-badge--amber">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <polyline points="12 6 12 12 16 14"></polyline>
+                      </svg>
+                      {{ lead.idleDurationFormatted || (lead.idleHours + 'h Inactive') }}
+                    </span>
+                  </td>
+
+                  <!-- Owner -->
+                  <td class="stuck-page__td-owner">
+                    {{ lead.ownerName }}
+                  </td>
+
+                  <!-- Action Buttons -->
+                  <td class="stuck-page__td-actions">
+                    <div class="stuck-page__action-group">
+                      <button
+                        type="button"
+                        class="stuck-page__action-btn"
+                        (click)="openCreateFollowUp('lead', lead.leadId)"
+                        title="Add Follow-up"
+                      >
+                        + Follow-up
+                      </button>
+                      <button
+                        type="button"
+                        class="stuck-page__action-btn"
+                        (click)="openAddNote('lead', lead.leadId, lead.leadName)"
+                        title="Add Note"
+                      >
+                        + Note
+                      </button>
+                      <a [routerLink]="['/leads', lead.leadId]" class="stuck-page__action-link">
+                        Open &rarr;
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  </main>
+
+  <!-- Informational Banner at Bottom -->
+  <aside class="stuck-page__info-banner" role="note">
+    <div class="stuck-page__info-content">
+      <span class="stuck-page__info-icon" aria-hidden="true">⚡</span>
+      <p class="stuck-page__info-text">
+        <strong>Velocity Guard:</strong> Deals with no updates or activity logs in &gt;24 hours and uncontacted leads &gt;48 hours are automatically flagged to help you unblock revenue.
+      </p>
+    </div>
+  </aside>
+
+  <!-- Add Note Quick Modal -->
+  <app-crm-modal [open]="noteModalOpen()" [title]="noteModalTitle()" size="md" (dismiss)="closeNoteModal()">
+    <div class="stuck-page__note-modal">
+      <label class="stuck-page__note-label" for="stuckNoteText">
+        Add timeline note or update
+      </label>
+      <textarea
+        id="stuckNoteText"
+        class="stuck-page__note-textarea"
+        rows="4"
+        placeholder="Enter your interaction note or update here..."
+        [ngModel]="noteText()"
+        (ngModelChange)="noteText.set($event)"
+      ></textarea>
+      <div class="stuck-page__note-actions">
+        <button type="button" class="stuck-page__btn stuck-page__btn--ghost" (click)="closeNoteModal()">
+          Cancel
+        </button>
+        <button type="button" class="stuck-page__btn stuck-page__btn--solid" (click)="submitNote()" [disabled]="!noteText().trim()">
+          Save Note
+        </button>
+      </div>
+    </div>
+  </app-crm-modal>
+</div>
