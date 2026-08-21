@@ -19,6 +19,13 @@ export const DASHBOARD_ROUTES: Routes = [
           ),
       },
       {
+        path: 'stuck-pipeline',
+        loadComponent: () =>
+          import('../stuck-pipeline/stuck-pipeline.component').then(
+            (m) => m.StuckPipelineComponent,
+          ),
+      },
+      {
         path: 'indiamart-leads',
         pathMatch: 'full',
         canActivate: [indiamartLeadsLegacyRedirectGuard],
