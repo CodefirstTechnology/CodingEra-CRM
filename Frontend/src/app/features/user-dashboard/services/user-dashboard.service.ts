@@ -9,7 +9,22 @@ import { UserDataScopeService } from '../../../core/services/user-data-scope.ser
 import { isDealClosed, isDealClosedWon } from '../../../core/services/deals/deal-pipeline.constants';
 import { LeadOwnerOptionsService } from '../../../core/services/leads/lead-owner-options.service';
 import { leadsHttpErrorMessage } from '../../../core/services/leads.service';
-import { dealDisplayName } from '../../dashboard/utils/admin-dashboard.util';
+import { UserTargetHttpService } from '../../../core/services/user-targets/user-target-http.service';
+import type {
+  UserTargetRow,
+  UserTargetWidget,
+} from '../../../core/services/user-targets/user-target-api.models';
+import {
+  dealDisplayName,
+  dealRecordDate,
+  endOfDay,
+  getProportionalTarget,
+  leadRecordDate,
+  parseDashboardDate,
+  resolveDashboardPeriod,
+  startOfDay,
+  targetOverlapsPeriod,
+} from '../../dashboard/utils/admin-dashboard.util';
 import type { DealRow } from '../../deals/deals.component';
 import type { LeadRow } from '../../leads/lead-row.model';
 import type { TaskRow } from '../../tasks/tasks.component';
@@ -17,19 +32,23 @@ import {
   activityEntityDisplayLabel,
   buildActivityEntityNameMap,
 } from '../../../shared/utils/activity-entity-display.util';
-import { parseSessionUserId } from '../utils/user-ownership.util';
+import { isDealOwnedByUser, parseSessionUserId } from '../utils/user-ownership.util';
 import type {
   UserDashboardActivityItem,
   UserDashboardDealDetail,
+  UserDashboardFilters,
   UserDashboardFollowUpItem,
   UserDashboardKpis,
   UserDashboardLeadStatusSummary,
   UserDashboardLeadTableRow,
   UserDashboardPerformance,
+  UserDashboardPeriodKey,
+  UserDashboardQuotationDetail,
   UserDashboardRevenueDealDetail,
   UserDashboardSnapshot,
   UserDashboardTaskDetail,
 } from '../models/user-dashboard.models';
+import type { QuotationListItem } from '../../../core/services/quotations/quotation-api.models';
 
 @Injectable({ providedIn: 'root' })
 export class UserDashboardService {
@@ -38,11 +57,12 @@ export class UserDashboardService {
   private readonly scope = inject(UserDataScopeService);
   private readonly activitiesService = inject(ActivitiesService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
+  private readonly userTargetsApi = inject(UserTargetHttpService);
 
   /**
-   * Loads dashboard data scoped to the logged-in user (`users.id` = `leads.lead_owner_id` for leads).
+   * Loads dashboard data scoped to the logged-in user and filtered by active date period.
    */
-  loadSnapshot(): Observable<{ data: UserDashboardSnapshot | null; error: string | null }> {
+  loadSnapshot(filters?: Partial<UserDashboardFilters>): Observable<{ data: UserDashboardSnapshot | null; error: string | null }> {
     const user = this.auth.user();
     const userId = user?.id?.trim() ?? '';
     if (!user || parseSessionUserId(userId) == null) {
@@ -52,16 +72,15 @@ export class UserDashboardService {
       });
     }
 
-    const userName = user.name;
-    const userEmail = user.email;
-
     return forkJoin({
       owners: this.leadOwnerOpts.ensureLoaded(),
       leads: this.entityCache.listLeads().pipe(catchError(() => of([] as LeadRow[]))),
       deals: this.entityCache.listDeals().pipe(catchError(() => of([] as DealRow[]))),
       tasks: this.scope.listTasks().pipe(catchError(() => of([] as TaskRow[]))),
+      quotations: this.scope.listQuotations().pipe(catchError(() => of([] as QuotationListItem[]))),
+      targets: this.userTargetsApi.listTargets(false).pipe(catchError(() => of([] as UserTargetRow[]))),
     }).pipe(
-      switchMap(({ leads, deals, tasks }) => {
+      switchMap(({ leads, deals, tasks, quotations, targets }) => {
         const enriched = this.leadOwnerOpts.enrichRows(leads);
 
         const leadIds = new Set(
@@ -72,17 +91,22 @@ export class UserDashboardService {
         );
 
         return this.activitiesService
-          .getRecentFeed(12, { leadIds, dealIds })
+          .getRecentFeed(20, { leadIds, dealIds })
           .pipe(
             catchError(() => of([] as ActivityRow[])),
             map((activities) => {
-              const taskDueByLead = this.buildLeadNextFollowUpMap(tasks);
-              const tableRows = enriched.map((l) =>
-                this.toLeadTableRow(l, taskDueByLead.get(l.id)),
-              );
               const entityNames = buildActivityEntityNameMap(enriched, deals);
               return {
-                data: this.buildSnapshot(tableRows, enriched, deals, tasks, activities, entityNames),
+                data: this.buildSnapshot(
+                  enriched,
+                  deals,
+                  tasks,
+                  quotations,
+                  targets,
+                  activities,
+                  entityNames,
+                  filters,
+                ),
                 error: null as string | null,
               };
             }),
@@ -95,74 +119,195 @@ export class UserDashboardService {
   }
 
   private buildSnapshot(
-    tableRows: UserDashboardLeadTableRow[],
-    myLeads: LeadRow[],
-    myDeals: DealRow[],
-    myTasks: TaskRow[],
+    allUserLeads: LeadRow[],
+    allUserDeals: DealRow[],
+    allUserTasks: TaskRow[],
+    quotations: QuotationListItem[],
+    targets: UserTargetRow[],
     activities: ActivityRow[],
     entityNames: Map<string, string>,
+    filters?: Partial<UserDashboardFilters>,
   ): UserDashboardSnapshot {
-    const today = this.startOfDay(new Date());
-    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const periodKey: UserDashboardPeriodKey = filters?.periodKey ?? 'this_month';
+    const customRange = filters?.customRange ?? null;
 
-    const todaysLeads = myLeads.filter((l) => {
-      const t = this.parseDate(l.sortTimestamp ? new Date(l.sortTimestamp) : l.updated);
+    const period = resolveDashboardPeriod(periodKey, new Date(), customRange);
+    const periodStart = period.start;
+    const periodEnd = period.end;
+
+    // Filter Leads by active period
+    const filteredLeads = allUserLeads.filter((l) => {
+      const recDate = leadRecordDate(l) ?? parseDashboardDate(l.leadDate);
+      return recDate ? this.isDateInPeriod(recDate, periodStart, periodEnd) : true;
+    });
+
+    const user = this.auth.user();
+    const userId = user?.id?.trim() ?? '';
+    const userName = user?.name ?? '';
+    const userEmail = user?.email ?? '';
+
+    // Scope deals to logged in user
+    const userDeals = allUserDeals.filter((d) =>
+      isDealOwnedByUser(d, userId, userName, userEmail),
+    );
+
+    // Filter Deals by active period
+    const filteredDeals = userDeals.filter((d) => {
+      const recDate = dealRecordDate(d) ?? parseDashboardDate(d.lastModifiedAt || d.lastModified || d.createdAt || d.createdAtAt);
+      return recDate ? this.isDateInPeriod(recDate, periodStart, periodEnd) : true;
+    });
+
+    // Filter Tasks by active period
+    const filteredTasks = allUserTasks.filter((t) => {
+      const recDate = parseDashboardDate(t.dueDateRaw || t.dueDate || t.lastModified);
+      return recDate ? this.isDateInPeriod(recDate, periodStart, periodEnd) : true;
+    });
+
+    // Filter Quotations by active period
+    const filteredQuotations = (quotations || []).filter((q) => {
+      const recDate = parseDashboardDate(q.quotationDate || q.createdAt || q.updatedAt);
+      return recDate ? this.isDateInPeriod(recDate, periodStart, periodEnd) : true;
+    });
+
+    // Today's leads
+    const today = startOfDay(new Date());
+    const todaysLeads = filteredLeads.filter((l) => {
+      const t = leadRecordDate(l);
       return t && t >= today;
     });
 
-    const activeDeals = myDeals.filter(
-      (d) => !isDealClosed(d.status),
-    );
-    const closedDeals = myDeals.filter((d) => isDealClosedWon(d.status));
-    const monthlyClosed = closedDeals.filter((d) => {
-      const t = this.parseDate(d.lastModified);
-      return t && t >= monthStart;
+    const activeDeals = filteredDeals.filter((d) => !isDealClosed(d.status));
+    const closedWonDeals = userDeals.filter((d) => {
+      if (!isDealClosedWon(d.status)) return false;
+      const t = dealRecordDate(d) ?? parseDashboardDate(d.lastModifiedAt || d.lastModified || d.createdAt || d.createdAtAt);
+      return t ? this.isDateInPeriod(t, periodStart, periodEnd) : true;
     });
 
-    const pendingTasks = myTasks.filter((t) => t.status !== 'Done' && t.status !== 'Canceled');
-    const completedTasks = myTasks.filter((t) => t.status === 'Done');
-    const followUpsToday = this.buildFollowUps(myTasks, today);
+    const pendingTasks = filteredTasks.filter((t) => t.status !== 'Done' && t.status !== 'Canceled');
+    const completedTasks = filteredTasks.filter((t) => t.status === 'Done');
+    const followUps = this.buildFollowUps(allUserTasks, periodStart, periodEnd);
 
-    const monthlyRevenue = closedDeals.reduce((sum, d) => {
-      const t = this.parseDate(d.lastModified);
-      if (!t || t < monthStart) return sum;
-      return sum + (Number.isFinite(d.dealAmount) && d.dealAmount > 0 ? d.dealAmount : 0);
+    const periodRevenue = closedWonDeals.reduce((sum, d) => {
+      const val =
+        Number.isFinite(d.dealAmount) && d.dealAmount > 0
+          ? d.dealAmount
+          : Number.isFinite(d.annualRevenue) && d.annualRevenue > 0
+            ? d.annualRevenue
+            : 0;
+      return sum + val;
     }, 0);
 
-    const converted = myLeads.filter((l) => l.status === 'Converted' || l.isConverted === true).length;
-    const conversionPct = myLeads.length ? Math.round((converted / myLeads.length) * 1000) / 10 : 0;
-    const monthlyClosureRate = myLeads.length
-      ? Math.round((monthlyClosed.length / myLeads.length) * 1000) / 10
+    const converted = filteredLeads.filter((l) => l.status === 'Converted' || l.isConverted === true).length;
+    const conversionPct = filteredLeads.length
+      ? Math.round((converted / filteredLeads.length) * 1000) / 10
+      : 0;
+    const closureRate = filteredLeads.length
+      ? Math.round((closedWonDeals.length / filteredLeads.length) * 1000) / 10
       : 0;
 
-    const targetProgressPct = Math.min(100, Math.round((monthlyClosed.length / 10) * 100));
+    const targetProgressPct = Math.min(100, Math.round((closedWonDeals.length / 10) * 100));
+
+    const taskDueByLead = this.buildLeadNextFollowUpMap(filteredTasks);
+    const tableRows = filteredLeads.map((l) => this.toLeadTableRow(l, taskDueByLead.get(l.id)));
+
+    // Filter Activities
+    const filteredActivities = activities
+      .filter((act) => {
+        const actDate = parseDashboardDate(act.createdAt);
+        return actDate ? this.isDateInPeriod(actDate, periodStart, periodEnd) : true;
+      })
+      .map((row) => this.toDashboardActivityItem(row, entityNames));
+
+    const quotationDetails: UserDashboardQuotationDetail[] = filteredQuotations.map((q) => ({
+      id: q.id,
+      quotationNumber: q.quotationNumber || `QT-${q.id}`,
+      customerName: q.customerName || q.contactPerson || '—',
+      companyName: q.companyName || '—',
+      status: q.status || 'Draft',
+      grandTotal: Number.isFinite(q.grandTotal) ? q.grandTotal : 0,
+      quotationDate: q.quotationDate || q.createdAt || '—',
+    }));
+
+    // Targets filtered by active period & logged in user (matching Admin dashboard target calculation)
+    const sessionUser = this.auth.user();
+    const sessionUserId = parseSessionUserId(sessionUser?.id);
+    const userTargets = (targets || []).filter(
+      (t) =>
+        t.isActive &&
+        (sessionUserId == null ||
+          t.userId === sessionUserId ||
+          (sessionUser?.email && t.userEmail?.toLowerCase() === sessionUser.email.toLowerCase())),
+    );
+
+    const overlappingTargets = userTargets.filter((t) =>
+      targetOverlapsPeriod(t, periodStart, periodEnd),
+    );
+
+    const periodWonRevenue = periodRevenue;
+
+    const targetWidgets: UserTargetWidget[] = overlappingTargets.map((t) => {
+      const prop = getProportionalTarget(t, periodStart, periodEnd);
+      const targetAmount = Math.round(prop.targetAmount * 100) / 100;
+      const achievedAmount = periodWonRevenue;
+      const remainingAmount = Math.max(0, targetAmount - achievedAmount);
+      const achievementPercent =
+        targetAmount > 0 ? Math.min(100, Math.round((achievedAmount / targetAmount) * 1000) / 10) : 0;
+
+      return {
+        targetId: t.id,
+        targetTypeName: t.targetTypeName || 'Custom Target',
+        targetAmount,
+        achievedAmount,
+        remainingAmount,
+        achievementPercent,
+        startDate: t.startDate,
+        endDate: t.endDate,
+        isActive: t.isActive,
+      };
+    });
 
     return {
+      period: {
+        key: period.key as UserDashboardPeriodKey,
+        label: period.label,
+        start: period.start,
+        end: period.end,
+      },
       kpis: {
-        myLeads: myLeads.length,
+        myLeads: filteredLeads.length,
+        wonDeals: closedWonDeals.length,
         activeDeals: activeDeals.length,
-        followUpsToday: followUpsToday.filter((f) => f.kind !== 'meeting').length,
+        followUpsToday: followUps.filter((f) => f.kind !== 'meeting').length,
+        quotations: filteredQuotations.length,
         tasksPending: pendingTasks.length,
-        meetingsToday: followUpsToday.filter((f) => f.kind === 'meeting').length,
-        monthlyRevenue,
+        meetingsToday: followUps.filter((f) => f.kind === 'meeting').length,
+        monthlyRevenue: periodRevenue,
       } satisfies UserDashboardKpis,
+      targetWidgets,
       assignedLeads: tableRows,
       todaysLeads: todaysLeads.map((l) => this.toLeadTableRow(l, undefined)),
-      followUps: followUpsToday,
-      activities: activities.map((row) => this.toDashboardActivityItem(row, entityNames)),
+      followUps,
+      activities: filteredActivities,
       performance: {
         conversionPct,
-        monthlyClosureRate,
+        monthlyClosureRate: closureRate,
         completedTasks: completedTasks.length,
         targetProgressPct,
-        closedDeals: closedDeals.length,
+        closedDeals: closedWonDeals.length,
         pendingCalls: pendingTasks.filter((t) => /call/i.test(t.title)).length,
       } satisfies UserDashboardPerformance,
-      statusSummary: this.buildStatusSummary(myLeads),
+      statusSummary: this.buildStatusSummary(filteredLeads),
       activeDealDetails: activeDeals.map((d) => this.toDealDetail(d)),
+      wonDealDetails: closedWonDeals.map((d) => this.toDealDetail(d)),
+      quotationDetails,
       pendingTaskDetails: pendingTasks.map((t) => this.toTaskDetail(t)),
-      monthlyRevenueDeals: monthlyClosed.map((d) => this.toRevenueDealDetail(d)),
+      monthlyRevenueDeals: closedWonDeals.map((d) => this.toRevenueDealDetail(d)),
     };
+  }
+
+  private isDateInPeriod(date: Date, start: Date, end: Date): boolean {
+    const t = date.getTime();
+    return t >= start.getTime() && t <= end.getTime();
   }
 
   private toDealDetail(deal: DealRow): UserDashboardDealDetail {
@@ -211,18 +356,25 @@ export class UserDashboardService {
       .sort((a, b) => b.count - a.count);
   }
 
-  private buildFollowUps(tasks: TaskRow[], today: Date): UserDashboardFollowUpItem[] {
-    const endToday = new Date(today);
-    endToday.setHours(23, 59, 59, 999);
+  private buildFollowUps(
+    tasks: TaskRow[],
+    periodStart: Date,
+    periodEnd: Date,
+  ): UserDashboardFollowUpItem[] {
+    const now = new Date();
+    const today = startOfDay(now);
+    const endToday = endOfDay(now);
     const items: UserDashboardFollowUpItem[] = [];
 
     for (const t of tasks) {
       if (t.status === 'Done' || t.status === 'Canceled') continue;
-      const due = this.parseDate(t.dueDateRaw || t.dueDate);
+      const due = parseDashboardDate(t.dueDateRaw || t.dueDate);
       if (!due) continue;
 
       const isMeeting = /meeting|review|demo/i.test(t.title);
-      if (due > endToday && !isMeeting) continue;
+      // Include items due today/overdue or within the selected active period
+      const inPeriodOrToday = (due <= endToday) || (due >= periodStart && due <= periodEnd);
+      if (!inPeriodOrToday && !isMeeting) continue;
 
       items.push({
         id: t.id,
@@ -293,7 +445,8 @@ export class UserDashboardService {
     switch (lead.status) {
       case 'Qualified':
       case 'Converted':
-        return 'High';      case 'Contacted':
+        return 'High';
+      case 'Contacted':
         return 'Medium';
       case 'Lost':
         return 'Low';
@@ -302,24 +455,8 @@ export class UserDashboardService {
     }
   }
 
-  private startOfDay(d: Date): Date {
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  }
-
-  private parseDate(raw: string | Date | number | undefined | null): Date | null {
-    if (raw == null) return null;
-    if (raw instanceof Date) return Number.isNaN(raw.getTime()) ? null : raw;
-    if (typeof raw === 'number') {
-      const d = new Date(raw);
-      return Number.isNaN(d.getTime()) ? null : d;
-    }
-    const t = Date.parse(String(raw).trim());
-    if (Number.isNaN(t)) return null;
-    return new Date(t);
-  }
-
   private formatShortDate(raw: string): string {
-    const d = this.parseDate(raw);
+    const d = parseDashboardDate(raw);
     if (!d) return raw;
     try {
       return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(d);
@@ -329,8 +466,8 @@ export class UserDashboardService {
   }
 
   private formatDueLabel(due: Date, today: Date): string {
-    const start = this.startOfDay(today).getTime();
-    const d0 = this.startOfDay(due).getTime();
+    const start = startOfDay(today).getTime();
+    const d0 = startOfDay(due).getTime();
     if (d0 < start) return 'Overdue';
     if (d0 === start) return 'Today';
     return this.formatShortDate(due.toISOString());

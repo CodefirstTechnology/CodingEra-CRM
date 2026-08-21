@@ -31,6 +31,13 @@ export const routes: Routes = [
           import('./core/routing/home-redirect.component').then((m) => m.HomeRedirectComponent),
       },
       {
+        path: 'dashboard/stuck-pipeline',
+        loadComponent: () =>
+          import('./features/stuck-pipeline/stuck-pipeline.component').then(
+            (m) => m.StuckPipelineComponent,
+          ),
+      },
+      {
         path: 'dashboard',
         canMatch: [roleGuard],
         data: { roles: ['admin'] },
