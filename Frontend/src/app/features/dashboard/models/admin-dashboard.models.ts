@@ -36,6 +36,10 @@ export interface AdminDashboardKpis {
   convertedLeads: number;
   /** Closed-won deals whose record date falls in the selected period. */
   wonDeals: number;
+  /** Closed-lost deals whose record date falls in the selected period. */
+  lostDeals: number;
+  /** Total value of closed-lost deals whose record date falls in the selected period. */
+  lostDealsRevenue: number;
   /** (Won Deals ÷ Total Leads) × 100 for the selected period. */
   conversionRatePct: number;
   newLeadsInPeriod: number;
@@ -59,6 +63,8 @@ export interface AdminDealDetail {
   stage: string;
   value: number;
   inactiveHours?: number;
+  lostReason?: string;
+  recordDate?: string;
 }
 
 export interface AdminLeadDetail {
@@ -148,6 +154,7 @@ export interface AdminDashboardSnapshot {
   newLeadDetails: AdminLeadDetail[];
   openDealDetails: AdminDealDetail[];
   wonDealDetails: AdminDealDetail[];
+  lostDealDetails: AdminDealDetail[];
   activities: AdminActivityStreamItem[];
   focusInsight: string;
   activeTargetPeriod?: AggregatedTargetPeriod | null;

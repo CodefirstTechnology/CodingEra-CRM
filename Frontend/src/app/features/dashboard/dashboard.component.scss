@@ -359,6 +359,44 @@
   border-radius: 10px;
   padding: 0.75rem 0.9rem;
   box-shadow: var(--shadow-card);
+  text-align: left;
+}
+
+.sales-dash__kpi--click {
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    border-color: color-mix(in srgb, var(--sd-accent) 45%, var(--card-border));
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px color-mix(in srgb, var(--sd-accent) 12%, transparent);
+  }
+}
+
+.sales-dash__kpi--lost {
+  &:hover {
+    border-color: rgba(244, 63, 94, 0.5) !important;
+    box-shadow: 0 4px 12px rgba(244, 63, 94, 0.16) !important;
+  }
+}
+
+.sales-dash__kpi-lost-val-group {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.6rem;
+}
+
+.sales-dash__kpi-lost-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  padding: 0.125rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(244, 63, 94, 0.14);
+  color: #f43f5e;
+  border: 1px solid rgba(244, 63, 94, 0.28);
 }
 
 .sales-dash__kpi-label {
@@ -1685,6 +1723,105 @@
   a {
     color: var(--sd-accent);
   }
+}
+
+.sales-dash__lost-modal-header {
+  margin: -0.25rem 0 1rem;
+}
+
+.sales-dash__lost-modal-sub {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}
+
+.sales-dash__lost-reasons-summary {
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.15rem;
+}
+
+.sales-dash__lost-reasons-title {
+  margin: 0 0 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.sales-dash__lost-reasons-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.75rem;
+}
+
+.sales-dash__lost-reason-card {
+  background: color-mix(in srgb, var(--text-muted) 6%, transparent);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  border: 1px solid color-mix(in srgb, var(--card-border) 60%, transparent);
+}
+
+.sales-dash__lost-reason-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.sales-dash__lost-reason-name {
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 150px;
+}
+
+.sales-dash__lost-reason-pct {
+  color: #f43f5e;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
+
+.sales-dash__lost-reason-bar-track {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  overflow: hidden;
+}
+
+.sales-dash__lost-reason-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #f43f5e, #e11d48);
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sales-dash__lost-reason-bottom {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-align: right;
+}
+
+.sales-dash__lost-reason-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: rgba(244, 63, 94, 0.14);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.3);
 }
 
 .visually-hidden {
