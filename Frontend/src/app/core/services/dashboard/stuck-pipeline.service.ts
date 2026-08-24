@@ -20,8 +20,9 @@ export class StuckPipelineService {
       params = params.set('userId', String(effectiveUserId));
     }
 
+    const base = (environment.apiUrl || '').replace(/\/$/, '');
     return this.http
-      .get<StuckPipelineResponse>(`${environment.apiUrl}/api/dashboard/stuck-pipeline`, {
+      .get<StuckPipelineResponse>(`${base}/dashboard/stuck-pipeline`, {
         params,
       })
       .pipe(
