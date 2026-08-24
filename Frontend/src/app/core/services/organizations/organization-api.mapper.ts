@@ -70,7 +70,7 @@ export function normalizeOrganizationApiRecord(raw: unknown): OrganizationRow {
     id: r['id'] ?? r['Id'],
     name: r['name'] ?? r['Name'] ?? r['organizationName'],
     website: r['website'],
-    gst: r['gst'] ?? r['Gst'],
+    gst: r['gst'] ?? r['Gst'] ?? r['gstin'] ?? r['Gstin'],
     industry:
       readRefName(industryRaw) || (typeof industryRaw === 'string' ? industryRaw.trim() : ''),
     annualRevenue: r['annualRevenue'],

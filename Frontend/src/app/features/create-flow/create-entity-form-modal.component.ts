@@ -47,6 +47,7 @@ import type { NoteRelatedType, NoteRow, NoteVisibility } from '../notes/notes.co
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { TextFormatter } from '../../shared/utils/text-normalizer';
 import {
+  gstFormValidators,
   optionalEmailValidator,
   optionalUrlValidator,
 } from '../../shared/validators/crm-validators';
@@ -221,10 +222,12 @@ export class CreateEntityFormModalComponent {
   protected readonly orgForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
+    gst: ['', gstFormValidators()],
     industry: ['', Validators.required],
     annualRevenue: ['', Validators.maxLength(40)],
     employees: [''],
     territory: [''],
+    address: ['', Validators.maxLength(500)],
   });
 
   protected readonly taskForm = this.fb.nonNullable.group({
@@ -764,6 +767,7 @@ export class CreateEntityFormModalComponent {
     const payload: Omit<OrganizationRow, 'id'> = {
       name: TextFormatter.entityName('organization', nameTrim),
       website: web || '',
+      gst: TextFormatter.gstin(raw.gst) || undefined,
       industry:
         industryPick.label ||
         this.orgMaster.industrySelectOptions()[0]?.name ||
@@ -777,6 +781,7 @@ export class CreateEntityFormModalComponent {
       industryId: industryPick.masterId,
       employeeCountId: employeePick.masterId,
       territoryId: territoryPick.masterId,
+      address: raw.address.trim() || undefined,
       lastModified: 'Just now',
     };
 

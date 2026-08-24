@@ -442,9 +442,9 @@
     </div>
     }
     } @else if (kpiDetailKind() === 'conversion') {
-    <div class="udash__conversion-detail">
+    <div class="udash__conversion-detail flex flex-col h-full overflow-hidden">
       <!-- Summary Metric Stats -->
-      <div class="udash__conversion-stats">
+      <div class="udash__conversion-stats flex-shrink-0">
         <div class="udash__conversion-stat">
           <span class="udash__conversion-stat-label">Conversion Ratio</span>
           <span class="udash__conversion-stat-value text-purple-400">{{ data.performance.conversionPct | number: '1.0-1' }}%</span>
@@ -467,7 +467,7 @@
       @if (data.assignedLeads.length === 0) {
       <p class="udash__detail-empty">No leads assigned to calculate conversion ratio.</p>
       } @else {
-      <div class="udash__detail-scroll">
+      <div class="udash__detail-scroll flex-1 min-h-0 max-h-[60vh] overflow-y-auto overflow-x-hidden">
         <table class="udash__detail-table">
           <thead>
             <tr>

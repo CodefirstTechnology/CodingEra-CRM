@@ -14,8 +14,18 @@ import {
   masterSelectControlValue,
   resolveOrgMasterPick,
 } from '../../core/services/organizations/organization-master-select.util';
-import { optionalUrlValidator } from '../../shared/validators/crm-validators';
+import {
+  gstFormValidators,
+  optionalUrlValidator,
+  standardGstinValidators,
+} from '../../shared/validators/crm-validators';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
+import {
+  GSTIN_ERROR_KEY,
+  GSTIN_ERROR_MESSAGE,
+  normalizeGstin,
+  syncGstinInputFromEvent,
+} from '../../shared/utils/gstin.util';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
 import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { createIdSelection } from '../../shared/utils/selection-manager';
@@ -57,6 +67,10 @@ export class OrganizationsComponent {
   protected readonly orgMaster = inject(OrganizationMasterSelectService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+
+  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
+  protected readonly duplicateGstinOrg = signal<{ id: string | number; name: string } | null>(null);
 
   protected readonly sel = createIdSelection();
   protected readonly editingNumericId = signal<number | null>(null);
@@ -109,6 +123,7 @@ export class OrganizationsComponent {
       return (
         row.name.toLowerCase().includes(q) ||
         (row.website?.toLowerCase().includes(q) ?? false) ||
+        (row.gst?.toLowerCase().includes(q) ?? false) ||
         row.industry.toLowerCase().includes(q) ||
         (row.territory?.toLowerCase().includes(q) ?? false) ||
         (row.employees?.toLowerCase().includes(q) ?? false) ||
@@ -199,11 +214,60 @@ export class OrganizationsComponent {
   protected readonly createForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
+    gst: ['', gstFormValidators()],
     industry: ['', Validators.required],
     annualRevenue: ['', Validators.maxLength(40)],
     employees: [''],
     territory: [''],
+    address: ['', Validators.maxLength(500)],
   });
+
+  protected onGstinInput(ev: Event): void {
+    syncGstinInputFromEvent(ev, this.createForm.controls.gst);
+    this.clearGstinDuplicate();
+  }
+
+  protected onGstinBlur(): void {
+    this.checkGstinDuplicate();
+  }
+
+  protected clearGstinDuplicate(): void {
+    if (this.duplicateGstinOrg()) {
+      this.duplicateGstinOrg.set(null);
+    }
+    const c = this.createForm.get('gst');
+    const errs = c?.errors;
+    if (!c || !errs?.['duplicate']) return;
+    const next = { ...errs };
+    delete next['duplicate'];
+    c.setErrors(Object.keys(next).length ? next : null);
+  }
+
+  protected checkGstinDuplicate(): boolean {
+    const rawGst = normalizeGstin(this.createForm.getRawValue().gst);
+    if (!rawGst) {
+      this.clearGstinDuplicate();
+      return false;
+    }
+
+    const editId = this.editingNumericId();
+    const dup = this.rows().find(
+      (r) =>
+        normalizeGstin(r.gst) === rawGst &&
+        (editId == null || Number(r.id) !== editId),
+    );
+
+    if (dup) {
+      this.duplicateGstinOrg.set({ id: dup.id, name: dup.name });
+      const c = this.createForm.get('gst');
+      c?.setErrors({ ...(c.errors ?? {}), duplicate: true });
+      c?.markAsTouched();
+      return true;
+    }
+
+    this.clearGstinDuplicate();
+    return false;
+  }
 
   private clearEditQuery(): void {
     this.lastRouteEdit = '';
@@ -240,13 +304,16 @@ export class OrganizationsComponent {
   protected openForm(): void {
     this.editingNumericId.set(null);
     this.clearEditQuery();
+    this.duplicateGstinOrg.set(null);
     this.createForm.reset({
       organizationName: '',
       website: '',
+      gst: '',
       industry: this.defaultIndustryFormValue(),
       annualRevenue: '',
       employees: this.defaultEmployeesFormValue(),
       territory: '',
+      address: '',
     });
     this.createForm.markAsUntouched();
     this.formOpen.set(true);
@@ -256,13 +323,16 @@ export class OrganizationsComponent {
     this.formOpen.set(false);
     this.editingNumericId.set(null);
     this.clearEditQuery();
+    this.duplicateGstinOrg.set(null);
     this.createForm.reset({
       organizationName: '',
       website: '',
+      gst: '',
       industry: this.defaultIndustryFormValue(),
       annualRevenue: '',
       employees: this.defaultEmployeesFormValue(),
       territory: '',
+      address: '',
     });
     this.createForm.markAsUntouched();
   }
@@ -272,6 +342,7 @@ export class OrganizationsComponent {
     const id = Number(idStr);
     if (!Number.isFinite(id)) return;
     this.lastRouteEdit = idStr;
+    this.duplicateGstinOrg.set(null);
     this.organizationsService
       .getById(id)
       .pipe(take(1))
@@ -288,10 +359,12 @@ export class OrganizationsComponent {
         this.createForm.patchValue({
           organizationName: row.name,
           website: web,
+          gst: row.gst ?? '',
           industry: masterSelectControlValue(row.industryId, row.industry, indOpts),
           annualRevenue: revInput,
           employees: masterSelectControlValue(row.employeeCountId, row.employees, empOpts),
           territory: masterSelectControlValue(row.territoryId, row.territory, terrOpts),
+          address: row.address ?? '',
         });
         this.formOpen.set(true);
       });
@@ -357,6 +430,10 @@ export class OrganizationsComponent {
       return;
     }
 
+    if (this.checkGstinDuplicate()) {
+      return;
+    }
+
     let web = raw.website.trim();
     if (web && !/^https?:\/\//i.test(web)) {
       web = `https://${web}`;
@@ -369,6 +446,7 @@ export class OrganizationsComponent {
     const payload: Omit<OrganizationRow, 'id'> = {
       name: TextFormatter.entityName('organization', nameTrim),
       website: web || '',
+      gst: TextFormatter.gstin(raw.gst) || undefined,
       industry:
         industryPick.label ||
         this.orgMaster.industrySelectOptions()[0]?.name ||
@@ -383,12 +461,27 @@ export class OrganizationsComponent {
       industryId: industryPick.masterId,
       employeeCountId: employeePick.masterId,
       territoryId: territoryPick.masterId,
+      address: raw.address.trim() || undefined,
     };
 
     const done = () => {
       this.sel.clear();
       this.refreshOrganizations();
       this.closeForm();
+    };
+
+    const handleConflictError = (e: any): boolean => {
+      const errBody = e?.error;
+      if (e?.status === 409) {
+        const eid = errBody?.existingId ?? '';
+        const ename = errBody?.existingName ?? 'Existing Organization';
+        this.duplicateGstinOrg.set({ id: eid, name: ename });
+        const c = this.createForm.get('gst');
+        c?.setErrors({ ...(c.errors ?? {}), duplicate: true });
+        c?.markAsTouched();
+        return true;
+      }
+      return false;
     };
 
     if (editId != null) {
@@ -400,7 +493,11 @@ export class OrganizationsComponent {
             this.toast.success('Organization updated.');
             done();
           },
-          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+          error: (e: unknown) => {
+            if (!handleConflictError(e)) {
+              this.toast.error(leadsHttpErrorMessage(e));
+            }
+          },
         });
     } else {
       this.organizationsService
@@ -411,7 +508,11 @@ export class OrganizationsComponent {
             this.toast.success('Organization created.');
             done();
           },
-          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+          error: (e: unknown) => {
+            if (!handleConflictError(e)) {
+              this.toast.error(leadsHttpErrorMessage(e));
+            }
+          },
         });
     }
   }

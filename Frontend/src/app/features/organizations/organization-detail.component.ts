@@ -21,6 +21,13 @@ import { IntlTelDisplayPipe } from '../../shared/pipes/intl-tel-display.pipe';
 import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { OrganizationRow } from './organizations.component';
+import {
+  GSTIN_ERROR_KEY,
+  GSTIN_ERROR_MESSAGE,
+  normalizeGstin,
+  syncGstinInputFromEvent,
+} from '../../shared/utils/gstin.util';
+import { gstFormValidators, optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { TextFormatter } from '../../shared/utils/text-normalizer';
 
 export type OrganizationMainTab = 'deals' | 'contacts';
@@ -50,14 +57,70 @@ export class OrganizationDetailComponent {
   protected readonly resolved = signal(false);
   protected readonly detailsOpen = signal(true);
 
+  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
+  protected readonly duplicateGstinOrg = signal<{ id: string | number; name: string } | null>(null);
+
   protected readonly detailForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
-    website: ['', Validators.maxLength(200)],
+    website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
+    gst: ['', gstFormValidators()],
     territory: [''],
     industry: [''],
     employees: [''],
     address: [''],
   });
+
+  protected onGstinInput(ev: Event): void {
+    syncGstinInputFromEvent(ev, this.detailForm.controls.gst);
+    this.clearGstinDuplicate();
+  }
+
+  protected onGstinBlur(): void {
+    this.checkGstinDuplicate();
+  }
+
+  protected clearGstinDuplicate(): void {
+    if (this.duplicateGstinOrg()) {
+      this.duplicateGstinOrg.set(null);
+    }
+    const c = this.detailForm.get('gst');
+    const errs = c?.errors;
+    if (!c || !errs?.['duplicate']) return;
+    const next = { ...errs };
+    delete next['duplicate'];
+    c.setErrors(Object.keys(next).length ? next : null);
+  }
+
+  protected checkGstinDuplicate(): void {
+    const rawGst = normalizeGstin(this.detailForm.getRawValue().gst);
+    if (!rawGst) {
+      this.clearGstinDuplicate();
+      return;
+    }
+    const selfId = this.numericId();
+    this.organizationsService
+      .getAll()
+      .pipe(take(1))
+      .subscribe((all) => {
+        const dup = all.find(
+          (o) => normalizeGstin(o.gst) === rawGst && (selfId == null || Number(o.id) !== selfId),
+        );
+        if (dup) {
+          this.duplicateGstinOrg.set({ id: dup.id, name: dup.name });
+          const c = this.detailForm.get('gst');
+          c?.setErrors({ ...(c.errors ?? {}), duplicate: true });
+          c?.markAsTouched();
+        } else {
+          this.clearGstinDuplicate();
+        }
+      });
+  }
+
+  protected fieldInvalid(name: string): boolean {
+    const c = this.detailForm.get(name);
+    return !!c && c.invalid && (c.dirty || c.touched);
+  }
 
   protected readonly dealCount = computed(() => this.relatedDeals().length);
   protected readonly contactCount = computed(() => this.relatedContacts().length);
@@ -119,6 +182,7 @@ export class OrganizationDetailComponent {
       {
         organizationName: row.name,
         website: web,
+        gst: row.gst ?? '',
         industry: masterSelectControlValue(row.industryId, row.industry, this.orgMaster.industrySelectOptions()),
         employees: masterSelectControlValue(row.employeeCountId, row.employees, this.orgMaster.employeeSelectOptions()),
         territory: masterSelectControlValue(row.territoryId, row.territory, this.orgMaster.territorySelectOptions()),
@@ -243,7 +307,20 @@ export class OrganizationDetailComponent {
           return;
         }
 
+        const rawGst = normalizeGstin(v.gst);
+        if (rawGst) {
+          const dupGst = all.find((o) => normalizeGstin(o.gst) === rawGst && o.id !== selfId);
+          if (dupGst) {
+            this.duplicateGstinOrg.set({ id: dupGst.id, name: dupGst.name });
+            const gc = this.detailForm.get('gst');
+            gc?.setErrors({ ...(gc.errors ?? {}), duplicate: true });
+            gc?.markAsTouched();
+            return;
+          }
+        }
+
         this.clearOrgNameDupError();
+        this.clearGstinDuplicate();
         this.saving.set(true);
 
         let web = v.website.trim();
@@ -258,6 +335,7 @@ export class OrganizationDetailComponent {
         const payload: Omit<OrganizationRow, 'id'> = {
           name: TextFormatter.entityName('organization', nameTrim),
           website: web || '—',
+          gst: TextFormatter.gstin(v.gst) || undefined,
           industry:
             industryPick.label ||
             this.orgMaster.industrySelectOptions()[0]?.name ||
@@ -291,9 +369,17 @@ export class OrganizationDetailComponent {
                 this.toast.success('Organization saved.');
               }
             },
-            error: (e: unknown) => {
+            error: (e: any) => {
               this.saving.set(false);
-              this.toast.error(leadsHttpErrorMessage(e));
+              const errBody = e?.error;
+              if (e?.status === 409 && errBody?.existingId != null) {
+                this.duplicateGstinOrg.set({ id: errBody.existingId, name: errBody.existingName || 'Existing Organization' });
+                const gc = this.detailForm.get('gst');
+                gc?.setErrors({ ...(gc.errors ?? {}), duplicate: true });
+                gc?.markAsTouched();
+              } else {
+                this.toast.error(leadsHttpErrorMessage(e));
+              }
             },
           });
       });

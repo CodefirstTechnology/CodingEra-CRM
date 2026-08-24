@@ -42,7 +42,7 @@ import {
 } from './utils/admin-dashboard.util';
 
 type StreamTab = 'all' | 'calls' | 'meetings';
-type DetailKind = 'deals' | 'leads' | 'targets' | 'pipeline';
+type DetailKind = 'deals' | 'leads' | 'targets' | 'pipeline' | 'lostDeals';
 
 export interface EmployeeLedgerItem {
   userId: string;
@@ -228,6 +228,29 @@ export class DashboardComponent implements OnDestroy {
   protected readonly detailLeads = signal<AdminLeadDetail[]>([]);
   protected readonly detailTeam = signal<AdminTeamMemberStats[]>([]);
   protected readonly detailPipeline = signal<AdminPipelineSegment[]>([]);
+  protected readonly detailLostDeals = signal<AdminDealDetail[]>([]);
+
+  protected readonly lostReasonsBreakdown = computed(() => {
+    const deals = this.detailLostDeals();
+    const total = deals.length;
+    if (total === 0) return [];
+    const map = new Map<string, { count: number; totalValue: number }>();
+    for (const d of deals) {
+      const reason = d.lostReason?.trim() || 'Not specified';
+      const existing = map.get(reason) || { count: 0, totalValue: 0 };
+      existing.count += 1;
+      existing.totalValue += d.value || 0;
+      map.set(reason, existing);
+    }
+    return Array.from(map.entries())
+      .map(([reason, data]) => ({
+        reason,
+        count: data.count,
+        totalValue: data.totalValue,
+        percentage: Math.round((data.count / total) * 100),
+      }))
+      .sort((a, b) => b.count - a.count || b.totalValue - a.totalValue);
+  });
 
   /** Stages that currently have at least one open deal — full list for modals. */
   protected readonly pipelineActiveSegments = computed(() => {
@@ -628,6 +651,7 @@ export class DashboardComponent implements OnDestroy {
     this.detailLeads.set([]);
     this.detailTeam.set([]);
     this.detailPipeline.set([]);
+    this.detailLostDeals.set([]);
     this.detailOpen.set(true);
   }
 
@@ -638,6 +662,7 @@ export class DashboardComponent implements OnDestroy {
     this.detailDeals.set([]);
     this.detailTeam.set([]);
     this.detailPipeline.set([]);
+    this.detailLostDeals.set([]);
     this.detailOpen.set(true);
   }
 
@@ -675,6 +700,7 @@ export class DashboardComponent implements OnDestroy {
     this.detailDeals.set([]);
     this.detailLeads.set([]);
     this.detailPipeline.set([]);
+    this.detailLostDeals.set([]);
     this.detailOpen.set(true);
   }
 
@@ -687,6 +713,21 @@ export class DashboardComponent implements OnDestroy {
     this.detailDeals.set([]);
     this.detailLeads.set([]);
     this.detailTeam.set([]);
+    this.detailLostDeals.set([]);
+    this.detailOpen.set(true);
+  }
+
+  protected openLostDeals(): void {
+    const data = this.snapshot();
+    if (!data) return;
+    const count = data.kpis.lostDeals;
+    this.detailKind.set('lostDeals');
+    this.detailTitle.set(`Lost Deals Breakdown (${count})`);
+    this.detailLostDeals.set(data.lostDealDetails ?? []);
+    this.detailDeals.set([]);
+    this.detailLeads.set([]);
+    this.detailTeam.set([]);
+    this.detailPipeline.set([]);
     this.detailOpen.set(true);
   }
 

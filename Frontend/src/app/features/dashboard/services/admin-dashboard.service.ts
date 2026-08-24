@@ -210,6 +210,10 @@ export class AdminDashboardService {
       isDealWonInPeriod(d, pipelineOptions, period.start, period.end),
     );
     const wonDealDetails = wonDealsInPeriod.map((d) => this.toDealDetail(d));
+    const lostDealsInPeriod = allDeals.filter((d) =>
+      isDealLostInPeriod(d, pipelineOptions, period.start, period.end),
+    );
+    const lostDealDetails = lostDealsInPeriod.map((d) => this.toDealDetail(d));
 
     const prevRange = getPreviousPeriodRange(period.start, period.end, period.key);
     const wonDealsInPrevPeriod = allDeals.filter((d) =>
@@ -229,6 +233,7 @@ export class AdminDashboardService {
       periodLeads,
       openDeals,
       wonDealsInPeriod,
+      lostDealsInPeriod,
       overlappingTargets,
       period.start,
       period.end,
@@ -254,6 +259,7 @@ export class AdminDashboardService {
       newLeadDetails,
       openDealDetails,
       wonDealDetails,
+      lostDealDetails,
       activities: activityItems,
       focusInsight,
       activeTargetPeriod,
@@ -273,6 +279,10 @@ export class AdminDashboardService {
   }
 
   private toDealDetail(deal: DealRow, inactiveHours?: number): AdminDealDetail {
+    const recDate = dealRecordDate(deal);
+    const dateStr = recDate
+      ? recDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+      : deal.lastModified || '—';
     return {
       id: deal.id,
       dealName: dealDisplayName(deal),
@@ -282,6 +292,8 @@ export class AdminDashboardService {
       stage: deal.status?.trim() || '—',
       value: resolveDealValue(deal),
       inactiveHours,
+      lostReason: deal.lostReason?.trim() || 'Not specified',
+      recordDate: dateStr,
     };
   }
 
@@ -289,6 +301,7 @@ export class AdminDashboardService {
     periodLeads: LeadRow[],
     openDeals: DealRow[],
     wonDealsInPeriod: DealRow[],
+    lostDealsInPeriod: DealRow[],
     overlappingTargets: UserTargetRow[],
     periodStart: Date,
     periodEnd: Date,
@@ -298,6 +311,8 @@ export class AdminDashboardService {
     const qualifiedLeads = periodLeads.filter((l) => l.status === 'Qualified').length;
     const convertedLeads = periodLeads.filter((l) => isLeadConvertedRow(l)).length;
     const wonDeals = wonDealsInPeriod.length;
+    const lostDeals = lostDealsInPeriod.length;
+    const lostDealsRevenue = lostDealsInPeriod.reduce((sum, d) => sum + resolveDealValue(d), 0);
     const conversionRatePct =
       totalLeads === 0 ? 0 : Math.round((wonDeals / totalLeads) * 1000) / 10;
 
@@ -329,6 +344,8 @@ export class AdminDashboardService {
       qualifiedLeads,
       convertedLeads,
       wonDeals,
+      lostDeals,
+      lostDealsRevenue,
       conversionRatePct,
       newLeadsInPeriod: totalLeads,
       activePipelineCount: openDeals.length,

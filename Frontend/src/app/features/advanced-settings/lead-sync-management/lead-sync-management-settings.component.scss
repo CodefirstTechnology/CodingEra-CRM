@@ -620,6 +620,251 @@
   border: 0;
 }
 
+/* ============================================================
+   API Method Switcher & Webhook UI
+   ============================================================ */
+
+.lsync__detail-title-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.lsync__method-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--text-muted) 3%, var(--surface));
+  min-width: 9.5rem;
+}
+
+.lsync__method-heading {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.lsync__method-switch-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.lsync__method-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s ease;
+}
+
+.lsync__method-label--active {
+  color: var(--tertiary-color);
+  font-weight: 700;
+}
+
+/* Toggle Switch Control */
+.lsync__switch {
+  position: relative;
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  cursor: pointer;
+}
+
+.lsync__switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.lsync__slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: color-mix(in srgb, var(--text-muted) 25%, #cbd5e1);
+  transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 20px;
+}
+
+.lsync__slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.lsync__switch input:checked + .lsync__slider {
+  background-color: var(--tertiary-color);
+}
+
+.lsync__switch input:checked + .lsync__slider:before {
+  transform: translateX(16px);
+}
+
+/* Webhook Card & Ingestion Details */
+.lsync__webhook-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.lsync__webhook-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 0.75rem 1rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--tertiary-color) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--tertiary-color) 25%, var(--card-border));
+}
+
+.lsync__webhook-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--tertiary-color);
+  margin-top: 0.15rem;
+}
+
+.lsync__webhook-header-text {
+  flex: 1;
+}
+
+.lsync__webhook-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.lsync__webhook-sub {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.lsync__input-copy-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.lsync__input--mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85rem;
+  background: color-mix(in srgb, var(--text-muted) 4%, var(--surface));
+}
+
+.lsync__input--readonly {
+  background: color-mix(in srgb, var(--text-muted) 6%, var(--surface));
+  cursor: default;
+}
+
+.lsync__copy-btn {
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--text-muted) 8%, var(--surface));
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0.52rem 0.85rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lsync__copy-btn:hover {
+  background: var(--tertiary-color);
+  color: #fff;
+  border-color: var(--tertiary-color);
+}
+
+.lsync__grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.lsync__code {
+  background: color-mix(in srgb, var(--text-muted) 10%, var(--surface));
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.82rem;
+  color: var(--text-primary);
+}
+
+.lsync__guide-box {
+  border: 1px dashed var(--card-border);
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  background: color-mix(in srgb, var(--text-muted) 3%, var(--surface));
+}
+
+.lsync__guide-heading {
+  margin: 0 0 0.4rem;
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.lsync__guide-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+.lsync__guide-list strong {
+  color: var(--text-primary);
+}
+
+.lsync__automation-card--info {
+  background: color-mix(in srgb, var(--tertiary-color) 5%, var(--surface));
+  border-color: color-mix(in srgb, var(--tertiary-color) 20%, var(--card-border));
+}
+
+.lsync__push-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.lsync__push-notice-title {
+  margin: 0.25rem 0 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.lsync__push-notice-desc {
+  margin: 0;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
 @media (max-width: 900px) {
   .lsync__workspace {
     grid-template-columns: 1fr;
@@ -642,4 +887,18 @@
   .lsync__field--wide {
     max-width: none;
   }
+
+  .lsync__grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .lsync__detail-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .lsync__method-box {
+    width: 100%;
+  }
 }
+
