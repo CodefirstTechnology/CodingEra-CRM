@@ -1629,8 +1629,11 @@
 }
 
 .sales-dash__detail-scroll {
+  flex: 1;
+  min-height: 0;
   max-height: min(60vh, 520px);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .sales-dash__detail-table {
