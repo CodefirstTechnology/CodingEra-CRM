@@ -9,14 +9,21 @@ import { UserDataScopeService } from '../../../core/services/user-data-scope.ser
 import { isDealClosed, isDealClosedWon } from '../../../core/services/deals/deal-pipeline.constants';
 import { LeadOwnerOptionsService } from '../../../core/services/leads/lead-owner-options.service';
 import { leadsHttpErrorMessage } from '../../../core/services/leads.service';
+import { UserTargetHttpService } from '../../../core/services/user-targets/user-target-http.service';
+import type {
+  UserTargetRow,
+  UserTargetWidget,
+} from '../../../core/services/user-targets/user-target-api.models';
 import {
   dealDisplayName,
   dealRecordDate,
   endOfDay,
+  getProportionalTarget,
   leadRecordDate,
   parseDashboardDate,
   resolveDashboardPeriod,
   startOfDay,
+  targetOverlapsPeriod,
 } from '../../dashboard/utils/admin-dashboard.util';
 import type { DealRow } from '../../deals/deals.component';
 import type { LeadRow } from '../../leads/lead-row.model';
@@ -25,7 +32,7 @@ import {
   activityEntityDisplayLabel,
   buildActivityEntityNameMap,
 } from '../../../shared/utils/activity-entity-display.util';
-import { parseSessionUserId } from '../utils/user-ownership.util';
+import { isDealOwnedByUser, parseSessionUserId } from '../utils/user-ownership.util';
 import type {
   UserDashboardActivityItem,
   UserDashboardDealDetail,
@@ -50,6 +57,7 @@ export class UserDashboardService {
   private readonly scope = inject(UserDataScopeService);
   private readonly activitiesService = inject(ActivitiesService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
+  private readonly userTargetsApi = inject(UserTargetHttpService);
 
   /**
    * Loads dashboard data scoped to the logged-in user and filtered by active date period.
@@ -70,8 +78,9 @@ export class UserDashboardService {
       deals: this.entityCache.listDeals().pipe(catchError(() => of([] as DealRow[]))),
       tasks: this.scope.listTasks().pipe(catchError(() => of([] as TaskRow[]))),
       quotations: this.scope.listQuotations().pipe(catchError(() => of([] as QuotationListItem[]))),
+      targets: this.userTargetsApi.listTargets(false).pipe(catchError(() => of([] as UserTargetRow[]))),
     }).pipe(
-      switchMap(({ leads, deals, tasks, quotations }) => {
+      switchMap(({ leads, deals, tasks, quotations, targets }) => {
         const enriched = this.leadOwnerOpts.enrichRows(leads);
 
         const leadIds = new Set(
@@ -88,7 +97,16 @@ export class UserDashboardService {
             map((activities) => {
               const entityNames = buildActivityEntityNameMap(enriched, deals);
               return {
-                data: this.buildSnapshot(enriched, deals, tasks, quotations, activities, entityNames, filters),
+                data: this.buildSnapshot(
+                  enriched,
+                  deals,
+                  tasks,
+                  quotations,
+                  targets,
+                  activities,
+                  entityNames,
+                  filters,
+                ),
                 error: null as string | null,
               };
             }),
@@ -105,6 +123,7 @@ export class UserDashboardService {
     allUserDeals: DealRow[],
     allUserTasks: TaskRow[],
     quotations: QuotationListItem[],
+    targets: UserTargetRow[],
     activities: ActivityRow[],
     entityNames: Map<string, string>,
     filters?: Partial<UserDashboardFilters>,
@@ -122,9 +141,19 @@ export class UserDashboardService {
       return recDate ? this.isDateInPeriod(recDate, periodStart, periodEnd) : true;
     });
 
+    const user = this.auth.user();
+    const userId = user?.id?.trim() ?? '';
+    const userName = user?.name ?? '';
+    const userEmail = user?.email ?? '';
+
+    // Scope deals to logged in user
+    const userDeals = allUserDeals.filter((d) =>
+      isDealOwnedByUser(d, userId, userName, userEmail),
+    );
+
     // Filter Deals by active period
-    const filteredDeals = allUserDeals.filter((d) => {
-      const recDate = dealRecordDate(d) ?? parseDashboardDate(d.lastModifiedAt || d.lastModified || d.createdAt);
+    const filteredDeals = userDeals.filter((d) => {
+      const recDate = dealRecordDate(d) ?? parseDashboardDate(d.lastModifiedAt || d.lastModified || d.createdAt || d.createdAtAt);
       return recDate ? this.isDateInPeriod(recDate, periodStart, periodEnd) : true;
     });
 
@@ -148,9 +177,9 @@ export class UserDashboardService {
     });
 
     const activeDeals = filteredDeals.filter((d) => !isDealClosed(d.status));
-    const closedWonDeals = allUserDeals.filter((d) => {
+    const closedWonDeals = userDeals.filter((d) => {
       if (!isDealClosedWon(d.status)) return false;
-      const t = dealRecordDate(d) ?? parseDashboardDate(d.lastModifiedAt || d.lastModified);
+      const t = dealRecordDate(d) ?? parseDashboardDate(d.lastModifiedAt || d.lastModified || d.createdAt || d.createdAtAt);
       return t ? this.isDateInPeriod(t, periodStart, periodEnd) : true;
     });
 
@@ -159,7 +188,13 @@ export class UserDashboardService {
     const followUps = this.buildFollowUps(allUserTasks, periodStart, periodEnd);
 
     const periodRevenue = closedWonDeals.reduce((sum, d) => {
-      return sum + (Number.isFinite(d.dealAmount) && d.dealAmount > 0 ? d.dealAmount : 0);
+      const val =
+        Number.isFinite(d.dealAmount) && d.dealAmount > 0
+          ? d.dealAmount
+          : Number.isFinite(d.annualRevenue) && d.annualRevenue > 0
+            ? d.annualRevenue
+            : 0;
+      return sum + val;
     }, 0);
 
     const converted = filteredLeads.filter((l) => l.status === 'Converted' || l.isConverted === true).length;
@@ -193,6 +228,44 @@ export class UserDashboardService {
       quotationDate: q.quotationDate || q.createdAt || '—',
     }));
 
+    // Targets filtered by active period & logged in user (matching Admin dashboard target calculation)
+    const sessionUser = this.auth.user();
+    const sessionUserId = parseSessionUserId(sessionUser?.id);
+    const userTargets = (targets || []).filter(
+      (t) =>
+        t.isActive &&
+        (sessionUserId == null ||
+          t.userId === sessionUserId ||
+          (sessionUser?.email && t.userEmail?.toLowerCase() === sessionUser.email.toLowerCase())),
+    );
+
+    const overlappingTargets = userTargets.filter((t) =>
+      targetOverlapsPeriod(t, periodStart, periodEnd),
+    );
+
+    const periodWonRevenue = periodRevenue;
+
+    const targetWidgets: UserTargetWidget[] = overlappingTargets.map((t) => {
+      const prop = getProportionalTarget(t, periodStart, periodEnd);
+      const targetAmount = Math.round(prop.targetAmount * 100) / 100;
+      const achievedAmount = periodWonRevenue;
+      const remainingAmount = Math.max(0, targetAmount - achievedAmount);
+      const achievementPercent =
+        targetAmount > 0 ? Math.min(100, Math.round((achievedAmount / targetAmount) * 1000) / 10) : 0;
+
+      return {
+        targetId: t.id,
+        targetTypeName: t.targetTypeName || 'Custom Target',
+        targetAmount,
+        achievedAmount,
+        remainingAmount,
+        achievementPercent,
+        startDate: t.startDate,
+        endDate: t.endDate,
+        isActive: t.isActive,
+      };
+    });
+
     return {
       period: {
         key: period.key as UserDashboardPeriodKey,
@@ -210,6 +283,7 @@ export class UserDashboardService {
         meetingsToday: followUps.filter((f) => f.kind === 'meeting').length,
         monthlyRevenue: periodRevenue,
       } satisfies UserDashboardKpis,
+      targetWidgets,
       assignedLeads: tableRows,
       todaysLeads: todaysLeads.map((l) => this.toLeadTableRow(l, undefined)),
       followUps,

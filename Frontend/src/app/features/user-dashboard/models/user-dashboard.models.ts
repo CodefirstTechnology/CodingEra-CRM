@@ -94,6 +94,7 @@ export type UserDashboardKpiDetailKind =
   | 'leads'
   | 'deals'
   | 'wonDeals'
+  | 'conversion'
   | 'followUps'
   | 'followUpsAll'
   | 'quotations'
@@ -135,9 +136,12 @@ export interface UserDashboardRevenueDealDetail {
   closedDate: string;
 }
 
+import type { UserTargetWidget } from '../../../core/services/user-targets/user-target-api.models';
+
 export interface UserDashboardSnapshot {
   period: UserDashboardPeriodInfo;
   kpis: UserDashboardKpis;
+  targetWidgets: UserTargetWidget[];
   assignedLeads: UserDashboardLeadTableRow[];
   todaysLeads: UserDashboardLeadTableRow[];
   followUps: UserDashboardFollowUpItem[];

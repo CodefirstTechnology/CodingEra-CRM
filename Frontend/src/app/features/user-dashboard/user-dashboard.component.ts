@@ -34,6 +34,8 @@ import {
   type UserDashboardSnapshot,
 } from './models/user-dashboard.models';
 import { UserDashboardService } from './services/user-dashboard.service';
+import type { StuckPipelineResponse } from '../../core/services/dashboard/stuck-pipeline.models';
+import { StuckPipelineService } from '../../core/services/dashboard/stuck-pipeline.service';
 
 function toDateInputValue(d: Date): string {
   const y = d.getFullYear();
@@ -72,6 +74,7 @@ export class UserDashboardComponent {
   private readonly permissions = inject(PermissionService);
   private readonly userTargets = inject(UserTargetHttpService);
   private readonly sessionTracker = inject(UserSessionTrackerService);
+  private readonly stuckService = inject(StuckPipelineService);
   private readonly router = inject(Router);
 
   protected readonly periodOptions = USER_DASHBOARD_PERIOD_OPTIONS;
@@ -79,8 +82,19 @@ export class UserDashboardComponent {
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
   protected readonly snapshot = signal<UserDashboardSnapshot | null>(null);
-  protected readonly targetWidgets = signal<UserTargetWidget[]>([]);
-  protected readonly targetsLoading = signal(false);
+  protected readonly targetWidgets = computed(() => this.snapshot()?.targetWidgets ?? []);
+  protected readonly targetsLoading = computed(() => this.loading());
+
+  // Attention Required (Stuck Pipeline & Idle Leads)
+  protected readonly stuckPipeline = signal<StuckPipelineResponse | null>(null);
+  protected readonly stuckWidgetTab = signal<'deals' | 'leads'>('deals');
+  protected readonly stuckPipelineLoading = signal(false);
+
+  protected readonly stuckDeals = computed(() => this.stuckPipeline()?.stuckDeals ?? []);
+  protected readonly idleLeads = computed(() => this.stuckPipeline()?.idleLeads ?? []);
+  protected readonly stuckDealsCount = computed(() => this.stuckPipeline()?.summary.stuckDealsCount ?? 0);
+  protected readonly idleLeadsCount = computed(() => this.stuckPipeline()?.summary.idleLeadsCount ?? 0);
+  protected readonly totalAttentionCount = computed(() => this.stuckDealsCount() + this.idleLeadsCount());
 
   // Period filter state signals
   protected readonly periodKey = signal<UserDashboardPeriodKey>('this_month');
@@ -173,7 +187,31 @@ export class UserDashboardComponent {
           this.error.set('Could not load your dashboard.');
         },
       });
-    this.loadTargetWidgets();
+    this.loadStuckPipeline();
+  }
+
+  protected loadStuckPipeline(): void {
+    this.stuckPipelineLoading.set(true);
+    this.stuckService
+      .getStuckPipeline()
+      .pipe(take(1))
+      .subscribe({
+        next: (res) => {
+          this.stuckPipelineLoading.set(false);
+          this.stuckPipeline.set(res);
+        },
+        error: () => {
+          this.stuckPipelineLoading.set(false);
+        },
+      });
+  }
+
+  protected setStuckWidgetTab(tab: 'deals' | 'leads'): void {
+    this.stuckWidgetTab.set(tab);
+  }
+
+  protected formatIndianCurrency(val: number): string {
+    return formatIndianCurrency(val);
   }
 
   protected togglePeriodMenu(): void {
@@ -245,24 +283,6 @@ export class UserDashboardComponent {
     this.refresh();
   }
 
-  private loadTargetWidgets(): void {
-    if (!this.showTargets()) {
-      this.targetWidgets.set([]);
-      return;
-    }
-    this.targetsLoading.set(true);
-    this.userTargets.listMyWidgets().pipe(take(1)).subscribe({
-      next: (rows) => {
-        this.targetWidgets.set(rows);
-        this.targetsLoading.set(false);
-      },
-      error: () => {
-        this.targetWidgets.set([]);
-        this.targetsLoading.set(false);
-      },
-    });
-  }
-
   protected openCreate(kind: 'lead' | 'deal' | 'task'): void {
     this.createFlow.selectEntity(kind);
   }
@@ -286,6 +306,7 @@ export class UserDashboardComponent {
       leads: `Total leads (${data.kpis.myLeads})`,
       deals: `Active deals (${data.kpis.activeDeals})`,
       wonDeals: `Won deals (${data.kpis.wonDeals})`,
+      conversion: `Conversion ratio (${data.performance.conversionPct}%)`,
       followUps: `Follow-ups (${data.kpis.followUpsToday})`,
       followUpsAll: `Follow-ups & meetings (${data.followUps.length})`,
       quotations: `Quotations (${data.kpis.quotations})`,

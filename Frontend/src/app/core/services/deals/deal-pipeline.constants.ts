@@ -20,20 +20,52 @@ export function resolveDealStatusLabel(name: string): string {
 
 export function isDealClosedWon(status: string, options: readonly MasterDataOption[] = []): boolean {
   const pipeline = toDealPipelineRows(options);
-  if (pipeline.length > 0) return isClosedWonStatus(pipeline, status);
-  return false;
+  if (pipeline.length > 0) {
+    const isWon = isClosedWonStatus(pipeline, status);
+    if (isWon) return true;
+  }
+  const norm = (status ?? '').trim().toLowerCase();
+  if (!norm) return false;
+  return (
+    norm === 'lead closed - won' ||
+    norm === 'lead closed-won' ||
+    norm === 'closed won' ||
+    norm === 'closed - won' ||
+    norm === 'won' ||
+    norm === 'deal won' ||
+    norm === 'closed-won' ||
+    norm.includes('closed - won') ||
+    norm.includes('closed won') ||
+    norm.endsWith(' - won') ||
+    norm.endsWith(' won')
+  );
 }
 
 export function isDealClosedLost(status: string, options: readonly MasterDataOption[] = []): boolean {
   const pipeline = toDealPipelineRows(options);
-  if (pipeline.length > 0) return isClosedLostStatus(pipeline, status);
-  return false;
+  if (pipeline.length > 0) {
+    const isLost = isClosedLostStatus(pipeline, status);
+    if (isLost) return true;
+  }
+  const norm = (status ?? '').trim().toLowerCase();
+  if (!norm) return false;
+  return (
+    norm === 'lead closed - lost' ||
+    norm === 'lead closed-lost' ||
+    norm === 'closed lost' ||
+    norm === 'closed - lost' ||
+    norm === 'lost' ||
+    norm === 'deal lost' ||
+    norm === 'closed-lost' ||
+    norm.includes('closed - lost') ||
+    norm.includes('closed lost') ||
+    norm.endsWith(' - lost') ||
+    norm.endsWith(' lost')
+  );
 }
 
 export function isDealClosed(status: string, options: readonly MasterDataOption[] = []): boolean {
-  const pipeline = toDealPipelineRows(options);
-  if (pipeline.length > 0) return isClosedStatus(pipeline, status);
-  return false;
+  return isDealClosedWon(status, options) || isDealClosedLost(status, options);
 }
 
 export function isDealActivePipeline(status: string, options: readonly MasterDataOption[] = []): boolean {
