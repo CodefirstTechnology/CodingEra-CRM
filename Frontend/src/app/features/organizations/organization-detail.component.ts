@@ -24,6 +24,7 @@ import type { OrganizationRow } from './organizations.component';
 import {
   GSTIN_ERROR_KEY,
   GSTIN_ERROR_MESSAGE,
+  normalizeGstin,
   syncGstinInputFromEvent,
 } from '../../shared/utils/gstin.util';
 import { gstFormValidators, optionalUrlValidator } from '../../shared/validators/crm-validators';
@@ -58,6 +59,7 @@ export class OrganizationDetailComponent {
 
   protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
   protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
+  protected readonly duplicateGstinOrg = signal<{ id: string | number; name: string } | null>(null);
 
   protected readonly detailForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
@@ -71,6 +73,48 @@ export class OrganizationDetailComponent {
 
   protected onGstinInput(ev: Event): void {
     syncGstinInputFromEvent(ev, this.detailForm.controls.gst);
+    this.clearGstinDuplicate();
+  }
+
+  protected onGstinBlur(): void {
+    this.checkGstinDuplicate();
+  }
+
+  protected clearGstinDuplicate(): void {
+    if (this.duplicateGstinOrg()) {
+      this.duplicateGstinOrg.set(null);
+    }
+    const c = this.detailForm.get('gst');
+    const errs = c?.errors;
+    if (!c || !errs?.['duplicate']) return;
+    const next = { ...errs };
+    delete next['duplicate'];
+    c.setErrors(Object.keys(next).length ? next : null);
+  }
+
+  protected checkGstinDuplicate(): void {
+    const rawGst = normalizeGstin(this.detailForm.getRawValue().gst);
+    if (!rawGst) {
+      this.clearGstinDuplicate();
+      return;
+    }
+    const selfId = this.numericId();
+    this.organizationsService
+      .getAll()
+      .pipe(take(1))
+      .subscribe((all) => {
+        const dup = all.find(
+          (o) => normalizeGstin(o.gst) === rawGst && (selfId == null || Number(o.id) !== selfId),
+        );
+        if (dup) {
+          this.duplicateGstinOrg.set({ id: dup.id, name: dup.name });
+          const c = this.detailForm.get('gst');
+          c?.setErrors({ ...(c.errors ?? {}), duplicate: true });
+          c?.markAsTouched();
+        } else {
+          this.clearGstinDuplicate();
+        }
+      });
   }
 
   protected fieldInvalid(name: string): boolean {
@@ -263,7 +307,20 @@ export class OrganizationDetailComponent {
           return;
         }
 
+        const rawGst = normalizeGstin(v.gst);
+        if (rawGst) {
+          const dupGst = all.find((o) => normalizeGstin(o.gst) === rawGst && o.id !== selfId);
+          if (dupGst) {
+            this.duplicateGstinOrg.set({ id: dupGst.id, name: dupGst.name });
+            const gc = this.detailForm.get('gst');
+            gc?.setErrors({ ...(gc.errors ?? {}), duplicate: true });
+            gc?.markAsTouched();
+            return;
+          }
+        }
+
         this.clearOrgNameDupError();
+        this.clearGstinDuplicate();
         this.saving.set(true);
 
         let web = v.website.trim();
@@ -312,9 +369,17 @@ export class OrganizationDetailComponent {
                 this.toast.success('Organization saved.');
               }
             },
-            error: (e: unknown) => {
+            error: (e: any) => {
               this.saving.set(false);
-              this.toast.error(leadsHttpErrorMessage(e));
+              const errBody = e?.error;
+              if (e?.status === 409 && errBody?.existingId != null) {
+                this.duplicateGstinOrg.set({ id: errBody.existingId, name: errBody.existingName || 'Existing Organization' });
+                const gc = this.detailForm.get('gst');
+                gc?.setErrors({ ...(gc.errors ?? {}), duplicate: true });
+                gc?.markAsTouched();
+              } else {
+                this.toast.error(leadsHttpErrorMessage(e));
+              }
             },
           });
       });

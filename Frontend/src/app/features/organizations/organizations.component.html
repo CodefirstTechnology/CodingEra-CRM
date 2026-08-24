@@ -68,8 +68,20 @@
                 maxlength="15"
                 spellcheck="false"
                 (input)="onGstinInput($event)"
+                (blur)="onGstinBlur()"
               />
-              @if (fieldInvalid('gst') && createForm.get('gst')?.errors?.[gstinErrorKey]) {
+              @if (createForm.get('gst')?.errors?.['duplicate'] && duplicateGstinOrg()) {
+                <span class="org__err">
+                  An organization with this GSTIN already exists.
+                  <a
+                    [routerLink]="['/organizations', duplicateGstinOrg()!.id]"
+                    class="org__err-link"
+                    (click)="closeForm()"
+                  >
+                    View {{ duplicateGstinOrg()!.name || 'Organization' }}
+                  </a>
+                </span>
+              } @else if (fieldInvalid('gst') && createForm.get('gst')?.errors?.[gstinErrorKey]) {
                 <span class="org__err">{{ gstinErrorMessage }}</span>
               }
             </label>

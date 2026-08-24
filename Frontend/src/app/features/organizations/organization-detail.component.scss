@@ -467,10 +467,28 @@ select.org-detail__input {
   margin-top: -0.2rem;
 }
 
+.org-detail__err-link {
+  color: var(--tertiary-color, #2563eb);
+  font-weight: 700;
+  text-decoration: underline;
+  margin-left: 0.25rem;
+  display: inline-block;
+
+  &:hover {
+    filter: brightness(1.15);
+  }
+}
+
 :host-context(.dark) .org-detail__err,
 :host-context([data-theme='dark']) .org-detail__err,
 :host-context(.dark-theme) .org-detail__err {
   color: #f87171;
+}
+
+:host-context(.dark) .org-detail__err-link,
+:host-context([data-theme='dark']) .org-detail__err-link,
+:host-context(.dark-theme) .org-detail__err-link {
+  color: #38bdf8;
 }
 
 .org-detail__save-bar {

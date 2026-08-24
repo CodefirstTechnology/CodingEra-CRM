@@ -23,6 +23,7 @@ import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import {
   GSTIN_ERROR_KEY,
   GSTIN_ERROR_MESSAGE,
+  normalizeGstin,
   syncGstinInputFromEvent,
 } from '../../shared/utils/gstin.util';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
@@ -66,6 +67,10 @@ export class OrganizationsComponent {
   protected readonly orgMaster = inject(OrganizationMasterSelectService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
+
+  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
+  protected readonly duplicateGstinOrg = signal<{ id: string | number; name: string } | null>(null);
 
   protected readonly sel = createIdSelection();
   protected readonly editingNumericId = signal<number | null>(null);
@@ -130,9 +135,6 @@ export class OrganizationsComponent {
   });
 
   protected readonly tablePagination = createClientTablePagination(this.filtered);
-
-  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
-  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
 
   protected hasActiveFilters(): boolean {
     return (
@@ -222,6 +224,49 @@ export class OrganizationsComponent {
 
   protected onGstinInput(ev: Event): void {
     syncGstinInputFromEvent(ev, this.createForm.controls.gst);
+    this.clearGstinDuplicate();
+  }
+
+  protected onGstinBlur(): void {
+    this.checkGstinDuplicate();
+  }
+
+  protected clearGstinDuplicate(): void {
+    if (this.duplicateGstinOrg()) {
+      this.duplicateGstinOrg.set(null);
+    }
+    const c = this.createForm.get('gst');
+    const errs = c?.errors;
+    if (!c || !errs?.['duplicate']) return;
+    const next = { ...errs };
+    delete next['duplicate'];
+    c.setErrors(Object.keys(next).length ? next : null);
+  }
+
+  protected checkGstinDuplicate(): boolean {
+    const rawGst = normalizeGstin(this.createForm.getRawValue().gst);
+    if (!rawGst) {
+      this.clearGstinDuplicate();
+      return false;
+    }
+
+    const editId = this.editingNumericId();
+    const dup = this.rows().find(
+      (r) =>
+        normalizeGstin(r.gst) === rawGst &&
+        (editId == null || Number(r.id) !== editId),
+    );
+
+    if (dup) {
+      this.duplicateGstinOrg.set({ id: dup.id, name: dup.name });
+      const c = this.createForm.get('gst');
+      c?.setErrors({ ...(c.errors ?? {}), duplicate: true });
+      c?.markAsTouched();
+      return true;
+    }
+
+    this.clearGstinDuplicate();
+    return false;
   }
 
   private clearEditQuery(): void {
@@ -259,6 +304,7 @@ export class OrganizationsComponent {
   protected openForm(): void {
     this.editingNumericId.set(null);
     this.clearEditQuery();
+    this.duplicateGstinOrg.set(null);
     this.createForm.reset({
       organizationName: '',
       website: '',
@@ -277,6 +323,7 @@ export class OrganizationsComponent {
     this.formOpen.set(false);
     this.editingNumericId.set(null);
     this.clearEditQuery();
+    this.duplicateGstinOrg.set(null);
     this.createForm.reset({
       organizationName: '',
       website: '',
@@ -295,6 +342,7 @@ export class OrganizationsComponent {
     const id = Number(idStr);
     if (!Number.isFinite(id)) return;
     this.lastRouteEdit = idStr;
+    this.duplicateGstinOrg.set(null);
     this.organizationsService
       .getById(id)
       .pipe(take(1))
@@ -382,6 +430,10 @@ export class OrganizationsComponent {
       return;
     }
 
+    if (this.checkGstinDuplicate()) {
+      return;
+    }
+
     let web = raw.website.trim();
     if (web && !/^https?:\/\//i.test(web)) {
       web = `https://${web}`;
@@ -418,6 +470,20 @@ export class OrganizationsComponent {
       this.closeForm();
     };
 
+    const handleConflictError = (e: any): boolean => {
+      const errBody = e?.error;
+      if (e?.status === 409) {
+        const eid = errBody?.existingId ?? '';
+        const ename = errBody?.existingName ?? 'Existing Organization';
+        this.duplicateGstinOrg.set({ id: eid, name: ename });
+        const c = this.createForm.get('gst');
+        c?.setErrors({ ...(c.errors ?? {}), duplicate: true });
+        c?.markAsTouched();
+        return true;
+      }
+      return false;
+    };
+
     if (editId != null) {
       this.organizationsService
         .update(editId, payload)
@@ -427,7 +493,11 @@ export class OrganizationsComponent {
             this.toast.success('Organization updated.');
             done();
           },
-          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+          error: (e: unknown) => {
+            if (!handleConflictError(e)) {
+              this.toast.error(leadsHttpErrorMessage(e));
+            }
+          },
         });
     } else {
       this.organizationsService
@@ -438,7 +508,11 @@ export class OrganizationsComponent {
             this.toast.success('Organization created.');
             done();
           },
-          error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+          error: (e: unknown) => {
+            if (!handleConflictError(e)) {
+              this.toast.error(leadsHttpErrorMessage(e));
+            }
+          },
         });
     }
   }
