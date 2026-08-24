@@ -81,9 +81,12 @@
       <span class="sales-dash__kpi-label">Won deals</span>
       <span class="sales-dash__kpi-value">{{ data.kpis.wonDeals }}</span>
     </button>
-    <button type="button" class="sales-dash__kpi sales-dash__kpi--click" (click)="openPipelineOverview()">
-      <span class="sales-dash__kpi-label">Pipeline value</span>
-      <span class="sales-dash__kpi-value">{{ formatMoney(data.kpis.pipelineRevenue) }}</span>
+    <button type="button" class="sales-dash__kpi sales-dash__kpi--click sales-dash__kpi--lost" (click)="openLostDeals()">
+      <span class="sales-dash__kpi-label">Lost deals</span>
+      <div class="sales-dash__kpi-lost-val-group">
+        <span class="sales-dash__kpi-value">{{ data.kpis.lostDeals }}</span>
+        <span class="sales-dash__kpi-lost-badge">{{ formatMoney(data.kpis.lostDealsRevenue) }} lost</span>
+      </div>
     </button>
     <article class="sales-dash__kpi">
       <span class="sales-dash__kpi-label">Conversion ratio</span>
@@ -717,6 +720,71 @@
               }
             </td>
             <td>{{ targetStatusLabel(row.targetAmount, row.targetAchieved) }}</td>
+          </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    }
+    } @else if (detailKind() === 'lostDeals') {
+    <div class="sales-dash__lost-modal-header">
+      <p class="sales-dash__lost-modal-sub">Analysis of lost reasons for the selected period</p>
+    </div>
+
+    @if (detailLostDeals().length === 0) {
+    <p class="sales-dash__detail-empty">No lost deals in this period.</p>
+    } @else {
+    <div class="sales-dash__lost-reasons-summary">
+      <h3 class="sales-dash__lost-reasons-title">Lost Reasons Distribution</h3>
+      <div class="sales-dash__lost-reasons-grid">
+        @for (item of lostReasonsBreakdown(); track item.reason) {
+        <div class="sales-dash__lost-reason-card">
+          <div class="sales-dash__lost-reason-top">
+            <span class="sales-dash__lost-reason-name" [title]="item.reason">{{ item.reason }}</span>
+            <span class="sales-dash__lost-reason-pct">{{ item.percentage }}% ({{ item.count }})</span>
+          </div>
+          <div class="sales-dash__lost-reason-bar-track">
+            <div class="sales-dash__lost-reason-bar-fill" [style.width.%]="item.percentage"></div>
+          </div>
+          <div class="sales-dash__lost-reason-bottom">
+            <span>{{ formatMoney(item.totalValue) }} lost</span>
+          </div>
+        </div>
+        }
+      </div>
+    </div>
+
+    <div class="sales-dash__detail-scroll">
+      <table class="sales-dash__detail-table">
+        <thead>
+          <tr>
+            <th scope="col">Deal Name</th>
+            <th scope="col">Organization</th>
+            <th scope="col">Lost Reason</th>
+            <th scope="col">Lost Value</th>
+            <th scope="col">Owner</th>
+            <th scope="col">Date</th>
+            <th scope="col"></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (deal of detailLostDeals(); track deal.id) {
+          <tr>
+            <td style="font-weight: 600;">{{ deal.dealName }}</td>
+            <td>{{ deal.company }}</td>
+            <td>
+              <span class="sales-dash__lost-reason-badge">
+                {{ deal.lostReason || 'Not specified' }}
+              </span>
+            </td>
+            <td style="font-weight: 700; color: #f43f5e;">{{ formatMoney(deal.value) }}</td>
+            <td>{{ deal.owner }}</td>
+            <td>{{ deal.recordDate || '—' }}</td>
+            <td>
+              <a class="sales-dash__detail-link" [routerLink]="['/deals', deal.id]" (click)="closeDetail()">
+                Open
+              </a>
+            </td>
           </tr>
           }
         </tbody>

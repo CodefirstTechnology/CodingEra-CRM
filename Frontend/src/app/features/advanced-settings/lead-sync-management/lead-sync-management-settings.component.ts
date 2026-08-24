@@ -54,6 +54,8 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
   protected readonly draftPullUrl = signal<Record<number, string>>({});
   protected readonly draftApiKey = signal<Record<number, string>>({});
   protected readonly maskedKey = signal<Record<number, string | null>>({});
+  protected readonly selectedApiMethod = signal<Record<number, 'pull' | 'push'>>({});
+  protected readonly testingPushSourceId = signal<number | null>(null);
 
   protected readonly selectedSource = computed(() => {
     const id = this.selectedSourceId();
@@ -397,6 +399,64 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
     return source.isConfigured ? 'lsync__badge--ready' : 'lsync__badge--pending';
   }
 
+  protected apiMethod(sourceId: number): 'pull' | 'push' {
+    return this.selectedApiMethod()[sourceId] ?? 'pull';
+  }
+
+  protected toggleApiMethod(source: LeadSyncSource, method: 'pull' | 'push'): void {
+    this.selectedApiMethod.update((m) => ({ ...m, [source.id]: method }));
+    try {
+      localStorage.setItem(`lsync_api_method_${source.code}`, method);
+    } catch {
+      // ignore storage access errors
+    }
+
+    if (method === 'push') {
+      // Enforce: don't use both methods at a time (turn off auto-pull sync if active)
+      if (this.autoSyncEnabled(source.id)) {
+        this.setAutoSyncEnabled(source.id, false);
+        this.saveAutoSync(source);
+        this.toast.info(`${source.displayName} method set to Push API (Webhook). Auto-Pull disabled.`);
+      } else {
+        this.toast.success(`${source.displayName} method set to Push API (Webhook).`);
+      }
+    } else {
+      this.toast.success(`${source.displayName} method set to Pull API.`);
+    }
+  }
+
+  protected webhookUrl(source: LeadSyncSource): string {
+    const origin = window.location.origin;
+    // Prefer production domain or current origin
+    const host = origin.includes('localhost') ? 'https://crm.buildrich.in' : origin;
+    return `${host}/api/integrations/${source.code}/leads`;
+  }
+
+  protected copyToClipboard(text: string, label: string): void {
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(
+      () => this.toast.success(`${label} copied to clipboard!`),
+      () => this.toast.error(`Could not copy ${label}. Please select and copy manually.`),
+    );
+  }
+
+  protected testPushSimulation(source: LeadSyncSource): void {
+    this.testingPushSourceId.set(source.id);
+    // Ping health / connectivity
+    const origin = window.location.origin;
+    const host = origin.includes('localhost') ? '' : origin;
+    fetch(`${host}/api/integrations/${source.code}/health`)
+      .then((res) => res.json())
+      .then((data) => {
+        this.testingPushSourceId.set(null);
+        this.toast.success(`${source.displayName} Webhook listener is active & reachable.`);
+      })
+      .catch(() => {
+        this.testingPushSourceId.set(null);
+        this.toast.info(`${source.displayName} Webhook endpoint configured at: ${this.webhookUrl(source)}`);
+      });
+  }
+
   protected userInitial(name: string): string {
     return (name.trim()[0] ?? '?').toUpperCase();
   }
@@ -413,6 +473,7 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
     const autoDraft: Record<number, boolean> = {};
     const intervalDraft: Record<number, number | null> = {};
     const urlDraft: Record<number, string> = {};
+    const methodDraft: Record<number, 'pull' | 'push'> = {};
     const defaultIntervalId = this.defaultIntervalOptionId();
     for (const s of sources) {
       userDraft[s.id] = s.assignments.map((a) => a.userId);
@@ -421,11 +482,20 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
       const ui = getLeadSyncProviderUi(s.code);
       const defaultUrl = ui?.fields.find((f) => f.key === 'pullApiUrl')?.defaultValue ?? '';
       urlDraft[s.id] = s.pullApiUrl ?? defaultUrl;
+
+      // Load saved api method preference per provider (defaults to 'pull')
+      try {
+        const savedMethod = localStorage.getItem(`lsync_api_method_${s.code}`) as 'pull' | 'push' | null;
+        methodDraft[s.id] = savedMethod === 'push' ? 'push' : 'pull';
+      } catch {
+        methodDraft[s.id] = 'pull';
+      }
     }
     this.draftUserIds.set(userDraft);
     this.draftAutoSync.set(autoDraft);
     this.draftIntervalOptionId.set(intervalDraft);
     this.draftPullUrl.set(urlDraft);
+    this.selectedApiMethod.set(methodDraft);
   }
 
   private defaultIntervalOptionId(): number | null {

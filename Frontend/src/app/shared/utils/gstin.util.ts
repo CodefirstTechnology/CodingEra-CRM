@@ -1,7 +1,7 @@
 import { AbstractControl } from '@angular/forms';
 
-/** Indian GSTIN format (15 characters). */
-export const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[A-Z0-9]{1}Z[A-Z0-9]{1}$/;
+/** Indian GSTIN format (15 characters: 2 state digits, 10 PAN chars, 1 entity num/char, 'Z', 1 check digit). */
+export const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
 export const GSTIN_ERROR_MESSAGE = 'Please enter a valid GSTIN.';
 
