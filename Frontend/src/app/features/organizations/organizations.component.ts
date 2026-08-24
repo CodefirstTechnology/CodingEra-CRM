@@ -14,8 +14,17 @@ import {
   masterSelectControlValue,
   resolveOrgMasterPick,
 } from '../../core/services/organizations/organization-master-select.util';
-import { optionalUrlValidator } from '../../shared/validators/crm-validators';
+import {
+  gstFormValidators,
+  optionalUrlValidator,
+  standardGstinValidators,
+} from '../../shared/validators/crm-validators';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
+import {
+  GSTIN_ERROR_KEY,
+  GSTIN_ERROR_MESSAGE,
+  syncGstinInputFromEvent,
+} from '../../shared/utils/gstin.util';
 import { CrmPaginationFooterComponent } from '../../shared/components/crm-pagination-footer/crm-pagination-footer.component';
 import { createClientTablePagination } from '../../shared/utils/crm-table-pagination.util';
 import { createIdSelection } from '../../shared/utils/selection-manager';
@@ -109,6 +118,7 @@ export class OrganizationsComponent {
       return (
         row.name.toLowerCase().includes(q) ||
         (row.website?.toLowerCase().includes(q) ?? false) ||
+        (row.gst?.toLowerCase().includes(q) ?? false) ||
         row.industry.toLowerCase().includes(q) ||
         (row.territory?.toLowerCase().includes(q) ?? false) ||
         (row.employees?.toLowerCase().includes(q) ?? false) ||
@@ -120,6 +130,9 @@ export class OrganizationsComponent {
   });
 
   protected readonly tablePagination = createClientTablePagination(this.filtered);
+
+  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
 
   protected hasActiveFilters(): boolean {
     return (
@@ -199,11 +212,17 @@ export class OrganizationsComponent {
   protected readonly createForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
     website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
+    gst: ['', gstFormValidators()],
     industry: ['', Validators.required],
     annualRevenue: ['', Validators.maxLength(40)],
     employees: [''],
     territory: [''],
+    address: ['', Validators.maxLength(500)],
   });
+
+  protected onGstinInput(ev: Event): void {
+    syncGstinInputFromEvent(ev, this.createForm.controls.gst);
+  }
 
   private clearEditQuery(): void {
     this.lastRouteEdit = '';
@@ -243,10 +262,12 @@ export class OrganizationsComponent {
     this.createForm.reset({
       organizationName: '',
       website: '',
+      gst: '',
       industry: this.defaultIndustryFormValue(),
       annualRevenue: '',
       employees: this.defaultEmployeesFormValue(),
       territory: '',
+      address: '',
     });
     this.createForm.markAsUntouched();
     this.formOpen.set(true);
@@ -259,10 +280,12 @@ export class OrganizationsComponent {
     this.createForm.reset({
       organizationName: '',
       website: '',
+      gst: '',
       industry: this.defaultIndustryFormValue(),
       annualRevenue: '',
       employees: this.defaultEmployeesFormValue(),
       territory: '',
+      address: '',
     });
     this.createForm.markAsUntouched();
   }
@@ -288,10 +311,12 @@ export class OrganizationsComponent {
         this.createForm.patchValue({
           organizationName: row.name,
           website: web,
+          gst: row.gst ?? '',
           industry: masterSelectControlValue(row.industryId, row.industry, indOpts),
           annualRevenue: revInput,
           employees: masterSelectControlValue(row.employeeCountId, row.employees, empOpts),
           territory: masterSelectControlValue(row.territoryId, row.territory, terrOpts),
+          address: row.address ?? '',
         });
         this.formOpen.set(true);
       });
@@ -369,6 +394,7 @@ export class OrganizationsComponent {
     const payload: Omit<OrganizationRow, 'id'> = {
       name: TextFormatter.entityName('organization', nameTrim),
       website: web || '',
+      gst: TextFormatter.gstin(raw.gst) || undefined,
       industry:
         industryPick.label ||
         this.orgMaster.industrySelectOptions()[0]?.name ||
@@ -383,6 +409,7 @@ export class OrganizationsComponent {
       industryId: industryPick.masterId,
       employeeCountId: employeePick.masterId,
       territoryId: territoryPick.masterId,
+      address: raw.address.trim() || undefined,
     };
 
     const done = () => {

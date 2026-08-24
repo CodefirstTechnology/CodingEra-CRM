@@ -49,11 +49,28 @@
               }
             </label>
 
-            <label class="org__field org__field--full">
+            <label class="org__field">
               <span class="org__label">Website</span>
               <input class="org__control org__control--soft" type="text" formControlName="website" placeholder="https://" />
               @if (fieldInvalid('website') && createForm.get('website')?.errors?.['url']) {
                 <span class="org__err">Enter a valid website URL.</span>
+              }
+            </label>
+
+            <label class="org__field">
+              <span class="org__label">GSTIN</span>
+              <input
+                class="org__control org__control--soft"
+                type="text"
+                formControlName="gst"
+                placeholder="e.g. 27AAJCB6955B1ZM"
+                autocomplete="off"
+                maxlength="15"
+                spellcheck="false"
+                (input)="onGstinInput($event)"
+              />
+              @if (fieldInvalid('gst') && createForm.get('gst')?.errors?.[gstinErrorKey]) {
+                <span class="org__err">{{ gstinErrorMessage }}</span>
               }
             </label>
 
@@ -97,6 +114,16 @@
                   }}</option>
                 }
               </select>
+            </label>
+
+            <label class="org__field org__field--full">
+              <span class="org__label">Address</span>
+              <textarea
+                class="org__control org__control--soft"
+                rows="2"
+                formControlName="address"
+                placeholder="HQ or office address"
+              ></textarea>
             </label>
           </div>
 

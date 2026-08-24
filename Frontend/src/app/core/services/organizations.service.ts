@@ -13,6 +13,7 @@ function toCreateInput(data: Omit<OrganizationRow, 'id'>): OrganizationCreateInp
   return {
     name: data.name,
     website: data.website,
+    gst: data.gst,
     territory: data.territory,
     territoryId: data.territoryId,
     industry: data.industry,

@@ -76,6 +76,25 @@
               <label class="org-detail__row">
                 <span class="org-detail__row-label">Website</span>
                 <input type="text" class="org-detail__input" formControlName="website" [placeholder]="sidebarPlaceholder('Website')" />
+                @if (fieldInvalid('website') && detailForm.get('website')?.errors?.['url']) {
+                  <span class="org-detail__err">Enter a valid website URL.</span>
+                }
+              </label>
+              <label class="org-detail__row">
+                <span class="org-detail__row-label">GSTIN</span>
+                <input
+                  type="text"
+                  class="org-detail__input"
+                  formControlName="gst"
+                  placeholder="e.g. 27AAJCB6955B1ZM"
+                  autocomplete="off"
+                  maxlength="15"
+                  spellcheck="false"
+                  (input)="onGstinInput($event)"
+                />
+                @if (fieldInvalid('gst') && detailForm.get('gst')?.errors?.[gstinErrorKey]) {
+                  <span class="org-detail__err">{{ gstinErrorMessage }}</span>
+                }
               </label>
               <label class="org-detail__row">
                 <span class="org-detail__row-label">Territory</span>

@@ -21,6 +21,12 @@ import { IntlTelDisplayPipe } from '../../shared/pipes/intl-tel-display.pipe';
 import type { DealPipelineStatus, DealRow } from '../deals/deals.component';
 import type { ContactRow } from '../contacts/contacts.component';
 import type { OrganizationRow } from './organizations.component';
+import {
+  GSTIN_ERROR_KEY,
+  GSTIN_ERROR_MESSAGE,
+  syncGstinInputFromEvent,
+} from '../../shared/utils/gstin.util';
+import { gstFormValidators, optionalUrlValidator } from '../../shared/validators/crm-validators';
 import { TextFormatter } from '../../shared/utils/text-normalizer';
 
 export type OrganizationMainTab = 'deals' | 'contacts';
@@ -50,14 +56,27 @@ export class OrganizationDetailComponent {
   protected readonly resolved = signal(false);
   protected readonly detailsOpen = signal(true);
 
+  protected readonly gstinErrorKey = GSTIN_ERROR_KEY;
+  protected readonly gstinErrorMessage = GSTIN_ERROR_MESSAGE;
+
   protected readonly detailForm = this.fb.nonNullable.group({
     organizationName: ['', [Validators.required, Validators.maxLength(200)]],
-    website: ['', Validators.maxLength(200)],
+    website: ['', [Validators.maxLength(200), optionalUrlValidator()]],
+    gst: ['', gstFormValidators()],
     territory: [''],
     industry: [''],
     employees: [''],
     address: [''],
   });
+
+  protected onGstinInput(ev: Event): void {
+    syncGstinInputFromEvent(ev, this.detailForm.controls.gst);
+  }
+
+  protected fieldInvalid(name: string): boolean {
+    const c = this.detailForm.get(name);
+    return !!c && c.invalid && (c.dirty || c.touched);
+  }
 
   protected readonly dealCount = computed(() => this.relatedDeals().length);
   protected readonly contactCount = computed(() => this.relatedContacts().length);
@@ -119,6 +138,7 @@ export class OrganizationDetailComponent {
       {
         organizationName: row.name,
         website: web,
+        gst: row.gst ?? '',
         industry: masterSelectControlValue(row.industryId, row.industry, this.orgMaster.industrySelectOptions()),
         employees: masterSelectControlValue(row.employeeCountId, row.employees, this.orgMaster.employeeSelectOptions()),
         territory: masterSelectControlValue(row.territoryId, row.territory, this.orgMaster.territorySelectOptions()),
@@ -258,6 +278,7 @@ export class OrganizationDetailComponent {
         const payload: Omit<OrganizationRow, 'id'> = {
           name: TextFormatter.entityName('organization', nameTrim),
           website: web || '—',
+          gst: TextFormatter.gstin(v.gst) || undefined,
           industry:
             industryPick.label ||
             this.orgMaster.industrySelectOptions()[0]?.name ||

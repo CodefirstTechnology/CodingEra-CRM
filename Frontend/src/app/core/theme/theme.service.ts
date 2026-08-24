@@ -182,7 +182,17 @@ export class ThemeService {
 
   private flushToDocument(): void {
     const root = document.documentElement;
-    const s = SURFACE[this.surfaceMode()];
+    const mode = this.surfaceMode();
+    const s = SURFACE[mode];
+
+    root.setAttribute('data-theme', mode);
+    root.classList.toggle('dark', mode === 'dark');
+    root.classList.toggle('dark-theme', mode === 'dark');
+    if (typeof document !== 'undefined' && document.body) {
+      document.body.setAttribute('data-theme', mode);
+      document.body.classList.toggle('dark', mode === 'dark');
+      document.body.classList.toggle('dark-theme', mode === 'dark');
+    }
 
     root.style.setProperty('--primary-color', this.primary());
     root.style.setProperty('--secondary-color', this.secondary());
@@ -195,6 +205,32 @@ export class ThemeService {
     root.style.setProperty('--card-border', s.cardBorder);
     root.style.setProperty('--text-primary', s.textPrimary);
     root.style.setProperty('--text-muted', s.textMuted);
+
+    if (mode === 'dark') {
+      root.style.setProperty('--input-bg', '#1e293b');
+      root.style.setProperty('--input-text', '#f8fafc');
+      root.style.setProperty('--input-border', '#334155');
+      root.style.setProperty('--input-placeholder', '#64748b');
+      root.style.setProperty('--input-label-color', '#94a3b8');
+      root.style.setProperty('--org-title-color', '#ffffff');
+      root.style.setProperty('--table-th-bg', '#1e293b');
+      root.style.setProperty('--table-th-text', '#94a3b8');
+      root.style.setProperty('--table-td-text', '#f8fafc');
+      root.style.setProperty('--table-td-border', '#1e293b');
+      root.style.setProperty('--table-tr-hover', '#1e293b');
+    } else {
+      root.style.setProperty('--input-bg', '#ffffff');
+      root.style.setProperty('--input-text', '#0f172a');
+      root.style.setProperty('--input-border', '#cbd5e1');
+      root.style.setProperty('--input-placeholder', '#94a3b8');
+      root.style.setProperty('--input-label-color', '#475569');
+      root.style.setProperty('--org-title-color', '#0f172a');
+      root.style.setProperty('--table-th-bg', '#f1f5f9');
+      root.style.setProperty('--table-th-text', '#475569');
+      root.style.setProperty('--table-td-text', '#0f172a');
+      root.style.setProperty('--table-td-border', '#f1f5f9');
+      root.style.setProperty('--table-tr-hover', '#f8fafc');
+    }
 
     this.flushSidebarRailTokens(root);
     this.flushDashboardAccentTokens(root);
