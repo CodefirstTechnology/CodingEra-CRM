@@ -66,7 +66,39 @@
           @if (providerUi(source.code); as ui) {
             <section class="lsync__detail">
               <header class="lsync__detail-head">
-                <h3 class="lsync__detail-title">{{ source.displayName }}</h3>
+                <div class="lsync__detail-title-group">
+                  <h3 class="lsync__detail-title">{{ source.displayName }}</h3>
+                </div>
+
+                <!-- API Method Switcher: Pull - [Toggle] - Push -->
+                <div class="lsync__method-box">
+                  <span class="lsync__method-heading">API method</span>
+                  <div class="lsync__method-switch-wrap">
+                    <span
+                      class="lsync__method-label"
+                      [class.lsync__method-label--active]="apiMethod(source.id) === 'pull'"
+                      (click)="toggleApiMethod(source, 'pull')"
+                    >
+                      Pull
+                    </span>
+                    <label class="lsync__switch" [attr.aria-label]="'API Method toggle for ' + source.displayName">
+                      <input
+                        type="checkbox"
+                        [checked]="apiMethod(source.id) === 'push'"
+                        (change)="toggleApiMethod(source, $any($event.target).checked ? 'push' : 'pull')"
+                      />
+                      <span class="lsync__slider"></span>
+                    </label>
+                    <span
+                      class="lsync__method-label"
+                      [class.lsync__method-label--active]="apiMethod(source.id) === 'push'"
+                      (click)="toggleApiMethod(source, 'push')"
+                    >
+                      Push
+                    </span>
+                  </div>
+                </div>
+
                 <div class="lsync__detail-stats">
                   <div class="lsync__stat">
                     <span class="lsync__stat-label">Last sync</span>
@@ -82,9 +114,13 @@
                     <span class="lsync__stat-label">Auto sync</span>
                     <span
                       class="lsync__stat-value"
-                      [class.lsync__stat-value--on]="source.autoSyncEnabled"
+                      [class.lsync__stat-value--on]="apiMethod(source.id) === 'pull' && source.autoSyncEnabled"
                     >
-                      {{ source.autoSyncEnabled ? 'On' : 'Off' }}
+                      @if (apiMethod(source.id) === 'push') {
+                        Push (Live)
+                      } @else {
+                        {{ source.autoSyncEnabled ? 'On' : 'Off' }}
+                      }
                     </span>
                   </div>
                   <div class="lsync__stat">
@@ -127,84 +163,188 @@
               <div class="lsync__panel">
                 @switch (sourcePanel()) {
                   @case ('connection') {
-                    <div class="lsync__panel-section">
-                      <div class="lsync__form-grid">
-                        @for (field of ui.fields; track field.key) {
-                          @if (field.key === 'pullApiUrl') {
-                            <label class="lsync__field lsync__field--wide">
-                              <span class="lsync__label">{{ field.label }}</span>
-                              @if (field.hint) {
-                                <span class="lsync__field-hint">{{ field.hint }}</span>
-                              }
-                              <input
-                                class="lsync__input"
-                                [type]="fieldInputType(field)"
-                                [placeholder]="field.placeholder ?? ''"
-                                [value]="pullUrlDraft(source)"
-                                (input)="setPullUrlDraft(source.id, $any($event.target).value)"
-                              />
-                            </label>
-                          }
-                          @if (field.key === 'apiKey') {
-                            <label class="lsync__field lsync__field--wide">
-                              <span class="lsync__label">
-                                {{ field.label }}
-                                @if (maskedApiKey(source.id); as masked) {
-                                  <em class="lsync__saved-key">Saved: {{ masked }}</em>
-                                }
-                              </span>
-                              <input
-                                class="lsync__input"
-                                type="password"
-                                [placeholder]="field.placeholder ?? ''"
-                                autocomplete="new-password"
-                                [value]="apiKeyDraft(source.id)"
-                                (input)="setApiKeyDraft(source.id, $any($event.target).value)"
-                              />
-                            </label>
-                          }
-                        }
-                      </div>
+                    @if (apiMethod(source.id) === 'push') {
+                      <!-- Push (Webhook) Panel -->
+                      <div class="lsync__panel-section">
+                        <div class="lsync__webhook-card">
+                          <div class="lsync__webhook-header">
+                            <div class="lsync__webhook-icon">
+                              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                            </div>
+                            <div class="lsync__webhook-header-text">
+                              <h4 class="lsync__webhook-title">{{ source.displayName }} Real-Time Webhook (Push API)</h4>
+                              <p class="lsync__webhook-sub">
+                                Leads are pushed directly from {{ source.displayName }} in real-time as inquiries are generated. Polling Pull API is disabled.
+                              </p>
+                            </div>
+                            <span class="lsync__badge lsync__badge--ready">Push Active</span>
+                          </div>
 
-                      <footer class="lsync__panel-foot">
-                        <div class="lsync__actions">
-                          <button
-                            type="button"
-                            class="lsync__btn lsync__btn--solid"
-                            [disabled]="savingSourceId() === source.id"
-                            (click)="saveCredentials(source)"
-                          >
-                            {{ savingSourceId() === source.id ? 'Saving…' : 'Save connection' }}
-                          </button>
-                          <button
-                            type="button"
-                            class="lsync__btn"
-                            [disabled]="!source.isConfigured || testingSourceId() === source.id"
-                            (click)="testConnection(source)"
-                          >
-                            {{ testingSourceId() === source.id ? 'Testing…' : 'Test connection' }}
-                          </button>
-                          <button
-                            type="button"
-                            class="lsync__btn"
-                            [disabled]="!source.isConfigured || syncingSourceId() === source.id"
-                            (click)="syncNow(source)"
-                          >
-                            {{ syncingSourceId() === source.id ? 'Syncing…' : 'Sync now' }}
-                          </button>
-                          @if (source.isConfigured) {
-                            <button
-                              type="button"
-                              class="lsync__btn lsync__btn--danger"
-                              [disabled]="disconnectingSourceId() === source.id"
-                              (click)="disconnectSource(source)"
-                            >
-                              {{ disconnectingSourceId() === source.id ? 'Disconnecting…' : 'Disconnect' }}
-                            </button>
+                          <div class="lsync__form-grid lsync__webhook-fields">
+                            <label class="lsync__field lsync__field--wide">
+                              <span class="lsync__label">Lead Ingestion Webhook URL</span>
+                              <span class="lsync__field-hint">Copy and configure this URL in your {{ source.displayName }} Seller / Developer Portal</span>
+                              <div class="lsync__input-copy-group">
+                                <input
+                                  class="lsync__input lsync__input--mono"
+                                  type="text"
+                                  readonly
+                                  [value]="webhookUrl(source)"
+                                />
+                                <button
+                                  type="button"
+                                  class="lsync__copy-btn"
+                                  (click)="copyToClipboard(webhookUrl(source), 'Webhook URL')"
+                                >
+                                  Copy URL
+                                </button>
+                              </div>
+                            </label>
+
+                            <div class="lsync__grid-2">
+                              <label class="lsync__field">
+                                <span class="lsync__label">HTTP Method</span>
+                                <input class="lsync__input lsync__input--readonly" type="text" readonly value="POST" />
+                              </label>
+
+                              <label class="lsync__field">
+                                <span class="lsync__label">Payload Format</span>
+                                <input class="lsync__input lsync__input--readonly" type="text" readonly value="application/json (or form-urlencoded)" />
+                              </label>
+                            </div>
+
+                            <label class="lsync__field lsync__field--wide">
+                              <span class="lsync__label">Authentication Header</span>
+                              <span class="lsync__field-hint">Configured header for secure webhook requests</span>
+                              <div class="lsync__input-copy-group">
+                                <input
+                                  class="lsync__input lsync__input--mono"
+                                  type="text"
+                                  readonly
+                                  value="X-IndiaMart-Webhook-Key"
+                                />
+                                <button
+                                  type="button"
+                                  class="lsync__copy-btn"
+                                  (click)="copyToClipboard('X-IndiaMart-Webhook-Key', 'Header Name')"
+                                >
+                                  Copy Header
+                                </button>
+                              </div>
+                            </label>
+                          </div>
+
+                          <div class="lsync__guide-box">
+                            <h5 class="lsync__guide-heading">{{ source.displayName }} Push Activation Steps:</h5>
+                            <ol class="lsync__guide-list">
+                              <li>Copy the <strong>Webhook URL</strong> above.</li>
+                              <li>Log in to your <strong>{{ source.displayName }} Seller Dashboard</strong> &gt; CRM Integration / Webhook Settings (or provide the URL to your account manager).</li>
+                              <li>Save the configuration. New buyer leads will automatically flow into CRM Leads with Round-Robin team distribution!</li>
+                            </ol>
+                          </div>
+
+                          <footer class="lsync__panel-foot">
+                            <div class="lsync__actions">
+                              <button
+                                type="button"
+                                class="lsync__btn lsync__btn--solid"
+                                (click)="copyToClipboard(webhookUrl(source), 'Webhook URL')"
+                              >
+                                Copy Webhook URL
+                              </button>
+                              <button
+                                type="button"
+                                class="lsync__btn"
+                                [disabled]="testingPushSourceId() === source.id"
+                                (click)="testPushSimulation(source)"
+                              >
+                                {{ testingPushSourceId() === source.id ? 'Checking…' : 'Check Listener Health' }}
+                              </button>
+                            </div>
+                          </footer>
+                        </div>
+                      </div>
+                    } @else {
+                      <!-- Pull API connection inputs -->
+                      <div class="lsync__panel-section">
+                        <div class="lsync__form-grid">
+                          @for (field of ui.fields; track field.key) {
+                            @if (field.key === 'pullApiUrl') {
+                              <label class="lsync__field lsync__field--wide">
+                                <span class="lsync__label">{{ field.label }}</span>
+                                @if (field.hint) {
+                                  <span class="lsync__field-hint">{{ field.hint }}</span>
+                                }
+                                <input
+                                  class="lsync__input"
+                                  [type]="fieldInputType(field)"
+                                  [placeholder]="field.placeholder ?? ''"
+                                  [value]="pullUrlDraft(source)"
+                                  (input)="setPullUrlDraft(source.id, $any($event.target).value)"
+                                />
+                              </label>
+                            }
+                            @if (field.key === 'apiKey') {
+                              <label class="lsync__field lsync__field--wide">
+                                <span class="lsync__label">
+                                  {{ field.label }}
+                                  @if (maskedApiKey(source.id); as masked) {
+                                    <em class="lsync__saved-key">Saved: {{ masked }}</em>
+                                  }
+                                </span>
+                                <input
+                                  class="lsync__input"
+                                  type="password"
+                                  [placeholder]="field.placeholder ?? ''"
+                                  autocomplete="new-password"
+                                  [value]="apiKeyDraft(source.id)"
+                                  (input)="setApiKeyDraft(source.id, $any($event.target).value)"
+                                />
+                              </label>
+                            }
                           }
                         </div>
-                      </footer>
-                    </div>
+
+                        <footer class="lsync__panel-foot">
+                          <div class="lsync__actions">
+                            <button
+                              type="button"
+                              class="lsync__btn lsync__btn--solid"
+                              [disabled]="savingSourceId() === source.id"
+                              (click)="saveCredentials(source)"
+                            >
+                              {{ savingSourceId() === source.id ? 'Saving…' : 'Save connection' }}
+                            </button>
+                            <button
+                              type="button"
+                              class="lsync__btn"
+                              [disabled]="!source.isConfigured || testingSourceId() === source.id"
+                              (click)="testConnection(source)"
+                            >
+                              {{ testingSourceId() === source.id ? 'Testing…' : 'Test connection' }}
+                            </button>
+                            <button
+                              type="button"
+                              class="lsync__btn"
+                              [disabled]="!source.isConfigured || syncingSourceId() === source.id"
+                              (click)="syncNow(source)"
+                            >
+                              {{ syncingSourceId() === source.id ? 'Syncing…' : 'Sync now' }}
+                            </button>
+                            @if (source.isConfigured) {
+                              <button
+                                type="button"
+                                class="lsync__btn lsync__btn--danger"
+                                [disabled]="disconnectingSourceId() === source.id"
+                                (click)="disconnectSource(source)"
+                              >
+                                {{ disconnectingSourceId() === source.id ? 'Disconnecting…' : 'Disconnect' }}
+                              </button>
+                            }
+                          </div>
+                        </footer>
+                      </div>
+                    }
                   }
 
                   @case ('team') {
@@ -299,64 +439,81 @@
                   }
 
                   @case ('automation') {
-                    <div class="lsync__panel-section">
-                      <div class="lsync__automation-card">
-                        <label class="lsync__toggle">
-                          <input
-                            type="checkbox"
-                            [checked]="autoSyncEnabled(source.id)"
-                            [disabled]="!source.isConfigured"
-                            (change)="setAutoSyncEnabled(source.id, $any($event.target).checked)"
-                          />
-                          <span class="lsync__toggle-text">
-                            <strong>Import new leads automatically</strong>
-                            <small>
-                              @if (!source.isConfigured) {
-                                Save the API connection first to enable automation.
-                              } @else if (autoSyncEnabled(source.id)) {
-                                Pulls on the interval you select below (default from server options).
-                              } @else {
-                                Manual sync only until you turn this on.
-                              }
-                            </small>
-                          </span>
-                        </label>
-
-                        @if (autoSyncEnabled(source.id) && source.isConfigured) {
-                          <label class="lsync__field lsync__field--wide lsync__automation-interval">
-                            <span>Sync interval</span>
-                            <select
-                              class="lsync__input"
-                              [ngModel]="intervalOptionId(source.id)"
-                              (ngModelChange)="setIntervalOptionId(source.id, $event)"
-                              [disabled]="savingSourceId() === source.id || intervals().length === 0"
-                            >
-                              @for (opt of intervals(); track opt.id) {
-                                <option [ngValue]="opt.id">{{ opt.label }}</option>
-                              }
-                            </select>
-                            <span class="lsync__field-hint">
-                              @if (source.nextSyncAt) {
-                                Next scheduled sync: {{ source.nextSyncAt | date: 'medium' }}
-                              } @else {
-                                Choose how often the server should pull new leads.
-                              }
+                    @if (apiMethod(source.id) === 'push') {
+                      <div class="lsync__panel-section">
+                        <div class="lsync__automation-card lsync__automation-card--info">
+                          <div class="lsync__push-notice">
+                            <span class="lsync__badge lsync__badge--ready">Real-Time Push Active</span>
+                            <h4 class="lsync__push-notice-title">Scheduled Pull Polling is Disabled</h4>
+                            <p class="lsync__push-notice-desc">
+                              Because <strong>{{ source.displayName }}</strong> is currently set to the <strong>Push API (Webhook)</strong> method, leads are pushed directly to your CRM in real time as inquiries occur.
+                            </p>
+                            <p class="lsync__push-notice-desc">
+                              Scheduled polling is paused to prevent simultaneous duplicate API calls. If you ever switch back to <strong>Pull API</strong>, automated polling intervals can be re-enabled here.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    } @else {
+                      <div class="lsync__panel-section">
+                        <div class="lsync__automation-card">
+                          <label class="lsync__toggle">
+                            <input
+                              type="checkbox"
+                              [checked]="autoSyncEnabled(source.id)"
+                              [disabled]="!source.isConfigured"
+                              (change)="setAutoSyncEnabled(source.id, $any($event.target).checked)"
+                            />
+                            <span class="lsync__toggle-text">
+                              <strong>Import new leads automatically</strong>
+                              <small>
+                                @if (!source.isConfigured) {
+                                  Save the API connection first to enable automation.
+                                } @else if (autoSyncEnabled(source.id)) {
+                                  Pulls on the interval you select below (default from server options).
+                                } @else {
+                                  Manual sync only until you turn this on.
+                                }
+                              </small>
                             </span>
                           </label>
-                        }
-                      </div>
 
-                      <footer class="lsync__panel-foot">
-                        <button
-                          type="button"
-                          class="lsync__btn lsync__btn--solid"
-                          [disabled]="savingSourceId() === source.id || !source.isConfigured"
-                          (click)="saveAutoSync(source)"
-                        >
-                          {{ savingSourceId() === source.id ? 'Saving…' : 'Save automation' }}
-                        </button>
-                      </footer>
-                    </div>
+                          @if (autoSyncEnabled(source.id) && source.isConfigured) {
+                            <label class="lsync__field lsync__field--wide lsync__automation-interval">
+                              <span>Sync interval</span>
+                              <select
+                                class="lsync__input"
+                                [ngModel]="intervalOptionId(source.id)"
+                                (ngModelChange)="setIntervalOptionId(source.id, $event)"
+                                [disabled]="savingSourceId() === source.id || intervals().length === 0"
+                              >
+                                @for (opt of intervals(); track opt.id) {
+                                  <option [ngValue]="opt.id">{{ opt.label }}</option>
+                                }
+                              </select>
+                              <span class="lsync__field-hint">
+                                @if (source.nextSyncAt) {
+                                  Next scheduled sync: {{ source.nextSyncAt | date: 'medium' }}
+                                } @else {
+                                  Choose how often the server should pull new leads.
+                                }
+                              </span>
+                            </label>
+                          }
+                        </div>
+
+                        <footer class="lsync__panel-foot">
+                          <button
+                            type="button"
+                            class="lsync__btn lsync__btn--solid"
+                            [disabled]="savingSourceId() === source.id || !source.isConfigured"
+                            (click)="saveAutoSync(source)"
+                          >
+                            {{ savingSourceId() === source.id ? 'Saving…' : 'Save automation' }}
+                          </button>
+                        </footer>
+                      </div>
+                    }
                   }
                 }
               </div>
