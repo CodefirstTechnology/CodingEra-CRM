@@ -59,6 +59,16 @@ export class QuotationViewComponent {
 
   protected readonly usesHeaderGst = computed(() => (this.quotation()?.gstPercent ?? 0) > 0);
 
+  protected columnHeaderLabel(col: SnapshotColumnDef): string {
+    const l = col.label.trim();
+    if (l.toLowerCase() === 'weight') return 'Weight (kg)';
+    return l;
+  }
+
+  protected isWeightColumn(col: SnapshotColumnDef): boolean {
+    return col.label.trim().toLowerCase().includes('weight');
+  }
+
   constructor() {
     this.route.paramMap.pipe(takeUntilDestroyed()).subscribe((params) => {
       const id = Number(params.get('id'));

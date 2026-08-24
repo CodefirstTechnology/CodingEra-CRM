@@ -472,6 +472,18 @@ select.org__control.org__control--soft {
   color: #b91c1c;
 }
 
+.org__err-link {
+  color: var(--tertiary-color, #2563eb);
+  font-weight: 700;
+  text-decoration: underline;
+  margin-left: 0.25rem;
+  display: inline-block;
+
+  &:hover {
+    filter: brightness(1.15);
+  }
+}
+
 .org__modal-foot {
   display: flex;
   justify-content: flex-end;

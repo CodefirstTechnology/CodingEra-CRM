@@ -1304,8 +1304,11 @@
 }
 
 .udash__detail-scroll {
+  flex: 1;
+  min-height: 0;
   max-height: min(60vh, 28rem);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .udash__detail-table {
@@ -1330,6 +1333,7 @@
     position: sticky;
     top: 0;
     background: var(--surface);
+    z-index: 1;
   }
 }
 
@@ -1364,12 +1368,16 @@
   display: flex;
   flex-direction: column;
   gap: 1.25rem;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .udash__conversion-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 0.75rem;
+  flex-shrink: 0;
 
   @media (max-width: 640px) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
