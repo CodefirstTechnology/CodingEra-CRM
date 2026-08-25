@@ -1,931 +1,852 @@
 @if (leadInitialLoading()) {
-<div class="lead-detail lead-detail--empty">
-  <p role="status">Loading lead…</p>
-  <a routerLink="/leads" class="lead-detail__back">Back to leads</a>
+<div class="min-h-screen bg-slate-50 dark:bg-[#0b132b] text-slate-900 dark:text-slate-100 p-6 flex flex-col items-center justify-center">
+  <div class="flex items-center gap-3 text-slate-600 dark:text-slate-400">
+    <svg class="w-6 h-6 animate-spin text-sky-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10" stroke-opacity="0.25" />
+      <path d="M12 2a10 10 0 0 1 10 10" />
+    </svg>
+    <p class="text-base font-medium" role="status">Loading lead details…</p>
+  </div>
+  <a routerLink="/leads" class="mt-4 text-sm font-semibold text-sky-500 hover:text-sky-600 dark:text-sky-400">
+    ← Back to leads
+  </a>
 </div>
 } @else if (leadLoadError(); as errMsg) {
-<div class="lead-detail lead-detail--empty" role="alert">
-  <p>{{ errMsg }}</p>
-  <a routerLink="/leads" class="lead-detail__back">Back to leads</a>
+<div class="min-h-screen bg-slate-50 dark:bg-[#0b132b] text-slate-900 dark:text-slate-100 p-6 flex flex-col items-center justify-center" role="alert">
+  <div class="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-6 max-w-md text-center">
+    <p class="text-rose-600 dark:text-rose-400 font-medium">{{ errMsg }}</p>
+    <a routerLink="/leads" class="mt-4 inline-block text-sm font-semibold text-sky-500 hover:text-sky-600 dark:text-sky-400">
+      ← Back to leads
+    </a>
+  </div>
 </div>
 } @else if (lead(); as row) {
-<div class="lead-detail">
-  <header class="lead-detail__top">
-    <p class="lead-detail__crumb"><a routerLink="/leads">Leads</a> / {{ row.name }}</p>
-    <div class="lead-detail__top-actions">
-      @if (auth.user(); as session) {
-      <span class="lead-detail__user-chip" title="{{ session.name }}">
-        <span class="lead-detail__user-chip-avatar">{{ userHeaderChip() }}</span>
-        <span class="lead-detail__user-chip-name">{{ session.name }}</span>
+<div class="bg-slate-50 dark:bg-[#0b132b] text-slate-900 dark:text-slate-100 min-h-screen p-6 transition-colors duration-200">
+  <!-- Top Header -->
+  <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+    <!-- Breadcrumb & Title + Status Badge -->
+    <div class="flex items-center gap-3 flex-wrap">
+      <div class="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
+        <a routerLink="/leads" class="hover:text-sky-600 dark:hover:text-sky-400 font-medium transition-colors">Leads</a>
+        <span class="text-slate-400 dark:text-slate-600">/</span>
+        <span class="text-slate-900 dark:text-slate-100 font-semibold text-base sm:text-lg">{{ row.name }}</span>
+      </div>
+      <span class="bg-sky-500/10 text-sky-500 border border-sky-500/30 text-xs px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider">
+        {{ row.status || 'NEW' }}
       </span>
-      }
-      <button type="button" class="lead-detail__btn lead-detail__btn--with-caret" (click)="openCreatePicker()">
-        New
+    </div>
+
+    <!-- Action Buttons (Right) -->
+    <div class="flex items-center gap-2.5 flex-wrap self-stretch sm:self-auto justify-start sm:justify-end">
+      <!-- Owner Chip -->
+      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-[#111c3a] border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-sm" title="Lead Owner">
+        <span class="w-5 h-5 rounded-full bg-sky-500/20 text-sky-600 dark:text-sky-400 font-bold flex items-center justify-center text-[10px]">
+          {{ ownerInitial() }}
+        </span>
+        <span class="truncate max-w-[130px]">{{ displayLeadOwnerName() }}</span>
+      </div>
+
+      <!-- Create New Task Button -->
+      <button
+        type="button"
+        class="bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+        (click)="openNewTaskFromLead()"
+      >
+        <svg class="w-4 h-4 text-slate-600 dark:text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        <span>Create New Task</span>
       </button>
+
+      <!-- Convert to Deal Button -->
       @if (convertedDealId(); as dealId) {
-        <a class="lead-detail__btn lead-detail__btn--ghost" [routerLink]="['/deals', dealId]">View deal</a>
-        <span class="lead-detail__converted-badge">{{ conversionStatusLabel() }}</span>
+        <a
+          [routerLink]="['/deals', dealId]"
+          class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition-colors flex items-center gap-1.5"
+        >
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+          <span>View Deal</span>
+        </a>
       } @else {
         <button
           type="button"
-          class="lead-detail__btn lead-detail__btn--solid"
+          class="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
           [disabled]="!canConvertCurrentLead()"
-          [attr.title]="
-            canConvertCurrentLead() ? null : 'Only Qualified leads can be converted to a deal'
-          "
+          [attr.title]="canConvertCurrentLead() ? null : 'Only Qualified leads can be converted to a deal'"
           (click)="openConvertModal()"
         >
-          Convert to Deal
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <polyline points="16 11 18 13 22 9" />
+          </svg>
+          <span>Convert to Deal</span>
         </button>
       }
+
+      <!-- Delete Button (Conditional) -->
       @if (canDeleteCurrentLead()) {
         <button
           type="button"
-          class="lead-detail__btn lead-detail__btn--danger"
+          class="p-2 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer"
           aria-label="Delete lead"
           title="Delete lead"
           (click)="confirmDeleteLead()"
         >
-          Delete
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </svg>
         </button>
       }
     </div>
   </header>
 
-  <div class="lead-detail__tabs-bar">
-    <nav class="lead-detail__tabs" aria-label="Lead detail sections">
+  <!-- Horizontal Tabs Bar -->
+  <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/80 mb-6 overflow-x-auto">
+    <nav class="flex items-center gap-8" aria-label="Lead detail sections">
       @for (tab of tabs; track tab) {
-      <button type="button" class="lead-detail__tab" [class.is-active]="activeTab() === tab" (click)="setTab(tab)">
-        @if (tab === 'Emails') {
-        <span class="lead-detail__tab-label">
-          <svg
-            class="lead-detail__tab-ico"
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M4 4h16v16H4z" />
-            <path d="m22 7-10 6L2 7" />
-          </svg>
-          Emails
-        </span>
-        } @else if (tab === 'Comments') {
-        <span class="lead-detail__tab-label">
-          <svg
-            class="lead-detail__tab-ico"
-            width="15"
-            height="15"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
-          >
-            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-          </svg>
-          Comments
-        </span>
-        } @else {
-        {{ tab }}
-        }
-      </button>
-      }
-    </nav>
-    <span class="lead-detail__tabs-ref">{{ leadCode() }}</span>
-  </div>
-
-  <section class="lead-detail__layout">
-    <article class="lead-detail__main card">
-      @if (activeTab() === 'Activity') {
-      <header class="lead-detail__main-head lead-detail__main-head--activity">
-        <h2>Activity</h2>
-        <button type="button" class="lead-detail__btn lead-detail__btn--dark lead-detail__btn--with-caret" (click)="openCreatePicker()">
-          + New
-        </button>
-      </header>
-      <app-entity-activity-timeline
-        [groups]="leadActivityGroups()"
-        [loading]="leadActivityLoading()"
-        ariaLabel="Activity on this lead"
-        emptyMessage="No activity on this lead yet."
-        (reply)="setTab('Emails')"
-        (comment)="setTab('Comments')"
-      />
-      <footer class="lead-detail__compose lead-detail__compose--activity">
-        <button type="button" class="lead-detail__link lead-detail__link--with-icon" (click)="setTab('Emails')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M4 4h16v16H4z" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="m22 6-10 7L2 6" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          Reply
-        </button>
-        <button type="button" class="lead-detail__link lead-detail__link--with-icon" (click)="setTab('Comments')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-          </svg>
-          Comment
-        </button>
-      </footer>
-      } @else if (activeTab() === 'Emails') {
-      <header class="lead-detail__main-head lead-detail__main-head--tasks">
-        <h2>Emails</h2>
-        <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="openNewEmailFromLead()">+ New Email</button>
-      </header>
-      @if (emailComposerOpen()) {
-      <div class="lead-detail__email-compose lead-detail__email-compose--panel">
-        <div class="lead-detail__compose-body">
-          <div class="lead-detail__mail-row">
-            <span>TO:</span>
-            <input
-              type="email"
-              class="lead-detail__mail-input"
-              [value]="emailTo()"
-              (input)="emailTo.set($any($event.target).value)"
-              placeholder="Enter recipient"
-              autocomplete="email"
-            />
-          </div>
-          <div class="lead-detail__mail-row lead-detail__mail-row--subject">
-            <span>SUBJECT:</span>
-            <input
-              type="text"
-              class="lead-detail__mail-input"
-              [value]="emailSubject()"
-              (input)="emailSubjectText.set($any($event.target).value)"
-              placeholder="Subject"
-            />
-            <div class="lead-detail__mail-row__meta">
-              <button type="button" class="lead-detail__mail-meta-btn">CC</button>
-              <button type="button" class="lead-detail__mail-meta-btn">BCC</button>
-            </div>
-          </div>
-          <textarea
-            class="lead-detail__mail-editor"
-            rows="5"
-            [value]="emailBody()"
-            (input)="emailBody.set($any($event.target).value)"
-            placeholder="Write your email..."
-          ></textarea>
-        </div>
-        <footer class="lead-detail__compose-actions">
-          <input
-            #emailComposeFileInput
-            type="file"
-            multiple
-            class="lead-detail__email-compose-file-input"
-            (change)="onEmailComposeAttachmentsSelected($event)"
-            tabindex="-1"
-            aria-hidden="true"
-          />
-          <input
-            #emailComposeImgInput
-            type="file"
-            multiple
-            accept="image/*"
-            class="lead-detail__email-compose-file-input"
-            (change)="onEmailComposeImagesSelected($event)"
-            tabindex="-1"
-            aria-hidden="true"
-          />
-          <div class="lead-detail__compose-icons">
-              <div class="lead-detail__compose-emoji-wrap">
-                <button type="button" class="lead-detail__compose-ico-btn" aria-label="Insert emoji" title="Emoji" (click)="toggleEmailComposeEmojiPicker()">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <circle cx="12" cy="12" r="10" />
-                    <path d="M8 14s1.25 2.25 4 2.25 4-2.25 4-2.25" />
-                    <circle cx="9" cy="9" r=".9" fill="currentColor" stroke="none" />
-                    <circle cx="15" cy="9" r=".9" fill="currentColor" stroke="none" />
-                  </svg>
-                </button>
-                @if (emailComposeEmojiOpen()) {
-                <div class="lead-detail__emoji-popover" role="listbox" aria-label="Emoji">
-                  @for (em of emailComposeEmojiChoices; track em) {
-                  <button type="button" class="lead-detail__emoji-popover-item" (click)="insertEmailComposeEmoji(em)">{{ em }}</button>
-                  }
-                </div>
-                }
-              </div>
-              <button type="button" class="lead-detail__compose-ico-btn" aria-label="Attach files" title="Attach files" (click)="emailComposeFileInput.click()">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
-                </svg>
-              </button>
-              <button type="button" class="lead-detail__compose-ico-btn" aria-label="Insert images" title="Insert images" (click)="emailComposeImgInput.click()">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <rect x="3" y="4" width="18" height="15" rx="2" ry="2" />
-                  <circle cx="8.75" cy="9.75" r="1.65" />
-                  <path d="m21 16-6-6-10 11" />
-                </svg>
-              </button>
-            </div>
-          <div class="lead-detail__compose-btns">
-            <button type="button" class="lead-detail__btn lead-detail__btn--light" (click)="cancelLeadEmailComposer()">Discard</button>
-            <button
-              type="button"
-              class="lead-detail__btn lead-detail__btn--compose-send"
-              [disabled]="!emailComposeValid() || emailSending()"
-              (click)="submitLeadDraftEmail()"
-            >
-              {{ emailSending() ? 'Sending…' : 'Send' }}
-            </button>
-          </div>
-        </footer>
-      </div>
-      }
-      @if (leadEmailsLoading()) {
-      <p class="lead-detail__email-loading" role="status">Loading emails…</p>
-      } @else if (leadEmails().length === 0) {
-      <div class="lead-detail__email-empty">
-        <span class="lead-detail__email-empty-icon" aria-hidden="true">
-          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 4h16v16H4z" />
-            <path d="m22 7-10 6L2 7" />
-          </svg>
-        </span>
-        <p>No Email Communications</p>
-        <button type="button" class="lead-detail__btn lead-detail__btn--calls-muted" (click)="openNewEmailFromLead()">New Email</button>
-      </div>
-      } @else {
-      <div class="lead-detail__email-thread-wrap">
-        @for (m of leadEmails(); track m.id; let isLast = $last) {
-        <div class="lead-detail__email-timeline-item">
-          <div class="lead-detail__email-timeline-axis">
-            <span class="lead-detail__email-timeline-avatar">{{ m.senderInitial }}</span>
-            @if (!isLast) {
-            <span class="lead-detail__email-timeline-line" aria-hidden="true"></span>
-            }
-          </div>
-          <article class="lead-detail__email-card">
-            <div class="lead-detail__email-card-head">
-              <p class="lead-detail__email-from">{{ m.senderDisplay }}</p>
-              <div class="lead-detail__email-card-actions">
-                <button type="button" class="lead-detail__email-mini-btn" title="Reply" aria-label="Reply" (click)="openLeadEmailReply(m)">
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 14 4 9l5-5" />
-                    <path d="M20 20v-7a4 4 0 0 0-4-4H7" />
-                  </svg>
-                </button>
-                <button type="button" class="lead-detail__email-mini-btn" title="Reply all" aria-label="Reply all" (click)="openLeadEmailReply(m)">
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M9 10 4 5l5-5" />
-                    <path d="M20 21v-6a6 6 0 0 0-6-6H11" />
-                    <path d="M15 10a4 4 0 0 1 4 4v7" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <p class="lead-detail__email-subject">{{ m.subjectLine }}</p>
-            <p class="lead-detail__email-to">To: {{ m.toAddress }}</p>
-            <div class="lead-detail__email-meta-row">
-              @if (m.status === 'Sent') {
-              <span class="lead-detail__email-status lead-detail__email-status--sent">{{ m.status }}</span>
-              } @else if (m.status === 'Failed') {
-              <span class="lead-detail__email-status lead-detail__email-status--draft">Failed</span>
-              } @else {
-              <span class="lead-detail__email-status lead-detail__email-status--draft">{{ m.status }}</span>
-              }
-              <time class="lead-detail__email-time">{{ m.whenLabel }}</time>
-            </div>
-            @if (m.status === 'Failed' && m.failureMessage) {
-            <p class="lead-detail__email-failure">{{ m.failureMessage }}</p>
-            }
-            <div class="lead-detail__email-body-box">{{ m.body }}</div>
-          </article>
-        </div>
-        }
-      </div>
-      }
-      <footer class="lead-detail__compose lead-detail__compose--comments lead-detail__compose--email-tab">
-        <button type="button" class="lead-detail__link lead-detail__link--with-icon" (click)="openLeadEmailComposer()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M4 4h16v16H4z" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="m22 6-10 7L2 6" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          Reply
-        </button>
-        <button type="button" class="lead-detail__link lead-detail__link--with-icon" (click)="openLeadEmailFooterComment()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-          </svg>
-          Comment
-        </button>
-      </footer>
-      } @else if (activeTab() === 'Comments') {
-      <header class="lead-detail__main-head lead-detail__main-head--tasks">
-        <h2>Comments</h2>
-        <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="openNewCommentFromLead()">+ New Comment</button>
-      </header>
-      @if (commentComposerOpen()) {
-      <div class="lead-detail__comment-composer">
-        <textarea
-          class="lead-detail__comment-textarea"
-          rows="3"
-          placeholder="Write a comment…"
-          [value]="commentDraft()"
-          (input)="commentDraft.set($any($event.target).value)"
-        ></textarea>
-        <div class="lead-detail__comment-composer-actions">
-          <button type="button" class="lead-detail__btn lead-detail__btn--light" (click)="cancelLeadCommentComposer()">Cancel</button>
-          <button type="button" class="lead-detail__btn lead-detail__btn--solid" (click)="postLeadComment()" [disabled]="!commentDraft().trim() || commentPosting()">Post</button>
-        </div>
-      </div>
-      }
-      @if (leadComments().length === 0) {
-      <div class="lead-detail__comments-empty">
-        <span class="lead-detail__comments-empty-icon" aria-hidden="true">
-          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-          </svg>
-        </span>
-        <p>No comments yet</p>
-        <button type="button" class="lead-detail__btn lead-detail__btn--calls-muted" (click)="openNewCommentFromLead()">New Comment</button>
-      </div>
-      } @else {
-      <ul class="lead-detail__comment-list" aria-label="Comments on this lead">
-        @for (c of leadComments(); track c.id) {
-        <li class="lead-detail__comment-item">
-          <span class="lead-detail__comment-rail" aria-hidden="true">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-            </svg>
-          </span>
-          <div class="lead-detail__comment-core">
-            <div class="lead-detail__comment-head">
-              <span class="lead-detail__comment-avatar">{{ c.authorInitial }}</span>
-              <p class="lead-detail__comment-meta-line"><strong>{{ c.authorName }}</strong> added a comment</p>
-              <time class="lead-detail__comment-when">{{ c.whenLabel }}</time>
-            </div>
-            <div class="lead-detail__comment-bubble">{{ c.body }}</div>
-          </div>
-        </li>
-        }
-      </ul>
-      }
-      <footer class="lead-detail__compose lead-detail__compose--comments">
-        <button type="button" class="lead-detail__link lead-detail__link--with-icon" (click)="openReplyFromLeadComments()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <path d="M4 4h16v16H4z" stroke-linecap="round" stroke-linejoin="round" />
-            <path d="m22 6-10 7L2 6" stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          Reply
-        </button>
-        <button type="button" class="lead-detail__link lead-detail__link--with-icon" (click)="openNewCommentFromLead()">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
-          </svg>
-          Comment
-        </button>
-      </footer>
-      } @else if (activeTab() === 'Data') {
-      <header class="lead-detail__main-head">
-        <h2>Data</h2>
-        @if (!isLeadDataReadOnly()) {
-        <div class="lead-detail__data-actions">
-          @if (canEditLead(row)) {
-          <button type="button" class="lead-detail__icon-btn" aria-label="Edit lead" title="Edit" (click)="openLeadEditForm()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-          }
-          <button type="button" class="lead-detail__icon-btn" aria-label="Discard unsaved edits" title="Revert" (click)="discardDataEdits()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-              <path d="M3 3v5h5" />
-            </svg>
-          </button>
-          <button type="button" class="lead-detail__btn lead-detail__btn--solid" [disabled]="dataSaving()" (click)="saveDataTab()">
-            Save
-          </button>
-        </div>
-        }
-      </header>
-
-      @if (isLeadDataReadOnly()) {
-      <p class="lead-detail__readonly-msg" role="status">This lead was moved to a deal and can no longer be edited.</p>
-      }
-
-      <form class="lead-detail__data-form" [formGroup]="dataForm" (ngSubmit)="saveDataTab()">
-        <fieldset class="lead-detail__fieldset">
-          <legend class="lead-detail__fieldset-legend">Details</legend>
-          <div class="lead-detail__field-grid">
-            <label class="lead-detail__field">
-              <span class="lead-detail__label">Organization</span>
-              <input type="text" class="lead-detail__input" formControlName="organization" />
-            </label>
-            <label class="lead-detail__field">
-              <span class="lead-detail__label">Website</span>
-              <input type="text" class="lead-detail__input" formControlName="website" />
-            </label>
-            <label class="lead-detail__field">
-              <span class="lead-detail__label">GSTIN</span>
-              <input
-                type="text"
-                class="lead-detail__input"
-                formControlName="gst"
-                placeholder="e.g. 27AAJCB6955B1ZM"
-                maxlength="15"
-                autocomplete="off"
-                spellcheck="false"
-                [class.is-invalid]="gstFieldInvalid()"
-                (input)="onGstinInput($event)"
-              />
-              @if (gstFieldInvalid() && dataForm.controls.gst.errors?.[gstinErrorKey]) {
-                <span class="lead-detail__field-error">{{ gstinErrorMessage }}</span>
-              }
-            </label>
-            <label class="lead-detail__field">
-              <span class="lead-detail__label">Lead amount</span>
-              <input type="text" class="lead-detail__input" formControlName="dealAmount" placeholder="0.00" />
-            </label>
-            <label class="lead-detail__field">
-              <span class="lead-detail__label">Location</span>
-              <input type="text" class="lead-detail__input" formControlName="location" />
-            </label>
-            <label class="lead-detail__field">
-              <span class="lead-detail__label">Lead date</span>
-              <input type="date" class="lead-detail__input" formControlName="leadDate" />
-            </label>
-            <label class="lead-detail__field">
-              <span class="lead-detail__label">Territory</span>
-              <select class="lead-detail__select" formControlName="territory">
-                <option value="">— Select —</option>
-                @for (opt of territorySelectOptions(); track opt.id + opt.name) {
-                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-                }
-              </select>
-            </label>
-            <label class="lead-detail__field">
-              <span class="lead-detail__label">Industry</span>
-              <select class="lead-detail__select" formControlName="industry">
-                <option value="">— Select —</option>
-                @for (opt of industrySelectOptions(); track opt.id + opt.name) {
-                <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
-                }
-              </select>
-            </label>
-            <label class="lead-detail__field">
-              <span class="lead-detail__label">Source</span>
-              <select class="lead-detail__select" formControlName="source">
-                @for (s of sourceOptionsForLead(); track s) {
-                <option [value]="s">{{ s === '' ? '— Select —' : s }}</option>
-                }
-              </select>
-            </label>
-            <label class="lead-detail__field">
-              <span class="lead-detail__label">Lead Owner</span>
-              @if (canAssignLeads() && isAdminViewer()) {
-                <select class="lead-detail__select" formControlName="owner">
-                  <option value="">— Select owner —</option>
-                  @for (o of leadOwnerOptions(); track o.id) {
-                  <option [value]="o.id">{{ o.label }}</option>
-                  }
-                </select>
-              } @else {
-                <span class="lead-detail__owner-readonly">
-                  <span class="lead-detail__owner-badge">{{ sidebarOwnerChipInitial() }}</span>
-                  <span class="lead-detail__owner-chip-name">{{ displayLeadOwnerName() }}</span>
-                </span>
-              }
-            </label>
-          </div>
-        </fieldset>
-
-        <fieldset class="lead-detail__fieldset">
-          <legend class="lead-detail__fieldset-legend">Person</legend>
-          <div class="lead-detail__field-grid">
-            <label class="lead-detail__field">
-              <span class="lead-detail__label"
-                >Full name<span class="lead-detail__req" aria-hidden="true">*</span></span
-              >
-              <input
-                type="text"
-                class="lead-detail__input"
-                formControlName="fullName"
-                autocomplete="name"
-                (blur)="onFullNameBlur()"
-                [class.is-invalid]="dataForm.controls.fullName.invalid && dataForm.controls.fullName.touched"
-              />
-            </label>
-            <label class="lead-detail__field">
-              <span class="lead-detail__label">Email</span>
-              <input type="email" class="lead-detail__input" formControlName="email" [class.is-invalid]="dataForm.controls.email.invalid && dataForm.controls.email.touched" />
-              @if (dataForm.controls.email.errors?.['duplicate']) {
-                <span class="lead-detail__field-error">A lead with this email already exists.</span>
-              } @else if (dataForm.controls.email.invalid && dataForm.controls.email.touched) {
-                <span class="lead-detail__field-error">Enter a valid email address.</span>
-              }
-            </label>
-            <div class="lead-detail__field">
-              <span class="lead-detail__label">Mobile No</span>
-              <div class="crm-intl-tel-field crm-intl-tel-field--detail">
-                <intl-tel-input
-                  formControlName="mobile"
-                  [initOptions]="intlTelInitOptions"
-                  [inputProps]="intlTelMobileInputProps"
-                />
-              </div>
-              @if (intlTelFieldInvalid(dataForm.controls.mobile)) {
-                <span class="lead-detail__field-error">{{ intlTelMobileError(dataForm.controls.mobile.errors) }}</span>
-              }
-            </div>
-          </div>
-        </fieldset>
-      </form>
-      } @else if (activeTab() === 'Tasks') {
-      <header class="lead-detail__main-head lead-detail__main-head--tasks">
-        <h2>Tasks</h2>
-        <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="openNewTaskFromLead()">+ New Task</button>
-      </header>
-
-      @if (leadTasks().length === 0) {
-      <div class="lead-detail__tasks-empty">
-        <span class="lead-detail__tasks-icon" aria-hidden="true">
-          <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M9 11l3 3L22 4" />
-            <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-          </svg>
-        </span>
-        <p>No Tasks</p>
-        <button type="button" class="lead-detail__btn lead-detail__btn--calls-muted" (click)="openNewTaskFromLead()">New Task</button>
-      </div>
-      } @else {
-      <ul class="lead-detail__task-list" aria-label="Tasks for this lead">
-        @for (task of leadTasks(); track task.id) {
-        <li class="lead-detail__task-row">
-          <div class="lead-detail__task-body">
-            <button type="button" class="lead-detail__task-title" (click)="openTaskForEdit(task)">
-              {{ task.title }}
-            </button>
-            <p class="lead-detail__task-meta">
-              <span class="lead-detail__task-assignee-chip">{{ taskAssigneeChipInitial(task) }}</span>
-              <span>{{ task.assignedTo }}</span>
-              <span class="lead-detail__task-dot">·</span>
-              <span class="lead-detail__task-priority">{{ task.priority }}</span>
-            </p>
-          </div>
-          <div class="lead-detail__task-trail">
-            <span class="lead-detail__task-status-ico" [attr.title]="task.status" role="img" [attr.aria-label]="task.status">
-              @switch (task.status) {
-              @case ('Done') {
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-                <path d="m9 12 2 2 4-4" />
-              </svg>
-              }
-              @case ('Canceled') {
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-                <path d="m15 9-6 6M9 9l6 6" />
-              </svg>
-              }
-              @case ('In Progress') {
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-dasharray="2.8 3" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" stroke-dashoffset="14" />
-              </svg>
-              }
-              @case ('Todo') {
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-              </svg>
-              }
-              @default {
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-dasharray="3 3" aria-hidden="true">
-                <circle cx="12" cy="12" r="10" />
-              </svg>
-              }
-              }
-            </span>
-            <button type="button" class="lead-detail__task-more" aria-label="More actions" title="More">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <circle cx="6.5" cy="12" r="1.5" />
-                <circle cx="12" cy="12" r="1.5" />
-                <circle cx="17.5" cy="12" r="1.5" />
-              </svg>
-            </button>
-          </div>
-        </li>
-        }
-      </ul>
-      }
-      } @else if (activeTab() === 'Attachments') {
-      <input
-        #leadAttachmentPicker
-        type="file"
-        multiple
-        class="lead-detail__attachment-input"
-        aria-hidden="true"
-        tabindex="-1"
-        (change)="onLeadAttachmentFilesSelected($event)"
-      />
-      <header class="lead-detail__main-head lead-detail__main-head--tasks">
-        <h2>Attachments</h2>
-        <button type="button" class="lead-detail__btn lead-detail__btn--dark" (click)="leadAttachmentPicker.click()">
-          + Upload Attachment
-        </button>
-      </header>
-      @if (leadAttachments().length === 0) {
-      <div class="lead-detail__attachments-empty">
-        <span class="lead-detail__attachments-icon" aria-hidden="true">
-          <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
-          </svg>
-        </span>
-        <p>No Attachments</p>
-        <button type="button" class="lead-detail__btn lead-detail__btn--calls-muted" (click)="leadAttachmentPicker.click()">
-          Upload Attachment
-        </button>
-      </div>
-      } @else {
-      <ul class="lead-detail__attachment-list" aria-label="Attachments for this lead">
-        @for (a of leadAttachments(); track a.id) {
-        <li class="lead-detail__attachment-row">
-          <span class="lead-detail__attachments-icon lead-detail__attachments-icon--sm" aria-hidden="true">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
-            </svg>
-          </span>
-          <div class="lead-detail__attachment-body">
-            <p class="lead-detail__attachment-name">{{ a.name }}</p>
-            <p class="lead-detail__attachment-meta">{{ a.sizeLabel }} · {{ a.uploadedAt }}</p>
-          </div>
-        </li>
-        }
-      </ul>
-      }
-      } @else {
-      <header class="lead-detail__main-head">
-        <h2>{{ activeTab() }}</h2>
-        <span>{{ row.updated }}</span>
-      </header>
-      <ul class="lead-detail__feed">
-        <li>
-          <span class="lead-detail__dot">◎</span>
-          <p><strong>{{ row.leadOwnerName }}</strong> created this lead</p>
-          <time>{{ row.created ?? row.updated }}</time>
-        </li>
-        <li>
-          <span class="lead-detail__dot">○</span>
-          <p><strong>{{ row.name }}</strong> status moved to <strong>{{ row.status }}</strong></p>
-          <time>2 hours ago</time>
-        </li>
-        <li>
-          <span class="lead-detail__dot">○</span>
-          <p>Organization updated to <strong>{{ row.organization }}</strong></p>
-          <time>Today</time>
-        </li>
-      </ul>
-      <footer class="lead-detail__compose">
-        <button type="button" class="lead-detail__link">Reply</button>
-        <button type="button" class="lead-detail__link">Comment</button>
-      </footer>
-      }
-    </article>
-
-    <aside class="lead-detail__side card">
-      <header class="lead-detail__side-id">{{ leadCode() }}</header>
-
-      <div class="lead-detail__side-head">
-        <span class="lead-detail__avatar lead-detail__avatar--lg">{{ sidebarLeadAvatarLetter(row) }}</span>
-        <div class="lead-detail__side-ident">
-          <p class="lead-detail__name">{{ sidebarLeadHeadline(row) }}</p>
-          <div class="lead-detail__side-actions">
-            <button type="button" class="lead-detail__side-icon" aria-label="Email" title="Email" (click)="setTab('Emails')">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="5" width="18" height="14" rx="2" />
-                <path d="m3 7 9 6 9-6" />
-              </svg>
-            </button>
-            <button type="button" class="lead-detail__side-icon" aria-label="Attachments" title="Attachments" (click)="setTab('Attachments')">
-              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <section class="lead-detail__side-section">
-        <div class="lead-detail__side-section-head">
-          <button type="button" class="lead-detail__side-toggle" (click)="toggleSidebarDetails()" [attr.aria-expanded]="sidebarDetailsOpen()">
-            <svg class="lead-detail__side-chevron" [class.is-collapsed]="!sidebarDetailsOpen()" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <span class="lead-detail__side-toggle-text">Details</span>
-          </button>
-          @if (!isLeadDataReadOnly() && canEditLead(row)) {
-          <button type="button" class="lead-detail__side-edit" aria-label="Edit lead" title="Edit" (click)="openLeadEditForm()">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-          }
-        </div>
-        @if (sidebarDetailsOpen()) {
-        <div class="lead-detail__side-section-body">
-          <dl class="lead-detail__kv lead-detail__kv--side" [class.lead-detail__kv--editable]="!isLeadDataReadOnly()" [class.lead-detail__kv--readonly]="isLeadDataReadOnly()">
-            <dt>Organization</dt>
-            <dd class="lead-detail__kv-dd">
-              <input
-                type="text"
-                class="lead-detail__side-field"
-                [formControl]="dataForm.controls.organization"
-                [placeholder]="sidebarAddLabel('Organization')"
-                autocomplete="organization"
-              />
-            </dd>
-            <dt>Website</dt>
-            <dd class="lead-detail__kv-dd">
-              <input
-                type="text"
-                class="lead-detail__side-field"
-                [formControl]="dataForm.controls.website"
-                [placeholder]="sidebarAddLabel('Website')"
-                inputmode="url"
-                autocomplete="url"
-              />
-            </dd>
-            <dt>GSTIN</dt>
-            <dd class="lead-detail__kv-dd">
-              <input
-                type="text"
-                class="lead-detail__side-field"
-                [formControl]="dataForm.controls.gst"
-                [placeholder]="sidebarAddLabel('GSTIN')"
-                maxlength="15"
-                autocomplete="off"
-                spellcheck="false"
-                [class.lead-detail__side-field--invalid]="gstFieldInvalid()"
-                (input)="onGstinInput($event)"
-              />
-              @if (gstFieldInvalid() && dataForm.controls.gst.errors?.[gstinErrorKey]) {
-                <span class="lead-detail__field-error">{{ gstinErrorMessage }}</span>
-              }
-            </dd>
-            <dt>Lead amount</dt>
-            <dd class="lead-detail__kv-dd">
-              <input
-                type="text"
-                class="lead-detail__side-field"
-                [formControl]="dataForm.controls.dealAmount"
-                [placeholder]="sidebarAddLabel('Lead amount')"
-              />
-            </dd>
-            <dt>Location</dt>
-            <dd class="lead-detail__kv-dd">
-              <input
-                type="text"
-                class="lead-detail__side-field"
-                [formControl]="dataForm.controls.location"
-                [placeholder]="sidebarAddLabel('Location')"
-              />
-            </dd>
-            <dt>Lead date</dt>
-            <dd class="lead-detail__kv-dd">
-              <input
-                type="date"
-                class="lead-detail__side-field"
-                [formControl]="dataForm.controls.leadDate"
-              />
-            </dd>
-            <dt>Territory</dt>
-            <dd class="lead-detail__kv-dd">
-              <app-crm-paginated-select
-                stylePrefix="lead-detail"
-                ariaLabel="Territory"
-                [options]="territoryPaginatedOptions()"
-                [formControl]="dataForm.controls.territory"
-              />
-            </dd>
-            <dt>Industry</dt>
-            <dd class="lead-detail__kv-dd">
-              <app-crm-paginated-select
-                stylePrefix="lead-detail"
-                ariaLabel="Industry"
-                [options]="industryPaginatedOptions()"
-                [formControl]="dataForm.controls.industry"
-              />
-            </dd>
-            <dt>Source</dt>
-            <dd class="lead-detail__kv-dd">
-              <app-crm-paginated-select
-                stylePrefix="lead-detail"
-                ariaLabel="Source"
-                [options]="sourcePaginatedOptions()"
-                [formControl]="dataForm.controls.source"
-              />
-            </dd>
-            <dt>Lead Owner</dt>
-            <dd class="lead-detail__kv-owner" [class.lead-detail__kv-owner--editable]="canAssignLeads() && isAdminViewer()">
-              <span class="lead-detail__owner-badge lead-detail__owner-badge--side">{{ sidebarOwnerChipInitial() }}</span>
-              @if (canAssignLeads() && isAdminViewer()) {
-                <app-crm-paginated-select
-                  class="lead-detail__owner-paginated-select"
-                  stylePrefix="lead-detail"
-                  ariaLabel="Lead owner"
-                  placeholder="— Select owner —"
-                  [options]="leadOwnerPaginatedOptions()"
-                  [formControl]="dataForm.controls.owner"
-                />
-              } @else {
-                <span class="lead-detail__owner-chip-name">{{ displayLeadOwnerName() }}</span>
-              }
-            </dd>
-          </dl>
-        </div>
-        }
-      </section>
-
-      <section class="lead-detail__side-section lead-detail__side-section--last">
-        <div class="lead-detail__side-section-head">
-          <button type="button" class="lead-detail__side-toggle" (click)="toggleSidebarPerson()" [attr.aria-expanded]="sidebarPersonOpen()">
-            <svg class="lead-detail__side-chevron" [class.is-collapsed]="!sidebarPersonOpen()" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-              <path d="m6 9 6 6 6-6" stroke-linecap="round" stroke-linejoin="round" />
-            </svg>
-            <span class="lead-detail__side-toggle-text">Person</span>
-          </button>
-        </div>
-        @if (sidebarPersonOpen()) {
-        <div class="lead-detail__side-section-body">
-          <dl class="lead-detail__kv lead-detail__kv--side" [class.lead-detail__kv--editable]="!isLeadDataReadOnly()" [class.lead-detail__kv--readonly]="isLeadDataReadOnly()">
-            <dt><span class="lead-detail__req">*</span> Full name</dt>
-            <dd class="lead-detail__kv-dd">
-              <input
-                type="text"
-                class="lead-detail__side-field"
-                [class.lead-detail__side-field--invalid]="dataForm.controls.fullName.invalid && dataForm.controls.fullName.touched"
-                [formControl]="dataForm.controls.fullName"
-                [placeholder]="sidebarAddLabel('Full name')"
-                autocomplete="name"
-                (blur)="onFullNameBlur()"
-              />
-            </dd>
-            <dt>Email</dt>
-            <dd class="lead-detail__kv-dd">
-              <input
-                type="email"
-                class="lead-detail__side-field"
-                [class.lead-detail__side-field--invalid]="dataForm.controls.email.invalid && dataForm.controls.email.touched"
-                [formControl]="dataForm.controls.email"
-                [placeholder]="sidebarAddLabel('Email')"
-                autocomplete="email"
-              />
-              @if (dataForm.controls.email.errors?.['duplicate']) {
-                <span class="lead-detail__field-error">A lead with this email already exists.</span>
-              } @else if (dataForm.controls.email.invalid && dataForm.controls.email.touched) {
-                <span class="lead-detail__field-error">Enter a valid email address.</span>
-              }
-            </dd>
-            <dt>Mobile No</dt>
-            <dd class="lead-detail__kv-dd">
-              <div class="crm-intl-tel-field crm-intl-tel-field--side">
-                <intl-tel-input
-                  [formControl]="dataForm.controls.mobile"
-                  [initOptions]="intlTelInitOptions"
-                  [inputProps]="intlTelMobileInputProps"
-                />
-              </div>
-              @if (intlTelFieldInvalid(dataForm.controls.mobile)) {
-                <span class="lead-detail__field-error">{{ intlTelMobileError(dataForm.controls.mobile.errors) }}</span>
-              }
-            </dd>
-          </dl>
-        </div>
-        }
-      </section>
-
-      @if (dataForm.dirty && !isLeadDataReadOnly()) {
-      <footer class="lead-detail__side-save">
-        <button type="button" class="lead-detail__btn lead-detail__btn--light lead-detail__side-save-discard" [disabled]="dataSaving()" (click)="discardDataEdits()">
-          Discard
-        </button>
         <button
           type="button"
-          class="lead-detail__btn lead-detail__btn--solid lead-detail__side-save-commit"
-          [disabled]="dataSaving()"
-          (click)="saveDataTab()"
+          class="pb-3 text-sm font-medium transition-all relative whitespace-nowrap cursor-pointer flex items-center gap-2"
+          [class.text-sky-600]="activeTab() === tab"
+          [class.dark:text-sky-400]="activeTab() === tab"
+          [class.border-b-2]="activeTab() === tab"
+          [class.border-sky-500]="activeTab() === tab"
+          [class.font-semibold]="activeTab() === tab"
+          [class.text-slate-500]="activeTab() !== tab"
+          [class.dark:text-slate-400]="activeTab() !== tab"
+          [class.hover:text-slate-700]="activeTab() !== tab"
+          [class.dark:hover:text-slate-200]="activeTab() !== tab"
+          (click)="setTab(tab)"
         >
-          {{ dataSaving() ? 'Saving…' : 'Save changes' }}
+          @if (tab === 'Emails') {
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M4 4h16v16H4z" />
+              <path d="m22 7-10 6L2 7" />
+            </svg>
+          } @else if (tab === 'Comments') {
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+            </svg>
+          }
+          <span>{{ tab }}</span>
         </button>
-      </footer>
       }
-    </aside>
+    </nav>
+    <span class="text-xs font-mono text-slate-400 dark:text-slate-500 hidden sm:inline-block font-medium">
+      {{ leadCode() }}
+    </span>
+  </div>
+
+  <!-- Main Content Layout (Full Width) -->
+  <section class="w-full">
+    <!-- Main Card (100% width) -->
+    <article class="w-full bg-white dark:bg-[#111c3a]/90 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 md:p-8 shadow-sm backdrop-blur-sm">
+      @if (activeTab() === 'Data') {
+        <!-- Card Header -->
+        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800/60">
+          <div class="flex items-center gap-2">
+            <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Data</h2>
+          </div>
+          @if (!isLeadDataReadOnly()) {
+            <div class="flex items-center gap-2">
+              @if (canEditLead(row)) {
+                <button
+                  type="button"
+                  class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-colors cursor-pointer"
+                  aria-label="Edit lead"
+                  title="Edit modal"
+                  (click)="openLeadEditForm()"
+                >
+                  <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
+              }
+              <button
+                type="button"
+                class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-colors cursor-pointer"
+                aria-label="Reset unsaved edits"
+                title="Reset"
+                (click)="discardDataEdits()"
+              >
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                id="leadDataSaveBtn"
+                form="leadDataForm"
+                class="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs px-4 py-2 rounded-lg tracking-wide uppercase shadow-sm transition-colors cursor-pointer flex items-center gap-1.5"
+                [disabled]="dataSaving()"
+                aria-label="Save lead details"
+                (click)="saveDataTab()"
+              >
+                @if (dataSaving()) {
+                  <svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10" stroke-opacity="0.25" />
+                    <path d="M12 2a10 10 0 0 1 10 10" />
+                  </svg>
+                  <span>Saving…</span>
+                } @else {
+                  <span>SAVE</span>
+                }
+              </button>
+            </div>
+          }
+        </header>
+
+        @if (isLeadDataReadOnly()) {
+          <div class="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm font-medium">
+            This lead was moved to a deal and can no longer be edited.
+          </div>
+        }
+
+        <!-- Grouped Form -->
+        <form id="leadDataForm" [formGroup]="dataForm" (ngSubmit)="saveDataTab()" class="space-y-6">
+          <!-- Section 1: Organization Details -->
+          <section>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-3">
+              Organization Details
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-4">
+              <!-- Organization -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Organization</span>
+                <input
+                  type="text"
+                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                  formControlName="organization"
+                  placeholder="Organization name"
+                  autocomplete="organization"
+                />
+              </label>
+
+              <!-- Website -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Website</span>
+                <div class="relative flex items-center">
+                  <input
+                    type="text"
+                    class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 pr-10 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                    formControlName="website"
+                    placeholder="https://example.com"
+                    autocomplete="url"
+                  />
+                  @if (dataForm.controls.website.value; as webVal) {
+                    <a
+                      [href]="webVal.startsWith('http') ? webVal : 'https://' + webVal"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="absolute right-3 text-slate-400 hover:text-sky-500 dark:text-slate-500 dark:hover:text-sky-400 transition-colors p-1"
+                      title="Open website in new tab"
+                    >
+                      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                    </a>
+                  } @else {
+                    <span class="absolute right-3 text-slate-400 dark:text-slate-500 pointer-events-none p-1">
+                      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                        <polyline points="15 3 21 3 21 9" />
+                        <line x1="10" y1="14" x2="21" y2="3" />
+                      </svg>
+                    </span>
+                  }
+                </div>
+              </label>
+
+              <!-- GSTIN -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">GSTIN</span>
+                <input
+                  type="text"
+                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all uppercase"
+                  formControlName="gst"
+                  placeholder="27AAJCB6955B1ZM"
+                  maxlength="15"
+                  autocomplete="off"
+                  spellcheck="false"
+                  [class.border-rose-500]="gstFieldInvalid()"
+                  (input)="onGstinInput($event)"
+                />
+                @if (gstFieldInvalid() && dataForm.controls.gst.errors?.[gstinErrorKey]) {
+                  <span class="text-xs text-rose-500 mt-1 block">{{ gstinErrorMessage }}</span>
+                }
+              </label>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-4">
+              <!-- Lead Amount -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Lead Amount</span>
+                <div class="relative">
+                  <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400 dark:text-slate-500 font-medium text-sm">₹</span>
+                  <input
+                    type="text"
+                    class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl pl-8 pr-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                    formControlName="dealAmount"
+                    placeholder="1,50,000.00"
+                  />
+                </div>
+              </label>
+
+              <!-- Location -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Location</span>
+                <input
+                  type="text"
+                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                  formControlName="location"
+                  placeholder="Location / City"
+                />
+              </label>
+
+              <!-- Lead Date -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Lead Date</span>
+                <div class="relative">
+                  <input
+                    type="date"
+                    class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all scheme-light dark:scheme-dark"
+                    formControlName="leadDate"
+                  />
+                </div>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+              <!-- No. of employees -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">No. of employees</span>
+                <select
+                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  formControlName="employees"
+                >
+                  <option value="">— Select —</option>
+                  @for (opt of employeeSelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
+                  }
+                </select>
+              </label>
+
+              <!-- Annual revenue -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Annual revenue</span>
+                <div class="relative">
+                  <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400 dark:text-slate-500 font-medium text-sm">₹</span>
+                  <input
+                    type="text"
+                    class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl pl-8 pr-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                    formControlName="annualRevenue"
+                    placeholder="50,00,000.00"
+                  />
+                </div>
+              </label>
+            </div>
+          </section>
+
+          <!-- Section 2: Lead Context & Ownership -->
+          <section>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mt-6 mb-3">
+              Lead Context &amp; Ownership
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-4">
+              <!-- Territory -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Territory</span>
+                <select
+                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  formControlName="territory"
+                >
+                  <option value="">— Select —</option>
+                  @for (opt of territorySelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
+                  }
+                </select>
+              </label>
+
+              <!-- Industry -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Industry</span>
+                <select
+                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  formControlName="industry"
+                >
+                  <option value="">— Select —</option>
+                  @for (opt of industrySelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
+                  }
+                </select>
+              </label>
+
+              <!-- Source -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Source</span>
+                <select
+                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  formControlName="source"
+                >
+                  @for (s of sourceOptionsForLead(); track s) {
+                    <option [value]="s">{{ s === '' ? '— Select —' : s }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+              <!-- Status -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Status</span>
+                <select
+                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  formControlName="status"
+                >
+                  @for (opt of statusSelectOptions(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)" [disabled]="isConversionStatusOption(opt)">
+                      {{ opt.name }}
+                    </option>
+                  }
+                </select>
+              </label>
+
+              <!-- Lead Owner -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Lead Owner</span>
+                <select
+                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  formControlName="owner"
+                >
+                  <option value="">— Select Owner —</option>
+                  @for (o of leadOwnerOptions(); track o.id) {
+                    <option [value]="o.id">{{ o.label }}</option>
+                  }
+                </select>
+              </label>
+            </div>
+          </section>
+
+          <!-- Section 3: Requirements & Details -->
+          <section>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mt-6 mb-3">
+              Requirements &amp; Details
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <!-- Requirement -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Requirement</span>
+                <textarea
+                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all resize-y min-h-[110px]"
+                  rows="4"
+                  formControlName="requirement"
+                  placeholder="Requirement details, scope, budget, timeline..."
+                ></textarea>
+              </label>
+
+              <!-- Additional details -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Additional details</span>
+                <textarea
+                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all resize-y min-h-[110px]"
+                  rows="4"
+                  formControlName="notes"
+                  placeholder="Additional notes, preferences, or background context..."
+                ></textarea>
+              </label>
+            </div>
+          </section>
+
+          <!-- Section 4: Person Info -->
+          <section>
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mt-6 mb-3">
+              Person Info
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-4">
+              <!-- Full Name -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">
+                  Full Name <span class="text-rose-500">*</span>
+                </span>
+                <input
+                  type="text"
+                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                  formControlName="fullName"
+                  placeholder="First and last name"
+                  autocomplete="name"
+                  (blur)="onFullNameBlur()"
+                  [class.border-rose-500]="dataForm.controls.fullName.invalid && dataForm.controls.fullName.touched"
+                />
+                @if (dataForm.controls.fullName.invalid && dataForm.controls.fullName.touched) {
+                  <span class="text-xs text-rose-500 mt-1 block">Full name is required.</span>
+                }
+              </label>
+
+              <!-- Email -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Email</span>
+                <div class="relative">
+                  <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400 dark:text-slate-500">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect width="20" height="16" x="2" y="4" rx="2" />
+                      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                    </svg>
+                  </span>
+                  <input
+                    type="email"
+                    class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                    formControlName="email"
+                    placeholder="name@company.com"
+                    autocomplete="email"
+                    [class.border-rose-500]="dataForm.controls.email.invalid && dataForm.controls.email.touched"
+                  />
+                </div>
+                @if (dataForm.controls.email.errors?.['duplicate']) {
+                  <span class="text-xs text-rose-500 mt-1 block">A lead with this email already exists.</span>
+                } @else if (dataForm.controls.email.invalid && dataForm.controls.email.touched) {
+                  <span class="text-xs text-rose-500 mt-1 block">Enter a valid email address.</span>
+                }
+              </label>
+
+              <!-- Mobile No -->
+              <div class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Mobile No</span>
+                <div class="crm-intl-tel-field crm-intl-tel-field--detail">
+                  <intl-tel-input
+                    formControlName="mobile"
+                    [initOptions]="intlTelInitOptions"
+                    [inputProps]="intlTelMobileInputProps"
+                  />
+                </div>
+                @if (intlTelFieldInvalid(dataForm.controls.mobile)) {
+                  <span class="text-xs text-rose-500 mt-1 block">{{ intlTelMobileError(dataForm.controls.mobile.errors) }}</span>
+                }
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+              <!-- Gender -->
+              <label class="block">
+                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Gender</span>
+                <select
+                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  formControlName="gender"
+                >
+                  <option value="">— Select —</option>
+                  @for (g of genderOptions; track g) {
+                    @if (g !== '') {
+                      <option [value]="g">{{ g }}</option>
+                    }
+                  }
+                </select>
+              </label>
+            </div>
+          </section>
+        </form>
+      } @else if (activeTab() === 'Activity') {
+        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800/60">
+          <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Activity</h2>
+          <button
+            type="button"
+            class="bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-colors"
+            (click)="openCreatePicker()"
+          >
+            + New
+          </button>
+        </header>
+        <app-entity-activity-timeline
+          [groups]="leadActivityGroups()"
+          [loading]="leadActivityLoading()"
+          ariaLabel="Activity on this lead"
+          emptyMessage="No activity on this lead yet."
+          (reply)="setTab('Emails')"
+          (comment)="setTab('Comments')"
+        />
+      } @else if (activeTab() === 'Emails') {
+        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800/60">
+          <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Emails</h2>
+          <button
+            type="button"
+            class="bg-sky-500 hover:bg-sky-600 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-colors"
+            (click)="openNewEmailFromLead()"
+          >
+            + New Email
+          </button>
+        </header>
+
+        @if (emailComposerOpen()) {
+          <div class="mb-6 p-4 rounded-xl bg-slate-50 dark:bg-[#0d162e] border border-slate-200 dark:border-slate-700/80 space-y-3">
+            <div class="flex items-center gap-2 text-xs">
+              <span class="font-bold text-slate-500 dark:text-slate-400 w-16">TO:</span>
+              <input
+                type="email"
+                class="flex-1 bg-white dark:bg-[#111c3a] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
+                [value]="emailTo()"
+                (input)="emailTo.set($any($event.target).value)"
+                placeholder="Enter recipient email"
+              />
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              <span class="font-bold text-slate-500 dark:text-slate-400 w-16">SUBJECT:</span>
+              <input
+                type="text"
+                class="flex-1 bg-white dark:bg-[#111c3a] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
+                [value]="emailSubject()"
+                (input)="emailSubjectText.set($any($event.target).value)"
+                placeholder="Subject"
+              />
+            </div>
+            <textarea
+              class="w-full bg-white dark:bg-[#111c3a] border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-sm text-slate-900 dark:text-slate-100 resize-y min-h-[120px]"
+              rows="5"
+              [value]="emailBody()"
+              (input)="emailBody.set($any($event.target).value)"
+              placeholder="Write your email..."
+            ></textarea>
+            <div class="flex items-center justify-between pt-2">
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                  (click)="toggleEmailComposeEmojiPicker()"
+                  title="Insert emoji"
+                >
+                  😊
+                </button>
+              </div>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                  (click)="cancelLeadEmailComposer()"
+                >
+                  Discard
+                </button>
+                <button
+                  type="button"
+                  class="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-xs font-semibold px-4 py-1.5 rounded-lg shadow-sm"
+                  [disabled]="!emailComposeValid() || emailSending()"
+                  (click)="submitLeadDraftEmail()"
+                >
+                  {{ emailSending() ? 'Sending…' : 'Send' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+
+        @if (leadEmailsLoading()) {
+          <p class="text-sm text-slate-500 dark:text-slate-400 py-6 text-center" role="status">Loading emails…</p>
+        } @else if (leadEmails().length === 0) {
+          <div class="py-12 text-center text-slate-500 dark:text-slate-400">
+            <svg class="w-12 h-12 mx-auto mb-3 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M4 4h16v16H4z" />
+              <path d="m22 7-10 6L2 7" />
+            </svg>
+            <p class="text-sm font-medium">No Email Communications</p>
+            <button
+              type="button"
+              class="mt-3 text-xs font-semibold text-sky-500 hover:text-sky-600 dark:text-sky-400 cursor-pointer"
+              (click)="openNewEmailFromLead()"
+            >
+              + Send first email
+            </button>
+          </div>
+        } @else {
+          <div class="space-y-4">
+            @for (m of leadEmails(); track m.id) {
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#0d162e] border border-slate-200 dark:border-slate-800">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="font-semibold text-sm text-slate-900 dark:text-slate-100">{{ m.senderDisplay }}</span>
+                  <span class="text-xs text-slate-400">{{ m.whenLabel }}</span>
+                </div>
+                <p class="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">{{ m.subjectLine }}</p>
+                <div class="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap">{{ m.body }}</div>
+              </div>
+            }
+          </div>
+        }
+      } @else if (activeTab() === 'Comments') {
+        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800/60">
+          <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Comments</h2>
+          <button
+            type="button"
+            class="bg-sky-500 hover:bg-sky-600 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-colors"
+            (click)="openNewCommentFromLead()"
+          >
+            + New Comment
+          </button>
+        </header>
+
+        @if (commentComposerOpen()) {
+          <div class="mb-6 p-4 rounded-xl bg-slate-50 dark:bg-[#0d162e] border border-slate-200 dark:border-slate-700/80 space-y-3">
+            <textarea
+              class="w-full bg-white dark:bg-[#111c3a] border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-sm text-slate-900 dark:text-slate-100 resize-y min-h-[80px]"
+              rows="3"
+              placeholder="Write a comment…"
+              [value]="commentDraft()"
+              (input)="commentDraft.set($any($event.target).value)"
+            ></textarea>
+            <div class="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                class="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                (click)="cancelLeadCommentComposer()"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                class="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white text-xs font-semibold px-4 py-1.5 rounded-lg shadow-sm"
+                [disabled]="!commentDraft().trim() || commentPosting()"
+                (click)="postLeadComment()"
+              >
+                Post
+              </button>
+            </div>
+          </div>
+        }
+
+        @if (leadComments().length === 0) {
+          <div class="py-12 text-center text-slate-500 dark:text-slate-400">
+            <svg class="w-12 h-12 mx-auto mb-3 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+            </svg>
+            <p class="text-sm font-medium">No comments yet</p>
+            <button
+              type="button"
+              class="mt-3 text-xs font-semibold text-sky-500 hover:text-sky-600 dark:text-sky-400 cursor-pointer"
+              (click)="openNewCommentFromLead()"
+            >
+              + Add first comment
+            </button>
+          </div>
+        } @else {
+          <div class="space-y-4">
+            @for (c of leadComments(); track c.id) {
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#0d162e] border border-slate-200 dark:border-slate-800">
+                <div class="flex items-center justify-between mb-2">
+                  <span class="font-semibold text-sm text-slate-900 dark:text-slate-100">{{ c.authorName }}</span>
+                  <span class="text-xs text-slate-400">{{ c.whenLabel }}</span>
+                </div>
+                <p class="text-sm text-slate-700 dark:text-slate-300">{{ c.body }}</p>
+              </div>
+            }
+          </div>
+        }
+      } @else if (activeTab() === 'Tasks') {
+        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800/60">
+          <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Tasks</h2>
+          <button
+            type="button"
+            class="bg-sky-500 hover:bg-sky-600 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+            (click)="openNewTaskFromLead()"
+          >
+            + New Task
+          </button>
+        </header>
+
+        @if (leadTasks().length === 0) {
+          <div class="py-12 text-center text-slate-500 dark:text-slate-400">
+            <svg class="w-12 h-12 mx-auto mb-3 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M9 11l3 3L22 4" />
+              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+            </svg>
+            <p class="text-sm font-medium">No Tasks</p>
+            <button
+              type="button"
+              class="mt-3 text-xs font-semibold text-sky-500 hover:text-sky-600 dark:text-sky-400 cursor-pointer"
+              (click)="openNewTaskFromLead()"
+            >
+              + Create first task
+            </button>
+          </div>
+        } @else {
+          <div class="space-y-3">
+            @for (task of leadTasks(); track task.id) {
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#0d162e] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
+                <div>
+                  <button type="button" class="text-sm font-semibold text-slate-900 dark:text-slate-100 hover:text-sky-500 text-left" (click)="openTaskForEdit(task)">
+                    {{ task.title }}
+                  </button>
+                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                    {{ task.assignedTo }} · Priority: {{ task.priority }} · Status: {{ task.status }}
+                  </p>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      } @else if (activeTab() === 'Attachments') {
+        <input
+          #leadAttachmentPicker
+          type="file"
+          multiple
+          class="hidden"
+          (change)="onLeadAttachmentFilesSelected($event)"
+        />
+        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800/60">
+          <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Attachments</h2>
+          <button
+            type="button"
+            class="bg-sky-500 hover:bg-sky-600 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+            (click)="leadAttachmentPicker.click()"
+          >
+            + Upload Attachment
+          </button>
+        </header>
+
+        @if (leadAttachments().length === 0) {
+          <div class="py-12 text-center text-slate-500 dark:text-slate-400">
+            <svg class="w-12 h-12 mx-auto mb-3 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <path d="M21.44 11.05 12.25 20.24a6 6 0 1 1-8.49-8.49l10.61-10.61a4 4 0 1 1 5.66 5.66L9.64 17.71a2.5 2.5 0 0 1-3.54-3.54l9.54-9.54" />
+            </svg>
+            <p class="text-sm font-medium">No Attachments</p>
+            <button
+              type="button"
+              class="mt-3 text-xs font-semibold text-sky-500 hover:text-sky-600 dark:text-sky-400 cursor-pointer"
+              (click)="leadAttachmentPicker.click()"
+            >
+              Upload Attachment
+            </button>
+          </div>
+        } @else {
+          <div class="space-y-3">
+            @for (a of leadAttachments(); track a.id) {
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#0d162e] border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                  <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p class="text-sm font-semibold text-slate-900 dark:text-slate-100">{{ a.name }}</p>
+                    <p class="text-xs text-slate-500">{{ a.sizeLabel }} · {{ a.uploadedAt }}</p>
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      }
+    </article>
   </section>
 </div>
 } @else {
-<div class="lead-detail lead-detail--empty">
-  <p>Lead not found.</p>
-  <a routerLink="/leads" class="lead-detail__back">Back to leads</a>
+<div class="min-h-screen bg-slate-50 dark:bg-[#0b132b] text-slate-900 dark:text-slate-100 p-6 flex flex-col items-center justify-center">
+  <p class="text-base font-semibold text-slate-700 dark:text-slate-300">Lead not found.</p>
+  <a routerLink="/leads" class="mt-4 text-sm font-semibold text-sky-500 hover:text-sky-600 dark:text-sky-400">
+    ← Back to leads
+  </a>
 </div>
 }
 
@@ -937,4 +858,3 @@
   (confirm)="onConvertModalConfirm($event)"
   (dismiss)="closeConvertModal()"
 />
-
