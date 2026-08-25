@@ -533,6 +533,24 @@ export function enrichLeadNormalizedFromPatch(
       patch.employeeCountId !== undefined
         ? patch.employeeCountId ?? baseline.employeeCountId
         : baseline.employeeCountId,
+    annualRevenue:
+      patch.annualRevenue !== undefined
+        ? parseAnnualRevenueForApi(patch.annualRevenue) ?? baseline.annualRevenue
+        : baseline.annualRevenue,
+    dealAmount:
+      patch.dealAmount !== undefined
+        ? (patch.dealAmount != null && Number.isFinite(patch.dealAmount) ? patch.dealAmount : null)
+        : baseline.dealAmount,
+    gender:
+      patch.gender !== undefined ? patch.gender.trim() || baseline.gender : baseline.gender,
+    location:
+      patch.location !== undefined ? patch.location.trim() || baseline.location : baseline.location,
+    leadDate:
+      patch.leadDate !== undefined ? patch.leadDate.trim() || baseline.leadDate : baseline.leadDate,
+    notes:
+      patch.notes !== undefined ? patch.notes.trim() || baseline.notes : baseline.notes,
+    requirement:
+      patch.requirement !== undefined ? patch.requirement.trim() || baseline.requirement : baseline.requirement,
     salutationName:
       patch.salutation !== undefined
         ? patch.salutation.trim() || baseline.salutationName
@@ -780,6 +798,36 @@ export function applyLeadRowOrgFieldsFromPatch(
   }
   if (patch.industryId !== undefined) {
     out.industryId = patch.industryId ?? undefined;
+  }
+  if (patch.employees !== undefined) {
+    out.employees = patch.employees.trim() || undefined;
+  }
+  if (patch.employeeCountId !== undefined) {
+    out.employeeCountId = patch.employeeCountId ?? undefined;
+  }
+  if (patch.annualRevenue !== undefined) {
+    out.annualRevenue = patch.annualRevenue.trim() || undefined;
+  }
+  if (patch.gender !== undefined) {
+    out.gender = patch.gender.trim() || undefined;
+  }
+  if (patch.status !== undefined) {
+    out.status = patch.status;
+  }
+  if (patch.leadStatusId !== undefined) {
+    out.leadStatusId = patch.leadStatusId ?? undefined;
+  }
+  if (patch.location !== undefined) {
+    out.location = patch.location.trim() || undefined;
+  }
+  if (patch.leadDate !== undefined) {
+    out.leadDate = patch.leadDate.trim() || undefined;
+  }
+  if (patch.notes !== undefined) {
+    out.notes = patch.notes.trim() || undefined;
+  }
+  if (patch.requirement !== undefined) {
+    out.requirement = patch.requirement.trim() || undefined;
   }
   if (patch.organizationId !== undefined) {
     out.organizationId = patch.organizationId;

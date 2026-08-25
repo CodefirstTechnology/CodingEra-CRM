@@ -21,9 +21,15 @@ import {
 } from '../../core/services/leads/lead-master-data.service';
 import { LeadsService, leadsHttpErrorMessage } from '../../core/services/leads.service';
 import {
+  coerceLeadStatus,
   leadDateToFormInput,
   todayIsoDateLocal,
 } from '../../core/services/leads/lead-api.mapper';
+import {
+  composeLeadNotesForApi,
+  resolveLeadRequirementForDisplay,
+  resolveManualLeadCustomFieldForForm,
+} from '../../core/services/leads/lead-notes-requirement.util';
 import {
   buildLeadDisplayName,
   fullNameFromLeadParts,
@@ -37,6 +43,9 @@ import {
   conversionLeadStatusDisplayName,
   ensureConvertedInLeadStatusOptions,
   findConversionLeadStatus,
+  FALLBACK_LEAD_STATUS_OPTIONS,
+  isConversionLeadStatusOption,
+  resolveLeadStatusIdFromName,
 } from '../../core/services/leads/lead-status.constants';
 import {
   buildLeadConversionActivityGroup,
@@ -65,9 +74,10 @@ import {
 import { gstFormValidators, optionalEmailValidator } from '../../shared/validators/crm-validators';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { TextFormatter } from '../../shared/utils/text-normalizer';
-import type { LeadOwnerOption, LeadRow, LeadStatus } from './lead-row.model';
+import type { LeadOwnerOption, LeadRow, LeadSource, LeadStatus } from './lead-row.model';
 import type { TaskRow } from '../tasks/tasks.component';
 
+const FALLBACK_EMPLOYEE_LABELS = ['1-10', '11-50', '51-200', '201-500', '500+'] as const;
 const FALLBACK_TERRITORY_NAMES = ['India', 'APAC', 'EMEA', 'Americas', 'Other'] as const;
 const FALLBACK_INDUSTRY_NAMES = [
   'Technology',
@@ -96,7 +106,6 @@ interface LeadCommentItem extends EntityCommentItem {}
     RouterLink,
     ReactiveFormsModule,
     EntityActivityTimelineComponent,
-    CrmPaginatedSelectComponent,
     ConvertLeadModalComponent,
     IntlTelInputComponent,
   ],
@@ -222,17 +231,31 @@ export class LeadDetailComponent {
   );
 
   protected readonly sourceOptions = ['', 'Website', 'Referral', 'Ads', 'Cold Call', 'Event', 'Other'] as const;
+  protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
 
+  private readonly employeeCountsFromApi = signal<MasterDataOption[]>([]);
   private readonly territoriesFromApi = signal<MasterDataOption[]>([]);
   private readonly industriesFromApi = signal<MasterDataOption[]>([]);
   private readonly leadStatusesFromApi = signal<MasterDataOption[]>([]);
+  private readonly sourcesFromApi = signal<MasterDataOption[]>([]);
+
+  protected readonly employeeSelectOptions = computed<MasterDataOption[]>(() => {
+    const api = this.employeeCountsFromApi();
+    return api.length > 0 ? api : FALLBACK_EMPLOYEE_LABELS.map((name) => ({ id: 0, name }));
+  });
+
+  protected readonly statusSelectOptions = computed<MasterDataOption[]>(() => {
+    const api = this.leadStatusesFromApi();
+    const base = api.length > 0 ? api : [...FALLBACK_LEAD_STATUS_OPTIONS];
+    return ensureConvertedInLeadStatusOptions(base);
+  });
 
   protected readonly conversionStatusOption = computed(() =>
-    findConversionLeadStatus(ensureConvertedInLeadStatusOptions(this.leadStatusesFromApi())),
+    findConversionLeadStatus(this.statusSelectOptions()),
   );
 
   protected readonly conversionStatusLabel = computed(() =>
-    conversionLeadStatusDisplayName(ensureConvertedInLeadStatusOptions(this.leadStatusesFromApi())),
+    conversionLeadStatusDisplayName(this.statusSelectOptions()),
   );
 
   protected readonly territorySelectOptions = computed<MasterDataOption[]>(() => {
@@ -243,15 +266,19 @@ export class LeadDetailComponent {
     const api = this.industriesFromApi();
     return api.length > 0 ? api : FALLBACK_INDUSTRY_NAMES.map((name) => ({ id: 0, name }));
   });
+  protected readonly sourceSelectOptions = computed<MasterDataOption[]>(() =>
+    this.sourcesFromApi(),
+  );
 
   /** Source dropdown includes the lead's current source when it is not in the static list (e.g. Justdial Enquiry). */
   protected readonly sourceOptionsForLead = computed(() => {
-    const base = [...this.sourceOptions];
-    const current = this.lead()?.source?.trim();
-    if (current && !base.includes(current as (typeof base)[number])) {
-      return [...base, current];
+    const apiSources = this.sourcesFromApi().map((s) => s.name);
+    const base = apiSources.length > 0 ? apiSources : [...this.sourceOptions.filter(Boolean)];
+    const current = this.lead()?.source?.trim() || this.lead()?.leadSource?.trim();
+    if (current && !base.includes(current)) {
+      return ['', ...base, current];
     }
-    return base;
+    return ['', ...base];
   });
 
   protected readonly territoryPaginatedOptions = computed(() =>
@@ -287,15 +314,21 @@ export class LeadDetailComponent {
     website: [''],
     gst: ['', gstFormValidators()],
     dealAmount: [''],
+    location: [''],
+    leadDate: [todayIsoDateLocal()],
+    employees: [''],
+    annualRevenue: [''],
     territory: [''],
     industry: [''],
     source: [''],
+    status: ['New'],
     owner: [''],
-    location: [''],
-    leadDate: [todayIsoDateLocal()],
+    requirement: [''],
+    notes: [''],
     fullName: ['', [Validators.required, Validators.maxLength(200)]],
     email: ['', [Validators.maxLength(160), optionalEmailValidator()]],
     mobile: [''],
+    gender: [''],
   });
 
   protected readonly intlTelInitOptions = getCrmIntlTelInitOptions();
@@ -318,12 +351,21 @@ export class LeadDetailComponent {
     return value.toLocaleString('en-IN');
   }
 
+  private revenueStringToInput(val: string | number | undefined | null): string {
+    if (val == null) return '';
+    const num = parseRevenueInputToNumber(val);
+    if (!num) return '';
+    return num.toLocaleString('en-IN');
+  }
+
   constructor() {
     this.leadOwnerOpts.load();
     forkJoin({
       territories: this.leadMasterData.loadTerritories(),
       industries: this.leadMasterData.loadIndustries(),
       leadStatuses: this.leadMasterData.loadLeadStatuses(),
+      employeeCounts: this.leadMasterData.loadEmployeeCounts(),
+      sources: this.leadMasterData.loadSources(),
     })
       .pipe(takeUntilDestroyed())
       .subscribe({
@@ -331,6 +373,8 @@ export class LeadDetailComponent {
           this.territoriesFromApi.set(r.territories);
           this.industriesFromApi.set(r.industries);
           this.leadStatusesFromApi.set(r.leadStatuses);
+          this.employeeCountsFromApi.set(r.employeeCounts);
+          this.sourcesFromApi.set(r.sources);
         },
       });
 
@@ -798,6 +842,10 @@ export class LeadDetailComponent {
     return opt.id > 0 ? String(opt.id) : opt.name;
   }
 
+  protected isConversionStatusOption(opt: MasterDataOption): boolean {
+    return isConversionLeadStatusOption(opt);
+  }
+
   private masterSelectControlValue(
     id: number | null | undefined,
     label: string | null | undefined,
@@ -841,21 +889,32 @@ export class LeadDetailComponent {
   }
 
   protected patchDataForm(row: LeadRow): void {
+    const ownerOpt = row.leadOwnerId ? this.leadOwnerOpts.findById(row.leadOwnerId) : null;
     this.dataForm.patchValue(
       {
         organization: row.organization ?? '',
         website: row.website ?? '',
         gst: normalizeGstin(row.gst),
         dealAmount: this.revenueNumberToInputString(row.dealAmount),
-        territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
-        industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
-        source: row.source?.trim() || row.leadSource || '',
-        owner: row.leadOwnerId ?? '',
         location: row.location ?? '',
         leadDate: leadDateToFormInput(row.leadDate) || todayIsoDateLocal(),
+        employees: this.masterSelectControlValue(row.employeeCountId, row.employees, this.employeeSelectOptions()),
+        annualRevenue: this.revenueStringToInput(row.annualRevenue),
+        territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
+        industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
+        source: this.masterSelectControlValue(
+          undefined,
+          row.source || row.leadSource || 'Manual',
+          this.sourceSelectOptions(),
+        ),
+        status: this.masterSelectControlValue(row.leadStatusId, row.status, this.statusSelectOptions()),
+        owner: ownerOpt?.id ?? row.leadOwnerId ?? '',
+        requirement: resolveLeadRequirementForDisplay(row.requirement, row.notes),
+        notes: resolveManualLeadCustomFieldForForm(row.requirement, row.notes),
         fullName: fullNameFromLeadParts(row),
         email: row.email ?? '',
         mobile: row.mobile ?? '',
+        gender: row.gender ?? '',
       },
       { emitEvent: false },
     );
@@ -867,6 +926,7 @@ export class LeadDetailComponent {
       this.dataForm.enable({ emitEvent: false });
     }
   }
+
 
   protected setTab(tab: DetailTab): void {
     this.activeTab.set(tab);
@@ -962,105 +1022,131 @@ export class LeadDetailComponent {
     TextFormatter.form(this.dataForm);
     if (this.dataForm.invalid) {
       this.dataForm.markAllAsTouched();
+      const invalidFields: string[] = [];
+      for (const [key, control] of Object.entries(this.dataForm.controls)) {
+        if (control.invalid) {
+          invalidFields.push(key);
+        }
+      }
+      console.warn('[LeadDetail] Form validation failed for controls:', invalidFields, this.dataForm.errors);
+      this.toast.error('Please correct the validation errors in the form before saving.');
       return;
     }
 
-    const v = this.dataForm.getRawValue();
-    const emailTrim = v.email.trim();
-    const emailLower = emailTrim.toLowerCase();
-    if (emailTrim) {
-      const all = await firstValueFrom(this.leadsService.getAll());
-      if (all.some((l) => l.email.toLowerCase() === emailLower && Number(l.id) !== idn)) {
-        this.dataForm.controls.email.setErrors({ duplicate: true });
-        this.dataForm.controls.email.markAsTouched();
-        return;
-      }
-    }
-    const terrPick = this.resolveMasterPick(v.territory, this.territorySelectOptions());
-    const indPick = this.resolveMasterPick(v.industry, this.industrySelectOptions());
-    const { firstName, lastName } = splitFullName(v.fullName);
-    const name =
-      TextFormatter.entityName(
-        'lead',
-        buildLeadDisplayName('', firstName, lastName) || v.fullName || row.name,
-      ) || row.name;
-
-    const ownerId = resolveRecordOwnerIdForSubmit({
-      canAssign: this.canAssignLeads(),
-      isAdminSession: this.isAdminViewer(),
-      rawOwnerId: v.owner.trim(),
-      existingOwnerId: row.leadOwnerId,
-      sessionOwnerId: this.leadOwnerOpts.sessionOwnerId(),
-      fallbackOwnerId: this.leadOwnerOpts.defaultOwnerId(),
-    });
-    const opt =
-      this.canAssignLeads() && this.isAdminViewer() ? this.leadOwnerOpts.findById(ownerId) : null;
-    const leadOwnerName = opt?.label ?? row.leadOwnerName;
-
     this.dataSaving.set(true);
-    const payload: Partial<Omit<LeadRow, 'id'>> = {
-      name,
-      firstName,
-      lastName,
-      salutation: undefined,
-      salutationId: undefined,
-      email: v.email.trim(),
-      mobile: v.mobile.trim() || undefined,
-      organization: v.organization.trim(),
-      ...(row.organizationId?.trim() ? { organizationId: row.organizationId.trim() } : {}),
-      website: v.website.trim() || undefined,
-      gst: normalizeGstin(v.gst) || undefined,
-      dealAmount: parseRevenueInputToNumber(v.dealAmount),
-      territory: terrPick.label.trim() || undefined,
-      territoryId: terrPick.masterId,
-      industry: indPick.label.trim() || undefined,
-      industryId: indPick.masterId,
-      source: v.source.trim() || undefined,
-      location: v.location.trim() || undefined,
-      leadDate: v.leadDate.trim() || todayIsoDateLocal(),
-      leadOwnerId: ownerId || undefined,
-      owner: opt?.initials ?? row.owner,
-      leadOwnerName,
-      updated: 'Just now',
-    };
 
     try {
+      const v = this.dataForm.getRawValue();
+      const emailTrim = v.email.trim();
+      const emailLower = emailTrim.toLowerCase();
+      if (emailTrim) {
+        try {
+          const all = await firstValueFrom(this.leadsService.getAll());
+          if (all.some((l) => l.email?.trim().toLowerCase() === emailLower && Number(l.id) !== idn)) {
+            this.dataForm.controls.email.setErrors({ duplicate: true });
+            this.dataForm.controls.email.markAsTouched();
+            this.toast.error('A lead with this email already exists.');
+            this.dataSaving.set(false);
+            return;
+          }
+        } catch (emailCheckErr) {
+          console.warn('[LeadDetail] Duplicate email check skipped:', emailCheckErr);
+        }
+      }
+
+      const empPick = this.resolveMasterPick(v.employees, this.employeeSelectOptions());
+      const statPick = this.resolveMasterPick(v.status, this.statusSelectOptions());
+      if (isConversionLeadStatusOption({ id: 0, name: statPick.label })) {
+        this.toast.error(
+          `${this.conversionStatusLabel()} is set automatically when you convert a lead to a deal.`,
+        );
+        this.dataSaving.set(false);
+        return;
+      }
+      const terrPick = this.resolveMasterPick(v.territory, this.territorySelectOptions());
+      const indPick = this.resolveMasterPick(v.industry, this.industrySelectOptions());
+      const srcPick = this.resolveMasterPick(v.source, this.sourceSelectOptions());
+      const sourceLabel = (srcPick.label.trim() || v.source || 'Manual') as LeadSource;
+      const { firstName, lastName } = splitFullName(v.fullName);
+      const name =
+        TextFormatter.entityName(
+          'lead',
+          buildLeadDisplayName('', firstName, lastName) || v.fullName || row.name,
+        ) || firstName || row.name;
+
+      const ownerId = resolveRecordOwnerIdForSubmit({
+        canAssign: this.canAssignLeads(),
+        isAdminSession: this.isAdminViewer(),
+        rawOwnerId: v.owner.trim(),
+        existingOwnerId: row.leadOwnerId,
+        sessionOwnerId: this.leadOwnerOpts.sessionOwnerId(),
+        fallbackOwnerId: this.leadOwnerOpts.defaultOwnerId(),
+      });
+      const opt =
+        this.canAssignLeads() && this.isAdminViewer() ? this.leadOwnerOpts.findById(ownerId) : null;
+      const leadOwnerName = opt?.label ?? row.leadOwnerName;
+
+      const parsedAnnualRevenue = parseRevenueInputToNumber(v.annualRevenue);
+      const annualRevenueFormatted =
+        parsedAnnualRevenue > 0 ? `₹ ${parsedAnnualRevenue.toLocaleString('en-IN')}` : undefined;
+
+      const payload: Partial<Omit<LeadRow, 'id'>> = {
+        name,
+        firstName,
+        lastName,
+        salutation: undefined,
+        salutationId: undefined,
+        email: v.email.trim(),
+        mobile: v.mobile.trim() || undefined,
+        gender: v.gender.trim() || undefined,
+        organization: v.organization.trim(),
+        ...(row.organizationId?.trim() ? { organizationId: row.organizationId.trim() } : {}),
+        website: v.website.trim() || undefined,
+        gst: normalizeGstin(v.gst) || undefined,
+        dealAmount: parseRevenueInputToNumber(v.dealAmount),
+        employees: empPick.label.trim() || undefined,
+        employeeCountId: empPick.masterId,
+        annualRevenue: annualRevenueFormatted,
+        territory: terrPick.label.trim() || undefined,
+        territoryId: terrPick.masterId,
+        industry: indPick.label.trim() || 'Other',
+        industryId: indPick.masterId,
+        source: sourceLabel,
+        leadSource: sourceLabel,
+        status: coerceLeadStatus(statPick.label),
+        leadStatusId:
+          statPick.masterId ?? resolveLeadStatusIdFromName(statPick.label) ?? undefined,
+        location: v.location.trim() || undefined,
+        leadDate: v.leadDate.trim() || todayIsoDateLocal(),
+        requirement: v.requirement.trim() || undefined,
+        notes: composeLeadNotesForApi(v.requirement, v.notes) || undefined,
+        leadOwnerId: ownerId || undefined,
+        owner: opt?.initials ?? row.owner,
+        leadOwnerName,
+        updated: 'Just now',
+      };
+
       const updated = await this.leadsService.updateAsync(idn, payload);
       if (updated) {
         const enriched = this.leadOwnerOpts.applyOwnerToRow(updated);
         this.lead.set(enriched);
         this.patchDataForm(enriched);
+        this.refreshLeadActivities();
+        this.createRowBus.publish('lead', enriched);
         this.emailSubjectText.set(`Mr ${updated.name} (${this.leadCode()})`);
-        const ownerDirty =
-          this.canAssignLeads() && this.isAdminViewer() && this.dataForm.controls.owner.dirty;
-        const otherDirty =
-          this.dataForm.controls.fullName.dirty ||
-          this.dataForm.controls.email.dirty ||
-          this.dataForm.controls.mobile.dirty ||
-          this.dataForm.controls.organization.dirty ||
-          this.dataForm.controls.website.dirty ||
-          this.dataForm.controls.gst.dirty ||
-          this.dataForm.controls.dealAmount.dirty ||
-          this.dataForm.controls.territory.dirty ||
-          this.dataForm.controls.industry.dirty ||
-          this.dataForm.controls.source.dirty ||
-          this.dataForm.controls.location.dirty ||
-          this.dataForm.controls.leadDate.dirty;
-        if (ownerDirty && !otherDirty) {
-          const name = enriched.leadOwnerName?.trim() || '—';
-          this.toast.success(
-            name === '—' ? 'Lead owner cleared.' : `Lead owner changed to ${name}.`,
-          );
-        } else {
-          this.toast.success('Lead saved.');
-        }
+        this.toast.success('Lead details updated successfully');
+      } else {
+        console.error('[LeadDetail] Update returned null or undefined lead.');
+        this.toast.error('Failed to update lead details.');
       }
     } catch (e) {
+      console.error('[LeadDetail] Failed to save lead data:', e);
       this.toast.error(leadsHttpErrorMessage(e));
     } finally {
       this.dataSaving.set(false);
     }
   }
+
 
   protected openConvertModal(): void {
     const row = this.lead();
