@@ -51,11 +51,13 @@ export class DeleteUserModalComponent {
     if (this.form.invalid) return;
 
     this.submitting.set(true);
+    this.form.disable();
     this.adminUsers
       .deleteUser(this.auth.token(), user.id, this.form.getRawValue().password)
       .subscribe({
         next: (res) => {
           this.submitting.set(false);
+          this.form.enable();
           if (res.ok) {
             this.toast.success(`${user.name} was deleted.`);
             this.resetForm();
@@ -68,6 +70,7 @@ export class DeleteUserModalComponent {
         },
         error: () => {
           this.submitting.set(false);
+          this.form.enable();
           const msg = 'Something went wrong. Please try again.';
           this.formError.set(msg);
           this.toast.error(msg);
