@@ -65,40 +65,34 @@ export class UserStatusSignalRService {
 
     try {
       if (!this.hubConnection) {
-        console.info('[SignalR] Initializing connection to:', hubUrl);
-
         this.hubConnection = new HubConnectionBuilder()
           .withUrl(hubUrl, {
             skipNegotiation: false,
             transport: HttpTransportType.WebSockets | HttpTransportType.LongPolling,
           })
           .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
-          .configureLogging(LogLevel.Information)
+          .configureLogging(LogLevel.None)
           .build();
 
         this.hubConnection.on('UserStatusChanged', (payload: UserStatusChangedEvent) => {
-          console.info('[SignalR] Event received: UserStatusChanged ->', payload);
           this.zone.run(() => {
             this.statusChangedSubject.next(payload);
           });
         });
 
-        this.hubConnection.onreconnecting((err) => {
-          console.warn('[SignalR] Reconnecting...', err);
+        this.hubConnection.onreconnecting(() => {
           this.zone.run(() => {
             this.isConnected.set(false);
           });
         });
 
-        this.hubConnection.onreconnected((connectionId) => {
-          console.info('[SignalR] Reconnected! Connection ID:', connectionId);
+        this.hubConnection.onreconnected(() => {
           this.zone.run(() => {
             this.isConnected.set(true);
           });
         });
 
-        this.hubConnection.onclose((err) => {
-          console.warn('[SignalR] Connection closed:', err);
+        this.hubConnection.onclose(() => {
           this.zone.run(() => {
             this.isConnected.set(false);
           });
@@ -107,13 +101,11 @@ export class UserStatusSignalRService {
 
       if (this.hubConnection.state === HubConnectionState.Disconnected) {
         await this.hubConnection.start();
-        console.info('[SignalR] Connection established successfully! State:', this.hubConnection.state);
         this.zone.run(() => {
           this.isConnected.set(true);
         });
       }
-    } catch (err) {
-      console.warn('[SignalR] Failed to connect to user-status hub:', err);
+    } catch {
       this.zone.run(() => {
         this.isConnected.set(false);
       });
