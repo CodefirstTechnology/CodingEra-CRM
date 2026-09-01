@@ -185,15 +185,13 @@ export class IndiamartLeadsService {
   }
 
   /**
-   * `mapi.indiamart.com` does not allow browser CORS from localhost. In development, rewrite that
-   * origin to same-origin `/indiamart-mapi/...` so `ng serve` + `proxy.conf.json` forward the request.
+   * `mapi.indiamart.com` does not allow browser CORS. Rewrite that origin to
+   * same-origin `/indiamart-mapi/...` so reverse proxy (`proxy.conf.json` in dev, Nginx in prod)
+   * forwards the request server-to-server.
    */
   private browserSafeIndiamartUrl(raw: string): string {
     const u = this.resolveIndiamartUrl(raw);
     if (!u.length) return u;
-    if (environment.production) {
-      return u;
-    }
     const origin = 'https://mapi.indiamart.com';
     if (u.startsWith(`${origin}/`)) {
       return `/indiamart-mapi${u.slice(origin.length)}`;
@@ -217,9 +215,6 @@ export class IndiamartLeadsService {
       return path + query;
     }
 
-    if (environment.production) {
-      return 'https://mapi.indiamart.com/wservce/crm/crmListing/v2';
-    }
     return '/indiamart-mapi/wservce/crm/crmListing/v2';
   }
 

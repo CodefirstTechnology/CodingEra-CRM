@@ -25,7 +25,7 @@ export const environment = {
    */
   indiamart: {
     pullApiUrl:
-      indiamartSecrets.pullApiUrl || 'https://mapi.indiamart.com/wservce/crm/crmListing/v2',
+      indiamartSecrets.pullApiUrl || '/indiamart-mapi/wservce/crm/crmListing/v2',
     pushApiUrl: indiamartSecrets.pushApiUrl,
     apiKey: indiamartSecrets.apiKey,
     webhookToken: indiamartSecrets.webhookToken,

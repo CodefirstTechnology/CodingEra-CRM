@@ -52,11 +52,11 @@
   }
 
   &.crm-intl-tel-field--detail {
-    --crm-intl-radius: 8px;
-    --crm-intl-padding-y: 0.55rem;
-    --crm-intl-padding-x: 0.68rem;
-    --crm-intl-font-size: 0.84375rem;
-    --crm-intl-bg: var(--surface);
+    --crm-intl-radius: 12px;
+    --crm-intl-padding-y: 0.625rem;
+    --crm-intl-padding-x: 0.875rem;
+    --crm-intl-font-size: 0.875rem;
+    --crm-intl-bg: var(--input-bg, var(--surface));
   }
 
   &.crm-intl-tel-field--contact-detail {
@@ -142,3 +142,36 @@
 .iti--container {
   z-index: 10000 !important;
 }
+
+.dark .iti__dropdown-content,
+[data-theme='dark'] .iti__dropdown-content {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+.dark .iti__country-list,
+[data-theme='dark'] .iti__country-list {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+}
+
+.dark .iti__country,
+[data-theme='dark'] .iti__country {
+  color: #f8fafc !important;
+}
+
+.dark .iti__country:hover,
+.dark .iti__country.iti__highlight,
+[data-theme='dark'] .iti__country:hover,
+[data-theme='dark'] .iti__country.iti__highlight {
+  background-color: #334155 !important;
+}
+
+.dark .iti__search-input,
+[data-theme='dark'] .iti__search-input {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+

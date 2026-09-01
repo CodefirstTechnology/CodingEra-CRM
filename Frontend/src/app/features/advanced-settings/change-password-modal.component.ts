@@ -76,9 +76,11 @@ export class ChangePasswordModalComponent {
     }
 
     this.submitting.set(true);
+    this.form.disable();
     this.auth.changePassword({ currentPassword, newPassword }).subscribe({
       next: (res) => {
         this.submitting.set(false);
+        this.form.enable();
         if (res.ok) {
           this.toast.success('Password updated successfully.');
           this.resetForm();
@@ -91,6 +93,7 @@ export class ChangePasswordModalComponent {
       },
       error: () => {
         this.submitting.set(false);
+        this.form.enable();
         const msg = 'Something went wrong. Please try again.';
         this.formError.set(msg);
         this.toast.error(msg);
