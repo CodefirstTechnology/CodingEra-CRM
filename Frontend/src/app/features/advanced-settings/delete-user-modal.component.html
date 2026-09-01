@@ -17,7 +17,6 @@
           type="password"
           formControlName="password"
           autocomplete="current-password"
-          [disabled]="submitting()"
         />
         @if (passwordInvalid()) {
           <small class="delete-user-modal__field-error">Password is required (at least 6 characters).</small>

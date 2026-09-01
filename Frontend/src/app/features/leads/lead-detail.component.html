@@ -1,5 +1,5 @@
 @if (leadInitialLoading()) {
-<div class="min-h-screen bg-slate-50 dark:bg-[#0b132b] text-slate-900 dark:text-slate-100 p-6 flex flex-col items-center justify-center">
+<div class="min-h-screen bg-slate-50 dark:bg-[#070d1e] text-slate-900 dark:text-slate-100 p-6 flex flex-col items-center justify-center">
   <div class="flex items-center gap-3 text-slate-600 dark:text-slate-400">
     <svg class="w-6 h-6 animate-spin text-sky-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
       <circle cx="12" cy="12" r="10" stroke-opacity="0.25" />
@@ -12,7 +12,7 @@
   </a>
 </div>
 } @else if (leadLoadError(); as errMsg) {
-<div class="min-h-screen bg-slate-50 dark:bg-[#0b132b] text-slate-900 dark:text-slate-100 p-6 flex flex-col items-center justify-center" role="alert">
+<div class="min-h-screen bg-slate-50 dark:bg-[#070d1e] text-slate-900 dark:text-slate-100 p-6 flex flex-col items-center justify-center" role="alert">
   <div class="bg-rose-500/10 border border-rose-500/30 rounded-2xl p-6 max-w-md text-center">
     <p class="text-rose-600 dark:text-rose-400 font-medium">{{ errMsg }}</p>
     <a routerLink="/leads" class="mt-4 inline-block text-sm font-semibold text-sky-500 hover:text-sky-600 dark:text-sky-400">
@@ -21,7 +21,7 @@
   </div>
 </div>
 } @else if (lead(); as row) {
-<div class="bg-slate-50 dark:bg-[#0b132b] text-slate-900 dark:text-slate-100 min-h-screen p-6 transition-colors duration-200">
+<div class="bg-slate-50 dark:bg-[#070d1e] text-slate-900 dark:text-slate-100 min-h-screen p-6 transition-colors duration-200">
   <!-- Top Header -->
   <header class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
     <!-- Breadcrumb & Title + Status Badge -->
@@ -39,24 +39,12 @@
     <!-- Action Buttons (Right) -->
     <div class="flex items-center gap-2.5 flex-wrap self-stretch sm:self-auto justify-start sm:justify-end">
       <!-- Owner Chip -->
-      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-[#111c3a] border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-sm" title="Lead Owner">
+      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-sm" title="Lead Owner">
         <span class="w-5 h-5 rounded-full bg-sky-500/20 text-sky-600 dark:text-sky-400 font-bold flex items-center justify-center text-[10px]">
           {{ ownerInitial() }}
         </span>
         <span class="truncate max-w-[130px]">{{ displayLeadOwnerName() }}</span>
       </div>
-
-      <!-- Create New Task Button -->
-      <button
-        type="button"
-        class="bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700 px-3.5 py-2 rounded-xl text-sm font-medium transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
-        (click)="openNewTaskFromLead()"
-      >
-        <svg class="w-4 h-4 text-slate-600 dark:text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 5v14M5 12h14" />
-        </svg>
-        <span>Create New Task</span>
-      </button>
 
       <!-- Convert to Deal Button -->
       @if (convertedDealId(); as dealId) {
@@ -104,7 +92,7 @@
   </header>
 
   <!-- Horizontal Tabs Bar -->
-  <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/80 mb-6 overflow-x-auto">
+  <div class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 mb-6 overflow-x-auto">
     <nav class="flex items-center gap-8" aria-label="Lead detail sections">
       @for (tab of tabs; track tab) {
         <button
@@ -143,10 +131,10 @@
   <!-- Main Content Layout (Full Width) -->
   <section class="w-full">
     <!-- Main Card (100% width) -->
-    <article class="w-full bg-white dark:bg-[#111c3a]/90 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-6 md:p-8 shadow-sm backdrop-blur-sm">
+    <article class="w-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 rounded-2xl p-6 md:p-8 shadow-sm backdrop-blur-sm">
       @if (activeTab() === 'Data') {
         <!-- Card Header -->
-        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800/60">
+        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
           <div class="flex items-center gap-2">
             <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Data</h2>
           </div>
@@ -155,7 +143,7 @@
               @if (canEditLead(row)) {
                 <button
                   type="button"
-                  class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-colors cursor-pointer"
+                  class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                   aria-label="Edit lead"
                   title="Edit modal"
                   (click)="openLeadEditForm()"
@@ -168,7 +156,7 @@
               }
               <button
                 type="button"
-                class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 rounded-lg transition-colors cursor-pointer"
+                class="p-2 text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
                 aria-label="Reset unsaved edits"
                 title="Reset"
                 (click)="discardDataEdits()"
@@ -217,10 +205,10 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-4">
               <!-- Organization -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Organization</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Organization</span>
                 <input
                   type="text"
-                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
                   formControlName="organization"
                   placeholder="Organization name"
                   autocomplete="organization"
@@ -229,11 +217,11 @@
 
               <!-- Website -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Website</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Website</span>
                 <div class="relative flex items-center">
                   <input
                     type="text"
-                    class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 pr-10 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                    class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 pr-10 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
                     formControlName="website"
                     placeholder="https://example.com"
                     autocomplete="url"
@@ -266,10 +254,10 @@
 
               <!-- GSTIN -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">GSTIN</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">GSTIN</span>
                 <input
                   type="text"
-                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all uppercase"
+                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all uppercase"
                   formControlName="gst"
                   placeholder="27AAJCB6955B1ZM"
                   maxlength="15"
@@ -287,12 +275,12 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-4">
               <!-- Lead Amount -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Lead Amount</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Lead Amount</span>
                 <div class="relative">
                   <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400 dark:text-slate-500 font-medium text-sm">₹</span>
                   <input
                     type="text"
-                    class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl pl-8 pr-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                    class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl pl-8 pr-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
                     formControlName="dealAmount"
                     placeholder="1,50,000.00"
                   />
@@ -301,10 +289,10 @@
 
               <!-- Location -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Location</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Location</span>
                 <input
                   type="text"
-                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
                   formControlName="location"
                   placeholder="Location / City"
                 />
@@ -312,11 +300,11 @@
 
               <!-- Lead Date -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Lead Date</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Lead Date</span>
                 <div class="relative">
                   <input
                     type="date"
-                    class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all scheme-light dark:scheme-dark"
+                    class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all scheme-light dark:scheme-dark"
                     formControlName="leadDate"
                   />
                 </div>
@@ -326,9 +314,9 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
               <!-- No. of employees -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">No. of employees</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">No. of employees</span>
                 <select
-                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
                   formControlName="employees"
                 >
                   <option value="">— Select —</option>
@@ -340,12 +328,12 @@
 
               <!-- Annual revenue -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Annual revenue</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Annual revenue</span>
                 <div class="relative">
                   <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400 dark:text-slate-500 font-medium text-sm">₹</span>
                   <input
                     type="text"
-                    class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl pl-8 pr-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                    class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl pl-8 pr-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
                     formControlName="annualRevenue"
                     placeholder="50,00,000.00"
                   />
@@ -362,9 +350,9 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-4">
               <!-- Territory -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Territory</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Territory</span>
                 <select
-                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
                   formControlName="territory"
                 >
                   <option value="">— Select —</option>
@@ -376,9 +364,9 @@
 
               <!-- Industry -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Industry</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Industry</span>
                 <select
-                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
                   formControlName="industry"
                 >
                   <option value="">— Select —</option>
@@ -390,9 +378,9 @@
 
               <!-- Source -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Source</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Source</span>
                 <select
-                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
                   formControlName="source"
                 >
                   @for (s of sourceOptionsForLead(); track s) {
@@ -405,9 +393,9 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
               <!-- Status -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Status</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Status</span>
                 <select
-                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
                   formControlName="status"
                 >
                   @for (opt of statusSelectOptions(); track opt.id + opt.name) {
@@ -420,9 +408,9 @@
 
               <!-- Lead Owner -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Lead Owner</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Lead Owner</span>
                 <select
-                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
                   formControlName="owner"
                 >
                   <option value="">— Select Owner —</option>
@@ -442,9 +430,9 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <!-- Requirement -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Requirement</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Requirement</span>
                 <textarea
-                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all resize-y min-h-[110px]"
+                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all resize-y min-h-[110px]"
                   rows="4"
                   formControlName="requirement"
                   placeholder="Requirement details, scope, budget, timeline..."
@@ -453,9 +441,9 @@
 
               <!-- Additional details -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Additional details</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Additional details</span>
                 <textarea
-                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all resize-y min-h-[110px]"
+                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all resize-y min-h-[110px]"
                   rows="4"
                   formControlName="notes"
                   placeholder="Additional notes, preferences, or background context..."
@@ -472,12 +460,12 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-4">
               <!-- Full Name -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
                   Full Name <span class="text-rose-500">*</span>
                 </span>
                 <input
                   type="text"
-                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
                   formControlName="fullName"
                   placeholder="First and last name"
                   autocomplete="name"
@@ -491,7 +479,7 @@
 
               <!-- Email -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Email</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Email</span>
                 <div class="relative">
                   <span class="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400 dark:text-slate-500">
                     <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -501,7 +489,7 @@
                   </span>
                   <input
                     type="email"
-                    class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+                    class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl pl-10 pr-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
                     formControlName="email"
                     placeholder="name@company.com"
                     autocomplete="email"
@@ -517,7 +505,7 @@
 
               <!-- Mobile No -->
               <div class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Mobile No</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Mobile No</span>
                 <div class="crm-intl-tel-field crm-intl-tel-field--detail">
                   <intl-tel-input
                     formControlName="mobile"
@@ -534,9 +522,9 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
               <!-- Gender -->
               <label class="block">
-                <span class="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5 block">Gender</span>
+                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Gender</span>
                 <select
-                  class="w-full bg-slate-50 dark:bg-[#0d162e] border border-slate-300 dark:border-slate-700/80 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
+                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
                   formControlName="gender"
                 >
                   <option value="">— Select —</option>
@@ -551,7 +539,7 @@
           </section>
         </form>
       } @else if (activeTab() === 'Activity') {
-        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800/60">
+        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
           <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Activity</h2>
           <button
             type="button"
@@ -570,7 +558,7 @@
           (comment)="setTab('Comments')"
         />
       } @else if (activeTab() === 'Emails') {
-        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800/60">
+        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
           <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Emails</h2>
           <button
             type="button"
@@ -582,12 +570,12 @@
         </header>
 
         @if (emailComposerOpen()) {
-          <div class="mb-6 p-4 rounded-xl bg-slate-50 dark:bg-[#0d162e] border border-slate-200 dark:border-slate-700/80 space-y-3">
+          <div class="mb-6 p-4 rounded-xl bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 space-y-3">
             <div class="flex items-center gap-2 text-xs">
               <span class="font-bold text-slate-500 dark:text-slate-400 w-16">TO:</span>
               <input
                 type="email"
-                class="flex-1 bg-white dark:bg-[#111c3a] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
+                class="flex-1 bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 [value]="emailTo()"
                 (input)="emailTo.set($any($event.target).value)"
                 placeholder="Enter recipient email"
@@ -597,14 +585,14 @@
               <span class="font-bold text-slate-500 dark:text-slate-400 w-16">SUBJECT:</span>
               <input
                 type="text"
-                class="flex-1 bg-white dark:bg-[#111c3a] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100"
+                class="flex-1 bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-lg px-3 py-1.5 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500"
                 [value]="emailSubject()"
                 (input)="emailSubjectText.set($any($event.target).value)"
                 placeholder="Subject"
               />
             </div>
             <textarea
-              class="w-full bg-white dark:bg-[#111c3a] border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-sm text-slate-900 dark:text-slate-100 resize-y min-h-[120px]"
+              class="w-full bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 resize-y min-h-[120px]"
               rows="5"
               [value]="emailBody()"
               (input)="emailBody.set($any($event.target).value)"
@@ -662,7 +650,7 @@
         } @else {
           <div class="space-y-4">
             @for (m of leadEmails(); track m.id) {
-              <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#0d162e] border border-slate-200 dark:border-slate-800">
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800">
                 <div class="flex items-center justify-between mb-2">
                   <span class="font-semibold text-sm text-slate-900 dark:text-slate-100">{{ m.senderDisplay }}</span>
                   <span class="text-xs text-slate-400">{{ m.whenLabel }}</span>
@@ -674,7 +662,7 @@
           </div>
         }
       } @else if (activeTab() === 'Comments') {
-        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800/60">
+        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
           <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Comments</h2>
           <button
             type="button"
@@ -686,9 +674,9 @@
         </header>
 
         @if (commentComposerOpen()) {
-          <div class="mb-6 p-4 rounded-xl bg-slate-50 dark:bg-[#0d162e] border border-slate-200 dark:border-slate-700/80 space-y-3">
+          <div class="mb-6 p-4 rounded-xl bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 space-y-3">
             <textarea
-              class="w-full bg-white dark:bg-[#111c3a] border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-sm text-slate-900 dark:text-slate-100 resize-y min-h-[80px]"
+              class="w-full bg-white dark:bg-[#0f172a] border border-slate-300 dark:border-slate-700 rounded-lg p-3 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 resize-y min-h-[80px]"
               rows="3"
               placeholder="Write a comment…"
               [value]="commentDraft()"
@@ -731,7 +719,7 @@
         } @else {
           <div class="space-y-4">
             @for (c of leadComments(); track c.id) {
-              <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#0d162e] border border-slate-200 dark:border-slate-800">
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800">
                 <div class="flex items-center justify-between mb-2">
                   <span class="font-semibold text-sm text-slate-900 dark:text-slate-100">{{ c.authorName }}</span>
                   <span class="text-xs text-slate-400">{{ c.whenLabel }}</span>
@@ -742,7 +730,7 @@
           </div>
         }
       } @else if (activeTab() === 'Tasks') {
-        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800/60">
+        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
           <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Tasks</h2>
           <button
             type="button"
@@ -771,7 +759,7 @@
         } @else {
           <div class="space-y-3">
             @for (task of leadTasks(); track task.id) {
-              <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#0d162e] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
                 <div>
                   <button type="button" class="text-sm font-semibold text-slate-900 dark:text-slate-100 hover:text-sky-500 text-left" (click)="openTaskForEdit(task)">
                     {{ task.title }}
@@ -792,7 +780,7 @@
           class="hidden"
           (change)="onLeadAttachmentFilesSelected($event)"
         />
-        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800/60">
+        <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
           <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Attachments</h2>
           <button
             type="button"
@@ -820,7 +808,7 @@
         } @else {
           <div class="space-y-3">
             @for (a of leadAttachments(); track a.id) {
-              <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#0d162e] border border-slate-200 dark:border-slate-800 flex items-center justify-between">
+              <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 flex items-center justify-between">
                 <div class="flex items-center gap-3">
                   <div class="w-8 h-8 rounded-lg bg-sky-500/10 text-sky-500 flex items-center justify-center">
                     <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -842,7 +830,7 @@
   </section>
 </div>
 } @else {
-<div class="min-h-screen bg-slate-50 dark:bg-[#0b132b] text-slate-900 dark:text-slate-100 p-6 flex flex-col items-center justify-center">
+<div class="min-h-screen bg-slate-50 dark:bg-[#070d1e] text-slate-900 dark:text-slate-100 p-6 flex flex-col items-center justify-center">
   <p class="text-base font-semibold text-slate-700 dark:text-slate-300">Lead not found.</p>
   <a routerLink="/leads" class="mt-4 text-sm font-semibold text-sky-500 hover:text-sky-600 dark:text-sky-400">
     ← Back to leads
