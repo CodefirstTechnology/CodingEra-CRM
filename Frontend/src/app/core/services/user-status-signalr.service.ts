@@ -8,6 +8,7 @@ import {
 } from '@microsoft/signalr';
 import { Observable, Subject } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { AuthService } from '../auth/auth.service';
 
 export interface UserStatusChangedEvent {
   userId: string | number;
@@ -20,6 +21,7 @@ export interface UserStatusChangedEvent {
 @Injectable({ providedIn: 'root' })
 export class UserStatusSignalRService {
   private readonly zone = inject(NgZone);
+  private readonly auth = inject(AuthService);
 
   private hubConnection: HubConnection | null = null;
   private readonly statusChangedSubject = new Subject<UserStatusChangedEvent>();
@@ -33,23 +35,28 @@ export class UserStatusSignalRService {
 
   private isStarting = false;
 
+  /**
+   * Resolves the SignalR hub URL dynamically at runtime based on the active environment
+   * and current browser host, making it fully portable across multiple servers
+   * (e.g. testing servers, staging, multiple production instances, or custom domains).
+   */
   private resolveHubUrl(): string {
     const rawApi = (environment.apiUrl || '').trim().replace(/\/$/, '');
 
-    // 1. If apiUrl is an absolute URL e.g. "https://localhost:7172/api" or "http://localhost:5152/api"
-    if (rawApi.startsWith('http://') || rawApi.startsWith('https://')) {
-      return rawApi.endsWith('/api')
-        ? `${rawApi.slice(0, -4)}/hubs/user-status`
-        : `${rawApi}/hubs/user-status`;
+    // 1. If apiUrl is configured as an absolute URL (e.g. "https://domain.com/api" or "http://localhost:5152/api")
+    if (/^https?:\/\//i.test(rawApi)) {
+      return `${rawApi}/hubs/user-status`;
     }
 
-    // 2. If relative URL e.g. "/api"
-    // Use /hubs/user-status which is proxied by proxy.conf.json in dev and reverse proxy in prod
-    return '/hubs/user-status';
+    // 2. If relative URL (e.g. "/api" or default)
+    // Connecting to a relative path dynamically binds to the active server host (window.location.origin)
+    const base = rawApi || '/api';
+    return `${base}/hubs/user-status`;
   }
 
   /**
-   * Starts or resumes the SignalR connection to `/hubs/user-status`.
+   * Starts or resumes the SignalR connection to the dynamic user status hub.
+   * Leverages multi-transport negotiation (WebSockets -> SSE -> LongPolling) with auto-reconnect.
    */
   async start(): Promise<void> {
     if (this.hubConnection && this.hubConnection.state === HubConnectionState.Connected) {
@@ -68,7 +75,12 @@ export class UserStatusSignalRService {
         this.hubConnection = new HubConnectionBuilder()
           .withUrl(hubUrl, {
             skipNegotiation: false,
-            transport: HttpTransportType.WebSockets | HttpTransportType.LongPolling,
+            // Dynamically negotiate the best supported transport for the current server environment
+            transport:
+              HttpTransportType.WebSockets |
+              HttpTransportType.ServerSentEvents |
+              HttpTransportType.LongPolling,
+            accessTokenFactory: () => this.auth.token() || '',
           })
           .withAutomaticReconnect([0, 2000, 5000, 10000, 30000])
           .configureLogging(LogLevel.None)
