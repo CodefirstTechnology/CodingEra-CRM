@@ -373,15 +373,16 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
 
   const notesTrim = String(r['notes'] ?? r['Notes'] ?? '').trim();
   const marketplaceExt = extractMarketplaceExternalRef(notesTrim);
-  const isIndiaMartMarketplaceLead = marketplaceExt?.source === 'IndiaMART';
 
-  if (!isIndiaMartMarketplaceLead && !organizationName.trim()) {
-    const fromNotes = parseMarketplaceNotesDisplay(notesTrim).organizationLabel?.trim();
-    if (fromNotes) organizationName = fromNotes;
-  }
-
-  if (isIndiaMartMarketplaceLead && (organizationId == null || organizationId <= 0)) {
-    organizationName = '';
+  if (!organizationName.trim()) {
+    const parsedNotes = parseMarketplaceNotesDisplay(notesTrim);
+    if (marketplaceExt?.source === 'IndiaMART') {
+      organizationName = parsedNotes.company?.trim() || '';
+    } else if (marketplaceExt?.source === 'Justdial') {
+      organizationName = '';
+    } else if (parsedNotes.organizationLabel?.trim()) {
+      organizationName = parsedNotes.organizationLabel.trim();
+    }
   }
 
   return {
