@@ -265,14 +265,14 @@ export function parseMarketplaceNotesDisplay(notes: string | null | undefined): 
 
   const organizationLabel =
     ext?.source === 'IndiaMART'
-      ? product
-        ? `${product}${city ? ` (${city})` : ''}`
-        : city
-      : ext?.source === 'TradeIndia'
-        ? company || ''
-        : product
-          ? `${product}${city ? ` (${city})` : ''}`
-          : city || message.slice(0, 120) || '';
+      ? company || ''
+      : ext?.source === 'Justdial'
+        ? ''
+        : ext?.source === 'TradeIndia'
+          ? company || ''
+          : product
+            ? `${product}${city ? ` (${city})` : ''}`
+            : city || message.slice(0, 120) || '';
 
   return { message, product, company, city, inquirySource, organizationLabel };
 }
@@ -296,6 +296,8 @@ export function applyMarketplaceNotesToLeadRow(row: LeadRow, notes: string | nul
   const out: LeadRow = { ...row };
 
   if (ext?.source === 'IndiaMART') {
+    out.organization = parsed.company || '';
+  } else if (ext?.source === 'Justdial') {
     out.organization = '';
   } else if (ext?.source === 'TradeIndia') {
     const company = parsed.company || parsed.organizationLabel;
