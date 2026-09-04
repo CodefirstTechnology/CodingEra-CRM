@@ -1725,8 +1725,17 @@
   }
 }
 
+.sales-dash__lost-deals-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+  flex: 1;
+  height: 100%;
+}
+
 .sales-dash__lost-modal-header {
-  margin: -0.25rem 0 1rem;
+  margin: -0.25rem 0 0;
 }
 
 .sales-dash__lost-modal-sub {
@@ -1739,41 +1748,99 @@
   background: color-mix(in srgb, var(--surface) 60%, transparent);
   border: 1px solid var(--card-border);
   border-radius: 10px;
-  padding: 0.85rem 1rem;
-  margin-bottom: 1.15rem;
+  padding: 0.55rem 0.75rem;
+  flex-shrink: 0;
+}
+
+.sales-dash__lost-reasons-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.4rem;
+  flex-wrap: wrap;
 }
 
 .sales-dash__lost-reasons-title {
-  margin: 0 0 0.65rem;
-  font-size: 0.75rem;
+  margin: 0;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
 }
 
+.sales-dash__lost-reasons-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.sales-dash__lost-reason-clear-btn {
+  background: color-mix(in srgb, #f43f5e 12%, transparent);
+  border: 1px solid color-mix(in srgb, #f43f5e 35%, transparent);
+  color: #fb7185;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: color-mix(in srgb, #f43f5e 20%, transparent);
+    color: #fda4af;
+  }
+}
+
 .sales-dash__lost-reasons-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 0.45rem;
+  max-height: 110px;
+  overflow-y: auto;
+  padding-right: 0.25rem;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
+    border-radius: 999px;
+  }
 }
 
 .sales-dash__lost-reason-card {
   background: color-mix(in srgb, var(--text-muted) 6%, transparent);
-  border-radius: 8px;
-  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  padding: 0.35rem 0.55rem;
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.2rem;
   border: 1px solid color-mix(in srgb, var(--card-border) 60%, transparent);
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  transition: all 0.15s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+    border-color: color-mix(in srgb, #f43f5e 45%, transparent);
+  }
+
+  &.sales-dash__lost-reason-card--active {
+    background: color-mix(in srgb, #f43f5e 12%, var(--surface));
+    border-color: #f43f5e;
+    box-shadow: 0 0 0 1px #f43f5e;
+  }
 }
 
 .sales-dash__lost-reason-top {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.78rem;
+  gap: 0.35rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -1782,17 +1849,17 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 150px;
+  max-width: 115px;
 }
 
 .sales-dash__lost-reason-pct {
   color: #f43f5e;
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   flex-shrink: 0;
 }
 
 .sales-dash__lost-reason-bar-track {
-  height: 6px;
+  height: 4px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--text-muted) 15%, transparent);
   overflow: hidden;
@@ -1806,10 +1873,145 @@
 }
 
 .sales-dash__lost-reason-bottom {
-  font-size: 0.6875rem;
+  font-size: 0.65rem;
   color: var(--text-muted);
   font-weight: 600;
   text-align: right;
+  line-height: 1.1;
+}
+
+/* Lost Deals Table & Section */
+.sales-dash__lost-deals-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  flex: 1;
+}
+
+.sales-dash__lost-deals-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.sales-dash__lost-deals-section-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.sales-dash__lost-deals-section-title {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.sales-dash__lost-deals-count-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-muted);
+}
+
+.sales-dash__lost-deals-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sales-dash__lost-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.sales-dash__lost-search-icon {
+  position: absolute;
+  left: 0.6rem;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.sales-dash__lost-search-input {
+  border: 1px solid var(--input-border, var(--card-border));
+  background: var(--input-bg, var(--surface));
+  color: var(--input-text, var(--text-primary));
+  font-size: 0.8125rem;
+  border-radius: 6px;
+  padding: 0.35rem 1.75rem 0.35rem 1.85rem;
+  width: 220px;
+  transition: all 0.15s ease;
+
+  &::placeholder {
+    color: var(--input-placeholder, var(--text-muted));
+  }
+
+  &:focus {
+    outline: none;
+    border-color: var(--tertiary-color);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--tertiary-color) 25%, transparent);
+    width: 250px;
+  }
+}
+
+.sales-dash__lost-search-clear {
+  position: absolute;
+  right: 0.45rem;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+
+.sales-dash__lost-table-wrap {
+  min-height: 280px;
+  max-height: min(60vh, 520px);
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: auto;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: var(--surface);
+
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-muted) 30%, transparent);
+    border-radius: 999px;
+  }
+}
+
+.sales-dash__deal-name-cell {
+  font-weight: 600;
+  min-width: 140px;
+}
+
+.sales-dash__deal-name-link {
+  color: var(--text-primary);
+  text-decoration: none;
+  font-weight: 600;
+
+  &:hover {
+    color: var(--sd-accent, #38bdf8);
+    text-decoration: underline;
+  }
+}
+
+.sales-dash__deal-org-cell {
+  color: var(--text-muted);
+  min-width: 120px;
 }
 
 .sales-dash__lost-reason-badge {
@@ -1822,6 +2024,81 @@
   background: rgba(244, 63, 94, 0.14);
   color: #fb7185;
   border: 1px solid rgba(244, 63, 94, 0.3);
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sales-dash__deal-val-cell {
+  font-weight: 700;
+  color: #f43f5e;
+  white-space: nowrap;
+}
+
+.sales-dash__deal-owner-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  background: color-mix(in srgb, var(--text-muted) 10%, transparent);
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.sales-dash__deal-date-cell {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.sales-dash__detail-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--tertiary-color, #2563eb);
+  text-decoration: none;
+  transition: all 0.15s ease;
+
+  &:hover {
+    filter: brightness(1.12);
+    transform: translateY(-1px);
+  }
+}
+
+.sales-dash__lost-empty-filter {
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px dashed var(--card-border);
+  border-radius: 10px;
+}
+
+.sales-dash__btn-reset {
+  padding: 0.35rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  color: var(--text-primary);
+  cursor: pointer;
+
+  &:hover {
+    background: color-mix(in srgb, var(--text-muted) 12%, var(--surface));
+  }
 }
 
 .visually-hidden {
