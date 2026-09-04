@@ -229,6 +229,8 @@ export class DashboardComponent implements OnDestroy {
   protected readonly detailTeam = signal<AdminTeamMemberStats[]>([]);
   protected readonly detailPipeline = signal<AdminPipelineSegment[]>([]);
   protected readonly detailLostDeals = signal<AdminDealDetail[]>([]);
+  protected readonly selectedLostReason = signal<string | null>(null);
+  protected readonly lostDealsSearchQuery = signal<string>('');
 
   protected readonly lostReasonsBreakdown = computed(() => {
     const deals = this.detailLostDeals();
@@ -251,6 +253,34 @@ export class DashboardComponent implements OnDestroy {
       }))
       .sort((a, b) => b.count - a.count || b.totalValue - a.totalValue);
   });
+
+  protected readonly filteredLostDeals = computed(() => {
+    const all = this.detailLostDeals();
+    const selectedReason = this.selectedLostReason();
+    const query = this.lostDealsSearchQuery().trim().toLowerCase();
+
+    return all.filter((deal) => {
+      if (selectedReason && (deal.lostReason?.trim() || 'Not specified') !== selectedReason) {
+        return false;
+      }
+      if (query) {
+        const matchName = deal.dealName?.toLowerCase().includes(query);
+        const matchCompany = deal.company?.toLowerCase().includes(query);
+        const matchOwner = deal.owner?.toLowerCase().includes(query);
+        const matchReason = deal.lostReason?.toLowerCase().includes(query);
+        return Boolean(matchName || matchCompany || matchOwner || matchReason);
+      }
+      return true;
+    });
+  });
+
+  protected selectLostReasonFilter(reason: string | null): void {
+    if (this.selectedLostReason() === reason) {
+      this.selectedLostReason.set(null);
+    } else {
+      this.selectedLostReason.set(reason);
+    }
+  }
 
   /** Stages that currently have at least one open deal — full list for modals. */
   protected readonly pipelineActiveSegments = computed(() => {
@@ -724,6 +754,8 @@ export class DashboardComponent implements OnDestroy {
     this.detailKind.set('lostDeals');
     this.detailTitle.set(`Lost Deals Breakdown (${count})`);
     this.detailLostDeals.set(data.lostDealDetails ?? []);
+    this.selectedLostReason.set(null);
+    this.lostDealsSearchQuery.set('');
     this.detailDeals.set([]);
     this.detailLeads.set([]);
     this.detailTeam.set([]);

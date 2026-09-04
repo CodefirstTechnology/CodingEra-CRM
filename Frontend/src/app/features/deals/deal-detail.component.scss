@@ -70,9 +70,9 @@
   border-radius: 8px;
   font-size: 0.8125rem;
   font-weight: 600;
-  color: #b45309;
-  background: #fffbeb;
-  border: 1px solid #fde68a;
+  color: #d97706;
+  background: color-mix(in srgb, #f59e0b 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, #f59e0b 35%, var(--card-border));
 }
 
 .deal-detail__lost-reason {
@@ -89,7 +89,9 @@
   position: fixed;
   inset: 0;
   z-index: 1200;
-  background: color-mix(in srgb, #000 35%, transparent);
+  background: rgb(15 23 42 / 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .deal-detail__lost-modal {
@@ -98,43 +100,83 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: min(420px, calc(100vw - 2rem));
-  padding: 1rem;
+  width: min(440px, calc(100vw - 2rem));
+  padding: 1.25rem;
+  background: var(--surface);
+  color: var(--text-primary);
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-md, 12px);
+  box-shadow:
+    0 20px 40px -8px rgb(0 0 0 / 0.45),
+    0 8px 16px -4px rgb(0 0 0 / 0.25);
 }
 
 .deal-detail__lost-modal-title {
   margin: 0 0 0.35rem;
-  font-size: 1rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-primary);
 }
 
 .deal-detail__lost-modal-hint {
-  margin: 0 0 0.75rem;
+  margin: 0 0 0.85rem;
   font-size: 0.8125rem;
   color: var(--text-muted);
+  line-height: 1.4;
 }
 
 .deal-detail__lost-modal-label {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.4rem;
   font-size: 0.8125rem;
   font-weight: 600;
+  color: var(--text-primary);
 }
 
 .deal-detail__lost-modal-input {
   width: 100%;
-  border: 1px solid var(--card-border);
+  box-sizing: border-box;
+  border: 1px solid var(--input-border, var(--card-border));
+  background: var(--input-bg, var(--surface));
+  color: var(--input-text, var(--text-primary));
   border-radius: 8px;
-  padding: 0.55rem 0.65rem;
+  padding: 0.6rem 0.75rem;
   font: inherit;
+  font-size: 0.875rem;
   resize: vertical;
+  min-height: 85px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+
+  &::placeholder {
+    color: var(--input-placeholder, var(--text-muted));
+    opacity: 0.75;
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: var(--tertiary-color);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--tertiary-color) 35%, transparent);
+  }
+}
+
+:host-context(.dark) .deal-detail__lost-modal-input,
+:host-context([data-theme='dark']) .deal-detail__lost-modal-input,
+:host-context(.dark-theme) .deal-detail__lost-modal-input {
+  background: #1e293b;
+  color: #f8fafc;
+  border-color: #334155;
+
+  &::placeholder {
+    color: #64748b;
+  }
 }
 
 .deal-detail__lost-modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
-  margin-top: 0.85rem;
+  margin-top: 1.15rem;
 }
 
 .deal-detail__btn--danger {
@@ -426,23 +468,73 @@
   padding: 0.45rem 0.75rem;
   font-size: 0.82rem;
   font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
 .deal-detail__btn--solid {
   background: var(--tertiary-color);
   border-color: var(--tertiary-color);
   color: #fff;
+
+  &:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
 }
 
 .deal-detail__btn--dark {
   background: #111827;
   border-color: #111827;
   color: #fff;
+
+  &:hover:not(:disabled) {
+    background: #1f2937;
+  }
+}
+
+:host-context(.dark) .deal-detail__btn--dark,
+:host-context([data-theme='dark']) .deal-detail__btn--dark,
+:host-context(.dark-theme) .deal-detail__btn--dark {
+  background: #1e293b;
+  border-color: #334155;
+  color: #f8fafc;
+
+  &:hover:not(:disabled) {
+    background: #334155;
+  }
 }
 
 .deal-detail__btn--light {
-  background: #f8fafc;
+  background: var(--input-bg, #f8fafc);
+  border-color: var(--input-border, var(--card-border));
   color: var(--text-muted);
+
+  &:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--text-muted) 12%, var(--surface));
+    color: var(--text-primary);
+  }
+}
+
+:host-context(.dark) .deal-detail__btn--light,
+:host-context([data-theme='dark']) .deal-detail__btn--light,
+:host-context(.dark-theme) .deal-detail__btn--light {
+  background: #1e293b;
+  border-color: #334155;
+  color: #94a3b8;
+
+  &:hover:not(:disabled) {
+    background: #334155;
+    color: #f8fafc;
+  }
 }
 
 .deal-detail__tabs-bar {
