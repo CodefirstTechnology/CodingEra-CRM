@@ -574,7 +574,7 @@
   </section>
   }
 
-  <app-crm-modal [open]="detailOpen()" [title]="detailTitle()" size="lg" (dismiss)="closeDetail()">
+  <app-crm-modal [open]="detailOpen()" [title]="detailTitle()" [size]="detailKind() === 'lostDeals' ? 'xl' : 'lg'" (dismiss)="closeDetail()">
     @if (detailKind() === 'deals') {
     @if (detailDeals().length === 0) {
     <p class="sales-dash__detail-empty">No records to show.</p>
@@ -727,70 +727,146 @@
     </div>
     }
     } @else if (detailKind() === 'lostDeals') {
-    <div class="sales-dash__lost-modal-header">
-      <p class="sales-dash__lost-modal-sub">Analysis of lost reasons for the selected period</p>
-    </div>
+    <div class="sales-dash__lost-deals-container">
+      <div class="sales-dash__lost-modal-header">
+        <p class="sales-dash__lost-modal-sub">
+          Analysis of lost reasons and deals for the selected period
+        </p>
+      </div>
 
-    @if (detailLostDeals().length === 0) {
-    <p class="sales-dash__detail-empty">No lost deals in this period.</p>
-    } @else {
-    <div class="sales-dash__lost-reasons-summary">
-      <h3 class="sales-dash__lost-reasons-title">Lost Reasons Distribution</h3>
-      <div class="sales-dash__lost-reasons-grid">
-        @for (item of lostReasonsBreakdown(); track item.reason) {
-        <div class="sales-dash__lost-reason-card">
-          <div class="sales-dash__lost-reason-top">
-            <span class="sales-dash__lost-reason-name" [title]="item.reason">{{ item.reason }}</span>
-            <span class="sales-dash__lost-reason-pct">{{ item.percentage }}% ({{ item.count }})</span>
+      @if (detailLostDeals().length === 0) {
+      <p class="sales-dash__detail-empty">No lost deals in this period.</p>
+      } @else {
+      <!-- Summary Distribution Cards -->
+      <div class="sales-dash__lost-reasons-summary">
+        <div class="sales-dash__lost-reasons-head">
+          <h3 class="sales-dash__lost-reasons-title">Lost Reasons Distribution</h3>
+          @if (selectedLostReason()) {
+          <button type="button" class="sales-dash__lost-reason-clear-btn" (click)="selectLostReasonFilter(null)">
+            Clear Filter (Show All {{ detailLostDeals().length }})
+          </button>
+          } @else {
+          <span class="sales-dash__lost-reasons-hint">Click a card to filter deals below</span>
+          }
+        </div>
+        <div class="sales-dash__lost-reasons-grid">
+          @for (item of lostReasonsBreakdown(); track item.reason) {
+          <button
+            type="button"
+            class="sales-dash__lost-reason-card"
+            [class.sales-dash__lost-reason-card--active]="selectedLostReason() === item.reason"
+            (click)="selectLostReasonFilter(item.reason)"
+            [title]="'Filter by ' + item.reason"
+          >
+            <div class="sales-dash__lost-reason-top">
+              <span class="sales-dash__lost-reason-name" [title]="item.reason">{{ item.reason }}</span>
+              <span class="sales-dash__lost-reason-pct">{{ item.percentage }}% ({{ item.count }})</span>
+            </div>
+            <div class="sales-dash__lost-reason-bar-track">
+              <div class="sales-dash__lost-reason-bar-fill" [style.width.%]="item.percentage"></div>
+            </div>
+            <div class="sales-dash__lost-reason-bottom">
+              <span>{{ formatMoney(item.totalValue) }} lost</span>
+            </div>
+          </button>
+          }
+        </div>
+      </div>
+
+      <!-- Deals Table Section with Search and Active Filters -->
+      <div class="sales-dash__lost-deals-section">
+        <div class="sales-dash__lost-deals-section-header">
+          <div class="sales-dash__lost-deals-section-title-wrap">
+            <h3 class="sales-dash__lost-deals-section-title">Lost Deals Details</h3>
+            <span class="sales-dash__lost-deals-count-badge">
+              {{ filteredLostDeals().length }} of {{ detailLostDeals().length }} deals
+            </span>
           </div>
-          <div class="sales-dash__lost-reason-bar-track">
-            <div class="sales-dash__lost-reason-bar-fill" [style.width.%]="item.percentage"></div>
+
+          <div class="sales-dash__lost-deals-toolbar">
+            <div class="sales-dash__lost-search-wrap">
+              <svg class="sales-dash__lost-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="11" cy="11" r="8"></circle>
+                <path d="m21 21-4.35-4.35"></path>
+              </svg>
+              <input
+                type="text"
+                class="sales-dash__lost-search-input"
+                placeholder="Search deals, company, owner…"
+                [value]="lostDealsSearchQuery()"
+                (input)="lostDealsSearchQuery.set($any($event.target).value)"
+              />
+              @if (lostDealsSearchQuery()) {
+              <button
+                type="button"
+                class="sales-dash__lost-search-clear"
+                (click)="lostDealsSearchQuery.set('')"
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+              }
+            </div>
           </div>
-          <div class="sales-dash__lost-reason-bottom">
-            <span>{{ formatMoney(item.totalValue) }} lost</span>
-          </div>
+        </div>
+
+        @if (filteredLostDeals().length === 0) {
+        <div class="sales-dash__lost-empty-filter">
+          <p>No deals match the selected filter or search criteria.</p>
+          <button type="button" class="sales-dash__btn-reset" (click)="selectedLostReason.set(null); lostDealsSearchQuery.set('')">
+            Reset Filters
+          </button>
+        </div>
+        } @else {
+        <div class="sales-dash__lost-table-wrap">
+          <table class="sales-dash__detail-table">
+            <thead>
+              <tr>
+                <th scope="col">Deal Name</th>
+                <th scope="col">Organization</th>
+                <th scope="col">Lost Reason</th>
+                <th scope="col">Lost Value</th>
+                <th scope="col">Owner</th>
+                <th scope="col">Date</th>
+                <th scope="col" style="text-align: right;">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (deal of filteredLostDeals(); track deal.id) {
+              <tr>
+                <td class="sales-dash__deal-name-cell">
+                  <a class="sales-dash__deal-name-link" [routerLink]="['/deals', deal.id]" (click)="closeDetail()">
+                    {{ deal.dealName }}
+                  </a>
+                </td>
+                <td class="sales-dash__deal-org-cell">{{ deal.company }}</td>
+                <td>
+                  <span class="sales-dash__lost-reason-badge" [title]="deal.lostReason || 'Not specified'">
+                    {{ deal.lostReason || 'Not specified' }}
+                  </span>
+                </td>
+                <td class="sales-dash__deal-val-cell">{{ formatMoney(deal.value) }}</td>
+                <td>
+                  <span class="sales-dash__deal-owner-badge">{{ deal.owner }}</span>
+                </td>
+                <td class="sales-dash__deal-date-cell">{{ deal.recordDate || '—' }}</td>
+                <td style="text-align: right;">
+                  <a class="sales-dash__detail-open-btn" [routerLink]="['/deals', deal.id]" (click)="closeDetail()">
+                    <span>Open</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M7 17L17 7M17 7H7M17 7V17"/>
+                    </svg>
+                  </a>
+                </td>
+              </tr>
+              }
+            </tbody>
+          </table>
         </div>
         }
       </div>
+      }
     </div>
-
-    <div class="sales-dash__detail-scroll">
-      <table class="sales-dash__detail-table">
-        <thead>
-          <tr>
-            <th scope="col">Deal Name</th>
-            <th scope="col">Organization</th>
-            <th scope="col">Lost Reason</th>
-            <th scope="col">Lost Value</th>
-            <th scope="col">Owner</th>
-            <th scope="col">Date</th>
-            <th scope="col"></th>
-          </tr>
-        </thead>
-        <tbody>
-          @for (deal of detailLostDeals(); track deal.id) {
-          <tr>
-            <td style="font-weight: 600;">{{ deal.dealName }}</td>
-            <td>{{ deal.company }}</td>
-            <td>
-              <span class="sales-dash__lost-reason-badge">
-                {{ deal.lostReason || 'Not specified' }}
-              </span>
-            </td>
-            <td style="font-weight: 700; color: #f43f5e;">{{ formatMoney(deal.value) }}</td>
-            <td>{{ deal.owner }}</td>
-            <td>{{ deal.recordDate || '—' }}</td>
-            <td>
-              <a class="sales-dash__detail-link" [routerLink]="['/deals', deal.id]" (click)="closeDetail()">
-                Open
-              </a>
-            </td>
-          </tr>
-          }
-        </tbody>
-      </table>
-    </div>
-    }
     }
   </app-crm-modal>
 </div>

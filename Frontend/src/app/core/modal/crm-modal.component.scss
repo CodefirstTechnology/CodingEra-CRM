@@ -59,8 +59,14 @@
 }
 
 .crm-modal__panel--lg {
-  width: min(calc(100vw - 2.5rem), 720px);
+  width: min(calc(100vw - 2.5rem), 760px);
   max-height: min(90vh, 920px);
+}
+
+.crm-modal__panel--xl {
+  width: min(calc(100vw - 2.5rem), 980px);
+  height: min(88vh, 860px);
+  max-height: min(92vh, 960px);
 }
 
 .crm-modal__head {
@@ -117,6 +123,11 @@
   &:has(.udash__detail-scroll),
   &:has(.sales-dash__detail-scroll) {
     overflow: hidden;
+  }
+
+  &:has(.sales-dash__lost-deals-container) {
+    overflow-y: auto !important;
+    overflow-x: hidden;
   }
 }
 

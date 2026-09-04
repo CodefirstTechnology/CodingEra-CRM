@@ -21,7 +21,7 @@ import {
 export class CrmModalComponent {
   readonly open = input(false);
   readonly title = input('');
-  readonly size = input<'sm' | 'md' | 'lg'>('md');
+  readonly size = input<'sm' | 'md' | 'lg' | 'xl'>('md');
   /** When false, header still shows title but no X — parent may use footer Cancel only */
   readonly showClose = input(true);
   readonly showFooter = input(false);
@@ -44,6 +44,8 @@ export class CrmModalComponent {
         return 'crm-modal__panel crm-modal__panel--sm';
       case 'lg':
         return 'crm-modal__panel crm-modal__panel--lg';
+      case 'xl':
+        return 'crm-modal__panel crm-modal__panel--xl';
       default:
         return 'crm-modal__panel crm-modal__panel--md';
     }
