@@ -374,18 +374,29 @@
     </div>
   </header>
 
-  @if (leadSyncAccess().length > 0) {
-    <aside class="leads__sync-status" aria-label="Lead sync status">
-      @for (src of leadSyncAccess(); track src.sourceId) {
-        <div class="leads__sync-status-row">
-          <strong>{{ src.displayName }}</strong>
-          <span>
-            Auto sync: {{ src.autoSyncEnabled ? 'On' : 'Off' }}
-            · Last: {{ src.lastSyncAt ? (src.lastSyncAt | date: 'short') : 'Never' }}
-            · Connection: {{ src.apiIntegrationReady ? 'Ready' : 'Not set up' }}
+  @if (leadSyncSourcesSummary(); as sourcesSummary) {
+    <aside class="leads__sync-status" aria-label="Lead source assignments">
+      <div class="leads__sync-status-content">
+        <span class="leads__sync-status-icon" aria-hidden="true">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </span>
+        <span class="leads__sync-status-text">
+          You are set up to receive incoming leads from <strong>{{ sourcesSummary }}</strong>.
+        </span>
+      </div>
+      <div class="leads__sync-status-tags">
+        @for (src of leadSyncAccess(); track src.sourceId) {
+          <span class="leads__sync-pill">
+            <span class="leads__sync-dot"></span>
+            {{ src.displayName }}
+            @if (isPushSyncSource(src.code)) {
+              <span class="leads__sync-type">(Real-time Webhook)</span>
+            }
           </span>
-        </div>
-      }
+        }
+      </div>
     </aside>
   }
 

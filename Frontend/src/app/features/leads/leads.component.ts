@@ -1,4 +1,4 @@
-import { NgComponentOutlet, DatePipe } from '@angular/common';
+import { NgComponentOutlet } from '@angular/common';
 import {
   afterNextRender,
   Component,
@@ -169,7 +169,6 @@ interface LeadColumnOption {
     LeadExportModalComponent,
     NgComponentOutlet,
     IntlTelInputComponent,
-    DatePipe,
     ColumnOrderListDirective,
     ColumnOrderItemDirective,
     ColumnOrderHandleDirective,
@@ -199,9 +198,24 @@ export class LeadsComponent {
   /** Assigned lead sync sources for the current user (from API). */
   protected readonly leadSyncAccess = signal<LeadSyncMyAccess[]>([]);
 
-  /** Sources the user may sync when API is configured in admin settings. */
+  /** Formatted text summary of marketplace platforms this user is assigned to receive leads from. */
+  protected readonly leadSyncSourcesSummary = computed(() => {
+    const access = this.leadSyncAccess();
+    if (!access.length) return null;
+    const names = access.map((a) => a.displayName.trim()).filter(Boolean);
+    if (!names.length) return null;
+    if (names.length === 1) {
+      return names[0];
+    }
+    if (names.length === 2) {
+      return `${names[0]} and ${names[1]}`;
+    }
+    return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+  });
+
+  /** Sources the user may manually pull sync when API is configured (only for pull-based integrations). */
   protected readonly visibleSyncSources = computed(() =>
-    this.leadSyncAccess().filter((s) => s.apiIntegrationReady),
+    this.leadSyncAccess().filter((s) => s.apiIntegrationReady && !this.isPushSyncSource(s.code)),
   );
 
   private readonly syncingSourceIds = signal<Set<number>>(new Set());
@@ -1916,7 +1930,20 @@ export class LeadsComponent {
     return access ? this.syncingSourceIds().has(access.sourceId) : false;
   }
 
+  protected isPushSyncSource(code: string): boolean {
+    const c = code.trim().toLowerCase();
+    try {
+      const method = localStorage.getItem(`lsync_api_method_${c}`);
+      if (method === 'push') return true;
+      if (method === 'pull') return false;
+    } catch {
+      // ignore storage access errors
+    }
+    return c === 'justdial' || c === 'indiamart';
+  }
+
   protected syncSourceConfigError(code: string): string | null {
+    if (this.isPushSyncSource(code)) return null;
     const access = this.leadSyncAccess().find((s) => s.code.trim().toLowerCase() === code.trim().toLowerCase());
     if (!access) return null;
     if (!access.apiIntegrationReady) {

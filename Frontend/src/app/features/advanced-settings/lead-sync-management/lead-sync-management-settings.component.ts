@@ -392,10 +392,16 @@ export class LeadSyncManagementSettingsComponent implements OnInit {
   }
 
   protected statusLabel(source: LeadSyncSource): string {
+    if (this.apiMethod(source.id) === 'push') {
+      return 'Connected';
+    }
     return source.isConfigured ? 'Connected' : 'Not connected';
   }
 
   protected statusClass(source: LeadSyncSource): string {
+    if (this.apiMethod(source.id) === 'push') {
+      return 'lsync__badge--ready';
+    }
     return source.isConfigured ? 'lsync__badge--ready' : 'lsync__badge--pending';
   }
 
