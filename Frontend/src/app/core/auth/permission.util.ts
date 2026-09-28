@@ -58,11 +58,12 @@ export function hasPermission(
   if (!user) return false;
   const want = code.trim().toLowerCase();
   if (!want) return true;
-  const perms = user.permissions ?? [];
-  if (perms.some((p) => p.code === want)) return true;
-  // Full access for Admin role (by name or explicit settings.manage permission)
+  const perms = user.permissions;
+  if (perms && Array.isArray(perms) && perms.length > 0) {
+    return perms.some((p) => p.code.toLowerCase() === want);
+  }
+  // Full access fallback only when dynamic permissions are not populated (e.g. demo mode)
   if (isAdminRoleLabel(user.role)) return true;
-  if (perms.some((p) => p.code === 'settings.manage' || p.code === 'roles.manage')) return true;
   return false;
 }
 
