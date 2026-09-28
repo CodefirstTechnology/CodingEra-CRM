@@ -559,7 +559,7 @@ select.leads__control {
 
 .leads__toolbar {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.65rem;
   padding: 0.85rem 1rem;
@@ -570,7 +570,7 @@ select.leads__control {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  flex: 1 1 auto;
+  flex: 1 1 200px;
   min-width: 0;
   padding: 0.45rem 0.75rem;
   border-radius: var(--radius-sm);
@@ -580,6 +580,7 @@ select.leads__control {
 
 .leads__filter-selects {
   display: flex;
+  flex-wrap: wrap;
   flex-shrink: 0;
   align-items: center;
   gap: 0.5rem;
@@ -623,6 +624,105 @@ select.leads__control {
 .leads__filter-select--owner {
   min-width: 8.5rem;
   max-width: 12rem;
+}
+
+.leads__date-range-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2.25rem;
+  padding: 0 0.55rem;
+  border: 1px solid var(--card-border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  transition: var(--transition-theme);
+
+  &:focus-within {
+    outline: 2px solid color-mix(in srgb, var(--tertiary-color) 40%, transparent);
+    outline-offset: 1px;
+    border-color: var(--tertiary-color);
+  }
+}
+
+.leads__date-range-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.leads__date-input-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.leads__date-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.leads__date-input {
+  border: none;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 0 0.15rem;
+  cursor: pointer;
+  outline: none;
+  max-width: 7.5rem;
+
+  &::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.6;
+    filter: invert(0.4);
+    transform: scale(0.85);
+
+    &:hover {
+      opacity: 1;
+    }
+  }
+}
+
+:host-context(.dark) .leads__date-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.8);
+}
+
+.leads__date-sep {
+  color: var(--text-muted);
+  font-weight: 600;
+  user-select: none;
+}
+
+.leads__date-clear {
+  border: none;
+  background: color-mix(in srgb, var(--text-muted) 15%, transparent);
+  color: var(--text-muted);
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.875rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 0.15rem;
+  flex-shrink: 0;
+  transition: background-color 0.15s ease, color 0.15s ease;
+
+  &:hover {
+    background: color-mix(in srgb, var(--rose-accent, #ef4444) 20%, transparent);
+    color: #ef4444;
+  }
 }
 
 .leads__input {

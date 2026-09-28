@@ -298,6 +298,11 @@ export class LeadsComponent {
   protected readonly statusFilter = signal<LeadListStatusFilter>('all');
   protected readonly sourceFilter = signal<LeadListSourceFilter>('all');
   protected readonly ownerFilter = signal<LeadListOwnerFilter>('all');
+  protected readonly fromDateFilter = signal<string>('');
+  protected readonly toDateFilter = signal<string>('');
+  protected readonly hasDateFilter = computed(
+    () => this.fromDateFilter().trim().length > 0 || this.toDateFilter().trim().length > 0,
+  );
   protected readonly columnMenuOpen = signal(false);
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
@@ -705,11 +710,16 @@ export class LeadsComponent {
     const st = this.statusFilter();
     const src = this.sourceFilter();
     const owner = this.ownerFilter();
+    const fromDate = this.fromDateFilter().trim();
+    const toDate = this.toDateFilter().trim();
     const filterByOwner = this.isAdminViewer() && owner !== 'all';
     return this.rows().filter((row) => {
       if (filterByOwner && !this.rowMatchesOwnerFilter(row, owner)) return false;
       if (src !== 'all' && (row.leadSource ?? 'Manual').toLowerCase() !== src.toLowerCase()) return false;
       if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) {
+        return false;
+      }
+      if ((fromDate || toDate) && !this.rowMatchesDateRange(row, fromDate, toDate)) {
         return false;
       }
       if (!q) return true;
@@ -776,9 +786,9 @@ export class LeadsComponent {
   /** Active listing filters forwarded to export (same shape as list API). */
   protected readonly exportListFilters = computed((): Omit<
     LeadExportRequest,
-    'columns' | 'datePreset' | 'fromDate' | 'toDate'
+    'columns' | 'datePreset'
   > => {
-    const filters: Omit<LeadExportRequest, 'columns' | 'datePreset' | 'fromDate' | 'toDate'> = {};
+    const filters: Omit<LeadExportRequest, 'columns' | 'datePreset'> = {};
     const search = TextFormatter.search(this.searchQuery());
     if (search) filters.search = search;
 
@@ -797,6 +807,12 @@ export class LeadsComponent {
         }
       }
     }
+
+    const from = this.fromDateFilter().trim();
+    if (from) filters.fromDate = from;
+
+    const to = this.toDateFilter().trim();
+    if (to) filters.toDate = to;
 
     return filters;
   });
@@ -1465,6 +1481,26 @@ export class LeadsComponent {
     this.statusFilter.set('all');
     this.sourceFilter.set('all');
     this.ownerFilter.set('all');
+    this.fromDateFilter.set('');
+    this.toDateFilter.set('');
+    this.tablePagination.resetPage();
+  }
+
+  protected onFromDateChange(ev: Event): void {
+    const val = (ev.target as HTMLInputElement).value?.trim() || '';
+    this.fromDateFilter.set(val);
+    this.tablePagination.resetPage();
+  }
+
+  protected onToDateChange(ev: Event): void {
+    const val = (ev.target as HTMLInputElement).value?.trim() || '';
+    this.toDateFilter.set(val);
+    this.tablePagination.resetPage();
+  }
+
+  protected clearDateRange(): void {
+    this.fromDateFilter.set('');
+    this.toDateFilter.set('');
     this.tablePagination.resetPage();
   }
 
@@ -2114,8 +2150,69 @@ export class LeadsComponent {
       this.statusFilter() !== 'all' ||
       this.sourceFilter() !== 'all' ||
       (this.isAdminViewer() && this.ownerFilter() !== 'all') ||
-      this.searchQuery().trim().length > 0
+      this.searchQuery().trim().length > 0 ||
+      this.fromDateFilter().trim().length > 0 ||
+      this.toDateFilter().trim().length > 0
     );
+  }
+
+  private rowMatchesDateRange(row: LeadRow, fromDate: string, toDate: string): boolean {
+    if (!fromDate && !toDate) return true;
+
+    // 1. Check leadDate (YYYY-MM-DD)
+    const rawDate = row.leadDate?.trim();
+    if (rawDate) {
+      const ymd = rawDate.slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+        if (fromDate && ymd < fromDate) return false;
+        if (toDate && ymd > toDate) return false;
+        return true;
+      }
+      const parsed = new Date(rawDate).getTime();
+      if (!Number.isNaN(parsed)) {
+        if (fromDate) {
+          const fromTime = new Date(`${fromDate}T00:00:00`).getTime();
+          if (!Number.isNaN(fromTime) && parsed < fromTime) return false;
+        }
+        if (toDate) {
+          const toTime = new Date(`${toDate}T23:59:59.999`).getTime();
+          if (!Number.isNaN(toTime) && parsed > toTime) return false;
+        }
+        return true;
+      }
+    }
+
+    // 2. Check sortTimestamp
+    if (row.sortTimestamp != null && Number.isFinite(row.sortTimestamp) && row.sortTimestamp > 0) {
+      const time = row.sortTimestamp;
+      if (fromDate) {
+        const fromTime = new Date(`${fromDate}T00:00:00`).getTime();
+        if (!Number.isNaN(fromTime) && time < fromTime) return false;
+      }
+      if (toDate) {
+        const toTime = new Date(`${toDate}T23:59:59.999`).getTime();
+        if (!Number.isNaN(toTime) && time > toTime) return false;
+      }
+      return true;
+    }
+
+    // 3. Check created string
+    if (row.created?.trim()) {
+      const parsed = new Date(row.created.trim()).getTime();
+      if (!Number.isNaN(parsed)) {
+        if (fromDate) {
+          const fromTime = new Date(`${fromDate}T00:00:00`).getTime();
+          if (!Number.isNaN(fromTime) && parsed < fromTime) return false;
+        }
+        if (toDate) {
+          const toTime = new Date(`${toDate}T23:59:59.999`).getTime();
+          if (!Number.isNaN(toTime) && parsed > toTime) return false;
+        }
+        return true;
+      }
+    }
+
+    return true;
   }
 
   private rowMatchesOwnerFilter(row: LeadRow, ownerId: string): boolean {
