@@ -3,6 +3,7 @@ export type LeadStatus =
   | 'New'
   | 'Contacted'
   | 'Nurture'
+  | 'Follow-up'
   | 'Unqualified'
   | 'Qualified'
   | 'Junk'

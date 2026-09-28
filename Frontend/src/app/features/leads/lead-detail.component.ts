@@ -73,6 +73,7 @@ import {
 import { gstFormValidators, optionalEmailValidator } from '../../shared/validators/crm-validators';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { TextFormatter } from '../../shared/utils/text-normalizer';
+import { CrmModalComponent } from '../../core/modal/crm-modal.component';
 import type { LeadOwnerOption, LeadRow, LeadSource, LeadStatus } from './lead-row.model';
 import type { TaskRow } from '../tasks/tasks.component';
 
@@ -88,7 +89,7 @@ const FALLBACK_INDUSTRY_NAMES = [
   'Other',
 ] as const;
 
-type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Tasks' | 'Attachments';
+type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Follow Up' | 'Attachments';
 
 interface LeadAttachmentItem {
   id: string;
@@ -106,6 +107,7 @@ interface LeadCommentItem extends EntityCommentItem {}
     ReactiveFormsModule,
     EntityActivityTimelineComponent,
     IntlTelInputComponent,
+    CrmModalComponent,
   ],
   templateUrl: './lead-detail.component.html',
   styleUrl: './lead-detail.component.scss',
@@ -124,7 +126,9 @@ export class LeadDetailComponent {
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly createFlow = inject(CreateFlowService);
+  private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   protected readonly auth = inject(AuthService);
+  protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
 
   protected readonly numericId = signal<number | null>(null);
   protected readonly lead = signal<LeadRow | null>(null);
@@ -134,8 +138,26 @@ export class LeadDetailComponent {
   protected readonly callStatus = signal<'Yes' | 'No'>('No');
   protected readonly leadInitialLoading = signal(false);
   protected readonly leadLoadError = signal<string | null>(null);
-  /** Tasks where `relatedLeadId` matches the open lead (from lead-detail “+ New Task”). */
+  /** Tasks/Follow-ups where `relatedLeadId` matches the open lead. */
   protected readonly leadTasks = signal<TaskRow[]>([]);
+  protected readonly followUpModalOpen = signal(false);
+  protected readonly followUpSaving = signal(false);
+  protected readonly completeModalOpen = signal(false);
+  protected readonly completeSaving = signal(false);
+  protected readonly selectedFollowUpToComplete = signal<TaskRow | null>(null);
+
+  protected readonly followUpForm = this.fb.nonNullable.group({
+    dueDate: ['', Validators.required],
+    message: ['', [Validators.required, Validators.maxLength(1000)]],
+    assigneeId: ['', Validators.required],
+  });
+
+  protected readonly completeForm = this.fb.nonNullable.group({
+    outcomeNotes: [''],
+    scheduleNext: [false],
+    nextDueDate: [''],
+    nextMessage: [''],
+  });
   /** Client-side attachments for this lead (sessionStorage until backend exists). */
   protected readonly leadAttachments = signal<LeadAttachmentItem[]>([]);
   /** Comments for this lead from the comments API. */
@@ -195,7 +217,7 @@ export class LeadDetailComponent {
     'Emails',
     'Comments',
     'Data',
-    'Tasks',
+    'Follow Up',
     'Attachments',
   ];
 
@@ -302,10 +324,8 @@ export class LeadDetailComponent {
   protected readonly leadOwnerPaginatedOptions = computed(() =>
     this.leadOwnerOptions().map((o) => ({ value: o.id, label: o.label })),
   );
-  private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly userScope = inject(UserDataScopeService);
   private readonly permissions = inject(PermissionService);
-  protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
   protected readonly canAssignLeads = computed(() => this.permissions.canAssignLeads());
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
 
@@ -403,7 +423,11 @@ export class LeadDetailComponent {
 
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((query) => {
       const tab = parseEntityDetailTab(query.get('tab'));
-      if (tab && tab !== 'Notes') this.setTab(tab);
+      if (tab === 'Tasks' || tab === 'Follow Up') {
+        this.setTab('Follow Up');
+      } else if (tab && tab !== 'Notes') {
+        this.setTab(tab);
+      }
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
@@ -812,21 +836,340 @@ export class LeadDetailComponent {
     this.setTab('Comments');
   }
 
-  protected openNewTaskFromLead(): void {
-    const l = this.lead();
-    if (!l?.id) return;
-    this.createFlow.selectEntity('task', {
-      taskFromLead: {
-        relatedLeadId: String(l.id),
-        recordOwnerUserId: leadRecordOwnerUserId(l),
-      },
+  protected readonly followUpTimeline = computed(() => {
+    return [...this.leadTasks()].sort((a, b) => {
+      const timeA = new Date(a.dueDateRaw || a.dueDate || a.lastModified).getTime();
+      const timeB = new Date(b.dueDateRaw || b.dueDate || b.lastModified).getTime();
+      return (Number.isNaN(timeB) ? 0 : timeB) - (Number.isNaN(timeA) ? 0 : timeA);
+    });
+  });
+
+  protected readonly completedFollowUps = computed(() => {
+    return this.leadTasks()
+      .filter((t) => t.status === 'Done')
+      .sort((a, b) => {
+        const timeA = new Date(a.lastModified || a.dueDateRaw).getTime();
+        const timeB = new Date(b.lastModified || b.dueDateRaw).getTime();
+        return (Number.isNaN(timeB) ? 0 : timeB) - (Number.isNaN(timeA) ? 0 : timeA);
+      });
+  });
+
+  protected readonly pendingFollowUps = computed(() => {
+    return this.leadTasks()
+      .filter((t) => t.status !== 'Done' && t.status !== 'Canceled')
+      .sort((a, b) => {
+        const timeA = new Date(a.dueDateRaw || a.dueDate).getTime();
+        const timeB = new Date(b.dueDateRaw || b.dueDate).getTime();
+        return (Number.isNaN(timeA) ? 0 : timeA) - (Number.isNaN(timeB) ? 0 : timeB);
+      });
+  });
+
+  protected readonly nextFollowUp = computed(() => {
+    const pending = this.pendingFollowUps();
+    return pending.length > 0 ? pending[0] : null;
+  });
+
+  protected readonly lastFollowUp = computed(() => {
+    const completed = this.completedFollowUps();
+    return completed.length > 0 ? completed[0] : null;
+  });
+
+  protected isFollowUpOverdue(task: TaskRow): boolean {
+    if (task.status === 'Done' || task.status === 'Canceled') return false;
+    const dueTime = new Date(task.dueDateRaw || task.dueDate).getTime();
+    return !Number.isNaN(dueTime) && dueTime < Date.now();
+  }
+
+  protected formatFollowUpDate(dateStr: string | null | undefined): string {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return dateStr;
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
     });
   }
 
-  protected openTaskForEdit(task: TaskRow): void {
-    const id = task.id?.trim();
-    if (!id) return;
-    void this.router.navigate(['/tasks'], { queryParams: { edit: id } });
+  private defaultFollowUpDate(): string {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(10, 0, 0, 0);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  protected openAddFollowUpModal(): void {
+    const row = this.lead();
+    if (!row) return;
+    const defaultOwnerId = row.leadOwnerId || this.leadOwnerOpts.defaultOwnerId();
+    this.followUpForm.reset({
+      dueDate: this.defaultFollowUpDate(),
+      message: '',
+      assigneeId: defaultOwnerId,
+    });
+    this.followUpForm.markAsUntouched();
+    this.followUpModalOpen.set(true);
+  }
+
+  protected closeAddFollowUpModal(): void {
+    this.followUpModalOpen.set(false);
+  }
+
+  protected submitAddFollowUp(): void {
+    this.followUpForm.markAllAsTouched();
+    if (this.followUpForm.invalid || this.followUpSaving()) return;
+
+    const row = this.lead();
+    if (!row) return;
+    const idn = this.numericId();
+    if (idn == null) return;
+
+    const val = this.followUpForm.getRawValue();
+    const ownerOpt = this.leadOwnerOpts.findById(val.assigneeId);
+    const assigneeName = ownerOpt?.label ?? row.leadOwnerName ?? 'Lead Owner';
+
+    this.followUpSaving.set(true);
+
+    const taskPayload: Omit<TaskRow, 'id'> = {
+      title: `Follow up: ${row.name}`,
+      dailyImprovement: '',
+      description: val.message.trim(),
+      status: 'Todo',
+      priority: 'Medium',
+      dueDate: val.dueDate,
+      dueDateRaw: val.dueDate,
+      assignedTo: assigneeName,
+      assignedToUserId: val.assigneeId,
+      assignedInitials: ownerOpt?.initials ?? 'FO',
+      lastModified: new Date().toISOString(),
+      relatedLeadId: String(idn),
+      relatedLeadName: row.name,
+    };
+
+    this.tasksService
+      .create(taskPayload)
+      .pipe(
+        take(1),
+        catchError(() => {
+          this.toast.error('Failed to create follow-up.');
+          return of(null);
+        }),
+      )
+      .subscribe((created) => {
+        if (!created) {
+          this.followUpSaving.set(false);
+          return;
+        }
+
+        // Resolve "Follow-up" status from master data or canonical mapping
+        const followUpOpt = this.statusSelectOptions().find(
+          (o) => {
+            const n = o.name.toLowerCase().trim();
+            return n === 'follow-up' || n === 'follow up' || n === 'followup';
+          },
+        );
+        const targetStatus = coerceLeadStatus(followUpOpt?.name ?? 'Follow-up');
+        const targetStatusId =
+          followUpOpt?.id && followUpOpt.id > 0
+            ? followUpOpt.id
+            : (resolveLeadStatusIdFromName('Follow-up') ?? undefined);
+
+        this.leadsService
+          .update(idn, {
+            status: targetStatus,
+            leadStatusId: targetStatusId,
+            updated: 'Just now',
+          })
+          .pipe(
+            take(1),
+            catchError(() => of(null)),
+          )
+          .subscribe((updatedLead) => {
+            this.followUpSaving.set(false);
+            this.closeAddFollowUpModal();
+            this.refreshLeadTasks();
+            this.refreshLeadActivities();
+
+            if (updatedLead) {
+              const enriched = this.leadOwnerOpts.applyOwnerToRow(updatedLead);
+              this.lead.set(enriched);
+              this.dataForm.patchValue({
+                status: this.masterSelectControlValue(
+                  enriched.leadStatusId,
+                  enriched.status,
+                  this.statusSelectOptions(),
+                ),
+              });
+            } else {
+              const cur = this.lead();
+              if (cur) {
+                const nextRow: LeadRow = {
+                  ...cur,
+                  status: targetStatus,
+                  leadStatusId: targetStatusId,
+                };
+                this.lead.set(nextRow);
+                this.dataForm.patchValue({
+                  status: this.masterSelectControlValue(
+                    targetStatusId,
+                    targetStatus,
+                    this.statusSelectOptions(),
+                  ),
+                });
+              }
+            }
+            this.toast.success('Follow-up scheduled and lead status moved to Follow-up.');
+          });
+      });
+  }
+
+  protected openCompleteFollowUpModal(task: TaskRow): void {
+    this.selectedFollowUpToComplete.set(task);
+    this.completeForm.reset({
+      outcomeNotes: '',
+      scheduleNext: false,
+      nextDueDate: this.defaultFollowUpDate(),
+      nextMessage: '',
+    });
+    this.completeForm.markAsUntouched();
+    this.completeModalOpen.set(true);
+  }
+
+  protected closeCompleteFollowUpModal(): void {
+    this.completeModalOpen.set(false);
+    this.selectedFollowUpToComplete.set(null);
+  }
+
+  protected submitCompleteFollowUp(): void {
+    const task = this.selectedFollowUpToComplete();
+    if (!task) return;
+    const taskIdn = Number(task.id);
+    if (!Number.isFinite(taskIdn) || taskIdn <= 0) return;
+
+    const row = this.lead();
+    const idn = this.numericId();
+    const val = this.completeForm.getRawValue();
+
+    if (val.scheduleNext && (!val.nextDueDate || !val.nextMessage.trim())) {
+      this.toast.error('Please enter the next follow-up date and message.');
+      return;
+    }
+
+    this.completeSaving.set(true);
+
+    const updatedDesc = val.outcomeNotes?.trim()
+      ? `${task.description}\n\nOutcome / Notes: ${val.outcomeNotes.trim()}`
+      : task.description;
+
+    this.tasksService
+      .update(taskIdn, {
+        status: 'Done',
+        description: updatedDesc,
+        lastModified: new Date().toISOString(),
+      })
+      .pipe(
+        take(1),
+        catchError(() => {
+          this.toast.error('Failed to complete follow-up.');
+          return of(null);
+        }),
+      )
+      .subscribe((updatedTask) => {
+        if (!updatedTask) {
+          this.completeSaving.set(false);
+          return;
+        }
+
+        if (val.scheduleNext && row && idn != null) {
+          const ownerOpt = this.leadOwnerOpts.findById(row.leadOwnerId);
+          const nextPayload: Omit<TaskRow, 'id'> = {
+            title: `Follow up: ${row.name}`,
+            dailyImprovement: '',
+            description: val.nextMessage.trim(),
+            status: 'Todo',
+            priority: 'Medium',
+            dueDate: val.nextDueDate,
+            dueDateRaw: val.nextDueDate,
+            assignedTo: ownerOpt?.label ?? row.leadOwnerName ?? 'Lead Owner',
+            assignedToUserId: row.leadOwnerId,
+            assignedInitials: ownerOpt?.initials ?? 'FO',
+            lastModified: new Date().toISOString(),
+            relatedLeadId: String(idn),
+            relatedLeadName: row.name,
+          };
+          this.tasksService
+            .create(nextPayload)
+            .pipe(take(1), catchError(() => of(null)))
+            .subscribe(() => {
+              this.completeSaving.set(false);
+              this.closeCompleteFollowUpModal();
+              this.refreshLeadTasks();
+              this.refreshLeadActivities();
+              this.toast.success('Follow-up marked completed and next follow-up scheduled.');
+            });
+        } else {
+          this.completeSaving.set(false);
+          this.closeCompleteFollowUpModal();
+          this.refreshLeadTasks();
+          this.refreshLeadActivities();
+          this.toast.success('Follow-up marked completed.');
+        }
+      });
+  }
+
+  protected deleteFollowUp(task: TaskRow): void {
+    const idn = Number(task.id);
+    if (!Number.isFinite(idn) || idn <= 0) return;
+    if (!confirm('Are you sure you want to delete this follow-up?')) return;
+    this.tasksService.delete(idn).pipe(take(1)).subscribe({
+      next: () => {
+        this.refreshLeadTasks();
+        this.refreshLeadActivities();
+        this.toast.success('Follow-up deleted.');
+      },
+      error: () => this.toast.error('Failed to delete follow-up.'),
+    });
+  }
+
+  protected changeStatusDirectly(targetStatus: 'Qualified' | 'Unqualified'): void {
+    const idn = this.numericId();
+    if (idn == null || this.isLeadDataReadOnly() || this.statusUpdating()) return;
+
+    const opt = this.statusSelectOptions().find((o) => o.name.toLowerCase() === targetStatus.toLowerCase());
+    const leadStatusId = opt?.id && opt.id > 0 ? opt.id : resolveLeadStatusIdFromName(targetStatus);
+
+    this.statusUpdating.set(true);
+    this.leadsService
+      .update(idn, {
+        status: targetStatus,
+        leadStatusId: leadStatusId ?? undefined,
+      })
+      .pipe(take(1))
+      .subscribe({
+        next: (updatedLead) => {
+          this.statusUpdating.set(false);
+          if (updatedLead) {
+            this.lead.set(updatedLead);
+            this.dataForm.patchValue({
+              status: this.masterSelectControlValue(
+                updatedLead.leadStatusId,
+                updatedLead.status,
+                this.statusSelectOptions(),
+              ),
+            });
+            this.refreshLeadActivities();
+            this.toast.success(`Lead status updated to ${targetStatus}`);
+          }
+        },
+        error: (err: unknown) => {
+          this.statusUpdating.set(false);
+          this.toast.error(leadsHttpErrorMessage(err));
+        },
+      });
   }
 
   /** First character for avatar chip (matches initials or assignee display name). */
@@ -941,7 +1284,10 @@ export class LeadDetailComponent {
     label: string | null | undefined,
     options: MasterDataOption[],
   ): string {
-    if (id != null && id > 0) return String(id);
+    if (id != null && id > 0) {
+      const byId = options.find((o) => o.id === id);
+      if (byId) return String(byId.id);
+    }
     const name = label?.trim();
     if (!name) return '';
     const norm = (s: string) => s.trim().replace(/\.$/, '').toLowerCase();
@@ -1023,6 +1369,7 @@ export class LeadDetailComponent {
     if (tab === 'Activity') this.refreshLeadActivities();
     if (tab === 'Comments') this.refreshLeadComments();
     if (tab === 'Emails') this.refreshLeadEmails();
+    if (tab === 'Follow Up') this.refreshLeadTasks();
   }
 
   protected ownerInitial(): string {
