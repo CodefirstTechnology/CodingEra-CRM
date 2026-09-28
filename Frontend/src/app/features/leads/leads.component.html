@@ -307,18 +307,48 @@
                 <span class="leads__label">Lead date</span>
                 <input class="leads__control leads__control--soft" type="date" formControlName="leadDate" />
               </label>
-              <label class="leads__field leads__field--full">
+              <div class="leads__field leads__field--full">
                 <span class="leads__label">Requirement <span class="leads__req">*</span></span>
-                <input
-                  class="leads__control leads__control--soft"
-                  type="text"
-                  formControlName="requirement"
-                  placeholder="What is the customer looking for?"
-                />
+                <div class="leads__autocomplete-wrap">
+                  <input
+                    class="leads__control leads__control--soft"
+                    type="text"
+                    formControlName="requirement"
+                    placeholder="What is the customer looking for?"
+                    autocomplete="off"
+                    (input)="onRequirementInput($event)"
+                    (focus)="onRequirementFocus()"
+                    (blur)="onRequirementBlur()"
+                    (keydown)="onRequirementKeydown($event)"
+                  />
+                  @if (requirementDropdownOpen()) {
+                    <ul
+                      class="leads__suggestions-dropdown"
+                      role="listbox"
+                      (mousedown)="$event.preventDefault()"
+                    >
+                      @for (item of matchingRequirementSuggestions(); track item; let i = $index) {
+                        <li
+                          role="option"
+                          [attr.aria-selected]="requirementActiveIndex() === i"
+                          class="leads__suggestion-item"
+                          [class.leads__suggestion-item--active]="requirementActiveIndex() === i"
+                          (click)="selectRequirementSuggestion(item)"
+                        >
+                          <svg class="leads__suggestion-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8" />
+                            <path d="m21 21-4.3-4.3" />
+                          </svg>
+                          <span class="leads__suggestion-text">{{ item }}</span>
+                        </li>
+                      }
+                    </ul>
+                  }
+                </div>
                 @if (fieldInvalid('requirement')) {
                   <span class="leads__err">Requirement is required.</span>
                 }
-              </label>
+              </div>
               <label class="leads__field leads__field--full">
                 <span class="leads__label">Additional details</span>
                 <input class="leads__control leads__control--soft" type="text" formControlName="customField" placeholder="Enter {0}" />

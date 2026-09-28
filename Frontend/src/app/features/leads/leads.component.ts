@@ -257,6 +257,39 @@ export class LeadsComponent {
   protected readonly formOpen = signal(false);
   protected readonly orgDuplicateSuggestions = signal<OrganizationRow[]>([]);
   protected readonly contactDuplicateSuggestions = signal<ContactRow[]>([]);
+  protected readonly requirementInputFocused = signal(false);
+  protected readonly requirementInputValue = signal('');
+  protected readonly requirementActiveIndex = signal(-1);
+
+  /** Unique requirement suggestions collected from previous leads */
+  protected readonly uniqueRequirementSuggestions = computed<string[]>(() => {
+    const list: string[] = [];
+    const seen = new Set<string>();
+    for (const r of this.rows()) {
+      const val = resolveLeadRequirementForDisplay(r.requirement, r.notes)?.trim();
+      if (val && !seen.has(val.toLowerCase())) {
+        seen.add(val.toLowerCase());
+        list.push(val);
+      }
+    }
+    return list;
+  });
+
+  /** Filtered suggestions matching the typed requirement query */
+  protected readonly matchingRequirementSuggestions = computed<string[]>(() => {
+    const q = this.requirementInputValue().trim().toLowerCase();
+    const all = this.uniqueRequirementSuggestions();
+    if (!q) {
+      return all.slice(0, 8);
+    }
+    return all.filter((item) => item.toLowerCase().includes(q)).slice(0, 8);
+  });
+
+  /** Whether the requirement autocomplete dropdown is visible */
+  protected readonly requirementDropdownOpen = computed<boolean>(() => {
+    return this.requirementInputFocused() && this.matchingRequirementSuggestions().length > 0;
+  });
+
   /** True when `/leads/:id` detail child route is active. */
   protected readonly detailChildActive = signal(false);
   /** Shown read-only in the lead modal (manual CRM flows only; IndiaMART rows never open this form). */
@@ -964,6 +997,9 @@ export class LeadsComponent {
     this.orgDuplicateSuggestions.set([]);
     this.contactDuplicateSuggestions.set([]);
     this.modalLeadSource.set('Manual');
+    this.requirementInputValue.set('');
+    this.requirementInputFocused.set(false);
+    this.requirementActiveIndex.set(-1);
     this.clearEditQuery();
     this.createForm.reset({
       fullName: '',
@@ -999,6 +1035,9 @@ export class LeadsComponent {
     this.orgDuplicateSuggestions.set([]);
     this.contactDuplicateSuggestions.set([]);
     this.modalLeadSource.set('Manual');
+    this.requirementInputValue.set('');
+    this.requirementInputFocused.set(false);
+    this.requirementActiveIndex.set(-1);
     this.clearEditQuery();
     this.createForm.reset({
       fullName: '',
@@ -1092,6 +1131,9 @@ export class LeadsComponent {
             location: row.location ?? '',
             leadDate: leadDateToFormInput(row.leadDate) || todayIsoDateLocal(),
           });
+          this.requirementInputValue.set(resolveLeadRequirementForDisplay(row.requirement, row.notes));
+          this.requirementInputFocused.set(false);
+          this.requirementActiveIndex.set(-1);
           this.formOpen.set(true);
         },
         error: (err: unknown) => this.toast.error(leadsHttpErrorMessage(err)),
@@ -2110,6 +2152,57 @@ export class LeadsComponent {
 
   protected dismissDuplicateOrganization(): void {
     this.orgDuplicateSuggestions.set([]);
+  }
+
+  protected onRequirementInput(ev: Event): void {
+    const val = (ev.target as HTMLInputElement).value;
+    this.requirementInputValue.set(val);
+    this.requirementInputFocused.set(true);
+    this.requirementActiveIndex.set(-1);
+  }
+
+  protected onRequirementFocus(): void {
+    this.requirementInputValue.set(this.createForm.controls.requirement.value || '');
+    this.requirementInputFocused.set(true);
+    this.requirementActiveIndex.set(-1);
+  }
+
+  protected onRequirementBlur(): void {
+    setTimeout(() => {
+      this.requirementInputFocused.set(false);
+      this.requirementActiveIndex.set(-1);
+    }, 200);
+  }
+
+  protected onRequirementKeydown(ev: KeyboardEvent): void {
+    const suggestions = this.matchingRequirementSuggestions();
+    if (!this.requirementInputFocused() || suggestions.length === 0) return;
+
+    if (ev.key === 'ArrowDown') {
+      ev.preventDefault();
+      this.requirementActiveIndex.update((i) => (i + 1) % suggestions.length);
+    } else if (ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      this.requirementActiveIndex.update((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+    } else if (ev.key === 'Enter') {
+      const idx = this.requirementActiveIndex();
+      if (idx >= 0 && idx < suggestions.length) {
+        ev.preventDefault();
+        this.selectRequirementSuggestion(suggestions[idx]);
+      }
+    } else if (ev.key === 'Escape') {
+      this.requirementInputFocused.set(false);
+      this.requirementActiveIndex.set(-1);
+    }
+  }
+
+  protected selectRequirementSuggestion(suggestion: string): void {
+    this.createForm.controls.requirement.setValue(suggestion);
+    this.createForm.controls.requirement.markAsDirty();
+    this.createForm.controls.requirement.markAsTouched();
+    this.requirementInputValue.set(suggestion);
+    this.requirementInputFocused.set(false);
+    this.requirementActiveIndex.set(-1);
   }
 
   private setupOrganizationDuplicateDetection(): void {

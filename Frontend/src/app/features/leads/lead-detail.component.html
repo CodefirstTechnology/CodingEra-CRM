@@ -38,13 +38,70 @@
 
     <!-- Action Buttons (Right) -->
     <div class="flex items-center gap-2.5 flex-wrap self-stretch sm:self-auto justify-start sm:justify-end">
-      <!-- Owner Chip -->
-      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-sm" title="Lead Owner">
-        <span class="w-5 h-5 rounded-full bg-sky-500/20 text-sky-600 dark:text-sky-400 font-bold flex items-center justify-center text-[10px]">
-          {{ ownerInitial() }}
+      <!-- Call: Yes / No Pill Toggle -->
+      <button
+        type="button"
+        (click)="toggleCallStatus()"
+        [disabled]="isLeadDataReadOnly()"
+        class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer select-none shadow-sm"
+        [class.bg-emerald-50]="callStatus() === 'Yes'"
+        [class.dark:bg-emerald-950/40]="callStatus() === 'Yes'"
+        [class.border-emerald-300]="callStatus() === 'Yes'"
+        [class.dark:border-emerald-700]="callStatus() === 'Yes'"
+        [class.text-emerald-700]="callStatus() === 'Yes'"
+        [class.dark:text-emerald-300]="callStatus() === 'Yes'"
+        [class.bg-white]="callStatus() !== 'Yes'"
+        [class.dark:bg-[#1e293b]]="callStatus() !== 'Yes'"
+        [class.border-slate-300]="callStatus() !== 'Yes'"
+        [class.dark:border-slate-700]="callStatus() !== 'Yes'"
+        [class.text-slate-700]="callStatus() !== 'Yes'"
+        [class.dark:text-slate-300]="callStatus() !== 'Yes'"
+        [class.hover:border-slate-400]="callStatus() !== 'Yes'"
+        title="Toggle Call Status"
+      >
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+        </svg>
+        <span>Call:</span>
+        <span
+          class="px-2 py-0.5 rounded-md text-[11px] font-bold uppercase transition-all"
+          [class.bg-emerald-500]="callStatus() === 'Yes'"
+          [class.text-white]="callStatus() === 'Yes'"
+          [class.bg-slate-200]="callStatus() !== 'Yes'"
+          [class.dark:bg-slate-700]="callStatus() !== 'Yes'"
+          [class.text-slate-600]="callStatus() !== 'Yes'"
+          [class.dark:text-slate-400]="callStatus() !== 'Yes'"
+        >
+          {{ callStatus() }}
         </span>
-        <span class="truncate max-w-[130px]">{{ displayLeadOwnerName() }}</span>
-      </div>
+      </button>
+
+      <!-- Status Dropdown -->
+      @if (convertedDealId()) {
+        <span class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span>{{ row.status || 'Converted' }}</span>
+        </span>
+      } @else {
+        <div class="relative inline-flex items-center">
+          <select
+            class="appearance-none bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 text-slate-800 dark:text-slate-200 text-xs font-semibold pl-3 pr-8 py-2 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            [disabled]="isLeadDataReadOnly() || statusUpdating()"
+            [value]="currentStatusFormValue()"
+            (change)="onHeaderStatusChange($event)"
+            title="Change lead status"
+          >
+            @for (opt of statusSelectOptions(); track opt.id + opt.name) {
+              <option [value]="masterOptionFormValue(opt)" [disabled]="isConversionStatusOption(opt)">
+                {{ opt.name }}
+              </option>
+            }
+          </select>
+          <svg class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+          </svg>
+        </div>
+      }
 
       <!-- Convert to Deal Button -->
       @if (convertedDealId(); as dealId) {
@@ -63,7 +120,7 @@
           class="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
           [disabled]="!canConvertCurrentLead()"
           [attr.title]="canConvertCurrentLead() ? null : 'Only Qualified leads can be converted to a deal'"
-          (click)="openConvertModal()"
+          (click)="convertCurrentLead()"
         >
           <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -186,14 +243,16 @@
                 }
               </button>
             </div>
+          } @else {
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-medium" title="This lead was moved to a deal and can no longer be edited.">
+              <svg class="w-3.5 h-3.5 shrink-0 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <span>Moved to deal (Read-only)</span>
+            </div>
           }
         </header>
-
-        @if (isLeadDataReadOnly()) {
-          <div class="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm font-medium">
-            This lead was moved to a deal and can no longer be edited.
-          </div>
-        }
 
         <!-- Grouped Form -->
         <form id="leadDataForm" [formGroup]="dataForm" (ngSubmit)="saveDataTab()" class="space-y-6">
@@ -390,22 +449,7 @@
               </label>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-              <!-- Status -->
-              <label class="block">
-                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Status</span>
-                <select
-                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
-                  formControlName="status"
-                >
-                  @for (opt of statusSelectOptions(); track opt.id + opt.name) {
-                    <option [value]="masterOptionFormValue(opt)" [disabled]="isConversionStatusOption(opt)">
-                      {{ opt.name }}
-                    </option>
-                  }
-                </select>
-              </label>
-
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <!-- Lead Owner -->
               <label class="block">
                 <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Lead Owner</span>
@@ -837,12 +881,3 @@
   </a>
 </div>
 }
-
-<app-convert-lead-modal
-  [open]="convertModalOpen()"
-  [leadCount]="1"
-  [leadPreview]="lead()?.name ?? ''"
-  [conversionStatusLabel]="conversionStatusLabel()"
-  (confirm)="onConvertModalConfirm($event)"
-  (dismiss)="closeConvertModal()"
-/>

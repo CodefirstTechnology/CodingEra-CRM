@@ -52,7 +52,6 @@ import {
   isLeadConverted,
   isLeadQualifiedForConversion,
 } from '../../shared/utils/lead-conversion.util';
-import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { resolveRecordOwnerIdForSubmit } from '../../shared/utils/record-owner-assignment.util';
@@ -106,7 +105,6 @@ interface LeadCommentItem extends EntityCommentItem {}
     RouterLink,
     ReactiveFormsModule,
     EntityActivityTimelineComponent,
-    ConvertLeadModalComponent,
     IntlTelInputComponent,
   ],
   templateUrl: './lead-detail.component.html',
@@ -132,6 +130,8 @@ export class LeadDetailComponent {
   protected readonly lead = signal<LeadRow | null>(null);
   protected readonly activeTab = signal<DetailTab>('Data');
   protected readonly dataSaving = signal(false);
+  protected readonly statusUpdating = signal(false);
+  protected readonly callStatus = signal<'Yes' | 'No'>('No');
   protected readonly leadInitialLoading = signal(false);
   protected readonly leadLoadError = signal<string | null>(null);
   /** Tasks where `relatedLeadId` matches the open lead (from lead-detail “+ New Task”). */
@@ -447,6 +447,7 @@ export class LeadDetailComponent {
     this.refreshLeadActivities();
     const lid = row.id.trim();
     if (lid) {
+      this.loadCallStatusForLead(lid);
       this.loadLeadAttachments(lid);
       this.refreshLeadComments();
       this.refreshLeadEmails();
@@ -846,6 +847,95 @@ export class LeadDetailComponent {
     return isConversionLeadStatusOption(opt);
   }
 
+  private loadCallStatusForLead(leadId: string): void {
+    const key = `crm_lead_call_status_${leadId}`;
+    const saved = localStorage.getItem(key);
+    if (saved === 'Yes' || saved === 'No') {
+      this.callStatus.set(saved);
+    } else {
+      this.callStatus.set('No');
+    }
+  }
+
+  protected toggleCallStatus(): void {
+    const row = this.lead();
+    if (!row) return;
+    const current = this.callStatus();
+    const nextStatus: 'Yes' | 'No' = current === 'Yes' ? 'No' : 'Yes';
+    this.callStatus.set(nextStatus);
+    localStorage.setItem(`crm_lead_call_status_${row.id}`, nextStatus);
+    this.toast.success(`Call status updated to ${nextStatus}.`);
+  }
+
+  protected currentStatusFormValue(): string {
+    const row = this.lead();
+    if (!row) return '';
+    return this.masterSelectControlValue(
+      row.leadStatusId,
+      row.status,
+      this.statusSelectOptions(),
+    );
+  }
+
+  protected onHeaderStatusChange(ev: Event): void {
+    const raw = (ev.target as HTMLSelectElement).value;
+    const row = this.lead();
+    if (!row) return;
+    const pick = this.resolveMasterPick(raw, this.statusSelectOptions());
+    const label = pick.label.trim();
+    if (!label) return;
+
+    if (isConversionLeadStatusOption({ id: pick.masterId ?? 0, name: label })) {
+      this.toast.error(
+        `${this.conversionStatusLabel()} is set automatically when you convert a lead to a deal.`,
+      );
+      (ev.target as HTMLSelectElement).value = this.currentStatusFormValue();
+      return;
+    }
+
+    const leadStatusId =
+      pick.masterId ?? resolveLeadStatusIdFromName(label) ?? row.leadStatusId ?? null;
+    if (leadStatusId == null || leadStatusId <= 0) {
+      this.toast.error('Could not resolve lead status. Check master data or API connection.');
+      (ev.target as HTMLSelectElement).value = this.currentStatusFormValue();
+      return;
+    }
+
+    const status = coerceLeadStatus(label);
+    const idn = Number(row.id);
+    if (!Number.isFinite(idn) || !isPersistedApiLeadRow(row.id)) return;
+
+    this.statusUpdating.set(true);
+    this.leadsService
+      .update(idn, {
+        status,
+        leadStatusId,
+        updated: 'Just now',
+      })
+      .pipe(take(1))
+      .subscribe({
+        next: (updated) => {
+          this.statusUpdating.set(false);
+          const nextRow: LeadRow = updated ?? {
+            ...row,
+            status,
+            leadStatusId,
+          };
+          this.lead.set(nextRow);
+          this.dataForm.controls.status.setValue(
+            this.masterSelectControlValue(leadStatusId, label, this.statusSelectOptions()),
+          );
+          this.refreshLeadActivities();
+          this.toast.success(`Lead status updated to ${label}.`);
+        },
+        error: (e: unknown) => {
+          this.statusUpdating.set(false);
+          (ev.target as HTMLSelectElement).value = this.currentStatusFormValue();
+          this.toast.error(leadsHttpErrorMessage(e));
+        },
+      });
+  }
+
   private masterSelectControlValue(
     id: number | null | undefined,
     label: string | null | undefined,
@@ -1148,10 +1238,29 @@ export class LeadDetailComponent {
   }
 
 
-  protected openConvertModal(): void {
+  protected convertCurrentLead(): void {
     const row = this.lead();
     if (!row || !this.canConvertCurrentLead()) return;
-    this.convertModalOpen.set(true);
+    const idn = this.numericId();
+    if (idn == null) return;
+
+    this.leadsService
+      .convertToDeal(idn, { markAsConverted: true, removeFromActive: false })
+      .pipe(take(1))
+      .subscribe({
+        next: (result) => {
+          this.createRowBus.publish('deal', result.deal);
+          if (result.lead == null) {
+            this.toast.success('Lead converted to deal successfully');
+            void this.router.navigate(['/deals', result.deal.id]);
+            return;
+          }
+          this.lead.set(result.lead);
+          this.refreshLeadActivities();
+          this.toast.success('Lead converted to deal successfully');
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+      });
   }
 
   protected confirmDeleteLead(): void {
@@ -1172,30 +1281,6 @@ export class LeadDetailComponent {
         },
         error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
-  }
-
-  protected closeConvertModal(): void {
-    this.convertModalOpen.set(false);
-  }
-
-  protected onConvertModalConfirm(options: ConvertLeadOptions): void {
-    const idn = this.numericId();
-    if (idn == null) return;
-    this.convertModalOpen.set(false);
-    this.leadsService.convertToDeal(idn, options).pipe(take(1)).subscribe({
-      next: (result) => {
-        this.createRowBus.publish('deal', result.deal);
-        if (result.lead == null) {
-          this.toast.success('Lead converted to deal successfully');
-          void this.router.navigate(['/deals', result.deal.id]);
-          return;
-        }
-        this.lead.set(result.lead);
-        this.refreshLeadActivities();
-        this.toast.success('Lead converted to deal successfully');
-      },
-      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
-    });
   }
 
   private buildConversionActivityGroup(): ActivityGroup | null {
