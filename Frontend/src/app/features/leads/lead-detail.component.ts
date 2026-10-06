@@ -293,14 +293,19 @@ export class LeadDetailComponent {
   );
 
   /** Source dropdown includes the lead's current source when it is not in the static list (e.g. Justdial Enquiry). */
-  protected readonly sourceOptionsForLead = computed(() => {
-    const apiSources = this.sourcesFromApi().map((s) => s.name);
-    const base = apiSources.length > 0 ? apiSources : [...this.sourceOptions.filter(Boolean)];
+  protected readonly sourceOptionsForLead = computed<MasterDataOption[]>(() => {
+    const api = this.sourcesFromApi();
+    const base: MasterDataOption[] =
+      api.length > 0
+        ? api
+        : this.sourceOptions
+            .filter(Boolean)
+            .map((name) => ({ id: 0, name }));
     const current = this.lead()?.source?.trim() || this.lead()?.leadSource?.trim();
-    if (current && !base.includes(current)) {
-      return ['', ...base, current];
+    if (current && !base.some((b) => b.name.trim().toLowerCase() === current.toLowerCase())) {
+      return [...base, { id: 0, name: current }];
     }
-    return ['', ...base];
+    return base;
   });
 
   protected readonly territoryPaginatedOptions = computed(() =>
@@ -316,9 +321,9 @@ export class LeadDetailComponent {
     }),
   );
   protected readonly sourcePaginatedOptions = computed(() =>
-    this.sourceOptionsForLead().map((s) => ({
-      value: s,
-      label: s === '' ? '— Select —' : s,
+    this.sourceOptionsForLead().map((opt) => ({
+      value: this.masterOptionFormValue(opt),
+      label: opt.name,
     })),
   );
   protected readonly leadOwnerPaginatedOptions = computed(() =>
@@ -1339,7 +1344,7 @@ export class LeadDetailComponent {
         territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
         industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
         source: this.masterSelectControlValue(
-          undefined,
+          row.leadSourceId,
           row.source || row.leadSource || 'Manual',
           this.sourceSelectOptions(),
         ),
@@ -1474,22 +1479,6 @@ export class LeadDetailComponent {
 
     try {
       const v = this.dataForm.getRawValue();
-      const emailTrim = v.email.trim();
-      const emailLower = emailTrim.toLowerCase();
-      if (emailTrim) {
-        try {
-          const all = await firstValueFrom(this.leadsService.getAll());
-          if (all.some((l) => l.email?.trim().toLowerCase() === emailLower && Number(l.id) !== idn)) {
-            this.dataForm.controls.email.setErrors({ duplicate: true });
-            this.dataForm.controls.email.markAsTouched();
-            this.toast.error('A lead with this email already exists.');
-            this.dataSaving.set(false);
-            return;
-          }
-        } catch (emailCheckErr) {
-          console.warn('[LeadDetail] Duplicate email check skipped:', emailCheckErr);
-        }
-      }
 
       const empPick = this.resolveMasterPick(v.employees, this.employeeSelectOptions());
       const statPick = this.resolveMasterPick(v.status, this.statusSelectOptions());
@@ -1597,14 +1586,13 @@ export class LeadDetailComponent {
       .subscribe({
         next: (result) => {
           this.createRowBus.publish('deal', result.deal);
-          if (result.lead == null) {
-            this.toast.success('Lead converted to deal successfully');
-            void this.router.navigate(['/deals', result.deal.id]);
-            return;
+          if (result.lead != null) {
+            this.lead.set(result.lead);
           }
-          this.lead.set(result.lead);
-          this.refreshLeadActivities();
           this.toast.success('Lead converted to deal successfully');
+          if (result.deal?.id) {
+            void this.router.navigate(['/deals', result.deal.id]);
+          }
         },
         error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });

@@ -236,9 +236,7 @@
                   autocomplete="email"
                   (input)="clearEmailDuplicate()"
                 />
-                @if (createForm.get('email')?.errors?.['duplicate']) {
-                  <span class="leads__err">A lead with this email already exists.</span>
-                } @else if (fieldInvalid('email') && createForm.get('email')?.errors?.['email']) {
+                @if (fieldInvalid('email') && createForm.get('email')?.errors?.['email']) {
                   <span class="leads__err">Use a valid email address.</span>
                 }
               </label>

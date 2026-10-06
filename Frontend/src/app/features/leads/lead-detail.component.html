@@ -468,8 +468,9 @@
                   class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
                   formControlName="source"
                 >
-                  @for (s of sourceOptionsForLead(); track s) {
-                    <option [value]="s">{{ s === '' ? '— Select —' : s }}</option>
+                  <option value="">— Select —</option>
+                  @for (opt of sourceOptionsForLead(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
               </label>
@@ -566,9 +567,7 @@
                     [class.border-rose-500]="dataForm.controls.email.invalid && dataForm.controls.email.touched"
                   />
                 </div>
-                @if (dataForm.controls.email.errors?.['duplicate']) {
-                  <span class="text-xs text-rose-500 mt-1 block">A lead with this email already exists.</span>
-                } @else if (dataForm.controls.email.invalid && dataForm.controls.email.touched) {
+                @if (dataForm.controls.email.invalid && dataForm.controls.email.touched) {
                   <span class="text-xs text-rose-500 mt-1 block">Enter a valid email address.</span>
                 }
               </label>

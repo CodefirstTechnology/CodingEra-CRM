@@ -69,6 +69,8 @@ export interface LeadRow {
   owner: string;
   updated: string;
   source?: string;
+  /** Master data FK (`/api/MasterData/lead-sources`). */
+  leadSourceId?: number | null;
   /** Backend user id (`Users` table), mirrors form `leadOwner`. */
   leadOwnerId?: string;
   /** Set for unified list: manual CRM vs IndiaMART import. */

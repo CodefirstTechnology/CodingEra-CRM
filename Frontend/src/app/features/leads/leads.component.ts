@@ -1432,7 +1432,7 @@ export class LeadsComponent {
     concat(...streams)
       .pipe(last(), defaultIfEmpty(null))
       .subscribe({
-        next: () => {
+        next: (lastResult) => {
           this.refreshDealConversionIndex();
           this.sel.clear();
           this.toast.success(
@@ -1440,6 +1440,9 @@ export class LeadsComponent {
               ? 'Lead converted to deal successfully'
               : `${targets.length} leads converted to deals successfully`,
           );
+          if (targets.length === 1 && lastResult?.deal?.id) {
+            void this.router.navigate(['/deals', lastResult.deal.id]);
+          }
         },
         error: (e: unknown) => {
           this.refreshLeads();
@@ -1728,22 +1731,7 @@ export class LeadsComponent {
 
     const raw = this.createForm.getRawValue();
     const emailTrim = raw.email.trim();
-    const emailLower = emailTrim.toLowerCase();
-    const emailCtrl = this.createForm.get('email');
     const editId = this.editingNumericId();
-    if (
-      emailTrim &&
-      this.rows().some(
-        (r) =>
-          r.email.toLowerCase() === emailLower && (editId == null || Number(r.id) !== editId),
-      )
-    ) {
-      if (emailCtrl) {
-        emailCtrl.setErrors({ ...(emailCtrl.errors ?? {}), duplicate: true });
-        emailCtrl.markAsTouched();
-      }
-      return;
-    }
 
     const leadOwnerId = this.resolveLeadOwnerIdForSubmit(raw.leadOwner, editId);
     const ownerOpt = this.leadOwnerOpts.findById(leadOwnerId);
