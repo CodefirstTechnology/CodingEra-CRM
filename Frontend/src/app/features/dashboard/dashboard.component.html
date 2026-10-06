@@ -473,7 +473,15 @@
           Performance metrics for {{ data.period.label.toLowerCase() }} · {{ filteredEmployeeLedger().length }} team members
         </p>
       </div>
-      <div class="sales-dash__emp-search-wrap">
+      <div class="sales-dash__emp-search-wrap" style="display: flex; gap: 0.75rem; align-items: center;">
+        <button
+          type="button"
+          class="crm-perf-btn crm-perf-btn--active"
+          style="padding: 0.4rem 0.85rem; font-size: 0.8125rem; white-space: nowrap; border-radius: 0.5rem; font-weight: 600; cursor: pointer;"
+          (click)="reportModalOpen.set(true)"
+        >
+          📊 Full Performance Report
+        </button>
         <div class="sales-dash__emp-search">
           <svg class="sales-dash__emp-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
             <circle cx="11" cy="11" r="8"></circle>
@@ -869,4 +877,9 @@
     </div>
     }
   </app-crm-modal>
+
+  <app-sales-executive-report-modal
+    [open]="reportModalOpen()"
+    (dismiss)="reportModalOpen.set(false)"
+  />
 </div>

@@ -7,6 +7,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { ROLE_ID_ADMIN } from '../../core/auth/auth-role.util';
 import type { RoleListItem } from '../../core/auth/permission.models';
 import { CrmModalComponent } from '../../core/modal/crm-modal.component';
+import { SalesExecutiveReportModalComponent } from './components/sales-executive-report-modal/sales-executive-report-modal.component';
 import { RbacService } from '../../core/services/rbac.service';
 import { formatInrCompact } from '../../shared/utils/format-inr.util';
 import { CrmEntityCacheService } from '../../core/services/crm-entity-cache.service';
@@ -113,11 +114,12 @@ const PIPELINE_STAGE_COLORS = [
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, CrmModalComponent, FormsModule],
+  imports: [RouterLink, CrmModalComponent, FormsModule, SalesExecutiveReportModalComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })
 export class DashboardComponent implements OnDestroy {
+  protected readonly reportModalOpen = signal<boolean>(false);
   private readonly router = inject(Router);
   private readonly dashboardService = inject(AdminDashboardService);
   private readonly entityCache = inject(CrmEntityCacheService);
