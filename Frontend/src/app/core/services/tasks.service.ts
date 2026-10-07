@@ -10,7 +10,7 @@ import { initialsFromDisplayName } from './leads/lead-owner-options.service';
 import { LeadsService } from './leads.service';
 import { DealsService } from './deals.service';
 import { mergeTaskRowPatch } from './tasks/task-api.mapper';
-import { TaskHttpService } from './tasks/task-http.service';
+import { TaskHttpService, type CompleteFollowUpPayload } from './tasks/task-http.service';
 import { dealActivityDisplayName } from '../../shared/utils/activity-entity-display.util';
 import {
   attachRelatedLeadName,
@@ -83,6 +83,16 @@ export class TasksService {
 
   delete(id: number): Observable<void> {
     return this.taskHttp.delete(id);
+  }
+
+  completeFollowUp(
+    id: number,
+    payload: CompleteFollowUpPayload,
+  ): Observable<TaskRow | null> {
+    return this.taskHttp.completeFollowUp(id, payload).pipe(
+      switchMap((row) => (row != null ? this.enrichRow(of(row)) : of(null))),
+      map((row) => row ?? null),
+    );
   }
 
   private enrichRows(source: Observable<TaskRow[]>): Observable<TaskRow[]> {
