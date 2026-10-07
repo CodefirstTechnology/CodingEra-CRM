@@ -5,6 +5,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { CrmModalComponent } from '../../../../core/modal/crm-modal.component';
+import { OrderValueByExecutiveChartComponent } from '../order-value-by-executive-chart/order-value-by-executive-chart.component';
+import type { AdminTeamMemberStats } from '../../models/admin-dashboard.models';
 import type {
   SalesExecutiveReportResponse,
   SalesExecutiveReportRow,
@@ -17,7 +19,7 @@ export type RangePreset = 'today' | 'yesterday' | 'week' | 'month' | 'quarter' |
 @Component({
   selector: 'app-sales-executive-report-modal',
   standalone: true,
-  imports: [CommonModule, FormsModule, CrmModalComponent],
+  imports: [CommonModule, FormsModule, CrmModalComponent, OrderValueByExecutiveChartComponent],
   templateUrl: './sales-executive-report-modal.component.html',
   styleUrls: ['./sales-executive-report-modal.component.scss'],
 })
@@ -123,6 +125,30 @@ export class SalesExecutiveReportModalComponent {
       return filtered.filter((r) => selected.has(r.userId));
     }
     return filtered;
+  });
+
+  protected readonly reportTeamStats = computed<AdminTeamMemberStats[]>(() => {
+    const rows = this.activeExportRows();
+    return rows.map((r) => ({
+      userId: String(r.userId),
+      name: r.executiveName,
+      email: r.userEmail,
+      totalLeads: r.totalLeads,
+      qualifiedLeads: r.qualified,
+      contactedLeads: r.contacted,
+      nurtureLeads: 0,
+      unqualifiedLeads: 0,
+      junkLeads: 0,
+      lostLeads: 0,
+      convertedLeads: r.ordersWon,
+      conversionRatePct: r.orderConversionPercentage,
+      activeDeals: r.openLeads,
+      dealsClosedWon: r.ordersWon,
+      dealsClosedLost: 0,
+      monthlyRevenue: r.orderValue,
+      targetAmount: 0,
+      targetAchieved: r.orderValue,
+    }));
   });
 
   protected readonly dynamicSummary = computed<SalesExecutiveReportSummary>(() => {

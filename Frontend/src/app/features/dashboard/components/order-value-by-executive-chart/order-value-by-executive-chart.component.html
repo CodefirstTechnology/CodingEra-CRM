@@ -1,0 +1,131 @@
+<article class="order-chart-card">
+  <header class="order-chart-head">
+    <div class="order-chart-head-info">
+      <h2 class="order-chart-title">Order Value by Executive</h2>
+      <p class="order-chart-subtitle">Closed-won revenue distribution per sales executive</p>
+    </div>
+
+    <span class="order-chart-count-badge" *ngIf="totalWonDealsCount() > 0">
+      {{ totalWonDealsCount() }} Won Deal{{ totalWonDealsCount() === 1 ? '' : 's' }}
+    </span>
+  </header>
+
+  <div class="order-chart-body" *ngIf="!loading(); else loadingTpl">
+    <!-- Zero State -->
+    <ng-container *ngIf="totalOrderValue() === 0; else chartTpl">
+      <div class="order-chart-zero-state">
+        <div class="order-chart-zero-box">
+          <svg class="w-8 h-8 text-slate-400 dark:text-slate-500 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <span class="order-chart-zero-text">No closed-won order values found for the selected criteria.</span>
+        </div>
+      </div>
+    </ng-container>
+
+    <!-- Main Bar Chart & Legend Container -->
+    <ng-template #chartTpl>
+      <div class="order-chart-content">
+        
+        <!-- Column / Bar Chart (Matching Excel Layout Blueprint) -->
+        <div class="order-chart-excel-frame">
+          <!-- Center Header inside Chart Plot -->
+          <div class="order-chart-excel-title">Order Value by Executive</div>
+
+          <div class="order-chart-excel-plot">
+            <!-- Y-Axis Rotated Vertical Label -->
+            <div class="order-chart-y-axis-label">
+              <span>Order Value (₹)</span>
+            </div>
+
+            <!-- Plot Canvas with Grid Lines and Column Bars -->
+            <div class="order-chart-bar-canvas">
+              <!-- Horizontal Grid Lines -->
+              <div class="order-chart-grid-lines">
+                @for (step of yAxisGridSteps(); track step.value) {
+                  <div class="order-chart-grid-line">
+                    <span class="order-chart-grid-value">{{ step.label }}</span>
+                  </div>
+                }
+              </div>
+
+              <!-- Columns / Bars Container -->
+              <div class="order-chart-bars-row">
+                @for (item of executiveData(); track item.userId) {
+                  <div
+                    class="order-chart-bar-col"
+                    [class.order-chart-bar-col--active]="hoveredUserId() === item.userId"
+                    (mouseenter)="setHovered(item.userId)"
+                    (mouseleave)="setHovered(null)"
+                  >
+                    <div class="order-chart-bar-fill-wrap">
+                      <div
+                        class="order-chart-bar-fill"
+                        [style.height.%]="item.barHeightPct"
+                        [style.background-color]="item.color"
+                      >
+                        <div class="order-chart-bar-tooltip">
+                          <strong>{{ item.name }}</strong><br />
+                          {{ item.formattedValue }} ({{ item.percentage }}%)
+                        </div>
+                      </div>
+                    </div>
+                    <span class="order-chart-bar-name-label" [title]="item.name">
+                      {{ item.name }}
+                    </span>
+                  </div>
+                }
+              </div>
+
+              <!-- X-Axis Bottom Label -->
+              <div class="order-chart-x-axis-label">
+                <span>Sales Executive</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Legend (Matching Excel Square Swatches) -->
+        <div class="order-chart-legend-wrap">
+          <ul class="order-chart-legend">
+            @for (item of executiveData(); track item.userId) {
+              <li
+                class="order-chart-legend-item"
+                [class.order-chart-legend-item--active]="hoveredUserId() === item.userId"
+                (mouseenter)="setHovered(item.userId)"
+                (mouseleave)="setHovered(null)"
+              >
+                <div class="order-chart-legend-left">
+                  <!-- Square color swatch matching Excel legend -->
+                  <span
+                    class="order-chart-square-swatch"
+                    [style.background-color]="item.color"
+                  ></span>
+                  <div class="order-chart-exec-info">
+                    <span class="order-chart-exec-name" [title]="item.name">{{ item.name }}</span>
+                    <span class="order-chart-exec-meta">{{ item.dealsCount }} deal{{ item.dealsCount === 1 ? '' : 's' }}</span>
+                  </div>
+                </div>
+
+                <div class="order-chart-legend-right">
+                  <span class="order-chart-exec-val">{{ item.formattedValue }}</span>
+                  <span class="order-chart-exec-pct" [style.color]="item.color">{{ item.percentage }}%</span>
+                </div>
+              </li>
+            }
+          </ul>
+        </div>
+
+      </div>
+    </ng-template>
+  </div>
+
+  <ng-template #loadingTpl>
+    <div class="order-chart-loading">
+      <div class="order-chart-spinner"></div>
+      <span>Loading order values…</span>
+    </div>
+  </ng-template>
+</article>
+
+

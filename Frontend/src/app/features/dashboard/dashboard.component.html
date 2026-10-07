@@ -81,7 +81,8 @@
       <span class="sales-dash__kpi-label">Won deals</span>
       <span class="sales-dash__kpi-value">{{ data.kpis.wonDeals }}</span>
     </button>
-    <button type="button" class="sales-dash__kpi sales-dash__kpi--click sales-dash__kpi--lost" (click)="openLostDeals()">
+    <button type="button" class="sales-dash__kpi sales-dash__kpi--click sales-dash__kpi--lost"
+      (click)="openLostDeals()">
       <span class="sales-dash__kpi-label">Lost deals</span>
       <div class="sales-dash__kpi-lost-val-group">
         <span class="sales-dash__kpi-value">{{ data.kpis.lostDeals }}</span>
@@ -145,76 +146,76 @@
         </p>
 
         <div class="sales-dash__target-stats">
-              <div class="sales-dash__target-stat sales-dash__target-stat--achieved">
-                <span class="sales-dash__target-stat-label">Achieved</span>
-                <span class="sales-dash__target-stat-value">{{ formatMoney(period.achievedAmount) }}</span>
-              </div>
-              <div class="sales-dash__target-stat sales-dash__target-stat--goal">
-                <span class="sales-dash__target-stat-label">Target</span>
-                <span class="sales-dash__target-stat-value">{{ formatMoney(period.targetAmount) }}</span>
-              </div>
-            </div>
+          <div class="sales-dash__target-stat sales-dash__target-stat--achieved">
+            <span class="sales-dash__target-stat-label">Achieved</span>
+            <span class="sales-dash__target-stat-value">{{ formatMoney(period.achievedAmount) }}</span>
+          </div>
+          <div class="sales-dash__target-stat sales-dash__target-stat--goal">
+            <span class="sales-dash__target-stat-label">Target</span>
+            <span class="sales-dash__target-stat-value">{{ formatMoney(period.targetAmount) }}</span>
+          </div>
+        </div>
 
-            @if (viewingTargetMode() === 'active' && previousTargetPeriods().length > 0) {
-            <div style="margin-top: 0.5rem;" (click)="$event.stopPropagation()">
-              <select class="sales-dash__target-setup"
-                style="width: 100%; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
-                (change)="onPreviousTargetSelect($event)">
-                <option value="" disabled selected>View Previous Target</option>
-                @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
-                <option [value]="p.startDate + '_' + p.endDate"
-                  style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
-                  {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
-                </option>
-                }
-              </select>
-            </div>
-            } @else if (viewingTargetMode() === 'previous') {
-            <div style="margin-top: 0.5rem; display: flex; gap: 0.35rem;" (click)="$event.stopPropagation()">
-              <select class="sales-dash__target-setup"
-                style="flex: 1.3; min-width: 0; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
-                (change)="onPreviousTargetSelect($event)">
-                @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
-                <option [value]="p.startDate + '_' + p.endDate" [selected]="isTargetPeriodSelected(p)"
-                  style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
-                  {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
-                </option>
-                }
-              </select>
-
-              <a class="sales-dash__target-setup" href="javascript:void(0)"
-                style="flex: 1; font-size: 0.75rem; padding: 0.35rem 0.5rem; border-radius: 6px; margin: 0; display: flex; align-items: center; justify-content: center; text-align: center;"
-                (click)="viewingTargetMode.set('active'); $event.stopPropagation();">
-                Back
-              </a>
-            </div>
+        @if (viewingTargetMode() === 'active' && previousTargetPeriods().length > 0) {
+        <div style="margin-top: 0.5rem;" (click)="$event.stopPropagation()">
+          <select class="sales-dash__target-setup"
+            style="width: 100%; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
+            (change)="onPreviousTargetSelect($event)">
+            <option value="" disabled selected>View Previous Target</option>
+            @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
+            <option [value]="p.startDate + '_' + p.endDate"
+              style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
+              {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
+            </option>
             }
-            } @else {
-            <p class="sales-dash__target-empty" style="margin-top: 1rem; margin-bottom: 0.5rem;">No active sales target
-              configured.</p>
-
-            <a class="sales-dash__target-setup" routerLink="/advanced-settings" [queryParams]="{ tab: 'User Targets' }"
-              style="font-size: 0.75rem; padding: 0.35rem 0.5rem; border-radius: 6px; margin: 0;"
-              (click)="$event.stopPropagation()">
-              Set New Target
-            </a>
-
-            @if (previousTargetPeriods().length > 0) {
-            <div style="margin-top: 0.5rem;" (click)="$event.stopPropagation()">
-              <select class="sales-dash__target-setup"
-                style="width: 100%; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
-                (change)="onPreviousTargetSelect($event)">
-                <option value="" disabled selected>View Previous Target</option>
-                @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
-                <option [value]="p.startDate + '_' + p.endDate"
-                  style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
-                  {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
-                </option>
-                }
-              </select>
-            </div>
+          </select>
+        </div>
+        } @else if (viewingTargetMode() === 'previous') {
+        <div style="margin-top: 0.5rem; display: flex; gap: 0.35rem;" (click)="$event.stopPropagation()">
+          <select class="sales-dash__target-setup"
+            style="flex: 1.3; min-width: 0; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
+            (change)="onPreviousTargetSelect($event)">
+            @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
+            <option [value]="p.startDate + '_' + p.endDate" [selected]="isTargetPeriodSelected(p)"
+              style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
+              {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
+            </option>
             }
+          </select>
+
+          <a class="sales-dash__target-setup" href="javascript:void(0)"
+            style="flex: 1; font-size: 0.75rem; padding: 0.35rem 0.5rem; border-radius: 6px; margin: 0; display: flex; align-items: center; justify-content: center; text-align: center;"
+            (click)="viewingTargetMode.set('active'); $event.stopPropagation();">
+            Back
+          </a>
+        </div>
+        }
+        } @else {
+        <p class="sales-dash__target-empty" style="margin-top: 1rem; margin-bottom: 0.5rem;">No active sales target
+          configured.</p>
+
+        <a class="sales-dash__target-setup" routerLink="/advanced-settings" [queryParams]="{ tab: 'User Targets' }"
+          style="font-size: 0.75rem; padding: 0.35rem 0.5rem; border-radius: 6px; margin: 0;"
+          (click)="$event.stopPropagation()">
+          Set New Target
+        </a>
+
+        @if (previousTargetPeriods().length > 0) {
+        <div style="margin-top: 0.5rem;" (click)="$event.stopPropagation()">
+          <select class="sales-dash__target-setup"
+            style="width: 100%; font-size: 0.75rem; border: 1px solid color-mix(in srgb, var(--sd-accent) 25%, transparent); cursor: pointer; text-align: center; text-align-last: center; padding: 0.35rem 0.5rem; border-radius: 6px; font-weight: 700; background: color-mix(in srgb, var(--sd-accent) 10%, transparent); color: var(--sd-accent); margin: 0;"
+            (change)="onPreviousTargetSelect($event)">
+            <option value="" disabled selected>View Previous Target</option>
+            @for (p of previousTargetPeriods(); track p.startDate + '_' + p.endDate) {
+            <option [value]="p.startDate + '_' + p.endDate"
+              style="background: var(--dash-card-bg, #fff); color: var(--dash-emphasis-text, #000);">
+              {{ formatDropdownOptionLabel(p.startDate, p.endDate) }}
+            </option>
             }
+          </select>
+        </div>
+        }
+        }
       </div>
     </article>
 
@@ -470,33 +471,28 @@
       <div class="sales-dash__emp-head-info">
         <h2 id="emp-ledger-heading" class="sales-dash__card-title">Employee Performance Ledger</h2>
         <p class="sales-dash__emp-sub">
-          Performance metrics for {{ data.period.label.toLowerCase() }} · {{ filteredEmployeeLedger().length }} team members
+          Performance metrics for {{ data.period.label.toLowerCase() }} · {{ filteredEmployeeLedger().length }} team
+          members
         </p>
       </div>
       <div class="sales-dash__emp-search-wrap" style="display: flex; gap: 0.75rem; align-items: center;">
-        <button
-          type="button"
-          class="crm-perf-btn crm-perf-btn--active"
+        <button type="button" class="crm-perf-btn crm-perf-btn--active"
           style="padding: 0.4rem 0.85rem; font-size: 0.8125rem; white-space: nowrap; border-radius: 0.5rem; font-weight: 600; cursor: pointer;"
-          (click)="reportModalOpen.set(true)"
-        >
+          (click)="reportModalOpen.set(true)">
           📊 Full Performance Report
         </button>
         <div class="sales-dash__emp-search">
-          <svg class="sales-dash__emp-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <svg class="sales-dash__emp-search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" aria-hidden="true">
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-          <input
-            type="text"
-            class="sales-dash__emp-search-input"
-            placeholder="Search employee by name, email, or role..."
-            [ngModel]="employeeSearchQuery()"
-            (ngModelChange)="employeeSearchQuery.set($event)"
-            aria-label="Search employee ledger"
-          />
+          <input type="text" class="sales-dash__emp-search-input"
+            placeholder="Search employee by name, email, or role..." [ngModel]="employeeSearchQuery()"
+            (ngModelChange)="employeeSearchQuery.set($event)" aria-label="Search employee ledger" />
           @if (employeeSearchQuery()) {
-          <button type="button" class="sales-dash__emp-search-clear" (click)="employeeSearchQuery.set('')" aria-label="Clear search">
+          <button type="button" class="sales-dash__emp-search-clear" (click)="employeeSearchQuery.set('')"
+            aria-label="Clear search">
             ✕
           </button>
           }
@@ -517,64 +513,70 @@
         </thead>
         <tbody>
           @if (loading()) {
-            @for (sk of [1, 2, 3, 4]; track sk) {
-            <tr class="sales-dash__emp-row sales-dash__emp-row--skel">
-              <td colspan="5"><div class="sales-dash__skel-bar"></div></td>
-            </tr>
-            }
+          @for (sk of [1, 2, 3, 4]; track sk) {
+          <tr class="sales-dash__emp-row sales-dash__emp-row--skel">
+            <td colspan="5">
+              <div class="sales-dash__skel-bar"></div>
+            </td>
+          </tr>
+          }
           } @else if (filteredEmployeeLedger().length === 0) {
-            <tr>
-              <td colspan="5" class="sales-dash__emp-empty">
-                @if (employeeSearchQuery()) {
-                  No team members found matching “{{ employeeSearchQuery() }}”.
-                } @else {
-                  No employee performance data available for this date period.
-                }
-              </td>
-            </tr>
+          <tr>
+            <td colspan="5" class="sales-dash__emp-empty">
+              @if (employeeSearchQuery()) {
+              No team members found matching “{{ employeeSearchQuery() }}”.
+              } @else {
+              No employee performance data available for this date period.
+              }
+            </td>
+          </tr>
           } @else {
-            @for (emp of filteredEmployeeLedger(); track emp.userId) {
-            <tr class="sales-dash__emp-row" (click)="openEmployeeDetail(emp)" tabindex="0" role="button" [attr.aria-label]="'View performance profile for ' + emp.name">
-              <td>
-                <div class="sales-dash__emp-profile">
-                  <div class="sales-dash__emp-avatar" [style.background]="emp.avatarBg">
-                    {{ emp.initials }}
-                  </div>
-                  <div class="sales-dash__emp-meta">
-                    <span class="sales-dash__emp-name">{{ emp.name }}</span>
-                    <span class="sales-dash__emp-subtext">{{ emp.role }} · <span class="sales-dash__emp-email">{{ emp.email }}</span></span>
-                  </div>
+          @for (emp of filteredEmployeeLedger(); track emp.userId) {
+          <tr class="sales-dash__emp-row" (click)="openEmployeeDetail(emp)" tabindex="0" role="button"
+            [attr.aria-label]="'View performance profile for ' + emp.name">
+            <td>
+              <div class="sales-dash__emp-profile">
+                <div class="sales-dash__emp-avatar" [style.background]="emp.avatarBg">
+                  {{ emp.initials }}
                 </div>
-              </td>
-              <td>
-                <div class="sales-dash__emp-status-box">
-                  <span class="sales-dash__emp-status-badge" [class.sales-dash__emp-status-badge--active]="emp.isOnline" [class.sales-dash__emp-status-badge--idle]="!emp.isOnline">
-                    <span class="sales-dash__emp-status-dot"></span>
-                    {{ emp.isOnline ? 'Online' : 'Offline' }}
-                  </span>
-                  <span class="sales-dash__emp-last-time">{{ emp.lastActive }}</span>
+                <div class="sales-dash__emp-meta">
+                  <span class="sales-dash__emp-name">{{ emp.name }}</span>
+                  <span class="sales-dash__emp-subtext">{{ emp.role }} · <span class="sales-dash__emp-email">{{
+                      emp.email }}</span></span>
                 </div>
-              </td>
-              <td style="text-align: right;">
-                <span class="sales-dash__emp-count">{{ emp.totalLeads }}</span>
-                <span class="sales-dash__emp-unit">leads</span>
-              </td>
-              <td style="text-align: right;">
-                <div class="sales-dash__emp-deal-stat">
-                  <span class="sales-dash__emp-deal-won">{{ emp.dealsClosedWon }} won</span>
-                  <span class="sales-dash__emp-deal-rev">{{ formatMoney(emp.wonRevenue) }}</span>
-                </div>
-              </td>
-              <td style="text-align: right;">
-                <span class="sales-dash__emp-act-pill">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
-                  </svg>
-                  {{ emp.activitiesCount }} actions
+              </div>
+            </td>
+            <td>
+              <div class="sales-dash__emp-status-box">
+                <span class="sales-dash__emp-status-badge" [class.sales-dash__emp-status-badge--active]="emp.isOnline"
+                  [class.sales-dash__emp-status-badge--idle]="!emp.isOnline">
+                  <span class="sales-dash__emp-status-dot"></span>
+                  {{ emp.isOnline ? 'Online' : 'Offline' }}
                 </span>
-              </td>
-            </tr>
-            }
+                <span class="sales-dash__emp-last-time">{{ emp.lastActive }}</span>
+              </div>
+            </td>
+            <td style="text-align: right;">
+              <span class="sales-dash__emp-count">{{ emp.totalLeads }}</span>
+              <span class="sales-dash__emp-unit">leads</span>
+            </td>
+            <td style="text-align: right;">
+              <div class="sales-dash__emp-deal-stat">
+                <span class="sales-dash__emp-deal-won">{{ emp.dealsClosedWon }} won</span>
+                <span class="sales-dash__emp-deal-rev">{{ formatMoney(emp.wonRevenue) }}</span>
+              </div>
+            </td>
+            <td style="text-align: right;">
+              <span class="sales-dash__emp-act-pill">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                  aria-hidden="true">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                </svg>
+                {{ emp.activitiesCount }} actions
+              </span>
+            </td>
+          </tr>
+          }
           }
         </tbody>
       </table>
@@ -582,7 +584,8 @@
   </section>
   }
 
-  <app-crm-modal [open]="detailOpen()" [title]="detailTitle()" [size]="detailKind() === 'lostDeals' ? 'xl' : 'lg'" (dismiss)="closeDetail()">
+  <app-crm-modal [open]="detailOpen()" [title]="detailTitle()" [size]="detailKind() === 'lostDeals' ? 'xl' : 'lg'"
+    (dismiss)="closeDetail()">
     @if (detailKind() === 'deals') {
     @if (detailDeals().length === 0) {
     <p class="sales-dash__detail-empty">No records to show.</p>
@@ -759,13 +762,9 @@
         </div>
         <div class="sales-dash__lost-reasons-grid">
           @for (item of lostReasonsBreakdown(); track item.reason) {
-          <button
-            type="button"
-            class="sales-dash__lost-reason-card"
+          <button type="button" class="sales-dash__lost-reason-card"
             [class.sales-dash__lost-reason-card--active]="selectedLostReason() === item.reason"
-            (click)="selectLostReasonFilter(item.reason)"
-            [title]="'Filter by ' + item.reason"
-          >
+            (click)="selectLostReasonFilter(item.reason)" [title]="'Filter by ' + item.reason">
             <div class="sales-dash__lost-reason-top">
               <span class="sales-dash__lost-reason-name" [title]="item.reason">{{ item.reason }}</span>
               <span class="sales-dash__lost-reason-pct">{{ item.percentage }}% ({{ item.count }})</span>
@@ -793,24 +792,16 @@
 
           <div class="sales-dash__lost-deals-toolbar">
             <div class="sales-dash__lost-search-wrap">
-              <svg class="sales-dash__lost-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <svg class="sales-dash__lost-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2">
                 <circle cx="11" cy="11" r="8"></circle>
                 <path d="m21 21-4.35-4.35"></path>
               </svg>
-              <input
-                type="text"
-                class="sales-dash__lost-search-input"
-                placeholder="Search deals, company, owner…"
-                [value]="lostDealsSearchQuery()"
-                (input)="lostDealsSearchQuery.set($any($event.target).value)"
-              />
+              <input type="text" class="sales-dash__lost-search-input" placeholder="Search deals, company, owner…"
+                [value]="lostDealsSearchQuery()" (input)="lostDealsSearchQuery.set($any($event.target).value)" />
               @if (lostDealsSearchQuery()) {
-              <button
-                type="button"
-                class="sales-dash__lost-search-clear"
-                (click)="lostDealsSearchQuery.set('')"
-                aria-label="Clear search"
-              >
+              <button type="button" class="sales-dash__lost-search-clear" (click)="lostDealsSearchQuery.set('')"
+                aria-label="Clear search">
                 ×
               </button>
               }
@@ -821,7 +812,8 @@
         @if (filteredLostDeals().length === 0) {
         <div class="sales-dash__lost-empty-filter">
           <p>No deals match the selected filter or search criteria.</p>
-          <button type="button" class="sales-dash__btn-reset" (click)="selectedLostReason.set(null); lostDealsSearchQuery.set('')">
+          <button type="button" class="sales-dash__btn-reset"
+            (click)="selectedLostReason.set(null); lostDealsSearchQuery.set('')">
             Reset Filters
           </button>
         </div>
@@ -861,8 +853,9 @@
                 <td style="text-align: right;">
                   <a class="sales-dash__detail-open-btn" [routerLink]="['/deals', deal.id]" (click)="closeDetail()">
                     <span>Open</span>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M7 17L17 7M17 7H7M17 7V17"/>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"
+                      stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M7 17L17 7M17 7H7M17 7V17" />
                     </svg>
                   </a>
                 </td>
@@ -878,8 +871,5 @@
     }
   </app-crm-modal>
 
-  <app-sales-executive-report-modal
-    [open]="reportModalOpen()"
-    (dismiss)="reportModalOpen.set(false)"
-  />
+  <app-sales-executive-report-modal [open]="reportModalOpen()" (dismiss)="reportModalOpen.set(false)" />
 </div>

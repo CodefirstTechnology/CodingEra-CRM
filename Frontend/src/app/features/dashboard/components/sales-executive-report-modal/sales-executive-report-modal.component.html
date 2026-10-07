@@ -105,7 +105,7 @@
       }
     </div>
 
-    <!-- 17 Column Data Table + Checkbox Column -->
+    <!-- 1. Report Table (FIRST) -->
     <div class="crm-perf-table-wrap">
       <table class="crm-perf-table">
         <thead>
@@ -212,7 +212,7 @@
           }
         </tbody>
 
-        <!-- Dynamic Summary Footer: Shown ONLY when > 1 executive is active in scope -->
+        <!-- Dynamic Summary Footer -->
         @if (activeExportRows().length > 1) {
           @if (dynamicSummary(); as s) {
             <tfoot>
@@ -267,6 +267,14 @@
           }
         }
       </table>
+    </div>
+
+    <!-- 2. Executive Order Value Breakdown Chart (BELOW Report Table) -->
+    <div class="crm-perf-chart-box">
+      <app-order-value-by-executive-chart
+        [teamStats]="reportTeamStats()"
+        [loading]="loading()"
+      ></app-order-value-by-executive-chart>
     </div>
   </div>
 </app-crm-modal>
