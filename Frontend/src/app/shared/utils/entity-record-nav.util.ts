@@ -8,6 +8,7 @@ export type EntityDetailTab =
   | 'Emails'
   | 'Comments'
   | 'Data'
+  | 'Follow Up'
   | 'Tasks'
   | 'Notes'
   | 'Attachments';
@@ -17,6 +18,7 @@ const ENTITY_DETAIL_TABS: readonly EntityDetailTab[] = [
   'Emails',
   'Comments',
   'Data',
+  'Follow Up',
   'Tasks',
   'Notes',
   'Attachments',
@@ -25,6 +27,8 @@ const ENTITY_DETAIL_TABS: readonly EntityDetailTab[] = [
 export function parseEntityDetailTab(raw: string | null | undefined): EntityDetailTab | null {
   const t = raw?.trim();
   if (!t) return null;
+  if (t.toLowerCase() === 'follow-up' || t.toLowerCase() === 'follow up') return 'Follow Up';
+  if (t.toLowerCase() === 'tasks') return 'Follow Up';
   return ENTITY_DETAIL_TABS.includes(t as EntityDetailTab) ? (t as EntityDetailTab) : null;
 }
 

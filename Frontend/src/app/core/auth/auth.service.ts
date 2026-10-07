@@ -165,9 +165,7 @@ export class AuthService {
       if (normalized.id) {
         this.sessionTracker.startTracking(normalized.id, token);
       }
-      if (!(normalized.permissions?.length)) {
-        this.refreshSessionPermissions();
-      }
+      this.refreshSessionPermissions();
       this.refreshSessionProfile();
       writeLoginLog('session_restored', {
         maskedEmail: maskEmail(user.email),
@@ -776,7 +774,6 @@ export class AuthService {
       });
   }
 
-  /** Loads effective permissions from API and updates the stored session. */
   refreshSessionPermissions(): void {
     const token = this._token();
     const user = this._user();
@@ -787,7 +784,6 @@ export class AuthService {
     this.http.get<unknown>(`${base}/rbac/me/permissions`, { headers }).subscribe({
       next: (body) => {
         const perms = parsePermissionsFromApi(body);
-        if (!perms.length) return;
         const updated: UserSession = { ...user, permissions: perms };
         this._user.set(updated);
         localStorage.setItem(AUTH_USER_KEY, JSON.stringify(updated));

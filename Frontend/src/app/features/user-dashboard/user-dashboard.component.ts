@@ -36,6 +36,7 @@ import {
 import { UserDashboardService } from './services/user-dashboard.service';
 import type { StuckPipelineResponse } from '../../core/services/dashboard/stuck-pipeline.models';
 import { StuckPipelineService } from '../../core/services/dashboard/stuck-pipeline.service';
+import { SalesExecutiveReportModalComponent } from '../dashboard/components/sales-executive-report-modal/sales-executive-report-modal.component';
 
 function toDateInputValue(d: Date): string {
   const y = d.getFullYear();
@@ -63,12 +64,14 @@ function formatShortDate(d: Date): string {
 @Component({
   selector: 'app-user-dashboard',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe, FormsModule, CrmPaginationFooterComponent, CrmModalComponent],
+  imports: [RouterLink, DatePipe, DecimalPipe, FormsModule, CrmPaginationFooterComponent, CrmModalComponent, SalesExecutiveReportModalComponent],
   templateUrl: './user-dashboard.component.html',
   styleUrl: './user-dashboard.component.scss',
 })
 export class UserDashboardComponent {
+  protected readonly reportModalOpen = signal<boolean>(false);
   private readonly auth = inject(AuthService);
+  protected readonly currentUserId = computed(() => this.auth.user()?.id ?? null);
   private readonly dashboard = inject(UserDashboardService);
   private readonly createFlow = inject(CreateFlowService);
   private readonly permissions = inject(PermissionService);

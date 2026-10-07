@@ -1,0 +1,280 @@
+<app-crm-modal
+  [open]="open()"
+  title="Sales Executive Performance Report"
+  size="xl"
+  (dismiss)="dismiss.emit()"
+>
+  <div class="crm-perf-modal">
+    <!-- Header Filter Controls -->
+    <div class="crm-perf-controls">
+      <div class="crm-perf-presets">
+        <button
+          type="button"
+          class="crm-perf-btn"
+          [class.crm-perf-btn--active]="selectedPreset() === 'today'"
+          (click)="applyPreset('today')"
+        >
+          Today
+        </button>
+        <button
+          type="button"
+          class="crm-perf-btn"
+          [class.crm-perf-btn--active]="selectedPreset() === 'yesterday'"
+          (click)="applyPreset('yesterday')"
+        >
+          Yesterday
+        </button>
+        <button
+          type="button"
+          class="crm-perf-btn"
+          [class.crm-perf-btn--active]="selectedPreset() === 'week'"
+          (click)="applyPreset('week')"
+        >
+          This Week
+        </button>
+        <button
+          type="button"
+          class="crm-perf-btn"
+          [class.crm-perf-btn--active]="selectedPreset() === 'month'"
+          (click)="applyPreset('month')"
+        >
+          This Month
+        </button>
+        <button
+          type="button"
+          class="crm-perf-btn"
+          [class.crm-perf-btn--active]="selectedPreset() === 'quarter'"
+          (click)="applyPreset('quarter')"
+        >
+          This Quarter
+        </button>
+      </div>
+
+      <div class="crm-perf-date-inputs">
+        <label class="crm-perf-date-label">
+          <span>From</span>
+          <input
+            type="date"
+            class="crm-perf-date-ctrl"
+            [ngModel]="startDate()"
+            (ngModelChange)="startDate.set($event); selectedPreset.set('custom'); fetchReport()"
+          />
+        </label>
+        <label class="crm-perf-date-label">
+          <span>To</span>
+          <input
+            type="date"
+            class="crm-perf-date-ctrl"
+            [ngModel]="endDate()"
+            (ngModelChange)="endDate.set($event); selectedPreset.set('custom'); fetchReport()"
+          />
+        </label>
+      </div>
+
+      <div class="crm-perf-exports">
+        <button type="button" class="crm-perf-export-btn crm-perf-export-btn--excel" (click)="exportToExcel()">
+          📊 Excel
+        </button>
+        <button type="button" class="crm-perf-export-btn crm-perf-export-btn--pdf" (click)="exportToPdf()">
+          📄 PDF
+        </button>
+      </div>
+    </div>
+
+    <!-- Selection Banner / Search Row -->
+    <div class="crm-perf-search-row">
+      <div class="crm-perf-search-bar">
+        <input
+          type="text"
+          class="crm-perf-search-input"
+          placeholder="Filter by executive name, email, or role..."
+          [ngModel]="searchQuery()"
+          (ngModelChange)="searchQuery.set($event)"
+        />
+      </div>
+
+      @if (selectedUserIds().size > 0) {
+        <div class="crm-perf-selection-banner">
+          <span class="crm-perf-selection-text">
+            <strong>{{ selectedUserIds().size }}</strong> of {{ filteredRows().length }} executives selected
+          </span>
+          <button type="button" class="crm-perf-clear-btn" (click)="clearSelection()">
+            Clear Selection
+          </button>
+        </div>
+      }
+    </div>
+
+    <!-- 1. Report Table (FIRST) -->
+    <div class="crm-perf-table-wrap">
+      <table class="crm-perf-table">
+        <thead>
+          <tr>
+            <th class="crm-perf-col-check" style="width: 40px; min-width: 40px; text-align: center;">
+              <input
+                type="checkbox"
+                [checked]="isAllSelected()"
+                [indeterminate]="isIndeterminate()"
+                (change)="toggleSelectAll()"
+                title="Select / Deselect All"
+              />
+            </th>
+            <th class="crm-perf-col-user" style="min-width: 180px;">Sales Executive</th>
+            <th style="min-width: 90px; text-align: right;">Total Leads</th>
+            <th style="min-width: 90px; text-align: right;">Contacted</th>
+            <th style="min-width: 90px; text-align: right;">Qualified</th>
+            <th style="min-width: 85px; text-align: right;">Meetings</th>
+            <th style="min-width: 95px; text-align: right;">Quotations</th>
+            <th style="min-width: 95px; text-align: right;">Orders Won</th>
+            <th style="min-width: 120px; text-align: right;">Lead Value</th>
+            <th style="min-width: 130px; text-align: right;">Quotation Value</th>
+            <th style="min-width: 120px; text-align: right;">Order Value</th>
+            <th style="min-width: 95px; text-align: center;">Contact %</th>
+            <th style="min-width: 105px; text-align: center;">Qual %</th>
+            <th style="min-width: 95px; text-align: center;">Quote %</th>
+            <th style="min-width: 110px; text-align: center;">Conversion %</th>
+            <th style="min-width: 115px; text-align: center;">Compliance %</th>
+            <th style="min-width: 95px; text-align: right;">Open Leads</th>
+            <th style="min-width: 110px; text-align: right;">Overdue Tasks</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (loading()) {
+            @for (sk of [1, 2, 3, 4, 5]; track sk) {
+              <tr>
+                <td colspan="18">
+                  <div class="crm-perf-skel-bar"></div>
+                </td>
+              </tr>
+            }
+          } @else if (filteredRows().length === 0) {
+            <tr>
+              <td colspan="18" class="crm-perf-empty">
+                No performance data available for the selected criteria.
+              </td>
+            </tr>
+          } @else {
+            @for (r of filteredRows(); track r.userId) {
+              <tr [class.crm-perf-row--selected]="selectedUserIds().has(r.userId)">
+                <td class="crm-perf-col-check" style="text-align: center;">
+                  <input
+                    type="checkbox"
+                    [checked]="selectedUserIds().has(r.userId)"
+                    (change)="toggleUserSelection(r.userId)"
+                  />
+                </td>
+                <td class="crm-perf-col-user">
+                  <div class="crm-perf-user-info">
+                    <span class="crm-perf-user-name">{{ r.executiveName }}</span>
+                    <span class="crm-perf-user-sub">{{ r.roleName }}</span>
+                  </div>
+                </td>
+                <td style="text-align: right; font-weight: 600;">{{ r.totalLeads }}</td>
+                <td style="text-align: right;">{{ r.contacted }}</td>
+                <td style="text-align: right;">{{ r.qualified }}</td>
+                <td style="text-align: right;">{{ r.meetings }}</td>
+                <td style="text-align: right;">{{ r.quotations }}</td>
+                <td style="text-align: right; color: #10b981; font-weight: 600;">{{ r.ordersWon }}</td>
+                <td style="text-align: right;">{{ formatINR(r.leadValue) }}</td>
+                <td style="text-align: right;">{{ formatINR(r.quotationValue) }}</td>
+                <td style="text-align: right; font-weight: 600;">{{ formatINR(r.orderValue) }}</td>
+                <td style="text-align: center;">
+                  <span class="crm-perf-badge" [ngClass]="getBadgeClass(r.contactPercentage)">
+                    {{ formatPercent(r.contactPercentage) }}
+                  </span>
+                </td>
+                <td style="text-align: center;">
+                  <span class="crm-perf-badge" [ngClass]="getBadgeClass(r.qualificationPercentage)">
+                    {{ formatPercent(r.qualificationPercentage) }}
+                  </span>
+                </td>
+                <td style="text-align: center;">
+                  <span class="crm-perf-badge" [ngClass]="getBadgeClass(r.quotePercentage)">
+                    {{ formatPercent(r.quotePercentage) }}
+                  </span>
+                </td>
+                <td style="text-align: center;">
+                  <span class="crm-perf-badge" [ngClass]="getBadgeClass(r.orderConversionPercentage)">
+                    {{ formatPercent(r.orderConversionPercentage) }}
+                  </span>
+                </td>
+                <td style="text-align: center;">
+                  <span class="crm-perf-badge" [ngClass]="getBadgeClass(r.followUpCompliancePercentage)">
+                    {{ formatPercent(r.followUpCompliancePercentage) }}
+                  </span>
+                </td>
+                <td style="text-align: right;">{{ r.openLeads }}</td>
+                <td style="text-align: right;" [class.crm-perf-overdue-warn]="r.overdueFollowUps > 0">
+                  {{ r.overdueFollowUps }}
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+
+        <!-- Dynamic Summary Footer -->
+        @if (activeExportRows().length > 1) {
+          @if (dynamicSummary(); as s) {
+            <tfoot>
+              <tr class="crm-perf-foot-row">
+                <td class="crm-perf-col-check"></td>
+                <td class="crm-perf-col-user">
+                  <div class="crm-perf-user-info">
+                    <span class="crm-perf-user-name" style="font-weight: 700;">TOTALS / SUMMARY</span>
+                    <span class="crm-perf-user-sub">{{ s.totalExecutives }} Sales Executives</span>
+                  </div>
+                </td>
+                <td style="text-align: right; font-weight: 700;">{{ s.totalLeads }}</td>
+                <td style="text-align: right; font-weight: 700;">{{ s.totalContacted }}</td>
+                <td style="text-align: right; font-weight: 700;">{{ s.totalQualified }}</td>
+                <td style="text-align: right; font-weight: 700;">{{ s.totalMeetings }}</td>
+                <td style="text-align: right; font-weight: 700;">{{ s.totalQuotations }}</td>
+                <td style="text-align: right; font-weight: 700; color: #10b981;">{{ s.totalOrdersWon }}</td>
+                <td style="text-align: right; font-weight: 700;">{{ formatINR(s.totalLeadValue) }}</td>
+                <td style="text-align: right; font-weight: 700;">{{ formatINR(s.totalQuotationValue) }}</td>
+                <td style="text-align: right; font-weight: 700;">{{ formatINR(s.totalOrderValue) }}</td>
+                <td style="text-align: center; font-weight: 700;">
+                  <span class="crm-perf-badge" [ngClass]="getBadgeClass(s.averageContactPercentage)">
+                    {{ formatPercent(s.averageContactPercentage) }}
+                  </span>
+                </td>
+                <td style="text-align: center; font-weight: 700;">
+                  <span class="crm-perf-badge" [ngClass]="getBadgeClass(s.averageQualificationPercentage)">
+                    {{ formatPercent(s.averageQualificationPercentage) }}
+                  </span>
+                </td>
+                <td style="text-align: center; font-weight: 700;">
+                  <span class="crm-perf-badge" [ngClass]="getBadgeClass(s.averageQuotePercentage)">
+                    {{ formatPercent(s.averageQuotePercentage) }}
+                  </span>
+                </td>
+                <td style="text-align: center; font-weight: 700;">
+                  <span class="crm-perf-badge" [ngClass]="getBadgeClass(s.averageOrderConversionPercentage)">
+                    {{ formatPercent(s.averageOrderConversionPercentage) }}
+                  </span>
+                </td>
+                <td style="text-align: center; font-weight: 700;">
+                  <span class="crm-perf-badge" [ngClass]="getBadgeClass(s.averageFollowUpCompliancePercentage)">
+                    {{ formatPercent(s.averageFollowUpCompliancePercentage) }}
+                  </span>
+                </td>
+                <td style="text-align: right; font-weight: 700;">{{ s.totalOpenLeads }}</td>
+                <td style="text-align: right; font-weight: 700;" [class.crm-perf-overdue-warn]="s.totalOverdueFollowUps > 0">
+                  {{ s.totalOverdueFollowUps }}
+                </td>
+              </tr>
+            </tfoot>
+          }
+        }
+      </table>
+    </div>
+
+    <!-- 2. Executive Order Value Breakdown Chart (BELOW Report Table) -->
+    <div class="crm-perf-chart-box">
+      <app-order-value-by-executive-chart
+        [teamStats]="reportTeamStats()"
+        [loading]="loading()"
+      ></app-order-value-by-executive-chart>
+    </div>
+  </div>
+</app-crm-modal>

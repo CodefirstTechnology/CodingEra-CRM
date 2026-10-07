@@ -99,6 +99,15 @@
         <span>Add Follow-up</span>
       </button>
 
+      <!-- Performance Report Action Button -->
+      <button type="button" class="udash__filter-add-btn udash__filter-report-btn" (click)="reportModalOpen.set(true)" title="Performance Report">
+        <svg class="udash__filter-add-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M18 20V10M12 20V4M6 20v-6" />
+        </svg>
+        <span>Performance Report</span>
+      </button>
+
       <!-- Reset Filters Button if any non-default filter is active -->
       @if (hasActiveFilters()) {
       <button type="button" class="udash__filter-reset-btn" (click)="resetFilters()" title="Reset to this month">
@@ -638,4 +647,11 @@
     }
     }
   </app-crm-modal>
-</div>
+
+  <!-- Sales Executive Performance Report Modal (Filtered to Logged-In User) -->
+  <app-sales-executive-report-modal
+    [open]="reportModalOpen()"
+    [filterUserId]="currentUserId()"
+    (dismiss)="reportModalOpen.set(false)"
+  />
+</div>

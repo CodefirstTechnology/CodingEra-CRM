@@ -295,6 +295,7 @@ export class RoleManagementComponent implements OnInit {
       next: () => {
         this.saving.set(false);
         this.toast.success('Permissions saved.');
+        this.auth.refreshSessionPermissions();
         this.backToList();
       },
       error: (err: unknown) => {

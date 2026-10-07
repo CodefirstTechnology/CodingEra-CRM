@@ -2143,6 +2143,49 @@
   color: var(--text-muted);
 }
 
+.sales-dash__emp-head-middle {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  margin: 0 0.5rem;
+  min-width: 0;
+
+  .sales-dash__emp-mid-col {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 0.25rem;
+
+    &--summary {
+      justify-content: flex-end;
+    }
+  }
+}
+
+.crm-perf-btn--summary {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #ffffff;
+  border: none;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  border-radius: 0.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.25);
+
+  &:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(37, 99, 235, 0.35);
+    background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+  }
+}
+
 .sales-dash__emp-search-wrap {
   position: relative;
   min-width: 260px;
