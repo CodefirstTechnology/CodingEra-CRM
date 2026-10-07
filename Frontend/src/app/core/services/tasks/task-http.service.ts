@@ -74,4 +74,26 @@ export class TaskHttpService {
   delete(id: number): Observable<void> {
     return this.http.delete<void>(`${this.baseUrl}/${id}`, { headers: this.jsonHeaders() });
   }
+
+  completeFollowUp(id: number, payload: CompleteFollowUpPayload): Observable<TaskRow | null> {
+    const userId = this.auth.user()?.id ?? 1;
+    const params = new HttpParams().set('userId', String(userId));
+    return this.http
+      .post<unknown>(`${this.baseUrl}/${id}/complete-followup`, payload, {
+        headers: this.jsonHeaders(),
+        params,
+      })
+      .pipe(map((raw) => (raw != null ? mapTaskApiRecord(raw) : null)));
+  }
+}
+
+export interface CompleteFollowUpPayload {
+  taskId: number;
+  discussionNotes?: string;
+  logAsCallDone: boolean;
+  callOutcome: string;
+  durationSeconds?: number;
+  scheduleNext?: boolean;
+  nextDueDate?: string;
+  nextMessage?: string;
 }

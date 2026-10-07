@@ -38,13 +38,142 @@
 
     <!-- Action Buttons (Right) -->
     <div class="flex items-center gap-2.5 flex-wrap self-stretch sm:self-auto justify-start sm:justify-end">
-      <!-- Owner Chip -->
-      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-[#0f172a] border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 shadow-sm" title="Lead Owner">
-        <span class="w-5 h-5 rounded-full bg-sky-500/20 text-sky-600 dark:text-sky-400 font-bold flex items-center justify-center text-[10px]">
-          {{ ownerInitial() }}
-        </span>
-        <span class="truncate max-w-[130px]">{{ displayLeadOwnerName() }}</span>
+      <!-- Call: Yes / No Pill Toggle with Actions Menu -->
+      <div class="relative inline-flex items-center">
+        <button
+          type="button"
+          (click)="onCallButtonClick($event)"
+          [disabled]="isLeadDataReadOnly() || callLogSaving()"
+          class="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all cursor-pointer select-none shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          [class.bg-emerald-50]="callStatus() === 'Yes'"
+          [class.dark:bg-emerald-950/40]="callStatus() === 'Yes'"
+          [class.border-emerald-300]="callStatus() === 'Yes'"
+          [class.dark:border-emerald-700]="callStatus() === 'Yes'"
+          [class.text-emerald-700]="callStatus() === 'Yes'"
+          [class.dark:text-emerald-300]="callStatus() === 'Yes'"
+          [class.bg-white]="callStatus() !== 'Yes'"
+          [class.dark:bg-[#1e293b]]="callStatus() !== 'Yes'"
+          [class.border-slate-300]="callStatus() !== 'Yes'"
+          [class.dark:border-slate-700]="callStatus() !== 'Yes'"
+          [class.text-slate-700]="callStatus() !== 'Yes'"
+          [class.dark:text-slate-300]="callStatus() !== 'Yes'"
+          [class.hover:border-slate-400]="callStatus() !== 'Yes'"
+          [title]="callStatus() === 'Yes' ? 'Click to manage call logs (Add or Delete)' : 'Click to log call in database'"
+        >
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+          </svg>
+          <span>Call:</span>
+          <span
+            class="px-2 py-0.5 rounded-md text-[11px] font-bold uppercase transition-all"
+            [class.bg-emerald-500]="callStatus() === 'Yes'"
+            [class.text-white]="callStatus() === 'Yes'"
+            [class.bg-slate-200]="callStatus() !== 'Yes'"
+            [class.dark:bg-slate-700]="callStatus() !== 'Yes'"
+            [class.text-slate-600]="callStatus() !== 'Yes'"
+            [class.dark:text-slate-400]="callStatus() !== 'Yes'"
+          >
+            {{ callStatus() }}
+          </span>
+          @if (callStatus() === 'Yes') {
+            <svg class="w-3 h-3 ml-0.5 text-emerald-600 dark:text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          }
+        </button>
+
+        @if (callActionsMenuOpen()) {
+          <div
+            class="absolute top-full left-0 mt-1.5 w-56 bg-white dark:bg-[#1e293b] border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 overflow-hidden py-1 text-xs"
+            (click)="$event.stopPropagation()"
+          >
+            <div class="px-3 py-1.5 text-[11px] font-semibold text-slate-400 border-b border-slate-100 dark:border-slate-800">
+              Call Actions ({{ leadCallLogs().length }} logged)
+            </div>
+            <button
+              type="button"
+              (click)="handleAddCallAction()"
+              [disabled]="callLogSaving()"
+              class="w-full text-left px-3.5 py-2.5 flex items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800/70 text-slate-700 dark:text-slate-200 font-medium transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <svg class="w-4 h-4 text-emerald-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              <span>Add Call Log (New)</span>
+            </button>
+            <button
+              type="button"
+              (click)="handleDeleteRecentCallLogAction()"
+              [disabled]="callLogSaving()"
+              class="w-full text-left px-3.5 py-2.5 flex items-center gap-2 hover:bg-rose-50 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 font-medium transition-colors border-t border-slate-100 dark:border-slate-800 cursor-pointer disabled:opacity-50"
+            >
+              <svg class="w-4 h-4 text-rose-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              <span>Delete Recent Call Log</span>
+            </button>
+            <button
+              type="button"
+              (click)="handleDeleteAllCallLogsAction()"
+              [disabled]="callLogSaving()"
+              class="w-full text-left px-3.5 py-2.5 flex items-center gap-2 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 font-medium transition-colors border-t border-slate-100 dark:border-slate-800 cursor-pointer disabled:opacity-50"
+            >
+              <svg class="w-4 h-4 text-rose-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <span>Delete All Call Logs</span>
+            </button>
+          </div>
+        }
       </div>
+
+      <!-- + Add Follow Up Button -->
+      <button
+        type="button"
+        (click)="openAddFollowUpModal()"
+        [disabled]="isLeadDataReadOnly()"
+        class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 hover:border-sky-500 dark:hover:border-sky-500 hover:text-sky-600 dark:hover:text-sky-400 text-slate-700 dark:text-slate-200 transition-all cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+        title="Schedule Follow Up"
+      >
+        <svg class="w-3.5 h-3.5 text-sky-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        <span>Add Follow Up</span>
+      </button>
+
+      <!-- Status Dropdown -->
+      @if (convertedDealId()) {
+        <span class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold border border-slate-200 dark:border-slate-700">
+          <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+          <span>{{ row.status || 'Converted' }}</span>
+        </span>
+      } @else {
+        <div class="relative inline-flex items-center">
+          <select
+            class="appearance-none bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 hover:border-slate-400 dark:hover:border-slate-600 text-slate-800 dark:text-slate-200 text-xs font-semibold pl-3 pr-8 py-2 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            [disabled]="isLeadDataReadOnly() || statusUpdating()"
+            [value]="currentStatusFormValue()"
+            (change)="onHeaderStatusChange($event)"
+            title="Change lead status"
+          >
+            @for (opt of statusSelectOptions(); track opt.id + opt.name) {
+              <option
+                [value]="masterOptionFormValue(opt)"
+                [selected]="masterOptionFormValue(opt) === currentStatusFormValue()"
+                [disabled]="isConversionStatusOption(opt)"
+              >
+                {{ opt.name }}
+              </option>
+            }
+          </select>
+          <svg class="w-3.5 h-3.5 text-slate-400 absolute right-2.5 pointer-events-none" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+          </svg>
+        </div>
+      }
 
       <!-- Convert to Deal Button -->
       @if (convertedDealId(); as dealId) {
@@ -63,7 +192,7 @@
           class="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
           [disabled]="!canConvertCurrentLead()"
           [attr.title]="canConvertCurrentLead() ? null : 'Only Qualified leads can be converted to a deal'"
-          (click)="openConvertModal()"
+          (click)="convertCurrentLead()"
         >
           <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -117,6 +246,14 @@
           } @else if (tab === 'Comments') {
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15a4 4 0 0 1-4 4H8l-5 4V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+            </svg>
+          } @else if (tab === 'Follow Up') {
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+              <line x1="16" x2="16" y1="2" y2="6" />
+              <line x1="8" x2="8" y1="2" y2="6" />
+              <line x1="3" x2="21" y1="10" y2="10" />
+              <path d="m9 16 2 2 4-4" />
             </svg>
           }
           <span>{{ tab }}</span>
@@ -186,14 +323,16 @@
                 }
               </button>
             </div>
+          } @else {
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400 text-xs font-medium" title="This lead was moved to a deal and can no longer be edited.">
+              <svg class="w-3.5 h-3.5 shrink-0 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
+              <span>Moved to deal (Read-only)</span>
+            </div>
           }
         </header>
-
-        @if (isLeadDataReadOnly()) {
-          <div class="mb-6 p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 text-sm font-medium">
-            This lead was moved to a deal and can no longer be edited.
-          </div>
-        }
 
         <!-- Grouped Form -->
         <form id="leadDataForm" [formGroup]="dataForm" (ngSubmit)="saveDataTab()" class="space-y-6">
@@ -383,29 +522,15 @@
                   class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
                   formControlName="source"
                 >
-                  @for (s of sourceOptionsForLead(); track s) {
-                    <option [value]="s">{{ s === '' ? '— Select —' : s }}</option>
+                  <option value="">— Select —</option>
+                  @for (opt of sourceOptionsForLead(); track opt.id + opt.name) {
+                    <option [value]="masterOptionFormValue(opt)">{{ opt.name }}</option>
                   }
                 </select>
               </label>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-              <!-- Status -->
-              <label class="block">
-                <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Status</span>
-                <select
-                  class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all cursor-pointer"
-                  formControlName="status"
-                >
-                  @for (opt of statusSelectOptions(); track opt.id + opt.name) {
-                    <option [value]="masterOptionFormValue(opt)" [disabled]="isConversionStatusOption(opt)">
-                      {{ opt.name }}
-                    </option>
-                  }
-                </select>
-              </label>
-
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <!-- Lead Owner -->
               <label class="block">
                 <span class="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">Lead Owner</span>
@@ -496,9 +621,7 @@
                     [class.border-rose-500]="dataForm.controls.email.invalid && dataForm.controls.email.touched"
                   />
                 </div>
-                @if (dataForm.controls.email.errors?.['duplicate']) {
-                  <span class="text-xs text-rose-500 mt-1 block">A lead with this email already exists.</span>
-                } @else if (dataForm.controls.email.invalid && dataForm.controls.email.touched) {
+                @if (dataForm.controls.email.invalid && dataForm.controls.email.touched) {
                   <span class="text-xs text-rose-500 mt-1 block">Enter a valid email address.</span>
                 }
               </label>
@@ -729,47 +852,246 @@
             }
           </div>
         }
-      } @else if (activeTab() === 'Tasks') {
+      } @else if (activeTab() === 'Follow Up') {
         <header class="flex items-center justify-between pb-4 mb-6 border-b border-slate-100 dark:border-slate-800">
-          <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Tasks</h2>
+          <div>
+            <h2 class="text-lg font-bold text-slate-900 dark:text-slate-100">Follow Up Timeline</h2>
+            <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Track and manage prospect interactions in chronological sequence.</p>
+          </div>
           <button
             type="button"
-            class="bg-sky-500 hover:bg-sky-600 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-colors cursor-pointer"
-            (click)="openNewTaskFromLead()"
+            class="bg-sky-500 hover:bg-sky-600 disabled:opacity-50 text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-colors cursor-pointer flex items-center gap-1.5"
+            [disabled]="isLeadDataReadOnly()"
+            (click)="openAddFollowUpModal()"
           >
-            + New Task
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+            <span>Schedule Follow-up</span>
           </button>
         </header>
 
-        @if (leadTasks().length === 0) {
+        <!-- Summary Indicators Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <!-- Next Follow-up Indicator -->
+          <div class="p-4 rounded-2xl border bg-linear-to-br from-sky-500/5 to-transparent border-sky-500/20 dark:border-sky-500/30">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Next Follow-up
+              </span>
+              @if (nextFollowUp(); as nxt) {
+                <span
+                  class="text-[11px] font-bold px-2 py-0.5 rounded-md uppercase"
+                  [class.bg-rose-500]="isFollowUpOverdue(nxt)"
+                  [class.text-white]="isFollowUpOverdue(nxt)"
+                  [class.bg-sky-500/10]="!isFollowUpOverdue(nxt)"
+                  [class.text-sky-600]="!isFollowUpOverdue(nxt)"
+                >
+                  {{ isFollowUpOverdue(nxt) ? 'Overdue' : 'Scheduled' }}
+                </span>
+              }
+            </div>
+
+            @if (nextFollowUp(); as nxt) {
+              <p class="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {{ formatFollowUpDate(nxt.dueDateRaw || nxt.dueDate) }}
+              </p>
+              <p class="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 mb-3">
+                {{ nxt.description || nxt.title }}
+              </p>
+              <div class="flex items-center justify-between pt-2 border-t border-sky-500/10 text-xs">
+                <span class="text-slate-500">Agent: <strong>{{ nxt.assignedTo }}</strong></span>
+                <button
+                  type="button"
+                  (click)="openCompleteFollowUpModal(nxt)"
+                  [disabled]="isLeadDataReadOnly()"
+                  class="px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors shadow-xs cursor-pointer flex items-center gap-1"
+                >
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Mark Completed</span>
+                </button>
+              </div>
+            } @else {
+              <p class="text-xs text-slate-500 dark:text-slate-400 py-3">No upcoming follow-up scheduled.</p>
+              <button
+                type="button"
+                (click)="openAddFollowUpModal()"
+                [disabled]="isLeadDataReadOnly()"
+                class="text-xs font-semibold text-sky-500 hover:text-sky-600 dark:text-sky-400 cursor-pointer"
+              >
+                + Schedule next interaction
+              </button>
+            }
+          </div>
+
+          <!-- Last Follow-up Indicator -->
+          <div class="p-4 rounded-2xl border bg-linear-to-br from-emerald-500/5 to-transparent border-emerald-500/20 dark:border-emerald-500/30">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                Last Completed Follow-up
+              </span>
+              @if (lastFollowUp()) {
+                <span class="text-[11px] font-bold px-2 py-0.5 rounded-md uppercase bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  Completed
+                </span>
+              }
+            </div>
+
+            @if (lastFollowUp(); as last) {
+              <p class="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1">
+                {{ formatFollowUpDate(last.lastModified || last.dueDateRaw) }}
+              </p>
+              <p class="text-xs text-slate-600 dark:text-slate-300 line-clamp-2 mb-3">
+                {{ last.description || last.title }}
+              </p>
+              <div class="flex items-center justify-between pt-2 border-t border-emerald-500/10 text-xs text-slate-500">
+                <span>Completed by: <strong>{{ last.assignedTo }}</strong></span>
+                <span class="text-[11px] text-emerald-600 dark:text-emerald-400 font-semibold">✓ Logged</span>
+              </div>
+            } @else {
+              <p class="text-xs text-slate-500 dark:text-slate-400 py-3">No completed follow-ups yet.</p>
+            }
+          </div>
+        </div>
+
+        <!-- Follow-up Timeline List -->
+        @if (followUpTimeline().length === 0) {
           <div class="py-12 text-center text-slate-500 dark:text-slate-400">
             <svg class="w-12 h-12 mx-auto mb-3 opacity-40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M9 11l3 3L22 4" />
-              <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+              <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+              <line x1="16" x2="16" y1="2" y2="6" />
+              <line x1="8" x2="8" y1="2" y2="6" />
+              <line x1="3" x2="21" y1="10" y2="10" />
             </svg>
-            <p class="text-sm font-medium">No Tasks</p>
+            <p class="text-sm font-medium">No Follow-ups Recorded</p>
+            <p class="text-xs text-slate-400 mt-1">Start tracking interactions by scheduling your first follow-up.</p>
             <button
               type="button"
-              class="mt-3 text-xs font-semibold text-sky-500 hover:text-sky-600 dark:text-sky-400 cursor-pointer"
-              (click)="openNewTaskFromLead()"
+              class="mt-4 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-sky-500 hover:bg-sky-600 transition-all cursor-pointer shadow-sm inline-flex items-center gap-1.5"
+              [disabled]="isLeadDataReadOnly()"
+              (click)="openAddFollowUpModal()"
             >
-              + Create first task
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              <span>Schedule First Follow-up</span>
             </button>
           </div>
         } @else {
-          <div class="space-y-3">
-            @for (task of leadTasks(); track task.id) {
-              <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
-                <div>
-                  <button type="button" class="text-sm font-semibold text-slate-900 dark:text-slate-100 hover:text-sky-500 text-left" (click)="openTaskForEdit(task)">
-                    {{ task.title }}
-                  </button>
-                  <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                    {{ task.assignedTo }} · Priority: {{ task.priority }} · Status: {{ task.status }}
+          <div class="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+            @for (task of followUpTimeline(); track task.id) {
+              <div class="relative group">
+                <!-- Timeline Node Marker -->
+                <div
+                  class="absolute -left-6 top-1.5 w-5 h-5 rounded-full border-2 border-white dark:border-[#0f172a] flex items-center justify-center text-[10px] font-bold shadow-xs transition-transform group-hover:scale-110"
+                  [class.bg-emerald-500]="task.status === 'Done'"
+                  [class.text-white]="task.status === 'Done'"
+                  [class.bg-rose-500]="isFollowUpOverdue(task)"
+                  [class.text-white]="isFollowUpOverdue(task)"
+                  [class.bg-sky-500]="task.status !== 'Done' && !isFollowUpOverdue(task)"
+                  [class.text-white]="task.status !== 'Done' && !isFollowUpOverdue(task)"
+                >
+                  @if (task.status === 'Done') {
+                    <svg class="w-2.5 h-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+                  } @else {
+                    <span class="w-1.5 h-1.5 rounded-full bg-white"></span>
+                  }
+                </div>
+
+                <!-- Timeline Item Card -->
+                <div class="p-4 rounded-xl bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 transition-all hover:border-slate-300 dark:hover:border-slate-700 shadow-xs">
+                  <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-100 dark:border-slate-800">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span
+                        class="text-[10px] font-bold px-2 py-0.5 rounded-md uppercase"
+                        [class.bg-emerald-500/10]="task.status === 'Done'"
+                        [class.text-emerald-600]="task.status === 'Done'"
+                        [class.dark:text-emerald-400]="task.status === 'Done'"
+                        [class.bg-rose-500/10]="isFollowUpOverdue(task)"
+                        [class.text-rose-600]="isFollowUpOverdue(task)"
+                        [class.dark:text-rose-400]="isFollowUpOverdue(task)"
+                        [class.bg-sky-500/10]="task.status !== 'Done' && !isFollowUpOverdue(task)"
+                        [class.text-sky-600]="task.status !== 'Done' && !isFollowUpOverdue(task)"
+                        [class.dark:text-sky-400]="task.status !== 'Done' && !isFollowUpOverdue(task)"
+                      >
+                        {{ task.status === 'Done' ? 'Completed' : (isFollowUpOverdue(task) ? 'Overdue' : 'Scheduled') }}
+                      </span>
+                      <span class="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Scheduled: {{ formatFollowUpDate(task.dueDateRaw || task.dueDate) }}
+                      </span>
+                    </div>
+
+                    <!-- Actions -->
+                    <div class="flex items-center gap-2">
+                      @if (task.status !== 'Done') {
+                        <button
+                          type="button"
+                          (click)="openCompleteFollowUpModal(task)"
+                          [disabled]="isLeadDataReadOnly()"
+                          class="px-2.5 py-1 rounded-lg text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors cursor-pointer shadow-xs flex items-center gap-1"
+                        >
+                          <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                          <span>Complete</span>
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        (click)="deleteFollowUp(task)"
+                        [disabled]="isLeadDataReadOnly()"
+                        class="p-1 text-slate-400 hover:text-rose-500 rounded-lg transition-colors cursor-pointer"
+                        title="Delete follow-up"
+                        aria-label="Delete follow-up"
+                      >
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Message / Notes -->
+                  <p class="text-sm text-slate-800 dark:text-slate-200 whitespace-pre-line mb-3">
+                    {{ task.description || task.title }}
                   </p>
+
+                  <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2 border-t border-slate-100 dark:border-slate-800/60">
+                    <div class="flex items-center gap-2">
+                      <span class="w-5 h-5 rounded-full bg-sky-500/10 text-sky-600 dark:text-sky-400 font-bold text-[10px] flex items-center justify-center">
+                        {{ taskAssigneeChipInitial(task) }}
+                      </span>
+                      <span>Assigned to: <strong>{{ task.assignedTo }}</strong></span>
+                    </div>
+                    @if (task.status === 'Done') {
+                      <span class="text-emerald-600 dark:text-emerald-400 font-medium text-[11px]">
+                        Completed on {{ formatFollowUpDate(task.lastModified) }}
+                      </span>
+                    }
+                  </div>
                 </div>
               </div>
             }
+          </div>
+
+          <!-- Finished Follow-ups Stage Progression Banner -->
+          <div class="mt-8 p-4 rounded-2xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h4 class="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-100">Ready to conclude follow-ups?</h4>
+              <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Move this lead into Qualification for deal conversion, or mark as Unqualified.</p>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                [disabled]="isLeadDataReadOnly() || statusUpdating()"
+                (click)="changeStatusDirectly('Qualified')"
+                class="px-3.5 py-1.5 rounded-xl text-xs font-bold text-white bg-sky-500 hover:bg-sky-600 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                Qualify Lead (Ready for Deal)
+              </button>
+              <button
+                type="button"
+                [disabled]="isLeadDataReadOnly() || statusUpdating()"
+                (click)="changeStatusDirectly('Unqualified')"
+                class="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 dark:text-slate-300 bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 hover:border-rose-400 hover:text-rose-600 transition-colors shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                Mark Unqualified
+              </button>
+            </div>
           </div>
         }
       } @else if (activeTab() === 'Attachments') {
@@ -828,6 +1150,221 @@
       }
     </article>
   </section>
+
+  <!-- Schedule Follow Up Modal -->
+  <app-crm-modal
+    [open]="followUpModalOpen()"
+    title="Schedule Follow-up"
+    size="md"
+    (dismiss)="closeAddFollowUpModal()"
+  >
+    <form [formGroup]="followUpForm" (ngSubmit)="submitAddFollowUp()" class="space-y-4">
+      <div>
+        <label class="block mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+          Follow-up Date & Time <span class="text-rose-500">*</span>
+        </label>
+        <input
+          type="datetime-local"
+          formControlName="dueDate"
+          class="w-full bg-slate-50 dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+        />
+        @if (followUpForm.controls.dueDate.touched && followUpForm.controls.dueDate.invalid) {
+          <p class="text-xs text-rose-500 mt-1 font-medium">Follow-up date and time is required.</p>
+        }
+      </div>
+
+      <div>
+        <label class="block mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+          Assignee / Owner <span class="text-rose-500">*</span>
+        </label>
+        <select
+          formControlName="assigneeId"
+          class="w-full bg-slate-50 dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+        >
+          @for (opt of leadOwnerOptions(); track opt.id) {
+            <option [value]="opt.id">{{ opt.label }}</option>
+          }
+        </select>
+        @if (followUpForm.controls.assigneeId.touched && followUpForm.controls.assigneeId.invalid) {
+          <p class="text-xs text-rose-500 mt-1 font-medium">Assignee is required.</p>
+        }
+      </div>
+
+      <div>
+        <label class="block mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+          Follow-up Message / Discussion Notes <span class="text-rose-500">*</span>
+        </label>
+        <textarea
+          rows="4"
+          formControlName="message"
+          placeholder="Enter discussion notes, call objective, or meeting agenda..."
+          class="w-full bg-slate-50 dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all resize-none"
+        ></textarea>
+        @if (followUpForm.controls.message.touched && followUpForm.controls.message.invalid) {
+          <p class="text-xs text-rose-500 mt-1 font-medium">Message / notes are required.</p>
+        }
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+        <button
+          type="button"
+          (click)="closeAddFollowUpModal()"
+          class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          [disabled]="followUpSaving() || followUpForm.invalid"
+          class="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-sky-500 hover:bg-sky-600 disabled:opacity-50 transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
+        >
+          @if (followUpSaving()) {
+            <svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" stroke-opacity="0.25" />
+              <path d="M12 2a10 10 0 0 1 10 10" />
+            </svg>
+            <span>Saving…</span>
+          } @else {
+            <span>Schedule Follow-up</span>
+          }
+        </button>
+      </div>
+    </form>
+  </app-crm-modal>
+
+  <!-- Complete Follow Up Modal -->
+  <app-crm-modal
+    [open]="completeModalOpen()"
+    title="Complete Follow-up"
+    size="md"
+    (dismiss)="closeCompleteFollowUpModal()"
+  >
+    @if (selectedFollowUpToComplete(); as followUp) {
+      <form [formGroup]="completeForm" (ngSubmit)="submitCompleteFollowUp()" class="space-y-4">
+        <!-- Selected Follow-up Context -->
+        <div class="p-3.5 rounded-xl bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800">
+          <div class="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-1">
+            <span>Scheduled: <strong>{{ formatFollowUpDate(followUp.dueDateRaw || followUp.dueDate) }}</strong></span>
+            <span>Assignee: <strong>{{ followUp.assignedTo }}</strong></span>
+          </div>
+          <p class="text-xs text-slate-700 dark:text-slate-300 line-clamp-2">
+            {{ followUp.description || followUp.title }}
+          </p>
+        </div>
+
+        <!-- Log as Phone Call Toggle -->
+        <label class="flex items-center gap-2.5 cursor-pointer select-none p-3 rounded-xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/50 hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
+          <input
+            type="checkbox"
+            formControlName="logAsCallDone"
+            class="w-4 h-4 rounded text-emerald-500 focus:ring-emerald-500 dark:bg-slate-900 dark:border-slate-700 cursor-pointer"
+          />
+          <div class="flex flex-col">
+            <span class="text-xs font-semibold text-emerald-900 dark:text-emerald-300 flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+              </svg>
+              Log as Phone Call (Mark Call Done)
+            </span>
+            <span class="text-[11px] text-slate-500 dark:text-slate-400">Records a call log entry and increments executive calls metrics in dashboard reports.</span>
+          </div>
+        </label>
+
+        @if (completeForm.controls.logAsCallDone.value) {
+          <div>
+            <label class="block mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+              Call Outcome <span class="text-rose-500">*</span>
+            </label>
+            <select
+              formControlName="callOutcome"
+              class="w-full bg-slate-50 dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+            >
+              <option value="Connected">Connected</option>
+              <option value="Busy / No Answer">Busy / No Answer</option>
+              <option value="Left Voicemail">Left Voicemail</option>
+              <option value="Follow-up Scheduled">Follow-up Scheduled</option>
+            </select>
+          </div>
+        }
+
+        <div>
+          <label class="block mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Outcome Notes / Discussion Summary
+          </label>
+          <textarea
+            rows="3"
+            formControlName="outcomeNotes"
+            placeholder="Enter call outcome, discussion summary, key takeaways..."
+            class="w-full bg-slate-50 dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all resize-none"
+          ></textarea>
+        </div>
+
+        <!-- Schedule Next Toggle -->
+        <label class="flex items-center gap-2.5 cursor-pointer select-none p-3 rounded-xl bg-slate-50 dark:bg-[#1e293b] border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+          <input
+            type="checkbox"
+            formControlName="scheduleNext"
+            class="w-4 h-4 rounded text-sky-500 focus:ring-sky-500 dark:bg-slate-900 dark:border-slate-700 cursor-pointer"
+          />
+          <div class="flex flex-col">
+            <span class="text-xs font-semibold text-slate-800 dark:text-slate-200">Schedule next follow-up interaction</span>
+            <span class="text-[11px] text-slate-500 dark:text-slate-400">Keep the momentum going by setting a follow-up date immediately.</span>
+          </div>
+        </label>
+
+        @if (completeForm.controls.scheduleNext.value) {
+          <div class="p-4 rounded-xl bg-sky-50/50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-800/50 space-y-3">
+            <div>
+              <label class="block mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Next Follow-up Date & Time <span class="text-rose-500">*</span>
+              </label>
+              <input
+                type="datetime-local"
+                formControlName="nextDueDate"
+                class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+              />
+            </div>
+            <div>
+              <label class="block mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Next Follow-up Objective / Message <span class="text-rose-500">*</span>
+              </label>
+              <textarea
+                rows="2"
+                formControlName="nextMessage"
+                placeholder="Objective for next follow-up..."
+                class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all resize-none"
+              ></textarea>
+            </div>
+          </div>
+        }
+
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+          <button
+            type="button"
+            (click)="closeCompleteFollowUpModal()"
+            class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            [disabled]="completeSaving()"
+            class="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
+          >
+            @if (completeSaving()) {
+              <svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10" stroke-opacity="0.25" />
+                <path d="M12 2a10 10 0 0 1 10 10" />
+              </svg>
+              <span>Saving…</span>
+            } @else {
+              <span>Mark as Completed</span>
+            }
+          </button>
+        </div>
+      </form>
+    }
+  </app-crm-modal>
 </div>
 } @else {
 <div class="min-h-screen bg-slate-50 dark:bg-[#070d1e] text-slate-900 dark:text-slate-100 p-6 flex flex-col items-center justify-center">
@@ -837,12 +1374,3 @@
   </a>
 </div>
 }
-
-<app-convert-lead-modal
-  [open]="convertModalOpen()"
-  [leadCount]="1"
-  [leadPreview]="lead()?.name ?? ''"
-  [conversionStatusLabel]="conversionStatusLabel()"
-  (confirm)="onConvertModalConfirm($event)"
-  (dismiss)="closeConvertModal()"
-/>

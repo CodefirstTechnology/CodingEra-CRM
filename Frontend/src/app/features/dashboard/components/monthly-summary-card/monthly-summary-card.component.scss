@@ -1,0 +1,198 @@
+:host {
+  display: block;
+  margin-top: 1.5rem;
+}
+
+.m-sum-card {
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--card-border, #e2e8f0);
+  border-radius: 12px;
+  box-shadow: var(--shadow-card, 0 1px 3px rgba(0, 0, 0, 0.05));
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.m-sum-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.m-sum-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--dash-heading-text, #0f172a);
+}
+
+.m-sum-subtitle {
+  margin: 0.2rem 0 0;
+  font-size: 0.775rem;
+  color: var(--dash-muted-text, #64748b);
+}
+
+.m-sum-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.m-sum-year-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.m-sum-year-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--dash-muted-text, #64748b);
+  text-transform: uppercase;
+}
+
+.m-sum-year-select {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--dash-heading-text, #0f172a);
+  background: var(--surface, #ffffff);
+  border: 1px solid var(--card-border, #cbd5e1);
+  border-radius: 6px;
+  outline: none;
+
+  &:focus {
+    border-color: var(--sd-accent, #2563eb);
+  }
+}
+
+.m-sum-exports {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.m-sum-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--card-border, #cbd5e1);
+  background: var(--surface, #ffffff);
+  color: var(--dash-heading-text, #1e293b);
+  cursor: pointer;
+  transition: all 0.15s ease;
+
+  &:hover {
+    border-color: var(--sd-accent, #2563eb);
+    color: var(--sd-accent, #2563eb);
+    background: color-mix(in srgb, var(--sd-accent, #3b82f6) 6%, transparent);
+  }
+}
+
+.m-sum-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--card-border, #e2e8f0);
+  border-radius: 8px;
+
+  &::-webkit-scrollbar {
+    height: 6px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--card-border, #cbd5e1);
+    border-radius: 4px;
+  }
+}
+
+.m-sum-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  th {
+    background: var(--bg-muted, #f8fafc);
+    color: var(--dash-muted-text, #475569);
+    font-weight: 700;
+    font-size: 0.725rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    padding: 0.65rem 0.75rem;
+    border-bottom: 1px solid var(--card-border, #e2e8f0);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--card-border, #f1f5f9);
+    color: var(--dash-heading-text, #334155);
+    white-space: nowrap;
+  }
+
+  tbody tr:hover {
+    background: color-mix(in srgb, var(--sd-accent, #3b82f6) 4%, transparent);
+  }
+}
+
+.m-sum-foot-row {
+  background: var(--bg-muted, #f8fafc);
+  border-top: 2px solid var(--card-border, #cbd5e1);
+
+  td {
+    padding: 0.75rem;
+    font-size: 0.8125rem;
+  }
+}
+
+.m-sum-badge {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 4px;
+  font-size: 0.725rem;
+  font-weight: 700;
+
+  &--success {
+    background: color-mix(in srgb, #10b981 12%, transparent);
+    color: #059669;
+  }
+
+  &--warning {
+    background: color-mix(in srgb, #f59e0b 12%, transparent);
+    color: #d97706;
+  }
+
+  &--neutral {
+    background: color-mix(in srgb, #64748b 12%, transparent);
+    color: #475569;
+  }
+}
+
+.m-sum-skel-bar {
+  height: 20px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 200% 100%;
+  animation: mSumSkel 1.5s infinite;
+  border-radius: 4px;
+}
+
+@keyframes mSumSkel {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.m-sum-empty {
+  text-align: center;
+  padding: 2rem;
+  color: var(--dash-muted-text, #64748b);
+  font-style: italic;
+}

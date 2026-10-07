@@ -1,9 +1,10 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, HostListener, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, forkJoin, of } from 'rxjs';
 import { catchError, take } from 'rxjs/operators';
+import { CallLogService, type CallLogRow, type CallLogUpsertPayload } from '../../core/services/call-log/call-log.service';
 import { AuthService } from '../../core/auth/auth.service';
 import { CreateFlowService } from '../../core/create-flow/create-flow.service';
 import { CreateRowBusService } from '../../core/create-flow/create-row-bus.service';
@@ -52,7 +53,6 @@ import {
   isLeadConverted,
   isLeadQualifiedForConversion,
 } from '../../shared/utils/lead-conversion.util';
-import { ConvertLeadModalComponent } from '../../shared/components/convert-lead-modal/convert-lead-modal.component';
 import { UserDataScopeService } from '../../core/services/user-data-scope.service';
 import { PermissionService } from '../../core/services/permission.service';
 import { resolveRecordOwnerIdForSubmit } from '../../shared/utils/record-owner-assignment.util';
@@ -74,6 +74,7 @@ import {
 import { gstFormValidators, optionalEmailValidator } from '../../shared/validators/crm-validators';
 import { parseRevenueInputToNumber } from '../../shared/utils/revenue-parse';
 import { TextFormatter } from '../../shared/utils/text-normalizer';
+import { CrmModalComponent } from '../../core/modal/crm-modal.component';
 import type { LeadOwnerOption, LeadRow, LeadSource, LeadStatus } from './lead-row.model';
 import type { TaskRow } from '../tasks/tasks.component';
 
@@ -89,7 +90,7 @@ const FALLBACK_INDUSTRY_NAMES = [
   'Other',
 ] as const;
 
-type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Tasks' | 'Attachments';
+type DetailTab = 'Activity' | 'Emails' | 'Comments' | 'Data' | 'Follow Up' | 'Attachments';
 
 interface LeadAttachmentItem {
   id: string;
@@ -106,8 +107,8 @@ interface LeadCommentItem extends EntityCommentItem {}
     RouterLink,
     ReactiveFormsModule,
     EntityActivityTimelineComponent,
-    ConvertLeadModalComponent,
     IntlTelInputComponent,
+    CrmModalComponent,
   ],
   templateUrl: './lead-detail.component.html',
   styleUrl: './lead-detail.component.scss',
@@ -126,16 +127,44 @@ export class LeadDetailComponent {
   private readonly leadMasterData = inject(LeadMasterDataService);
   private readonly createRowBus = inject(CreateRowBusService);
   private readonly createFlow = inject(CreateFlowService);
+  private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
+  private readonly callLogService = inject(CallLogService);
   protected readonly auth = inject(AuthService);
+  protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
 
   protected readonly numericId = signal<number | null>(null);
   protected readonly lead = signal<LeadRow | null>(null);
   protected readonly activeTab = signal<DetailTab>('Data');
   protected readonly dataSaving = signal(false);
+  protected readonly statusUpdating = signal(false);
+  protected readonly callStatus = signal<'Yes' | 'No'>('No');
+  protected readonly leadCallLogs = signal<CallLogRow[]>([]);
+  protected readonly callActionsMenuOpen = signal(false);
+  protected readonly callLogSaving = signal(false);
   protected readonly leadInitialLoading = signal(false);
   protected readonly leadLoadError = signal<string | null>(null);
-  /** Tasks where `relatedLeadId` matches the open lead (from lead-detail “+ New Task”). */
+  /** Tasks/Follow-ups where `relatedLeadId` matches the open lead. */
   protected readonly leadTasks = signal<TaskRow[]>([]);
+  protected readonly followUpModalOpen = signal(false);
+  protected readonly followUpSaving = signal(false);
+  protected readonly completeModalOpen = signal(false);
+  protected readonly completeSaving = signal(false);
+  protected readonly selectedFollowUpToComplete = signal<TaskRow | null>(null);
+
+  protected readonly followUpForm = this.fb.nonNullable.group({
+    dueDate: ['', Validators.required],
+    message: ['', [Validators.required, Validators.maxLength(1000)]],
+    assigneeId: ['', Validators.required],
+  });
+
+  protected readonly completeForm = this.fb.nonNullable.group({
+    outcomeNotes: [''],
+    logAsCallDone: [true],
+    callOutcome: ['Connected'],
+    scheduleNext: [false],
+    nextDueDate: [''],
+    nextMessage: [''],
+  });
   /** Client-side attachments for this lead (sessionStorage until backend exists). */
   protected readonly leadAttachments = signal<LeadAttachmentItem[]>([]);
   /** Comments for this lead from the comments API. */
@@ -195,7 +224,7 @@ export class LeadDetailComponent {
     'Emails',
     'Comments',
     'Data',
-    'Tasks',
+    'Follow Up',
     'Attachments',
   ];
 
@@ -271,14 +300,19 @@ export class LeadDetailComponent {
   );
 
   /** Source dropdown includes the lead's current source when it is not in the static list (e.g. Justdial Enquiry). */
-  protected readonly sourceOptionsForLead = computed(() => {
-    const apiSources = this.sourcesFromApi().map((s) => s.name);
-    const base = apiSources.length > 0 ? apiSources : [...this.sourceOptions.filter(Boolean)];
+  protected readonly sourceOptionsForLead = computed<MasterDataOption[]>(() => {
+    const api = this.sourcesFromApi();
+    const base: MasterDataOption[] =
+      api.length > 0
+        ? api
+        : this.sourceOptions
+            .filter(Boolean)
+            .map((name) => ({ id: 0, name }));
     const current = this.lead()?.source?.trim() || this.lead()?.leadSource?.trim();
-    if (current && !base.includes(current)) {
-      return ['', ...base, current];
+    if (current && !base.some((b) => b.name.trim().toLowerCase() === current.toLowerCase())) {
+      return [...base, { id: 0, name: current }];
     }
-    return ['', ...base];
+    return base;
   });
 
   protected readonly territoryPaginatedOptions = computed(() =>
@@ -294,18 +328,16 @@ export class LeadDetailComponent {
     }),
   );
   protected readonly sourcePaginatedOptions = computed(() =>
-    this.sourceOptionsForLead().map((s) => ({
-      value: s,
-      label: s === '' ? '— Select —' : s,
+    this.sourceOptionsForLead().map((opt) => ({
+      value: this.masterOptionFormValue(opt),
+      label: opt.name,
     })),
   );
   protected readonly leadOwnerPaginatedOptions = computed(() =>
     this.leadOwnerOptions().map((o) => ({ value: o.id, label: o.label })),
   );
-  private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly userScope = inject(UserDataScopeService);
   private readonly permissions = inject(PermissionService);
-  protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
   protected readonly canAssignLeads = computed(() => this.permissions.canAssignLeads());
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
 
@@ -403,7 +435,11 @@ export class LeadDetailComponent {
 
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((query) => {
       const tab = parseEntityDetailTab(query.get('tab'));
-      if (tab && tab !== 'Notes') this.setTab(tab);
+      if (tab === 'Tasks' || tab === 'Follow Up') {
+        this.setTab('Follow Up');
+      } else if (tab && tab !== 'Notes') {
+        this.setTab(tab);
+      }
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {
@@ -447,6 +483,7 @@ export class LeadDetailComponent {
     this.refreshLeadActivities();
     const lid = row.id.trim();
     if (lid) {
+      this.loadCallStatusForLead(lid);
       this.loadLeadAttachments(lid);
       this.refreshLeadComments();
       this.refreshLeadEmails();
@@ -811,21 +848,318 @@ export class LeadDetailComponent {
     this.setTab('Comments');
   }
 
-  protected openNewTaskFromLead(): void {
-    const l = this.lead();
-    if (!l?.id) return;
-    this.createFlow.selectEntity('task', {
-      taskFromLead: {
-        relatedLeadId: String(l.id),
-        recordOwnerUserId: leadRecordOwnerUserId(l),
-      },
+  protected readonly followUpTimeline = computed(() => {
+    return [...this.leadTasks()].sort((a, b) => {
+      const timeA = new Date(a.dueDateRaw || a.dueDate || a.lastModified).getTime();
+      const timeB = new Date(b.dueDateRaw || b.dueDate || b.lastModified).getTime();
+      return (Number.isNaN(timeB) ? 0 : timeB) - (Number.isNaN(timeA) ? 0 : timeA);
+    });
+  });
+
+  protected readonly completedFollowUps = computed(() => {
+    return this.leadTasks()
+      .filter((t) => t.status === 'Done')
+      .sort((a, b) => {
+        const timeA = new Date(a.lastModified || a.dueDateRaw).getTime();
+        const timeB = new Date(b.lastModified || b.dueDateRaw).getTime();
+        return (Number.isNaN(timeB) ? 0 : timeB) - (Number.isNaN(timeA) ? 0 : timeA);
+      });
+  });
+
+  protected readonly pendingFollowUps = computed(() => {
+    return this.leadTasks()
+      .filter((t) => t.status !== 'Done' && t.status !== 'Canceled')
+      .sort((a, b) => {
+        const timeA = new Date(a.dueDateRaw || a.dueDate).getTime();
+        const timeB = new Date(b.dueDateRaw || b.dueDate).getTime();
+        return (Number.isNaN(timeA) ? 0 : timeA) - (Number.isNaN(timeB) ? 0 : timeB);
+      });
+  });
+
+  protected readonly nextFollowUp = computed(() => {
+    const pending = this.pendingFollowUps();
+    return pending.length > 0 ? pending[0] : null;
+  });
+
+  protected readonly lastFollowUp = computed(() => {
+    const completed = this.completedFollowUps();
+    return completed.length > 0 ? completed[0] : null;
+  });
+
+  protected isFollowUpOverdue(task: TaskRow): boolean {
+    if (task.status === 'Done' || task.status === 'Canceled') return false;
+    const dueTime = new Date(task.dueDateRaw || task.dueDate).getTime();
+    return !Number.isNaN(dueTime) && dueTime < Date.now();
+  }
+
+  protected formatFollowUpDate(dateStr: string | null | undefined): string {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (Number.isNaN(d.getTime())) return dateStr;
+    return d.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
     });
   }
 
-  protected openTaskForEdit(task: TaskRow): void {
-    const id = task.id?.trim();
-    if (!id) return;
-    void this.router.navigate(['/tasks'], { queryParams: { edit: id } });
+  private defaultFollowUpDate(): string {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(10, 0, 0, 0);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  protected openAddFollowUpModal(): void {
+    const row = this.lead();
+    if (!row) return;
+    const defaultOwnerId = row.leadOwnerId || this.leadOwnerOpts.defaultOwnerId();
+    this.followUpForm.reset({
+      dueDate: this.defaultFollowUpDate(),
+      message: '',
+      assigneeId: defaultOwnerId,
+    });
+    this.followUpForm.markAsUntouched();
+    this.followUpModalOpen.set(true);
+  }
+
+  protected closeAddFollowUpModal(): void {
+    this.followUpModalOpen.set(false);
+  }
+
+  protected submitAddFollowUp(): void {
+    this.followUpForm.markAllAsTouched();
+    if (this.followUpForm.invalid || this.followUpSaving()) return;
+
+    const row = this.lead();
+    if (!row) return;
+    const idn = this.numericId();
+    if (idn == null) return;
+
+    const val = this.followUpForm.getRawValue();
+    const ownerOpt = this.leadOwnerOpts.findById(val.assigneeId);
+    const assigneeName = ownerOpt?.label ?? row.leadOwnerName ?? 'Lead Owner';
+
+    this.followUpSaving.set(true);
+
+    const taskPayload: Omit<TaskRow, 'id'> = {
+      title: `Follow up: ${row.name}`,
+      dailyImprovement: '',
+      description: val.message.trim(),
+      status: 'Todo',
+      priority: 'Medium',
+      dueDate: val.dueDate,
+      dueDateRaw: val.dueDate,
+      assignedTo: assigneeName,
+      assignedToUserId: val.assigneeId,
+      assignedInitials: ownerOpt?.initials ?? 'FO',
+      lastModified: new Date().toISOString(),
+      relatedLeadId: String(idn),
+      relatedLeadName: row.name,
+    };
+
+    this.tasksService
+      .create(taskPayload)
+      .pipe(
+        take(1),
+        catchError(() => {
+          this.toast.error('Failed to create follow-up.');
+          return of(null);
+        }),
+      )
+      .subscribe((created) => {
+        if (!created) {
+          this.followUpSaving.set(false);
+          return;
+        }
+
+        // Resolve "Follow-up" status from master data or canonical mapping
+        const followUpOpt = this.statusSelectOptions().find(
+          (o) => {
+            const n = o.name.toLowerCase().trim();
+            return n === 'follow-up' || n === 'follow up' || n === 'followup';
+          },
+        );
+        const targetStatus = coerceLeadStatus(followUpOpt?.name ?? 'Follow-up');
+        const targetStatusId =
+          followUpOpt?.id && followUpOpt.id > 0
+            ? followUpOpt.id
+            : (resolveLeadStatusIdFromName('Follow-up') ?? undefined);
+
+        this.leadsService
+          .update(idn, {
+            status: targetStatus,
+            leadStatusId: targetStatusId,
+            updated: 'Just now',
+          })
+          .pipe(
+            take(1),
+            catchError(() => of(null)),
+          )
+          .subscribe((updatedLead) => {
+            this.followUpSaving.set(false);
+            this.closeAddFollowUpModal();
+            this.refreshLeadTasks();
+            this.refreshLeadActivities();
+
+            if (updatedLead) {
+              const enriched = this.leadOwnerOpts.applyOwnerToRow(updatedLead);
+              this.lead.set(enriched);
+              this.dataForm.patchValue({
+                status: this.masterSelectControlValue(
+                  enriched.leadStatusId,
+                  enriched.status,
+                  this.statusSelectOptions(),
+                ),
+              });
+            } else {
+              const cur = this.lead();
+              if (cur) {
+                const nextRow: LeadRow = {
+                  ...cur,
+                  status: targetStatus,
+                  leadStatusId: targetStatusId,
+                };
+                this.lead.set(nextRow);
+                this.dataForm.patchValue({
+                  status: this.masterSelectControlValue(
+                    targetStatusId,
+                    targetStatus,
+                    this.statusSelectOptions(),
+                  ),
+                });
+              }
+            }
+            this.toast.success('Follow-up scheduled and lead status moved to Follow-up.');
+          });
+      });
+  }
+
+  protected openCompleteFollowUpModal(task: TaskRow): void {
+    this.selectedFollowUpToComplete.set(task);
+    this.completeForm.reset({
+      outcomeNotes: '',
+      logAsCallDone: true,
+      callOutcome: 'Connected',
+      scheduleNext: false,
+      nextDueDate: this.defaultFollowUpDate(),
+      nextMessage: '',
+    });
+    this.completeForm.markAsUntouched();
+    this.completeModalOpen.set(true);
+  }
+
+  protected closeCompleteFollowUpModal(): void {
+    this.completeModalOpen.set(false);
+    this.selectedFollowUpToComplete.set(null);
+  }
+
+  protected submitCompleteFollowUp(): void {
+    const task = this.selectedFollowUpToComplete();
+    if (!task) return;
+    const taskIdn = Number(task.id);
+    if (!Number.isFinite(taskIdn) || taskIdn <= 0) return;
+
+    const idn = this.numericId();
+    const val = this.completeForm.getRawValue();
+
+    if (val.scheduleNext && (!val.nextDueDate || !val.nextMessage.trim())) {
+      this.toast.error('Please enter the next follow-up date and message.');
+      return;
+    }
+
+    this.completeSaving.set(true);
+
+    this.tasksService
+      .completeFollowUp(taskIdn, {
+        taskId: taskIdn,
+        discussionNotes: val.outcomeNotes?.trim() ?? '',
+        logAsCallDone: val.logAsCallDone,
+        callOutcome: val.callOutcome || 'Connected',
+        durationSeconds: 60,
+        scheduleNext: val.scheduleNext,
+        nextDueDate: val.scheduleNext ? val.nextDueDate : undefined,
+        nextMessage: val.scheduleNext ? val.nextMessage.trim() : undefined,
+      })
+      .pipe(
+        take(1),
+        catchError(() => {
+          this.toast.error('Failed to complete follow-up.');
+          return of(null);
+        }),
+      )
+      .subscribe((updatedTask) => {
+        this.completeSaving.set(false);
+        if (!updatedTask) return;
+
+        this.closeCompleteFollowUpModal();
+        this.refreshLeadTasks();
+        this.refreshLeadActivities();
+        if (idn != null) {
+          this.loadCallStatusForLead(String(idn));
+        }
+
+        if (val.scheduleNext) {
+          this.toast.success('Follow-up marked completed and next follow-up scheduled.');
+        } else {
+          this.toast.success('Follow-up marked completed.');
+        }
+      });
+  }
+
+  protected deleteFollowUp(task: TaskRow): void {
+    const idn = Number(task.id);
+    if (!Number.isFinite(idn) || idn <= 0) return;
+    if (!confirm('Are you sure you want to delete this follow-up?')) return;
+    this.tasksService.delete(idn).pipe(take(1)).subscribe({
+      next: () => {
+        this.refreshLeadTasks();
+        this.refreshLeadActivities();
+        this.toast.success('Follow-up deleted.');
+      },
+      error: () => this.toast.error('Failed to delete follow-up.'),
+    });
+  }
+
+  protected changeStatusDirectly(targetStatus: 'Qualified' | 'Unqualified'): void {
+    const idn = this.numericId();
+    if (idn == null || this.isLeadDataReadOnly() || this.statusUpdating()) return;
+
+    const opt = this.statusSelectOptions().find((o) => o.name.toLowerCase() === targetStatus.toLowerCase());
+    const leadStatusId = opt?.id && opt.id > 0 ? opt.id : resolveLeadStatusIdFromName(targetStatus);
+
+    this.statusUpdating.set(true);
+    this.leadsService
+      .update(idn, {
+        status: targetStatus,
+        leadStatusId: leadStatusId ?? undefined,
+      })
+      .pipe(take(1))
+      .subscribe({
+        next: (updatedLead) => {
+          this.statusUpdating.set(false);
+          if (updatedLead) {
+            this.lead.set(updatedLead);
+            this.dataForm.patchValue({
+              status: this.masterSelectControlValue(
+                updatedLead.leadStatusId,
+                updatedLead.status,
+                this.statusSelectOptions(),
+              ),
+            });
+            this.refreshLeadActivities();
+            this.toast.success(`Lead status updated to ${targetStatus}`);
+          }
+        },
+        error: (err: unknown) => {
+          this.statusUpdating.set(false);
+          this.toast.error(leadsHttpErrorMessage(err));
+        },
+      });
   }
 
   /** First character for avatar chip (matches initials or assignee display name). */
@@ -846,12 +1180,261 @@ export class LeadDetailComponent {
     return isConversionLeadStatusOption(opt);
   }
 
+  @HostListener('document:click')
+  onDocumentClick(): void {
+    if (this.callActionsMenuOpen()) {
+      this.callActionsMenuOpen.set(false);
+    }
+  }
+
+  private loadCallStatusForLead(leadId: string): void {
+    const numId = Number(leadId);
+    if (!Number.isFinite(numId) || numId <= 0) {
+      this.callStatus.set('No');
+      this.leadCallLogs.set([]);
+      return;
+    }
+    const userId = this.auth.user()?.id ?? 1;
+    this.callLogService.getForLead(numId, userId).subscribe({
+      next: (logs) => {
+        this.leadCallLogs.set(logs || []);
+        if (logs && logs.length > 0) {
+          this.callStatus.set('Yes');
+        } else {
+          this.callStatus.set('No');
+        }
+      },
+      error: () => {
+        const key = `crm_lead_call_status_${leadId}`;
+        const saved = localStorage.getItem(key);
+        this.callStatus.set(saved === 'Yes' ? 'Yes' : 'No');
+      },
+    });
+  }
+
+  protected onCallButtonClick(event?: MouseEvent): void {
+    if (event) {
+      event.stopPropagation();
+    }
+    const row = this.lead();
+    const numId = this.numericId();
+    if (!row || numId == null) return;
+
+    if (this.callStatus() === 'No') {
+      this.createBackendCallLog(row, numId);
+    } else {
+      this.callActionsMenuOpen.update((open) => !open);
+    }
+  }
+
+  private createBackendCallLog(row: LeadRow, numId: number): void {
+    if (this.callLogSaving()) return;
+    this.callLogSaving.set(true);
+
+    const userId = this.auth.user()?.id ?? 1;
+    const payload: CallLogUpsertPayload = {
+      callId: 0,
+      direction: 'Outbound',
+      phoneNumber: row.mobile || '',
+      contactName: row.name,
+      contactCompany: row.organization || '',
+      callStarted: new Date().toISOString(),
+      durationMinutes: 1,
+      durationSeconds: 0,
+      outcome: 'Connected',
+      summary: `Call logged for ${row.name}`,
+      relatedLeadId: numId,
+    };
+
+    this.callLogService.addCall(payload, userId).subscribe({
+      next: (created) => {
+        this.callLogSaving.set(false);
+        this.callStatus.set('Yes');
+        localStorage.setItem(`crm_lead_call_status_${row.id}`, 'Yes');
+        this.leadCallLogs.update((list) => [created, ...list]);
+        this.refreshLeadActivities();
+        this.toast.success('Call log stored in database. Call status set to YES.');
+      },
+      error: () => {
+        this.callLogSaving.set(false);
+        this.callStatus.set('Yes');
+        localStorage.setItem(`crm_lead_call_status_${row.id}`, 'Yes');
+        this.toast.success('Call status updated to YES.');
+      },
+    });
+  }
+
+  protected handleAddCallAction(): void {
+    this.callActionsMenuOpen.set(false);
+    const row = this.lead();
+    const numId = this.numericId();
+    if (!row || numId == null) return;
+    this.createBackendCallLog(row, numId);
+  }
+
+  protected handleDeleteCallLogAction(): void {
+    this.handleDeleteRecentCallLogAction();
+  }
+
+  protected handleDeleteRecentCallLogAction(): void {
+    this.callActionsMenuOpen.set(false);
+    const row = this.lead();
+    const numId = this.numericId();
+    if (!row || numId == null) return;
+
+    const logs = this.leadCallLogs();
+    if (logs.length === 0) {
+      this.callStatus.set('No');
+      localStorage.removeItem(`crm_lead_call_status_${row.id}`);
+      this.toast.success('Call status reset to NO.');
+      return;
+    }
+
+    const sorted = [...logs].sort((a, b) => {
+      const timeA = new Date(a.createdAt || a.callStarted || 0).getTime();
+      const timeB = new Date(b.createdAt || b.callStarted || 0).getTime();
+      return (Number.isNaN(timeB) ? b.callId : timeB) - (Number.isNaN(timeA) ? a.callId : timeA);
+    });
+
+    const recent = sorted[0];
+    this.callLogSaving.set(true);
+
+    this.callLogService.deleteCall(recent.callId).subscribe({
+      next: () => {
+        this.callLogSaving.set(false);
+        const remaining = logs.filter((l) => l.callId !== recent.callId);
+        this.leadCallLogs.set(remaining);
+
+        if (remaining.length > 0) {
+          this.callStatus.set('Yes');
+          this.toast.success(`Recent call log deleted. ${remaining.length} call log(s) remain.`);
+        } else {
+          this.callStatus.set('No');
+          localStorage.removeItem(`crm_lead_call_status_${row.id}`);
+          this.toast.success('Call log deleted. Status reset to NO.');
+        }
+        this.refreshLeadActivities();
+      },
+      error: () => {
+        this.callLogSaving.set(false);
+        this.toast.error('Could not delete recent call log.');
+      },
+    });
+  }
+
+  protected handleDeleteAllCallLogsAction(): void {
+    this.callActionsMenuOpen.set(false);
+    const row = this.lead();
+    const numId = this.numericId();
+    if (!row || numId == null) return;
+
+    const logs = this.leadCallLogs();
+    if (logs.length === 0) {
+      this.callStatus.set('No');
+      localStorage.removeItem(`crm_lead_call_status_${row.id}`);
+      this.toast.success('Call status reset to NO.');
+      return;
+    }
+
+    this.callLogSaving.set(true);
+    const deleteRequests = logs.map((l) => this.callLogService.deleteCall(l.callId));
+    forkJoin(deleteRequests).subscribe({
+      next: () => {
+        this.callLogSaving.set(false);
+        this.leadCallLogs.set([]);
+        this.callStatus.set('No');
+        localStorage.removeItem(`crm_lead_call_status_${row.id}`);
+        this.refreshLeadActivities();
+        this.toast.success('All call logs deleted from database. Status reset to NO.');
+      },
+      error: () => {
+        this.callLogSaving.set(false);
+        this.leadCallLogs.set([]);
+        this.callStatus.set('No');
+        localStorage.removeItem(`crm_lead_call_status_${row.id}`);
+        this.toast.success('Status reset to NO.');
+      },
+    });
+  }
+
+  protected currentStatusFormValue(): string {
+    const row = this.lead();
+    if (!row) return '';
+    return this.masterSelectControlValue(
+      row.leadStatusId,
+      row.status,
+      this.statusSelectOptions(),
+    );
+  }
+
+  protected onHeaderStatusChange(ev: Event): void {
+    const raw = (ev.target as HTMLSelectElement).value;
+    const row = this.lead();
+    if (!row) return;
+    const pick = this.resolveMasterPick(raw, this.statusSelectOptions());
+    const label = pick.label.trim();
+    if (!label) return;
+
+    if (isConversionLeadStatusOption({ id: pick.masterId ?? 0, name: label })) {
+      this.toast.error(
+        `${this.conversionStatusLabel()} is set automatically when you convert a lead to a deal.`,
+      );
+      (ev.target as HTMLSelectElement).value = this.currentStatusFormValue();
+      return;
+    }
+
+    const leadStatusId =
+      pick.masterId ?? resolveLeadStatusIdFromName(label) ?? row.leadStatusId ?? null;
+    if (leadStatusId == null || leadStatusId <= 0) {
+      this.toast.error('Could not resolve lead status. Check master data or API connection.');
+      (ev.target as HTMLSelectElement).value = this.currentStatusFormValue();
+      return;
+    }
+
+    const status = coerceLeadStatus(label);
+    const idn = Number(row.id);
+    if (!Number.isFinite(idn) || !isPersistedApiLeadRow(row.id)) return;
+
+    this.statusUpdating.set(true);
+    this.leadsService
+      .update(idn, {
+        status,
+        leadStatusId,
+        updated: 'Just now',
+      })
+      .pipe(take(1))
+      .subscribe({
+        next: (updated) => {
+          this.statusUpdating.set(false);
+          const nextRow: LeadRow = updated ?? {
+            ...row,
+            status,
+            leadStatusId,
+          };
+          this.lead.set(nextRow);
+          this.dataForm.controls.status.setValue(
+            this.masterSelectControlValue(leadStatusId, label, this.statusSelectOptions()),
+          );
+          this.refreshLeadActivities();
+          this.toast.success(`Lead status updated to ${label}.`);
+        },
+        error: (e: unknown) => {
+          this.statusUpdating.set(false);
+          (ev.target as HTMLSelectElement).value = this.currentStatusFormValue();
+          this.toast.error(leadsHttpErrorMessage(e));
+        },
+      });
+  }
+
   private masterSelectControlValue(
     id: number | null | undefined,
     label: string | null | undefined,
     options: MasterDataOption[],
   ): string {
-    if (id != null && id > 0) return String(id);
+    if (id != null && id > 0) {
+      const byId = options.find((o) => o.id === id);
+      if (byId) return String(byId.id);
+    }
     const name = label?.trim();
     if (!name) return '';
     const norm = (s: string) => s.trim().replace(/\.$/, '').toLowerCase();
@@ -903,7 +1486,7 @@ export class LeadDetailComponent {
         territory: this.masterSelectControlValue(row.territoryId, row.territory, this.territorySelectOptions()),
         industry: this.masterSelectControlValue(row.industryId, row.industry, this.industrySelectOptions()),
         source: this.masterSelectControlValue(
-          undefined,
+          row.leadSourceId,
           row.source || row.leadSource || 'Manual',
           this.sourceSelectOptions(),
         ),
@@ -933,6 +1516,7 @@ export class LeadDetailComponent {
     if (tab === 'Activity') this.refreshLeadActivities();
     if (tab === 'Comments') this.refreshLeadComments();
     if (tab === 'Emails') this.refreshLeadEmails();
+    if (tab === 'Follow Up') this.refreshLeadTasks();
   }
 
   protected ownerInitial(): string {
@@ -1037,22 +1621,6 @@ export class LeadDetailComponent {
 
     try {
       const v = this.dataForm.getRawValue();
-      const emailTrim = v.email.trim();
-      const emailLower = emailTrim.toLowerCase();
-      if (emailTrim) {
-        try {
-          const all = await firstValueFrom(this.leadsService.getAll());
-          if (all.some((l) => l.email?.trim().toLowerCase() === emailLower && Number(l.id) !== idn)) {
-            this.dataForm.controls.email.setErrors({ duplicate: true });
-            this.dataForm.controls.email.markAsTouched();
-            this.toast.error('A lead with this email already exists.');
-            this.dataSaving.set(false);
-            return;
-          }
-        } catch (emailCheckErr) {
-          console.warn('[LeadDetail] Duplicate email check skipped:', emailCheckErr);
-        }
-      }
 
       const empPick = this.resolveMasterPick(v.employees, this.employeeSelectOptions());
       const statPick = this.resolveMasterPick(v.status, this.statusSelectOptions());
@@ -1148,10 +1716,28 @@ export class LeadDetailComponent {
   }
 
 
-  protected openConvertModal(): void {
+  protected convertCurrentLead(): void {
     const row = this.lead();
     if (!row || !this.canConvertCurrentLead()) return;
-    this.convertModalOpen.set(true);
+    const idn = this.numericId();
+    if (idn == null) return;
+
+    this.leadsService
+      .convertToDeal(idn, { markAsConverted: true, removeFromActive: false })
+      .pipe(take(1))
+      .subscribe({
+        next: (result) => {
+          this.createRowBus.publish('deal', result.deal);
+          if (result.lead != null) {
+            this.lead.set(result.lead);
+          }
+          this.toast.success('Lead converted to deal successfully');
+          if (result.deal?.id) {
+            void this.router.navigate(['/deals', result.deal.id]);
+          }
+        },
+        error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
+      });
   }
 
   protected confirmDeleteLead(): void {
@@ -1172,30 +1758,6 @@ export class LeadDetailComponent {
         },
         error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
       });
-  }
-
-  protected closeConvertModal(): void {
-    this.convertModalOpen.set(false);
-  }
-
-  protected onConvertModalConfirm(options: ConvertLeadOptions): void {
-    const idn = this.numericId();
-    if (idn == null) return;
-    this.convertModalOpen.set(false);
-    this.leadsService.convertToDeal(idn, options).pipe(take(1)).subscribe({
-      next: (result) => {
-        this.createRowBus.publish('deal', result.deal);
-        if (result.lead == null) {
-          this.toast.success('Lead converted to deal successfully');
-          void this.router.navigate(['/deals', result.deal.id]);
-          return;
-        }
-        this.lead.set(result.lead);
-        this.refreshLeadActivities();
-        this.toast.success('Lead converted to deal successfully');
-      },
-      error: (e: unknown) => this.toast.error(leadsHttpErrorMessage(e)),
-    });
   }
 
   private buildConversionActivityGroup(): ActivityGroup | null {

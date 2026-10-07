@@ -46,6 +46,7 @@ import {
   resolveDealValue,
   formatRelativeTime,
 } from '../utils/admin-dashboard.util';
+import { SalesExecutiveReportModalComponent } from '../components/sales-executive-report-modal/sales-executive-report-modal.component';
 
 export interface EmployeeLedgerItem {
   userId: string;
@@ -93,11 +94,12 @@ function getAvatarBg(name: string): string {
 @Component({
   selector: 'app-employee-performance',
   standalone: true,
-  imports: [RouterLink, FormsModule],
+  imports: [RouterLink, FormsModule, SalesExecutiveReportModalComponent],
   templateUrl: './employee-performance.component.html',
   styleUrl: './employee-performance.component.scss',
 })
 export class EmployeePerformanceComponent implements OnDestroy {
+  protected readonly reportModalOpen = signal<boolean>(false);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly entityCache = inject(CrmEntityCacheService);

@@ -369,7 +369,11 @@ export class DealDetailComponent {
 
     this.route.queryParamMap.pipe(takeUntilDestroyed()).subscribe((query) => {
       const tab = parseEntityDetailTab(query.get('tab'));
-      if (tab && tab !== 'Notes') this.setTab(tab);
+      if (tab === 'Follow Up' || tab === 'Tasks') {
+        this.setTab('Tasks');
+      } else if (tab && tab !== 'Notes') {
+        this.setTab(tab);
+      }
     });
 
     this.createRowBus.created$.pipe(takeUntilDestroyed()).subscribe((e) => {

@@ -1,4 +1,4 @@
-import { NgComponentOutlet, DatePipe } from '@angular/common';
+import { NgComponentOutlet } from '@angular/common';
 import {
   afterNextRender,
   Component,
@@ -169,7 +169,6 @@ interface LeadColumnOption {
     LeadExportModalComponent,
     NgComponentOutlet,
     IntlTelInputComponent,
-    DatePipe,
     ColumnOrderListDirective,
     ColumnOrderItemDirective,
     ColumnOrderHandleDirective,
@@ -199,9 +198,24 @@ export class LeadsComponent {
   /** Assigned lead sync sources for the current user (from API). */
   protected readonly leadSyncAccess = signal<LeadSyncMyAccess[]>([]);
 
-  /** Sources the user may sync when API is configured in admin settings. */
+  /** Formatted text summary of marketplace platforms this user is assigned to receive leads from. */
+  protected readonly leadSyncSourcesSummary = computed(() => {
+    const access = this.leadSyncAccess();
+    if (!access.length) return null;
+    const names = access.map((a) => a.displayName.trim()).filter(Boolean);
+    if (!names.length) return null;
+    if (names.length === 1) {
+      return names[0];
+    }
+    if (names.length === 2) {
+      return `${names[0]} and ${names[1]}`;
+    }
+    return `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+  });
+
+  /** Sources the user may manually pull sync when API is configured (only for pull-based integrations). */
   protected readonly visibleSyncSources = computed(() =>
-    this.leadSyncAccess().filter((s) => s.apiIntegrationReady),
+    this.leadSyncAccess().filter((s) => s.apiIntegrationReady && !this.isPushSyncSource(s.code)),
   );
 
   private readonly syncingSourceIds = signal<Set<number>>(new Set());
@@ -243,6 +257,39 @@ export class LeadsComponent {
   protected readonly formOpen = signal(false);
   protected readonly orgDuplicateSuggestions = signal<OrganizationRow[]>([]);
   protected readonly contactDuplicateSuggestions = signal<ContactRow[]>([]);
+  protected readonly requirementInputFocused = signal(false);
+  protected readonly requirementInputValue = signal('');
+  protected readonly requirementActiveIndex = signal(-1);
+
+  /** Unique requirement suggestions collected from previous leads */
+  protected readonly uniqueRequirementSuggestions = computed<string[]>(() => {
+    const list: string[] = [];
+    const seen = new Set<string>();
+    for (const r of this.rows()) {
+      const val = resolveLeadRequirementForDisplay(r.requirement, r.notes)?.trim();
+      if (val && !seen.has(val.toLowerCase())) {
+        seen.add(val.toLowerCase());
+        list.push(val);
+      }
+    }
+    return list;
+  });
+
+  /** Filtered suggestions matching the typed requirement query */
+  protected readonly matchingRequirementSuggestions = computed<string[]>(() => {
+    const q = this.requirementInputValue().trim().toLowerCase();
+    const all = this.uniqueRequirementSuggestions();
+    if (!q) {
+      return all.slice(0, 8);
+    }
+    return all.filter((item) => item.toLowerCase().includes(q)).slice(0, 8);
+  });
+
+  /** Whether the requirement autocomplete dropdown is visible */
+  protected readonly requirementDropdownOpen = computed<boolean>(() => {
+    return this.requirementInputFocused() && this.matchingRequirementSuggestions().length > 0;
+  });
+
   /** True when `/leads/:id` detail child route is active. */
   protected readonly detailChildActive = signal(false);
   /** Shown read-only in the lead modal (manual CRM flows only; IndiaMART rows never open this form). */
@@ -251,6 +298,11 @@ export class LeadsComponent {
   protected readonly statusFilter = signal<LeadListStatusFilter>('all');
   protected readonly sourceFilter = signal<LeadListSourceFilter>('all');
   protected readonly ownerFilter = signal<LeadListOwnerFilter>('all');
+  protected readonly fromDateFilter = signal<string>('');
+  protected readonly toDateFilter = signal<string>('');
+  protected readonly hasDateFilter = computed(
+    () => this.fromDateFilter().trim().length > 0 || this.toDateFilter().trim().length > 0,
+  );
   protected readonly columnMenuOpen = signal(false);
 
   protected readonly genderOptions = ['', 'Male', 'Female', 'Other', 'Prefer not to say'] as const;
@@ -658,11 +710,16 @@ export class LeadsComponent {
     const st = this.statusFilter();
     const src = this.sourceFilter();
     const owner = this.ownerFilter();
+    const fromDate = this.fromDateFilter().trim();
+    const toDate = this.toDateFilter().trim();
     const filterByOwner = this.isAdminViewer() && owner !== 'all';
     return this.rows().filter((row) => {
       if (filterByOwner && !this.rowMatchesOwnerFilter(row, owner)) return false;
       if (src !== 'all' && (row.leadSource ?? 'Manual').toLowerCase() !== src.toLowerCase()) return false;
       if (st !== 'all' && !this.rowMatchesStatusFilter(row, st)) {
+        return false;
+      }
+      if ((fromDate || toDate) && !this.rowMatchesDateRange(row, fromDate, toDate)) {
         return false;
       }
       if (!q) return true;
@@ -729,9 +786,9 @@ export class LeadsComponent {
   /** Active listing filters forwarded to export (same shape as list API). */
   protected readonly exportListFilters = computed((): Omit<
     LeadExportRequest,
-    'columns' | 'datePreset' | 'fromDate' | 'toDate'
+    'columns' | 'datePreset'
   > => {
-    const filters: Omit<LeadExportRequest, 'columns' | 'datePreset' | 'fromDate' | 'toDate'> = {};
+    const filters: Omit<LeadExportRequest, 'columns' | 'datePreset'> = {};
     const search = TextFormatter.search(this.searchQuery());
     if (search) filters.search = search;
 
@@ -750,6 +807,12 @@ export class LeadsComponent {
         }
       }
     }
+
+    const from = this.fromDateFilter().trim();
+    if (from) filters.fromDate = from;
+
+    const to = this.toDateFilter().trim();
+    if (to) filters.toDate = to;
 
     return filters;
   });
@@ -950,6 +1013,9 @@ export class LeadsComponent {
     this.orgDuplicateSuggestions.set([]);
     this.contactDuplicateSuggestions.set([]);
     this.modalLeadSource.set('Manual');
+    this.requirementInputValue.set('');
+    this.requirementInputFocused.set(false);
+    this.requirementActiveIndex.set(-1);
     this.clearEditQuery();
     this.createForm.reset({
       fullName: '',
@@ -985,6 +1051,9 @@ export class LeadsComponent {
     this.orgDuplicateSuggestions.set([]);
     this.contactDuplicateSuggestions.set([]);
     this.modalLeadSource.set('Manual');
+    this.requirementInputValue.set('');
+    this.requirementInputFocused.set(false);
+    this.requirementActiveIndex.set(-1);
     this.clearEditQuery();
     this.createForm.reset({
       fullName: '',
@@ -1078,6 +1147,9 @@ export class LeadsComponent {
             location: row.location ?? '',
             leadDate: leadDateToFormInput(row.leadDate) || todayIsoDateLocal(),
           });
+          this.requirementInputValue.set(resolveLeadRequirementForDisplay(row.requirement, row.notes));
+          this.requirementInputFocused.set(false);
+          this.requirementActiveIndex.set(-1);
           this.formOpen.set(true);
         },
         error: (err: unknown) => this.toast.error(leadsHttpErrorMessage(err)),
@@ -1360,7 +1432,7 @@ export class LeadsComponent {
     concat(...streams)
       .pipe(last(), defaultIfEmpty(null))
       .subscribe({
-        next: () => {
+        next: (lastResult) => {
           this.refreshDealConversionIndex();
           this.sel.clear();
           this.toast.success(
@@ -1368,6 +1440,9 @@ export class LeadsComponent {
               ? 'Lead converted to deal successfully'
               : `${targets.length} leads converted to deals successfully`,
           );
+          if (targets.length === 1 && lastResult?.deal?.id) {
+            void this.router.navigate(['/deals', lastResult.deal.id]);
+          }
         },
         error: (e: unknown) => {
           this.refreshLeads();
@@ -1409,6 +1484,26 @@ export class LeadsComponent {
     this.statusFilter.set('all');
     this.sourceFilter.set('all');
     this.ownerFilter.set('all');
+    this.fromDateFilter.set('');
+    this.toDateFilter.set('');
+    this.tablePagination.resetPage();
+  }
+
+  protected onFromDateChange(ev: Event): void {
+    const val = (ev.target as HTMLInputElement).value?.trim() || '';
+    this.fromDateFilter.set(val);
+    this.tablePagination.resetPage();
+  }
+
+  protected onToDateChange(ev: Event): void {
+    const val = (ev.target as HTMLInputElement).value?.trim() || '';
+    this.toDateFilter.set(val);
+    this.tablePagination.resetPage();
+  }
+
+  protected clearDateRange(): void {
+    this.fromDateFilter.set('');
+    this.toDateFilter.set('');
     this.tablePagination.resetPage();
   }
 
@@ -1636,22 +1731,7 @@ export class LeadsComponent {
 
     const raw = this.createForm.getRawValue();
     const emailTrim = raw.email.trim();
-    const emailLower = emailTrim.toLowerCase();
-    const emailCtrl = this.createForm.get('email');
     const editId = this.editingNumericId();
-    if (
-      emailTrim &&
-      this.rows().some(
-        (r) =>
-          r.email.toLowerCase() === emailLower && (editId == null || Number(r.id) !== editId),
-      )
-    ) {
-      if (emailCtrl) {
-        emailCtrl.setErrors({ ...(emailCtrl.errors ?? {}), duplicate: true });
-        emailCtrl.markAsTouched();
-      }
-      return;
-    }
 
     const leadOwnerId = this.resolveLeadOwnerIdForSubmit(raw.leadOwner, editId);
     const ownerOpt = this.leadOwnerOpts.findById(leadOwnerId);
@@ -1916,7 +1996,20 @@ export class LeadsComponent {
     return access ? this.syncingSourceIds().has(access.sourceId) : false;
   }
 
+  protected isPushSyncSource(code: string): boolean {
+    const c = code.trim().toLowerCase();
+    try {
+      const method = localStorage.getItem(`lsync_api_method_${c}`);
+      if (method === 'push') return true;
+      if (method === 'pull') return false;
+    } catch {
+      // ignore storage access errors
+    }
+    return c === 'justdial' || c === 'indiamart';
+  }
+
   protected syncSourceConfigError(code: string): string | null {
+    if (this.isPushSyncSource(code)) return null;
     const access = this.leadSyncAccess().find((s) => s.code.trim().toLowerCase() === code.trim().toLowerCase());
     if (!access) return null;
     if (!access.apiIntegrationReady) {
@@ -2045,8 +2138,69 @@ export class LeadsComponent {
       this.statusFilter() !== 'all' ||
       this.sourceFilter() !== 'all' ||
       (this.isAdminViewer() && this.ownerFilter() !== 'all') ||
-      this.searchQuery().trim().length > 0
+      this.searchQuery().trim().length > 0 ||
+      this.fromDateFilter().trim().length > 0 ||
+      this.toDateFilter().trim().length > 0
     );
+  }
+
+  private rowMatchesDateRange(row: LeadRow, fromDate: string, toDate: string): boolean {
+    if (!fromDate && !toDate) return true;
+
+    // 1. Check leadDate (YYYY-MM-DD)
+    const rawDate = row.leadDate?.trim();
+    if (rawDate) {
+      const ymd = rawDate.slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+        if (fromDate && ymd < fromDate) return false;
+        if (toDate && ymd > toDate) return false;
+        return true;
+      }
+      const parsed = new Date(rawDate).getTime();
+      if (!Number.isNaN(parsed)) {
+        if (fromDate) {
+          const fromTime = new Date(`${fromDate}T00:00:00`).getTime();
+          if (!Number.isNaN(fromTime) && parsed < fromTime) return false;
+        }
+        if (toDate) {
+          const toTime = new Date(`${toDate}T23:59:59.999`).getTime();
+          if (!Number.isNaN(toTime) && parsed > toTime) return false;
+        }
+        return true;
+      }
+    }
+
+    // 2. Check sortTimestamp
+    if (row.sortTimestamp != null && Number.isFinite(row.sortTimestamp) && row.sortTimestamp > 0) {
+      const time = row.sortTimestamp;
+      if (fromDate) {
+        const fromTime = new Date(`${fromDate}T00:00:00`).getTime();
+        if (!Number.isNaN(fromTime) && time < fromTime) return false;
+      }
+      if (toDate) {
+        const toTime = new Date(`${toDate}T23:59:59.999`).getTime();
+        if (!Number.isNaN(toTime) && time > toTime) return false;
+      }
+      return true;
+    }
+
+    // 3. Check created string
+    if (row.created?.trim()) {
+      const parsed = new Date(row.created.trim()).getTime();
+      if (!Number.isNaN(parsed)) {
+        if (fromDate) {
+          const fromTime = new Date(`${fromDate}T00:00:00`).getTime();
+          if (!Number.isNaN(fromTime) && parsed < fromTime) return false;
+        }
+        if (toDate) {
+          const toTime = new Date(`${toDate}T23:59:59.999`).getTime();
+          if (!Number.isNaN(toTime) && parsed > toTime) return false;
+        }
+        return true;
+      }
+    }
+
+    return true;
   }
 
   private rowMatchesOwnerFilter(row: LeadRow, ownerId: string): boolean {
@@ -2083,6 +2237,57 @@ export class LeadsComponent {
 
   protected dismissDuplicateOrganization(): void {
     this.orgDuplicateSuggestions.set([]);
+  }
+
+  protected onRequirementInput(ev: Event): void {
+    const val = (ev.target as HTMLInputElement).value;
+    this.requirementInputValue.set(val);
+    this.requirementInputFocused.set(true);
+    this.requirementActiveIndex.set(-1);
+  }
+
+  protected onRequirementFocus(): void {
+    this.requirementInputValue.set(this.createForm.controls.requirement.value || '');
+    this.requirementInputFocused.set(true);
+    this.requirementActiveIndex.set(-1);
+  }
+
+  protected onRequirementBlur(): void {
+    setTimeout(() => {
+      this.requirementInputFocused.set(false);
+      this.requirementActiveIndex.set(-1);
+    }, 200);
+  }
+
+  protected onRequirementKeydown(ev: KeyboardEvent): void {
+    const suggestions = this.matchingRequirementSuggestions();
+    if (!this.requirementInputFocused() || suggestions.length === 0) return;
+
+    if (ev.key === 'ArrowDown') {
+      ev.preventDefault();
+      this.requirementActiveIndex.update((i) => (i + 1) % suggestions.length);
+    } else if (ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      this.requirementActiveIndex.update((i) => (i <= 0 ? suggestions.length - 1 : i - 1));
+    } else if (ev.key === 'Enter') {
+      const idx = this.requirementActiveIndex();
+      if (idx >= 0 && idx < suggestions.length) {
+        ev.preventDefault();
+        this.selectRequirementSuggestion(suggestions[idx]);
+      }
+    } else if (ev.key === 'Escape') {
+      this.requirementInputFocused.set(false);
+      this.requirementActiveIndex.set(-1);
+    }
+  }
+
+  protected selectRequirementSuggestion(suggestion: string): void {
+    this.createForm.controls.requirement.setValue(suggestion);
+    this.createForm.controls.requirement.markAsDirty();
+    this.createForm.controls.requirement.markAsTouched();
+    this.requirementInputValue.set(suggestion);
+    this.requirementInputFocused.set(false);
+    this.requirementActiveIndex.set(-1);
   }
 
   private setupOrganizationDuplicateDetection(): void {

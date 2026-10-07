@@ -236,9 +236,7 @@
                   autocomplete="email"
                   (input)="clearEmailDuplicate()"
                 />
-                @if (createForm.get('email')?.errors?.['duplicate']) {
-                  <span class="leads__err">A lead with this email already exists.</span>
-                } @else if (fieldInvalid('email') && createForm.get('email')?.errors?.['email']) {
+                @if (fieldInvalid('email') && createForm.get('email')?.errors?.['email']) {
                   <span class="leads__err">Use a valid email address.</span>
                 }
               </label>
@@ -307,18 +305,48 @@
                 <span class="leads__label">Lead date</span>
                 <input class="leads__control leads__control--soft" type="date" formControlName="leadDate" />
               </label>
-              <label class="leads__field leads__field--full">
+              <div class="leads__field leads__field--full">
                 <span class="leads__label">Requirement <span class="leads__req">*</span></span>
-                <input
-                  class="leads__control leads__control--soft"
-                  type="text"
-                  formControlName="requirement"
-                  placeholder="What is the customer looking for?"
-                />
+                <div class="leads__autocomplete-wrap">
+                  <input
+                    class="leads__control leads__control--soft"
+                    type="text"
+                    formControlName="requirement"
+                    placeholder="What is the customer looking for?"
+                    autocomplete="off"
+                    (input)="onRequirementInput($event)"
+                    (focus)="onRequirementFocus()"
+                    (blur)="onRequirementBlur()"
+                    (keydown)="onRequirementKeydown($event)"
+                  />
+                  @if (requirementDropdownOpen()) {
+                    <ul
+                      class="leads__suggestions-dropdown"
+                      role="listbox"
+                      (mousedown)="$event.preventDefault()"
+                    >
+                      @for (item of matchingRequirementSuggestions(); track item; let i = $index) {
+                        <li
+                          role="option"
+                          [attr.aria-selected]="requirementActiveIndex() === i"
+                          class="leads__suggestion-item"
+                          [class.leads__suggestion-item--active]="requirementActiveIndex() === i"
+                          (click)="selectRequirementSuggestion(item)"
+                        >
+                          <svg class="leads__suggestion-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8" />
+                            <path d="m21 21-4.3-4.3" />
+                          </svg>
+                          <span class="leads__suggestion-text">{{ item }}</span>
+                        </li>
+                      }
+                    </ul>
+                  }
+                </div>
                 @if (fieldInvalid('requirement')) {
                   <span class="leads__err">Requirement is required.</span>
                 }
-              </label>
+              </div>
               <label class="leads__field leads__field--full">
                 <span class="leads__label">Additional details</span>
                 <input class="leads__control leads__control--soft" type="text" formControlName="customField" placeholder="Enter {0}" />
@@ -374,18 +402,29 @@
     </div>
   </header>
 
-  @if (leadSyncAccess().length > 0) {
-    <aside class="leads__sync-status" aria-label="Lead sync status">
-      @for (src of leadSyncAccess(); track src.sourceId) {
-        <div class="leads__sync-status-row">
-          <strong>{{ src.displayName }}</strong>
-          <span>
-            Auto sync: {{ src.autoSyncEnabled ? 'On' : 'Off' }}
-            · Last: {{ src.lastSyncAt ? (src.lastSyncAt | date: 'short') : 'Never' }}
-            · Connection: {{ src.apiIntegrationReady ? 'Ready' : 'Not set up' }}
+  @if (leadSyncSourcesSummary(); as sourcesSummary) {
+    <aside class="leads__sync-status" aria-label="Lead source assignments">
+      <div class="leads__sync-status-content">
+        <span class="leads__sync-status-icon" aria-hidden="true">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </span>
+        <span class="leads__sync-status-text">
+          You are set up to receive incoming leads from <strong>{{ sourcesSummary }}</strong>.
+        </span>
+      </div>
+      <div class="leads__sync-status-tags">
+        @for (src of leadSyncAccess(); track src.sourceId) {
+          <span class="leads__sync-pill">
+            <span class="leads__sync-dot"></span>
+            {{ src.displayName }}
+            @if (isPushSyncSource(src.code)) {
+              <span class="leads__sync-type">(Real-time Webhook)</span>
+            }
           </span>
-        </div>
-      }
+        }
+      </div>
     </aside>
   }
 
@@ -452,6 +491,53 @@
           </select>
         </label>
       }
+
+      <!-- Date Range Controls -->
+      <div class="leads__date-range-wrap" title="Filter leads by creation / lead date">
+        <span class="leads__date-range-icon" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+        </span>
+        <div class="leads__date-input-group">
+          <span class="leads__date-label">From</span>
+          <input
+            type="date"
+            class="leads__date-input"
+            [value]="fromDateFilter()"
+            (change)="onFromDateChange($event)"
+            title="Filter from date (inclusive)"
+            aria-label="From date"
+          />
+        </div>
+        <span class="leads__date-sep" aria-hidden="true">–</span>
+        <div class="leads__date-input-group">
+          <span class="leads__date-label">To</span>
+          <input
+            type="date"
+            class="leads__date-input"
+            [value]="toDateFilter()"
+            [min]="fromDateFilter() || undefined"
+            (change)="onToDateChange($event)"
+            title="Filter to date (inclusive)"
+            aria-label="To date"
+          />
+        </div>
+        @if (hasDateFilter()) {
+          <button
+            type="button"
+            class="leads__date-clear"
+            (click)="clearDateRange()"
+            title="Clear date range filter"
+            aria-label="Clear date range filter"
+          >
+            ×
+          </button>
+        }
+      </div>
     </div>
   </div>
 
