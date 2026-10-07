@@ -387,4 +387,12 @@
     }
   </main>
   }
+
+  <!-- Sales Executive Performance Report Modal (Filtered to Selected Employee) -->
+  <app-sales-executive-report-modal
+    [open]="reportModalOpen()"
+    [filterUserId]="userId()"
+    (dismiss)="reportModalOpen.set(false)"
+  />
 </div>
+

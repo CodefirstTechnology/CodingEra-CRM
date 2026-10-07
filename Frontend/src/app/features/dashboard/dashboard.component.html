@@ -475,6 +475,19 @@
           members
         </p>
       </div>
+
+      <!-- 4 Middle divs space: Monthly Summary button placed in 4th part (red rectangle area) -->
+      <div class="sales-dash__emp-head-middle">
+        <div class="sales-dash__emp-mid-col"></div>
+        <div class="sales-dash__emp-mid-col"></div>
+        <div class="sales-dash__emp-mid-col"></div>
+        <div class="sales-dash__emp-mid-col sales-dash__emp-mid-col--summary">
+          <button type="button" class="crm-perf-btn crm-perf-btn--summary" (click)="monthlySummaryModalOpen.set(true)">
+            📅 Monthly Summary
+          </button>
+        </div>
+      </div>
+
       <div class="sales-dash__emp-search-wrap" style="display: flex; gap: 0.75rem; align-items: center;">
         <button type="button" class="crm-perf-btn crm-perf-btn--active"
           style="padding: 0.4rem 0.85rem; font-size: 0.8125rem; white-space: nowrap; border-radius: 0.5rem; font-weight: 600; cursor: pointer;"
@@ -582,6 +595,7 @@
       </table>
     </div>
   </section>
+
   }
 
   <app-crm-modal [open]="detailOpen()" [title]="detailTitle()" [size]="detailKind() === 'lostDeals' ? 'xl' : 'lg'"
@@ -872,4 +886,11 @@
   </app-crm-modal>
 
   <app-sales-executive-report-modal [open]="reportModalOpen()" (dismiss)="reportModalOpen.set(false)" />
+
+  <app-crm-modal [open]="monthlySummaryModalOpen()" title="12-Month Detailed Monthly Performance Summary" size="xl"
+    (dismiss)="monthlySummaryModalOpen.set(false)">
+    <div style="padding: 0.5rem 0;">
+      <app-monthly-summary-card></app-monthly-summary-card>
+    </div>
+  </app-crm-modal>
 </div>

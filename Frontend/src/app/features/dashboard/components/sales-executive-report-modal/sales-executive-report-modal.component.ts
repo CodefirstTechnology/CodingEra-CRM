@@ -14,6 +14,9 @@ import type {
 } from '../../../../core/services/dashboard/sales-executive-report.models';
 import { SalesExecutiveReportService } from '../../../../core/services/dashboard/sales-executive-report.service';
 
+import { AuthService } from '../../../../core/auth/auth.service';
+import { ROLE_ID_ADMIN } from '../../../../core/auth/auth-role.util';
+
 export type RangePreset = 'today' | 'yesterday' | 'week' | 'month' | 'quarter' | 'custom';
 
 @Component({
@@ -25,8 +28,10 @@ export type RangePreset = 'today' | 'yesterday' | 'week' | 'month' | 'quarter' |
 })
 export class SalesExecutiveReportModalComponent {
   private readonly reportService = inject(SalesExecutiveReportService);
+  private readonly auth = inject(AuthService);
 
   readonly open = input<boolean>(false);
+  readonly filterUserId = input<number | string | null>(null);
   readonly dismiss = output<void>();
 
   readonly loading = signal<boolean>(false);
@@ -108,9 +113,39 @@ export class SalesExecutiveReportModalComponent {
   protected readonly filteredRows = computed<SalesExecutiveReportRow[]>(() => {
     const data = this.reportData();
     if (!data) return [];
+
+    let rows = data.rows;
+
+    // 1. Filter by filterUserId input if provided
+    const targetUid = this.filterUserId();
+    if (targetUid != null && targetUid !== '') {
+      const uidStr = String(targetUid).trim();
+      rows = rows.filter(
+        (r) =>
+          String(r.userId).trim() === uidStr ||
+          r.userEmail?.toLowerCase() === uidStr.toLowerCase(),
+      );
+    } else {
+      // 2. If logged in user is a Sales Executive (not Admin), restrict to logged-in user only
+      const currentUser = this.auth.user();
+      const isAdmin =
+        currentUser?.roleId === ROLE_ID_ADMIN ||
+        Boolean(currentUser?.role && /admin/i.test(currentUser.role));
+
+      if (currentUser && !isAdmin) {
+        const myUidStr = String(currentUser.id).trim();
+        const myEmail = currentUser.email?.toLowerCase();
+        rows = rows.filter(
+          (r) =>
+            String(r.userId).trim() === myUidStr ||
+            (myEmail && r.userEmail?.toLowerCase() === myEmail),
+        );
+      }
+    }
+
     const q = this.searchQuery().trim().toLowerCase();
-    if (!q) return data.rows;
-    return data.rows.filter(
+    if (!q) return rows;
+    return rows.filter(
       (r) =>
         r.executiveName.toLowerCase().includes(q) ||
         r.userEmail.toLowerCase().includes(q) ||
