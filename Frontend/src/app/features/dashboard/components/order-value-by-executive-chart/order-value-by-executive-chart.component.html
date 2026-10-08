@@ -40,36 +40,55 @@
 
             <!-- Plot Canvas with Grid Lines and Column Bars -->
             <div class="order-chart-bar-canvas">
-              <!-- Horizontal Grid Lines -->
-              <div class="order-chart-grid-lines">
-                @for (step of yAxisGridSteps(); track step.value) {
-                  <div class="order-chart-grid-line">
-                    <span class="order-chart-grid-value">{{ step.label }}</span>
-                  </div>
-                }
-              </div>
+              <!-- Plot Area with 8 Grid Divisions -->
+              <div class="order-chart-plot-area">
+                <!-- Horizontal Grid Lines -->
+                <div class="order-chart-grid-lines">
+                  @for (step of yAxisGridSteps(); track step.value) {
+                    <div class="order-chart-grid-line">
+                      <span class="order-chart-grid-value">{{ step.label }}</span>
+                    </div>
+                  }
+                </div>
 
-              <!-- Columns / Bars Container -->
-              <div class="order-chart-bars-row">
-                @for (item of executiveData(); track item.userId) {
-                  <div
-                    class="order-chart-bar-col"
-                    [class.order-chart-bar-col--active]="hoveredUserId() === item.userId"
-                    (mouseenter)="setHovered(item.userId)"
-                    (mouseleave)="setHovered(null)"
-                  >
-                    <div class="order-chart-bar-fill-wrap">
-                      <div
-                        class="order-chart-bar-fill"
-                        [style.height.%]="item.barHeightPct"
-                        [style.background-color]="item.color"
-                      >
-                        <div class="order-chart-bar-tooltip">
-                          <strong>{{ item.name }}</strong><br />
-                          {{ item.formattedValue }} ({{ item.percentage }}%)
+                <!-- Columns / Bars Container (Resting on ₹0 baseline) -->
+                <div class="order-chart-bars-row">
+                  @for (item of executiveData(); track item.userId) {
+                    <div
+                      class="order-chart-bar-col"
+                      [class.order-chart-bar-col--active]="hoveredUserId() === item.userId"
+                      (mouseenter)="setHovered(item.userId)"
+                      (mouseleave)="setHovered(null)"
+                    >
+                      <div class="order-chart-bar-fill-wrap">
+                        <div
+                          class="order-chart-bar-fill"
+                          [style.height.%]="item.barHeightPct"
+                          [style.background-color]="item.color"
+                        >
+                          <div class="order-chart-bar-tooltip">
+                            <strong>{{ item.name }}</strong><br />
+                            {{ item.formattedValue }} ({{ item.percentage }}%)
+                          </div>
                         </div>
                       </div>
                     </div>
+                  }
+                </div>
+              </div>
+
+              <!-- X-Axis Baseline Line -->
+              <div class="order-chart-x-axis-line"></div>
+
+              <!-- Executive Names Row (Positioned Below X-Axis Line) -->
+              <div class="order-chart-x-axis-names">
+                @for (item of executiveData(); track item.userId) {
+                  <div
+                    class="order-chart-x-axis-name-col"
+                    [class.order-chart-x-axis-name-col--active]="hoveredUserId() === item.userId"
+                    (mouseenter)="setHovered(item.userId)"
+                    (mouseleave)="setHovered(null)"
+                  >
                     <span class="order-chart-bar-name-label" [title]="item.name">
                       {{ item.name }}
                     </span>
@@ -77,7 +96,7 @@
                 }
               </div>
 
-              <!-- X-Axis Bottom Label -->
+              <!-- Sales Executive Title Label (Positioned Below Executive Names) -->
               <div class="order-chart-x-axis-label">
                 <span>Sales Executive</span>
               </div>

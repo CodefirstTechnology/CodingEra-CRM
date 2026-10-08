@@ -38,6 +38,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'admin/lead-tracker',
+        loadComponent: () =>
+          import('./features/lead-tracker/components/lead-tracker.component').then(
+            (m) => m.LeadTrackerComponent,
+          ),
+      },
+      {
         path: 'dashboard',
         canMatch: [roleGuard],
         data: { roles: ['admin'] },
