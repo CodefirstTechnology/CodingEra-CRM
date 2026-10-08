@@ -22,8 +22,42 @@
         <option [value]="opt.key">{{ opt.label }}</option>
         }
       </select>
+
+      @if (periodKey() === 'custom') {
+      <div class="emp-perf__custom-range">
+        <label class="emp-perf__custom-field">
+          <span>From</span>
+          <input
+            type="date"
+            class="emp-perf__date-input"
+            [value]="customStartInput()"
+            (change)="onCustomStartChange($any($event.target).value)"
+          />
+        </label>
+        <label class="emp-perf__custom-field">
+          <span>To</span>
+          <input
+            type="date"
+            class="emp-perf__date-input"
+            [value]="customEndInput()"
+            (change)="onCustomEndChange($any($event.target).value)"
+          />
+        </label>
+        <button
+          type="button"
+          class="emp-perf__apply-btn"
+          (click)="applyCustomRange()"
+        >
+          Apply
+        </button>
+      </div>
+      }
     </div>
   </div>
+
+  @if (periodKey() === 'custom' && customRangeError(); as rangeErr) {
+  <p class="emp-perf__banner" role="alert">{{ rangeErr }}</p>
+  }
 
   @if (error()) {
   <p class="emp-perf__banner" role="alert">{{ error() }}</p>

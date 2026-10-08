@@ -45,8 +45,25 @@ import {
   resolveDashboardPeriod,
   resolveDealValue,
   formatRelativeTime,
+  startOfDay,
+  endOfDay,
 } from '../utils/admin-dashboard.util';
 import { SalesExecutiveReportModalComponent } from '../components/sales-executive-report-modal/sales-executive-report-modal.component';
+
+function toDateInputValue(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function parseDateInputValue(value: string): Date | null {
+  const s = value?.trim();
+  if (!s) return null;
+  const t = Date.parse(`${s}T00:00:00`);
+  if (Number.isNaN(t)) return null;
+  return new Date(t);
+}
 
 export interface EmployeeLedgerItem {
   userId: string;
@@ -119,6 +136,11 @@ export class EmployeePerformanceComponent implements OnDestroy {
   protected readonly userId = signal<string>('');
   /** Default period is "today" */
   protected readonly periodKey = signal<AdminDashboardPeriodKey>('today');
+  protected readonly customStartInput = signal<string>(
+    toDateInputValue(startOfDay(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
+  );
+  protected readonly customEndInput = signal<string>(toDateInputValue(endOfDay(new Date())));
+  protected readonly customRangeError = signal<string | null>(null);
   protected readonly loading = signal(true);
   protected readonly error = signal<string | null>(null);
 
@@ -134,7 +156,14 @@ export class EmployeePerformanceComponent implements OnDestroy {
 
   /** Current Selected Period date bounds */
   protected readonly currentPeriod = computed(() => {
-    return resolveDashboardPeriod(this.periodKey(), new Date());
+    const key = this.periodKey();
+    if (key === 'custom') {
+      const start = parseDateInputValue(this.customStartInput());
+      const end = parseDateInputValue(this.customEndInput());
+      const customRange = start && end ? { start, end } : null;
+      return resolveDashboardPeriod(key, new Date(), customRange);
+    }
+    return resolveDashboardPeriod(key, new Date());
   });
 
   /** Specific User Object */
@@ -391,6 +420,16 @@ export class EmployeePerformanceComponent implements OnDestroy {
 
     this.route.queryParamMap.subscribe((qp) => {
       const p = (qp.get('period') as AdminDashboardPeriodKey) || 'today';
+      const startStr = qp.get('startDate');
+      const endStr = qp.get('endDate');
+
+      if (startStr && parseDateInputValue(startStr)) {
+        this.customStartInput.set(startStr);
+      }
+      if (endStr && parseDateInputValue(endStr)) {
+        this.customEndInput.set(endStr);
+      }
+
       if (p !== this.periodKey()) {
         this.periodKey.set(p);
       }
@@ -408,11 +447,51 @@ export class EmployeePerformanceComponent implements OnDestroy {
   }
 
   protected setPeriod(key: AdminDashboardPeriodKey): void {
-    if (this.periodKey() === key) return;
     this.periodKey.set(key);
+    this.customRangeError.set(null);
+
+    if (key === 'custom') {
+      this.applyCustomRange();
+    } else {
+      this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { period: key, startDate: null, endDate: null },
+        queryParamsHandling: 'merge',
+      });
+    }
+  }
+
+  protected onCustomStartChange(val: string): void {
+    this.customStartInput.set(val);
+    this.customRangeError.set(null);
+  }
+
+  protected onCustomEndChange(val: string): void {
+    this.customEndInput.set(val);
+    this.customRangeError.set(null);
+  }
+
+  protected applyCustomRange(): void {
+    const start = parseDateInputValue(this.customStartInput());
+    const end = parseDateInputValue(this.customEndInput());
+    if (!start || !end) {
+      this.customRangeError.set('Select both start and end dates.');
+      return;
+    }
+    if (startOfDay(start).getTime() > startOfDay(end).getTime()) {
+      this.customRangeError.set('Start date must be on or before end date.');
+      return;
+    }
+    this.customRangeError.set(null);
+    this.periodKey.set('custom');
+
     this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { period: key },
+      queryParams: {
+        period: 'custom',
+        startDate: this.customStartInput(),
+        endDate: this.customEndInput(),
+      },
       queryParamsHandling: 'merge',
     });
   }
