@@ -90,7 +90,7 @@
   display: flex;
   align-items: stretch;
   gap: 0.5rem;
-  min-height: 170px;
+  min-height: 320px;
 }
 
 .order-chart-y-axis-label {
@@ -110,12 +110,17 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+}
+
+.order-chart-plot-area {
+  position: relative;
+  height: 280px;
+  width: 100%;
 }
 
 .order-chart-grid-lines {
   position: absolute;
-  inset: 0 0 24px 0;
+  inset: 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -148,9 +153,9 @@
 }
 
 .order-chart-bars-row {
-  position: relative;
+  position: absolute;
+  inset: 0;
   z-index: 2;
-  height: 140px;
   display: flex;
   align-items: flex-end;
   justify-content: space-around;
@@ -160,7 +165,7 @@
 
 .order-chart-bar-col {
   flex: 1;
-  max-width: 38px;
+  max-width: 44px;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -192,10 +197,11 @@
 
 .order-chart-bar-fill {
   width: 100%;
-  min-height: 4px;
+  min-height: 0px;
   border-radius: 3px 3px 0 0;
   transition: all 0.2s ease;
   position: relative;
+  transform-origin: bottom center;
 }
 
 .order-chart-bar-tooltip {
@@ -219,16 +225,47 @@
   box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
 }
 
+.order-chart-x-axis-line {
+  border-bottom: 1.5px solid #000000;
+  width: 100%;
+  z-index: 3;
+}
+
+.order-chart-x-axis-names {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 0.5rem;
+  padding: 6px 0.5rem 4px;
+  z-index: 3;
+}
+
+.order-chart-x-axis-name-col {
+  flex: 1;
+  max-width: 44px;
+  display: flex;
+  justify-content: center;
+  text-align: center;
+  cursor: pointer;
+
+  &:hover,
+  &--active {
+    .order-chart-bar-name-label {
+      color: var(--sd-accent, #2563eb);
+      font-weight: 700;
+    }
+  }
+}
+
 .order-chart-bar-name-label {
-  font-size: 0.65rem;
+  font-size: 0.675rem;
   font-weight: 600;
   color: #000000;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 52px;
+  max-width: 60px;
   text-align: center;
-  margin-top: 4px;
 }
 
 .order-chart-x-axis-label {
@@ -237,7 +274,7 @@
   font-weight: 700;
   color: #000000;
   padding-top: 4px;
-  border-top: 1.5px solid #000000;
+  padding-bottom: 2px;
 }
 
 /* Zero State */

@@ -77,6 +77,65 @@
   }
 }
 
+.emp-perf__custom-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-left: 0.35rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--sd-accent) 6%, var(--surface));
+  border: 1px solid var(--card-border);
+}
+
+.emp-perf__custom-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+
+  span {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+}
+
+.emp-perf__date-input {
+  padding: 0.35rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid var(--card-border);
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 0.8125rem;
+  font-family: inherit;
+
+  &:focus {
+    outline: none;
+    border-color: var(--sd-accent);
+  }
+}
+
+.emp-perf__apply-btn {
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  border: none;
+  background: var(--sd-accent);
+  color: #ffffff;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.1s ease;
+
+  &:hover {
+    opacity: 0.9;
+    transform: translateY(-1px);
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+}
+
 /* Loading & Error States */
 .emp-perf__banner {
   margin: 0 0 1rem;

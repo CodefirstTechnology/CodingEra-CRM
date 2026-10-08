@@ -59,6 +59,15 @@
         (click)="refreshDashboard()">
         {{ loading() ? 'Refreshing…' : 'Refresh' }}
       </button>
+      <a routerLink="/admin/lead-tracker" class="sales-dash__btn sales-dash__btn--primary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; background-color: #3b82f6; color: #ffffff; padding: 0 14px; border-radius: 6px; font-weight: 600; font-size: 13px;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M3 3v18h18"/>
+          <path d="M18 17V9"/>
+          <path d="M13 17V5"/>
+          <path d="M8 17v-3"/>
+        </svg>
+        Lead Tracker
+      </a>
     </div>
   </header>
 

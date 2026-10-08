@@ -188,7 +188,7 @@ export class OrderValueByExecutiveChartComponent {
     const maxVal = Math.max(...this.executiveData().map((item) => item.orderValue), 0);
     const niceMax = getNiceMax(maxVal);
     const steps: { value: number; label: string }[] = [];
-    const count = 4;
+    const count = 8;
     for (let i = count; i >= 0; i--) {
       const val = (niceMax / count) * i;
       steps.push({

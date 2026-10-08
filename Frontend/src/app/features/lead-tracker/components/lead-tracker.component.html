@@ -1,0 +1,378 @@
+<div class="lead-tracker">
+  <!-- Page Header -->
+  <header class="lead-tracker__header">
+    <div class="lead-tracker__header-left">
+      <nav class="lead-tracker__breadcrumb">
+        <a routerLink="/dashboard" class="lead-tracker__breadcrumb-link">Dashboard</a>
+        <span class="lead-tracker__breadcrumb-sep">/</span>
+        <span class="lead-tracker__breadcrumb-current">Lead Tracker</span>
+      </nav>
+      <h1 class="lead-tracker__title">Lead Performance & Audit Tracker</h1>
+      <p class="lead-tracker__subtitle">Real-time 25-column dynamic lead lifecycle ledger & SLA ageing report</p>
+    </div>
+    <div class="lead-tracker__header-actions">
+      <button 
+        type="button" 
+        class="btn btn--secondary" 
+        (click)="resetFilters()"
+        [disabled]="loading()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+        Reset Filters
+      </button>
+
+      <button 
+        type="button" 
+        class="btn btn--excel" 
+        (click)="exportExcel()" 
+        [disabled]="exporting() || loading()">
+        @if (exporting()) {
+          <span class="spinner-sm"></span> Exporting…
+        } @else {
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Export Excel Report
+        }
+      </button>
+    </div>
+  </header>
+
+  <!-- Summary KPI Cards -->
+  <section class="lead-tracker__kpi-grid">
+    <div class="kpi-card kpi-card--primary">
+      <div class="kpi-card__header">
+        <span class="kpi-card__title">Total Leads</span>
+        <span class="kpi-card__icon">📊</span>
+      </div>
+      <div class="kpi-card__value">{{ summary().totalLeads | number }}</div>
+      <div class="kpi-card__subtext">
+        Est. Pipeline: {{ formatCurrency(summary().totalEstimatedValue) }}
+      </div>
+    </div>
+
+    <div class="kpi-card kpi-card--warning">
+      <div class="kpi-card__header">
+        <span class="kpi-card__title">Open Leads</span>
+        <span class="kpi-card__icon">⏳</span>
+      </div>
+      <div class="kpi-card__value">{{ summary().openLeads | number }}</div>
+      <div class="kpi-card__subtext">
+        Quotation Value: {{ formatCurrency(summary().totalQuotationValue) }}
+      </div>
+    </div>
+
+    <div class="kpi-card kpi-card--success">
+      <div class="kpi-card__header">
+        <span class="kpi-card__title">Won Deals</span>
+        <span class="kpi-card__icon">🏆</span>
+      </div>
+      <div class="kpi-card__value">{{ summary().wonLeads | number }}</div>
+      <div class="kpi-card__subtext">
+        Won Revenue: {{ formatCurrency(summary().totalWonValue) }}
+      </div>
+    </div>
+
+    <div class="kpi-card kpi-card--danger">
+      <div class="kpi-card__header">
+        <span class="kpi-card__title">Lost Deals</span>
+        <span class="kpi-card__icon">❌</span>
+      </div>
+      <div class="kpi-card__value">{{ summary().lostLeads | number }}</div>
+      <div class="kpi-card__subtext">
+        Closed Lost Audit Count
+      </div>
+    </div>
+  </section>
+
+  <!-- Filter Controls Toolbar -->
+  <section class="lead-tracker__filter-bar">
+    <div class="filter-group filter-group--search">
+      <label class="filter-label">Search Ledger</label>
+      <div class="search-input-wrap">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input 
+          type="text" 
+          class="form-control" 
+          placeholder="Search Lead ID, Customer, Contact, Requirement..."
+          [value]="searchTerm()"
+          (input)="onSearchInput($event)" />
+      </div>
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-label">Status</label>
+      <select 
+        class="form-select" 
+        [ngModel]="filterStatus()" 
+        (ngModelChange)="filterStatus.set($event); onFilterChange()">
+        @for (opt of statusOptions; track opt.value) {
+          <option [value]="opt.value">{{ opt.label }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-label">Ageing Bucket</label>
+      <select 
+        class="form-select" 
+        [ngModel]="filterAgeing()" 
+        (ngModelChange)="filterAgeing.set($event); onFilterChange()">
+        @for (opt of ageingOptions; track opt.value) {
+          <option [value]="opt.value">{{ opt.label }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-label">Follow-up SLA</label>
+      <select 
+        class="form-select" 
+        [ngModel]="filterFollowUp()" 
+        (ngModelChange)="filterFollowUp.set($event); onFilterChange()">
+        @for (opt of followUpOptions; track opt.value) {
+          <option [value]="opt.value">{{ opt.label }}</option>
+        }
+      </select>
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-label">From Date</label>
+      <input 
+        type="date" 
+        class="form-control" 
+        [ngModel]="filterStartDate()" 
+        (ngModelChange)="filterStartDate.set($event); onFilterChange()" />
+    </div>
+
+    <div class="filter-group">
+      <label class="filter-label">To Date</label>
+      <input 
+        type="date" 
+        class="form-control" 
+        [ngModel]="filterEndDate()" 
+        (ngModelChange)="filterEndDate.set($event); onFilterChange()" />
+    </div>
+  </section>
+
+  <!-- Error Banner -->
+  @if (error(); as err) {
+    <div class="alert alert--danger" role="alert">
+      {{ err }}
+    </div>
+  }
+
+  <!-- Main 25-Column Data Table Container -->
+  <div class="lead-tracker__table-card">
+    <div class="table-scroll-container">
+      <table class="tracker-table">
+        <thead>
+          <tr>
+            <!-- Sticky Col 1: Lead ID -->
+            <th class="th-sticky th-sticky--1 sortable" (click)="onSort('LeadIdNum')">
+              Lead ID
+              @if (sortBy() === 'LeadIdNum') {
+                <span class="sort-indicator">{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+              }
+            </th>
+
+            <!-- Sticky Col 2: Customer Name -->
+            <th class="th-sticky th-sticky--2 sortable" (click)="onSort('CustomerName')">
+              Customer Name
+              @if (sortBy() === 'CustomerName') {
+                <span class="sort-indicator">{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+              }
+            </th>
+
+            <th class="sortable" (click)="onSort('LeadDate')">
+              Lead Date
+              @if (sortBy() === 'LeadDate') {
+                <span class="sort-indicator">{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th>Month</th>
+            <th class="sortable" (click)="onSort('SalesExecutive')">
+              Sales Executive
+              @if (sortBy() === 'SalesExecutive') {
+                <span class="sort-indicator">{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th>Lead Source</th>
+            <th>Contact Person</th>
+            <th>Mobile</th>
+            <th>Requirement / Product</th>
+            <th class="text-right sortable" (click)="onSort('EstimatedLeadValue')">
+              Est. Lead Value
+              @if (sortBy() === 'EstimatedLeadValue') {
+                <span class="sort-indicator">{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th>First Contact Date</th>
+            <th class="text-center">Contacted?</th>
+            <th class="text-center">Qualified?</th>
+            <th>Meeting Date</th>
+            <th class="text-center">Meeting Done?</th>
+            <th>Quotation Date</th>
+            <th class="text-right sortable" (click)="onSort('QuotationValue')">
+              Quotation Value
+              @if (sortBy() === 'QuotationValue') {
+                <span class="sort-indicator">{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th>Last Follow-Up</th>
+            <th>Next Follow-Up</th>
+            <th class="text-center">Follow-Up SLA</th>
+            <th>Current Stage</th>
+            <th class="text-center">Status</th>
+            <th class="text-right sortable" (click)="onSort('DaysOpen')">
+              Days Open
+              @if (sortBy() === 'DaysOpen') {
+                <span class="sort-indicator">{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th class="text-center">Ageing Bucket</th>
+            <th>Expected Order Date</th>
+            <th>Order Date</th>
+            <th class="text-right sortable" (click)="onSort('OrderValue')">
+              Order Value
+              @if (sortBy() === 'OrderValue') {
+                <span class="sort-indicator">{{ sortDirection() === 'asc' ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th>Lost Reason</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          @if (loading()) {
+            <tr>
+              <td colspan="28" class="text-center py-5">
+                <div class="loading-state">
+                  <div class="spinner"></div>
+                  <p>Loading lead tracker records...</p>
+                </div>
+              </td>
+            </tr>
+          } @else if (rows().length === 0) {
+            <tr>
+              <td colspan="28" class="text-center py-5">
+                <div class="empty-state">
+                  <span class="empty-state__icon">🔍</span>
+                  <h3>No Lead Records Found</h3>
+                  <p>Try adjusting your search query or clear existing filter selections.</p>
+                </div>
+              </td>
+            </tr>
+          } @else {
+            @for (row of rows(); track row.leadIdNum) {
+              <tr class="tracker-row">
+                <!-- Sticky Col 1: Lead ID -->
+                <td class="td-sticky td-sticky--1">
+                  <span class="lead-id-badge">{{ row.leadId }}</span>
+                </td>
+
+                <!-- Sticky Col 2: Customer Name -->
+                <td class="td-sticky td-sticky--2 font-semibold text-dark">
+                  <div class="text-truncate max-w-180" [title]="row.customerName">
+                    {{ row.customerName }}
+                  </div>
+                </td>
+
+                <td>{{ row.leadDate ? (row.leadDate | date:'dd-MMM-yyyy') : 'N/A' }}</td>
+                <td><span class="month-pill">{{ row.monthFormatted }}</span></td>
+                <td>{{ row.salesExecutive }}</td>
+                <td><span class="source-tag">{{ row.leadSource }}</span></td>
+                <td>{{ row.contactPerson }}</td>
+                <td>{{ row.mobile }}</td>
+                <td>
+                  <div class="text-truncate max-w-200" [title]="row.requirementProduct">
+                    {{ row.requirementProduct }}
+                  </div>
+                </td>
+                <td class="text-right font-medium">{{ formatCurrency(row.estimatedLeadValue) }}</td>
+                <td>{{ row.firstContactDate ? (row.firstContactDate | date:'dd-MMM-yyyy') : 'N/A' }}</td>
+                <td class="text-center">
+                  <span class="badge" [ngClass]="getYesNoBadgeClass(row.contacted)">{{ row.contacted }}</span>
+                </td>
+                <td class="text-center">
+                  <span class="badge" [ngClass]="getYesNoBadgeClass(row.qualified)">{{ row.qualified }}</span>
+                </td>
+                <td>{{ row.meetingDate ? (row.meetingDate | date:'dd-MMM-yyyy') : 'N/A' }}</td>
+                <td class="text-center">
+                  <span class="badge" [ngClass]="getYesNoBadgeClass(row.meetingDone)">{{ row.meetingDone }}</span>
+                </td>
+                <td>{{ row.quotationDate ? (row.quotationDate | date:'dd-MMM-yyyy') : 'N/A' }}</td>
+                <td class="text-right font-medium">{{ formatCurrency(row.quotationValue) }}</td>
+                <td>{{ row.lastFollowUpDate ? (row.lastFollowUpDate | date:'dd-MMM-yyyy') : 'N/A' }}</td>
+                <td>{{ row.nextFollowUpDate ? (row.nextFollowUpDate | date:'dd-MMM-yyyy') : 'N/A' }}</td>
+                <td class="text-center">
+                  <span class="badge" [ngClass]="getFollowUpBadgeClass(row.followUpStatus)">{{ row.followUpStatus }}</span>
+                </td>
+                <td><span class="stage-pill">{{ row.currentStage }}</span></td>
+                <td class="text-center">
+                  <span class="badge" [ngClass]="getStatusBadgeClass(row.status)">{{ row.status }}</span>
+                </td>
+                <td class="text-right font-bold">{{ row.daysOpen }} d</td>
+                <td class="text-center">
+                  <span class="badge" [ngClass]="getAgeingBadgeClass(row.ageingBucket)">{{ row.ageingBucket }}</span>
+                </td>
+                <td>{{ row.expectedOrderDate ? (row.expectedOrderDate | date:'dd-MMM-yyyy') : 'N/A' }}</td>
+                <td>{{ row.orderDate ? (row.orderDate | date:'dd-MMM-yyyy') : 'N/A' }}</td>
+                <td class="text-right font-bold text-success">{{ formatCurrency(row.orderValue) }}</td>
+                <td>
+                  <span class="text-muted text-sm" [title]="row.lostReason">{{ row.lostReason }}</span>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pagination Footer -->
+    <footer class="lead-tracker__pagination">
+      <div class="pagination__info">
+        Showing <strong>{{ startRow() }}</strong> to <strong>{{ endRow() }}</strong> of <strong>{{ totalCount() | number }}</strong> records
+      </div>
+
+      <div class="pagination__controls">
+        <label class="page-size-label">
+          <span>Rows per page:</span>
+          <select class="form-select select-sm" [ngModel]="pageSize()" (change)="onPageSizeChange($event)">
+            <option [value]="10">10</option>
+            <option [value]="25">25</option>
+            <option [value]="50">50</option>
+            <option [value]="100">100</option>
+          </select>
+        </label>
+
+        <div class="pagination__buttons">
+          <button 
+            type="button" 
+            class="btn-page" 
+            [disabled]="pageIndex() <= 1 || loading()"
+            (click)="onPageChange(pageIndex() - 1)">
+            ‹ Prev
+          </button>
+
+          <span class="page-current">Page {{ pageIndex() }} of {{ totalPages() }}</span>
+
+          <button 
+            type="button" 
+            class="btn-page" 
+            [disabled]="pageIndex() >= totalPages() || loading()"
+            (click)="onPageChange(pageIndex() + 1)">
+            Next ›
+          </button>
+        </div>
+      </div>
+    </footer>
+  </div>
+</div>
