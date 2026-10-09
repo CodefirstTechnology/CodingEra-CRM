@@ -18,6 +18,45 @@ export interface UserStatusChangedEvent {
   firstLoginAt?: string | null;
 }
 
+export interface FollowUpPopupEventDto {
+  taskId: number;
+  leadId: number;
+  leadFormattedId: string;
+  customerName: string;
+  contactPerson: string;
+  mobile: string;
+  taskTitle: string;
+  dueDate: string;
+  minutesOverdue: number;
+  isInitialDue: boolean;
+}
+
+export interface FollowUpAdminEscalationDto {
+  taskId: number;
+  leadId: number;
+  leadFormattedId: string;
+  customerName: string;
+  salesExecutiveName: string;
+  salesExecutiveUserId: number;
+  taskTitle: string;
+  dueDate: string;
+  minutesOverdue: number;
+  severity: string;
+  escalatedAt: string;
+}
+
+export interface DismissFollowUpPopupDto {
+  taskId: number;
+  leadId: number;
+  reason?: string;
+}
+
+export interface DismissAdminEscalationDto {
+  taskId: number;
+  leadId: number;
+  resolutionNotes?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class UserStatusSignalRService {
   private readonly zone = inject(NgZone);
@@ -33,31 +72,29 @@ export class UserStatusSignalRService {
   /** Reactive signal indicating whether the SignalR connection is currently active */
   public readonly isConnected = signal(false);
 
+  /** Active persistent follow-up reminder popup event for current executive */
+  public readonly activeFollowUpPopup = signal<FollowUpPopupEventDto | null>(null);
+
+  /** List of active overdue follow-ups assigned specifically to current executive for User dashboard */
+  public readonly userOverdueList = signal<FollowUpPopupEventDto[]>([]);
+
+  /** List of active overdue follow-ups across all users for Admin dashboard */
+  public readonly adminEscalations = signal<FollowUpAdminEscalationDto[]>([]);
+
   private isStarting = false;
 
-  /**
-   * Resolves the SignalR hub URL dynamically at runtime based on the active environment
-   * and current browser host, making it fully portable across multiple servers
-   * (e.g. testing servers, staging, multiple production instances, or custom domains).
-   */
   private resolveHubUrl(): string {
     const rawApi = (environment.apiUrl || '').trim().replace(/\/$/, '');
+    const sessionUser = this.auth.user();
+    const uidParam = sessionUser?.id ? `?userId=${sessionUser.id}` : '';
 
-    // 1. If apiUrl is configured as an absolute URL (e.g. "https://domain.com/api" or "http://localhost:5152/api")
     if (/^https?:\/\//i.test(rawApi)) {
-      return `${rawApi}/hubs/user-status`;
+      return `${rawApi}/hubs/user-status${uidParam}`;
     }
-
-    // 2. If relative URL (e.g. "/api" or default)
-    // Connecting to a relative path dynamically binds to the active server host (window.location.origin)
     const base = rawApi || '/api';
-    return `${base}/hubs/user-status`;
+    return `${base}/hubs/user-status${uidParam}`;
   }
 
-  /**
-   * Starts or resumes the SignalR connection to the dynamic user status hub.
-   * Leverages multi-transport negotiation (WebSockets -> SSE -> LongPolling) with auto-reconnect.
-   */
   async start(): Promise<void> {
     if (this.hubConnection && this.hubConnection.state === HubConnectionState.Connected) {
       return;
@@ -75,7 +112,6 @@ export class UserStatusSignalRService {
         this.hubConnection = new HubConnectionBuilder()
           .withUrl(hubUrl, {
             skipNegotiation: false,
-            // Dynamically negotiate the best supported transport for the current server environment
             transport:
               HttpTransportType.WebSockets |
               HttpTransportType.ServerSentEvents |
@@ -86,9 +122,49 @@ export class UserStatusSignalRService {
           .configureLogging(LogLevel.None)
           .build();
 
+        // 1. User Status Changed Event
         this.hubConnection.on('UserStatusChanged', (payload: UserStatusChangedEvent) => {
           this.zone.run(() => {
             this.statusChangedSubject.next(payload);
+          });
+        });
+
+        // 2. Executive Persistent Follow-Up Reminder Popup Event
+        this.hubConnection.on('FollowUpReminderPopup', (event: FollowUpPopupEventDto) => {
+          this.zone.run(() => {
+            this.activeFollowUpPopup.set(event);
+            this.userOverdueList.update((list) => {
+              const filtered = list.filter((e) => e.taskId !== event.taskId);
+              return [event, ...filtered];
+            });
+          });
+        });
+
+        // 3. Dismiss Executive Follow-Up Reminder Popup Event
+        this.hubConnection.on('DismissFollowUpPopup', (event: DismissFollowUpPopupDto) => {
+          this.zone.run(() => {
+            const current = this.activeFollowUpPopup();
+            if (current && current.taskId === event.taskId) {
+              this.activeFollowUpPopup.set(null);
+            }
+            this.userOverdueList.update((list) => list.filter((e) => e.taskId !== event.taskId));
+          });
+        });
+
+        // 4. Admin SLA Breach Escalation Event
+        this.hubConnection.on('FollowUpAdminEscalation', (event: FollowUpAdminEscalationDto) => {
+          this.zone.run(() => {
+            this.adminEscalations.update((list) => {
+              const filtered = list.filter((e) => e.taskId !== event.taskId);
+              return [event, ...filtered];
+            });
+          });
+        });
+
+        // 5. Dismiss Admin SLA Breach Escalation Event
+        this.hubConnection.on('DismissAdminEscalation', (event: DismissAdminEscalationDto) => {
+          this.zone.run(() => {
+            this.adminEscalations.update((list) => list.filter((e) => e.taskId !== event.taskId));
           });
         });
 
@@ -126,9 +202,6 @@ export class UserStatusSignalRService {
     }
   }
 
-  /**
-   * Gracefully terminates the active SignalR connection.
-   */
   async stop(): Promise<void> {
     if (this.hubConnection) {
       try {
@@ -141,5 +214,11 @@ export class UserStatusSignalRService {
         });
       }
     }
+  }
+
+  public dismissLocalPopup(): void {
+    this.zone.run(() => {
+      this.activeFollowUpPopup.set(null);
+    });
   }
 }

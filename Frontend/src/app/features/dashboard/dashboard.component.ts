@@ -113,9 +113,11 @@ const PIPELINE_STAGE_COLORS = [
   '#d97706',
 ] as const;
 
+import { AdminSlaBreachComponent } from '../admin-sla-breach/admin-sla-breach.component';
+
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, CrmModalComponent, FormsModule, SalesExecutiveReportModalComponent, MonthlySummaryCardComponent],
+  imports: [RouterLink, CrmModalComponent, FormsModule, SalesExecutiveReportModalComponent, MonthlySummaryCardComponent, AdminSlaBreachComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })

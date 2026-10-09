@@ -1,0 +1,213 @@
+.admin-sla-banner {
+  background: #fee2e2;
+  border: 2px solid #ef4444;
+  border-radius: 14px;
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 10px 25px -5px rgba(220, 38, 38, 0.2);
+}
+
+.admin-sla-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.admin-sla-show-more-btn {
+  background: #dc2626;
+  color: #ffffff;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #b91c1c;
+    transform: translateY(-1px);
+  }
+}
+
+.admin-sla-footer-actions {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.admin-sla-show-more-footer {
+  background: #7f1d1d;
+  color: #ffffff;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #991b1b;
+  }
+}
+
+.admin-sla-title {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+
+  h3 {
+    margin: 0;
+    color: #b91c1c;
+    font-size: 1.15rem;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+  }
+
+  p {
+    margin: 2px 0 0;
+    color: #991b1b;
+    font-size: 0.8rem;
+    font-weight: 500;
+  }
+}
+
+.admin-sla-badge-icon {
+  font-size: 1.8rem;
+  animation: slaBlink 1s infinite alternate;
+}
+
+.admin-sla-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.admin-sla-card {
+  background: #ffffff;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.admin-sla-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.admin-sla-lead-id {
+  background: #7f1d1d;
+  color: #fecdd3;
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.admin-sla-overdue-tag {
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 9999px;
+}
+
+.admin-sla-card-body {
+  margin-bottom: 0.75rem;
+}
+
+.admin-sla-customer {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  color: #1e293b;
+}
+
+.admin-sla-exec, .admin-sla-task {
+  margin: 2px 0;
+  font-size: 0.85rem;
+  color: #475569;
+}
+
+.admin-sla-card-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.admin-btn {
+  flex: 1;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: none;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.admin-btn-view {
+  background: #1e293b;
+  color: #ffffff;
+
+  &:hover {
+    background: #0f172a;
+  }
+}
+
+.admin-btn-reassign {
+  background: #dc2626;
+  color: #ffffff;
+
+  &:hover {
+    background: #b91c1c;
+  }
+}
+
+.admin-btn-complete {
+  background: #16a34a;
+  color: #ffffff;
+
+  &:hover {
+    background: #15803d;
+  }
+}
+
+.user-overdue-banner {
+  background: #fff7ed;
+  border-color: #f97316;
+  box-shadow: 0 10px 25px -5px rgba(249, 115, 22, 0.2);
+
+  .admin-sla-title h3 {
+    color: #c2410c;
+  }
+
+  .admin-sla-title p {
+    color: #9a3412;
+  }
+
+  .admin-sla-card {
+    border-color: #fdba74;
+  }
+
+  .admin-sla-lead-id {
+    background: #c2410c;
+    color: #ffedd5;
+  }
+
+  .admin-sla-overdue-tag {
+    background: #ea580c;
+  }
+}
+
+@keyframes slaBlink {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0.6; transform: scale(1.15); }
+}
