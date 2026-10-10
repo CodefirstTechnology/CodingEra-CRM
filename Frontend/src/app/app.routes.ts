@@ -45,6 +45,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'overdue-followups',
+        loadComponent: () =>
+          import('./features/overdue-followups/overdue-followups.component').then(
+            (m) => m.OverdueFollowupsComponent,
+          ),
+      },
+      {
         path: 'dashboard',
         canMatch: [roleGuard],
         data: { roles: ['admin'] },

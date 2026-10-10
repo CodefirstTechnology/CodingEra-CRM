@@ -26,6 +26,9 @@
   <p class="udash__banner udash__banner--error" role="alert">{{ err }}</p>
   }
 
+  <!-- Critical Admin SLA Breach Banner -->
+  <app-admin-sla-breach />
+
   <!-- Top Filter Bar Component (Matching Admin Dashboard style with dark theme dropdown pills) -->
   <section class="udash__filters" aria-label="Dashboard filters">
     <div class="udash__filters-group">
@@ -107,6 +110,18 @@
         </svg>
         <span>Performance Report</span>
       </button>
+
+      <!-- Lead Tracker Action Button -->
+      <a [routerLink]="['/admin/lead-tracker']" [queryParams]="{ salesExecutive: user()?.name }" class="udash__filter-add-btn udash__filter-tracker-btn" title="Lead Tracker" style="text-decoration: none;">
+        <svg class="udash__filter-add-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 3v18h18"/>
+          <path d="M18 17V9"/>
+          <path d="M13 17V5"/>
+          <path d="M8 17v-3"/>
+        </svg>
+        <span>Lead Tracker</span>
+      </a>
 
       <!-- Reset Filters Button if any non-default filter is active -->
       @if (hasActiveFilters()) {

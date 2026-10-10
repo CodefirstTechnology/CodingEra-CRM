@@ -275,14 +275,16 @@
               <tr class="tracker-row">
                 <!-- Sticky Col 1: Lead ID -->
                 <td class="td-sticky td-sticky--1">
-                  <span class="lead-id-badge">{{ row.leadId }}</span>
+                  <a [routerLink]="['/leads', row.leadIdNum]" class="lead-id-badge" [title]="'Open Lead ' + row.leadId">
+                    {{ row.leadId }}
+                  </a>
                 </td>
 
                 <!-- Sticky Col 2: Customer Name -->
                 <td class="td-sticky td-sticky--2 font-semibold text-dark">
-                  <div class="text-truncate max-w-180" [title]="row.customerName">
+                  <a [routerLink]="['/leads', row.leadIdNum]" class="customer-name-link text-truncate max-w-180" [title]="row.customerName">
                     {{ row.customerName }}
-                  </div>
+                  </a>
                 </td>
 
                 <td>{{ row.leadDate ? (row.leadDate | date:'dd-MMM-yyyy') : 'N/A' }}</td>

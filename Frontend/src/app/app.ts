@@ -4,10 +4,11 @@ import { ThemeService } from './core/theme/theme.service';
 import { CompanyBrandingService } from './core/services/company-branding.service';
 import { ToastComponent } from './core/toast/toast.component';
 import { CrmIntlTelDropdownService } from './shared/services/crm-intl-tel-dropdown.service';
+import { FollowUpAlertModalComponent } from './features/follow-up-alert/follow-up-alert-modal.component';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, ToastComponent],
+  imports: [RouterOutlet, ToastComponent, FollowUpAlertModalComponent],
   templateUrl: './app.html',
   styleUrl: './app.scss',
 })

@@ -75,6 +75,9 @@
   <p class="sales-dash__banner" role="alert">{{ err }}</p>
   }
 
+  <!-- Overdue Follow-Up SLA Alerts Banner for Admin Dashboard -->
+  <app-admin-sla-breach />
+
   @if (loading() && !snapshot()) {
   <div class="sales-dash__loading" aria-busy="true" aria-label="Loading dashboard">
     <div class="sales-dash__loading-spinner"></div>

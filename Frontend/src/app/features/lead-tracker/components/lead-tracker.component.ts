@@ -1,9 +1,11 @@
 import { Component, OnInit, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { AuthService } from '../../../core/auth/auth.service';
+import { ROLE_ID_ADMIN } from '../../../core/auth/auth-role.util';
 import {
   LeadTrackerService,
   LeadTrackerRow,
@@ -20,6 +22,8 @@ import {
 })
 export class LeadTrackerComponent implements OnInit {
   private readonly trackerService = inject(LeadTrackerService);
+  private readonly route = inject(ActivatedRoute);
+  private readonly auth = inject(AuthService);
 
   // State Signals
   readonly rows = signal<LeadTrackerRow[]>([]);
@@ -97,6 +101,16 @@ export class LeadTrackerComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    const queryExec = this.route.snapshot.queryParams['salesExecutive'];
+    if (queryExec) {
+      this.filterSalesExec.set(queryExec);
+    } else {
+      const user = this.auth.user();
+      if (user && user.roleId !== ROLE_ID_ADMIN && user.name) {
+        this.filterSalesExec.set(user.name);
+      }
+    }
+
     this.searchSubject.pipe(
       debounceTime(350),
       distinctUntilChanged()

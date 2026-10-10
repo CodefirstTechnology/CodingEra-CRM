@@ -1,0 +1,160 @@
+<div class="overdue-page">
+  <header class="overdue-page__header">
+    <div class="overdue-page__title-group">
+      <a routerLink="/" class="overdue-page__back-btn">&larr; Back to Dashboard</a>
+      <h1 class="overdue-page__title">
+        <span class="overdue-page__icon">🚨</span>
+        @if (isAdmin()) {
+          All Team Overdue Follow-ups ({{ filteredEscalations().length }})
+        } @else {
+          My Overdue Follow-ups ({{ filteredUserOverdue().length }})
+        }
+      </h1>
+      <p class="overdue-page__sub">
+        @if (isAdmin()) {
+          Complete list of all active overdue follow-ups across all sales executives
+        } @else {
+          Complete list of all active overdue follow-ups assigned to you
+        }
+      </p>
+    </div>
+
+    <div class="overdue-page__search-wrap">
+      <input
+        type="text"
+        class="overdue-page__search-input"
+        placeholder="Search by customer, lead ID, task, or executive..."
+        [ngModel]="searchQuery()"
+        (ngModelChange)="searchQuery.set($event)"
+      />
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="overdue-page__loading">
+      <div class="overdue-page__spinner"></div>
+      <p>Loading overdue follow-ups...</p>
+    </div>
+  } @else if (isAdmin()) {
+    @if (filteredEscalations().length === 0) {
+      <div class="overdue-page__empty">
+        <span class="overdue-page__empty-icon">🎉</span>
+        <h3>No Overdue Follow-ups Found</h3>
+        <p>All team follow-ups are up to date.</p>
+      </div>
+    } @else {
+      <div class="overdue-page__grid">
+        @for (item of filteredEscalations(); track item.taskId) {
+          <div class="overdue-card" [class.overdue-card--critical]="item.minutesOverdue >= 60">
+            <div class="overdue-card__header">
+              <span class="overdue-card__lead-id">{{ item.leadFormattedId }}</span>
+              <span class="overdue-card__tag">⚠️ {{ item.minutesOverdue }} mins overdue</span>
+            </div>
+
+            <div class="overdue-card__body">
+              <h3 class="overdue-card__customer">{{ item.customerName }}</h3>
+              <p class="overdue-card__info">👤 <strong>Assigned Executive:</strong> {{ item.salesExecutiveName }}</p>
+              <p class="overdue-card__info">📌 <strong>Task:</strong> {{ item.taskTitle }}</p>
+              <p class="overdue-card__info">📅 <strong>Due Date:</strong> {{ item.dueDate | date: 'dd-MMM-yyyy hh:mm a' }}</p>
+            </div>
+
+            <div class="overdue-card__actions">
+              <button type="button" class="od-btn od-btn--primary" (click)="completeFollowUp(item.taskId)">
+                Mark Complete
+              </button>
+              <button type="button" class="od-btn od-btn--warning" (click)="openRescheduleModal(item.taskId)">
+                Reschedule
+              </button>
+              <button type="button" class="od-btn od-btn--dark" (click)="viewLead(item.leadId)">
+                View Lead
+              </button>
+              <button type="button" class="od-btn od-btn--danger" (click)="reassignLead(item.leadId)">
+                Reassign
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  } @else {
+    @if (filteredUserOverdue().length === 0) {
+      <div class="overdue-page__empty">
+        <span class="overdue-page__empty-icon">🎉</span>
+        <h3>No Overdue Follow-ups Found</h3>
+        <p>You have no overdue follow-up tasks.</p>
+      </div>
+    } @else {
+      <div class="overdue-page__grid">
+        @for (item of filteredUserOverdue(); track item.taskId) {
+          <div class="overdue-card" [class.overdue-card--critical]="item.minutesOverdue >= 60">
+            <div class="overdue-card__header">
+              <span class="overdue-card__lead-id">{{ item.leadFormattedId }}</span>
+              <span class="overdue-card__tag">⚠️ {{ item.minutesOverdue }} mins overdue</span>
+            </div>
+
+            <div class="overdue-card__body">
+              <h3 class="overdue-card__customer">{{ item.customerName }}</h3>
+              @if (item.contactPerson) {
+                <p class="overdue-card__info">👤 <strong>Contact:</strong> {{ item.contactPerson }} {{ item.mobile ? '(' + item.mobile + ')' : '' }}</p>
+              }
+              <p class="overdue-card__info">📌 <strong>Task:</strong> {{ item.taskTitle }}</p>
+              <p class="overdue-card__info">📅 <strong>Due Date:</strong> {{ item.dueDate | date: 'dd-MMM-yyyy hh:mm a' }}</p>
+            </div>
+
+            <div class="overdue-card__actions">
+              <button type="button" class="od-btn od-btn--primary" (click)="completeFollowUp(item.taskId)">
+                Mark Complete
+              </button>
+              <button type="button" class="od-btn od-btn--warning" (click)="openRescheduleModal(item.taskId)">
+                Reschedule
+              </button>
+              <button type="button" class="od-btn od-btn--dark" (click)="viewLead(item.leadId)">
+                View Lead
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+  }
+</div>
+
+<!-- Mandatory Reschedule Form Modal -->
+@if (rescheduleTaskId() !== null) {
+  <div class="od-modal-backdrop" (click)="closeRescheduleModal()">
+    <div class="od-modal" (click)="$event.stopPropagation()">
+      <div class="od-modal__header">
+        <h3>Reschedule Overdue Follow-Up</h3>
+        <button type="button" class="od-modal__close" (click)="closeRescheduleModal()">&times;</button>
+      </div>
+      <div class="od-modal__body">
+        @if (rescheduleError(); as err) {
+          <p class="od-modal__error">{{ err }}</p>
+        }
+        <div class="od-form-group">
+          <label>Mandatory Reschedule Reason <span class="od-req">*</span></label>
+          <textarea
+            class="od-input"
+            rows="3"
+            placeholder="Enter reason for rescheduling..."
+            [ngModel]="rescheduleReason()"
+            (ngModelChange)="rescheduleReason.set($event)"
+          ></textarea>
+        </div>
+        <div class="od-form-group">
+          <label>New Due Date & Time <span class="od-req">*</span></label>
+          <input
+            type="datetime-local"
+            class="od-input"
+            [ngModel]="rescheduleNewDate()"
+            (ngModelChange)="rescheduleNewDate.set($event)"
+          />
+        </div>
+      </div>
+      <div class="od-modal__footer">
+        <button type="button" class="od-btn od-btn--dark" (click)="closeRescheduleModal()">Cancel</button>
+        <button type="button" class="od-btn od-btn--warning" (click)="submitReschedule()">Confirm Reschedule</button>
+      </div>
+    </div>
+  </div>
+}

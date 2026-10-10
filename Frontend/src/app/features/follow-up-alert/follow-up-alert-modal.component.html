@@ -1,0 +1,133 @@
+@if (event()) {
+  <div class="fup-modal-backdrop">
+    <div class="fup-modal" role="dialog" aria-modal="true" aria-labelledby="fupTitle">
+      <!-- Alert Header Banner -->
+      <div class="fup-header">
+        <div class="fup-header-title">
+          <span class="fup-pulse-icon">🔔</span>
+          <div>
+            <h3 id="fupTitle" class="fup-title">ACTION REQUIRED: FOLLOW-UP DUE</h3>
+            <p class="fup-subtitle">Persistent SLA Reminder Engine</p>
+          </div>
+        </div>
+        <span class="fup-overdue-badge">
+          {{ event()?.minutesOverdue || 0 }} mins overdue
+        </span>
+      </div>
+
+      <!-- Body Content -->
+      <div class="fup-body">
+        <div class="fup-lead-card">
+          <div class="fup-card-row">
+            <span class="fup-lead-id">{{ event()?.leadFormattedId }}</span>
+            <strong class="fup-customer">{{ event()?.customerName }}</strong>
+          </div>
+          <div class="fup-card-details">
+            <p>👤 <strong>Contact:</strong> {{ event()?.contactPerson || 'N/A' }}</p>
+            <p>
+              📞 <strong>Mobile:</strong>
+              @if (event()?.mobile) {
+                <a [href]="'tel:' + event()?.mobile" class="fup-phone-link">{{ event()?.mobile }}</a>
+              } @else {
+                N/A
+              }
+            </p>
+            <p class="fup-task-title">📌 <strong>Task:</strong> {{ event()?.taskTitle }}</p>
+          </div>
+        </div>
+
+        <!-- Reschedule Form -->
+        @if (showRescheduleForm()) {
+          <div class="fup-reschedule-box">
+            <h4 class="fup-box-title">⏱ Reschedule Follow-up</h4>
+            <div class="fup-form-group">
+              <label for="newDueDate">New Date & Time (Mandatory):</label>
+              <input
+                id="newDueDate"
+                type="datetime-local"
+                class="fup-input"
+                [(ngModel)]="newDueDate"
+              />
+            </div>
+            <div class="fup-form-group">
+              <label for="rescheduleReason">Reschedule Reason (Mandatory):</label>
+              <textarea
+                id="rescheduleReason"
+                class="fup-textarea"
+                rows="2"
+                placeholder="Provide detailed reason for rescheduling..."
+                [(ngModel)]="rescheduleReason"
+              ></textarea>
+            </div>
+            @if (formError()) {
+              <p class="fup-error">{{ formError() }}</p>
+            }
+            <div class="fup-form-actions">
+              <button type="button" class="fup-btn fup-btn-secondary" (click)="cancelReschedule()" [disabled]="submitting()">
+                Cancel
+              </button>
+              <button type="button" class="fup-btn fup-btn-warning" (click)="submitReschedule()" [disabled]="submitting()">
+                {{ submitting() ? 'Submitting...' : 'Confirm Reschedule' }}
+              </button>
+            </div>
+          </div>
+        } @else if (showNotesForm()) {
+          <div class="fup-reschedule-box">
+            <h4 class="fup-box-title">📝 Completion Notes</h4>
+            <div class="fup-form-group">
+              <label for="completionNotes">Outcome / Discussion Notes:</label>
+              <textarea
+                id="completionNotes"
+                class="fup-textarea"
+                rows="2"
+                placeholder="Enter details of conversation..."
+                [(ngModel)]="completionNotes"
+              ></textarea>
+            </div>
+            @if (formError()) {
+              <p class="fup-error">{{ formError() }}</p>
+            }
+            <div class="fup-form-actions">
+              <button type="button" class="fup-btn fup-btn-secondary" (click)="cancelNotes()" [disabled]="submitting()">
+                Cancel
+              </button>
+              <button type="button" class="fup-btn fup-btn-success" (click)="submitCompletion(false)" [disabled]="submitting()">
+                {{ submitting() ? 'Submitting...' : 'Complete Task' }}
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Main Actions -->
+      @if (!showRescheduleForm() && !showNotesForm()) {
+        <div class="fup-footer">
+          <button
+            type="button"
+            class="fup-btn fup-btn-call"
+            (click)="submitCompletion(true)"
+            [disabled]="submitting()"
+          >
+            📞 Call Done (Log & Complete)
+          </button>
+          <button
+            type="button"
+            class="fup-btn fup-btn-success"
+            (click)="openNotesForm()"
+            [disabled]="submitting()"
+          >
+            ✅ Mark Completed
+          </button>
+          <button
+            type="button"
+            class="fup-btn fup-btn-warning"
+            (click)="openRescheduleForm()"
+            [disabled]="submitting()"
+          >
+            ⏱ Reschedule
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+}
