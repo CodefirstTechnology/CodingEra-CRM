@@ -1,0 +1,89 @@
+@if (isAdmin() && escalations().length > 0) {
+  <div class="admin-sla-banner" role="alert">
+    <div class="admin-sla-header">
+      <div class="admin-sla-title">
+        <span class="admin-sla-badge-icon">🚨</span>
+        <div>
+          <h3>OVERDUE FOLLOW-UP SLA ALERTS ({{ totalEscalationsCount() }})</h3>
+          <p>Overdue follow-ups detected across team members</p>
+        </div>
+      </div>
+      @if (totalEscalationsCount() > 4) {
+        <button type="button" class="admin-sla-show-more-btn" (click)="navigateToAllOverdue()">
+          Show More ({{ totalEscalationsCount() - 4 }} Remaining) &rarr;
+        </button>
+      }
+    </div>
+
+    <div class="admin-sla-grid">
+      @for (item of displayedEscalations(); track item.taskId) {
+        <div class="admin-sla-card">
+          <div class="admin-sla-card-header">
+            <span class="admin-sla-lead-id">{{ item.leadFormattedId }}</span>
+            <span class="admin-sla-overdue-tag">⚠️ {{ item.minutesOverdue }} mins overdue</span>
+          </div>
+
+          <div class="admin-sla-card-body">
+            <h4 class="admin-sla-customer">{{ item.customerName }}</h4>
+            <p class="admin-sla-exec">👤 <strong>Assigned Executive:</strong> {{ item.salesExecutiveName }}</p>
+            <p class="admin-sla-task">📌 <strong>Task:</strong> {{ item.taskTitle }}</p>
+          </div>
+
+          <div class="admin-sla-card-actions">
+            <button type="button" class="admin-btn admin-btn-view" (click)="viewLead(item.leadId)">
+              View Lead
+            </button>
+            <button type="button" class="admin-btn admin-btn-reassign" (click)="reassignLead(item.leadId)">
+              Reassign
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+} @else if (!isAdmin() && userOverdue().length > 0) {
+  <div class="admin-sla-banner user-overdue-banner" role="alert">
+    <div class="admin-sla-header">
+      <div class="admin-sla-title">
+        <span class="admin-sla-badge-icon">⏰</span>
+        <div>
+          <h3>MY OVERDUE FOLLOW-UPS ({{ totalUserOverdueCount() }})</h3>
+          <p>Follow-ups assigned to you requiring immediate action</p>
+        </div>
+      </div>
+      @if (totalUserOverdueCount() > 4) {
+        <button type="button" class="admin-sla-show-more-btn" (click)="navigateToAllOverdue()">
+          Show More ({{ totalUserOverdueCount() - 4 }} Remaining) &rarr;
+        </button>
+      }
+    </div>
+
+    <div class="admin-sla-grid">
+      @for (item of displayedUserOverdue(); track item.taskId) {
+        <div class="admin-sla-card">
+          <div class="admin-sla-card-header">
+            <span class="admin-sla-lead-id">{{ item.leadFormattedId }}</span>
+            <span class="admin-sla-overdue-tag">⚠️ {{ item.minutesOverdue }} mins overdue</span>
+          </div>
+
+          <div class="admin-sla-card-body">
+            <h4 class="admin-sla-customer">{{ item.customerName }}</h4>
+            @if (item.contactPerson) {
+              <p class="admin-sla-exec">👤 <strong>Contact:</strong> {{ item.contactPerson }} {{ item.mobile ? '(' + item.mobile + ')' : '' }}</p>
+            }
+            <p class="admin-sla-task">📌 <strong>Task:</strong> {{ item.taskTitle }}</p>
+          </div>
+
+          <div class="admin-sla-card-actions">
+            <button type="button" class="admin-btn admin-btn-complete" (click)="completeFollowUp(item.taskId)">
+              Mark Complete
+            </button>
+            <button type="button" class="admin-btn admin-btn-view" (click)="viewLead(item.leadId)">
+              View Lead
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+}

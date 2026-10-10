@@ -369,6 +369,30 @@ tbody tr:hover .td-sticky {
   padding: 0.2rem 0.5rem;
   border-radius: 6px;
   font-size: 0.775rem;
+  text-decoration: none;
+  display: inline-block;
+  transition: all 0.15s ease-in-out;
+  cursor: pointer;
+
+  &:hover {
+    background: #2563eb;
+    color: #ffffff;
+    box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+    transform: translateY(-1px);
+  }
+}
+
+.customer-name-link {
+  color: #1e293b;
+  text-decoration: none;
+  display: block;
+  transition: color 0.15s ease;
+  cursor: pointer;
+
+  &:hover {
+    color: #2563eb;
+    text-decoration: underline;
+  }
 }
 
 .month-pill {

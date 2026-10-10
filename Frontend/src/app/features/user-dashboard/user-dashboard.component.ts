@@ -61,10 +61,12 @@ function formatShortDate(d: Date): string {
   }
 }
 
+import { AdminSlaBreachComponent } from '../admin-sla-breach/admin-sla-breach.component';
+
 @Component({
   selector: 'app-user-dashboard',
   standalone: true,
-  imports: [RouterLink, DatePipe, DecimalPipe, FormsModule, CrmPaginationFooterComponent, CrmModalComponent, SalesExecutiveReportModalComponent],
+  imports: [RouterLink, DatePipe, DecimalPipe, FormsModule, CrmPaginationFooterComponent, CrmModalComponent, SalesExecutiveReportModalComponent, AdminSlaBreachComponent],
   templateUrl: './user-dashboard.component.html',
   styleUrl: './user-dashboard.component.scss',
 })
