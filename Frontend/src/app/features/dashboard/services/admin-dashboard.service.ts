@@ -1,4 +1,5 @@
 import { inject, Injectable } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, map, switchMap, take } from 'rxjs/operators';
 import type { AdminUserRow } from '../../../core/services/admin-users.service';
@@ -69,6 +70,24 @@ import {
   getPreviousPeriodRange,
 } from '../utils/admin-dashboard.util';
 
+export interface ExecutiveTrackerSummary {
+  totalLeads: number;
+  openLeads: number;
+  wonLeads: number;
+  lostLeads: number;
+  estPipeline: number;
+  totalQuotedValue: number;
+  totalWonRevenue: number;
+  leadToQuotePercentage: number;
+  quoteToOrderPercentage: number;
+  conversionRate: number;
+  lostReasonBreakdown?: {
+    lostReason: string;
+    count: number;
+    totalEstValue: number;
+  }[];
+}
+
 interface GroupedRecords {
   leadsByOwner: Map<string, LeadRow[]>;
   dealsByOwner: Map<string, DealRow[]>;
@@ -85,11 +104,32 @@ interface DashboardBuildContext {
 
 @Injectable({ providedIn: 'root' })
 export class AdminDashboardService {
+  private readonly http = inject(HttpClient);
   private readonly entityCache = inject(CrmEntityCacheService);
   private readonly scope = inject(UserDataScopeService);
   private readonly activitiesService = inject(ActivitiesService);
   private readonly dealMaster = inject(DealMasterSelectService);
   private readonly userTargetsApi = inject(UserTargetHttpService);
+
+  getExecutiveTrackerSummary(
+    fromDate?: string,
+    toDate?: string,
+    executiveId?: number,
+  ): Observable<ExecutiveTrackerSummary | null> {
+    let params = new HttpParams();
+    if (fromDate) params = params.set('fromDate', fromDate);
+    if (toDate) params = params.set('toDate', toDate);
+    if (executiveId != null && executiveId > 0) {
+      params = params.set('executiveId', executiveId.toString());
+    }
+
+    return this.http.get<ExecutiveTrackerSummary>('/api/dashboard/executive-tracker-summary', { params }).pipe(
+      catchError((err) => {
+        console.error('Failed to load executive tracker summary from Lead Tracker view', err);
+        return of(null);
+      }),
+    );
+  }
 
   loadSnapshot(
     periodKey: AdminDashboardPeriodKey = 'this_month',
@@ -104,14 +144,20 @@ export class AdminDashboardService {
         const pipelineOptions = [...statusOptions];
         const pipeline = toDealPipelineRows(pipelineOptions);
 
+        const fromDateStr = period.start.toISOString().slice(0, 10);
+        const toDateStr = period.end.toISOString().slice(0, 10);
+
         return forkJoin({
           users: this.entityCache.listUsers().pipe(catchError(() => of([] as AdminUserRow[]))),
           leads: this.entityCache.listLeads().pipe(catchError(() => of([] as LeadRow[]))),
           deals: this.entityCache.listDeals().pipe(catchError(() => of([] as DealRow[]))),
           tasks: this.scope.listTasks().pipe(catchError(() => of([] as TaskRow[]))),
           targets: this.userTargetsApi.listTargets(false).pipe(catchError(() => of([] as UserTargetRow[]))),
+          trackerSummary: this.getExecutiveTrackerSummary(fromDateStr, toDateStr).pipe(
+            catchError(() => of(null as ExecutiveTrackerSummary | null)),
+          ),
         }).pipe(
-          switchMap(({ users, leads, deals, tasks, targets }) => {
+          switchMap(({ users, leads, deals, tasks, targets, trackerSummary }) => {
             const teamUsers = filterTeamUsers(users, teamFilters.roleId);
             const grouped = this.groupRecords(leads, deals, tasks);
             const entityNames = buildActivityEntityNameMap(leads, deals);
@@ -134,6 +180,7 @@ export class AdminDashboardService {
                   grouped,
                   activities,
                   entityNames,
+                  trackerSummary,
                 ),
                 error: null as string | null,
               })),
@@ -188,6 +235,7 @@ export class AdminDashboardService {
     grouped: GroupedRecords,
     activities: ActivityRow[],
     entityNames: Map<string, string>,
+    trackerSummary?: ExecutiveTrackerSummary | null,
   ): AdminDashboardSnapshot {
     const { period, pipeline, pipelineOptions, targets } = ctx;
     const overlappingTargets = targets.filter((t) =>
@@ -238,6 +286,7 @@ export class AdminDashboardService {
       period.start,
       period.end,
       revenueChangePct,
+      trackerSummary,
     );
     const pipelineSegments = this.buildPipelineSegments(openDeals, pipeline);
     const team = this.buildTeamStats(teamUsers, grouped, overlappingTargets, ctx);
@@ -306,17 +355,22 @@ export class AdminDashboardService {
     periodStart: Date,
     periodEnd: Date,
     revenueChangePct: number,
+    trackerSummary?: ExecutiveTrackerSummary | null,
   ): AdminDashboardSnapshot['kpis'] {
-    const totalLeads = periodLeads.length;
+    const totalLeads = trackerSummary ? trackerSummary.totalLeads : periodLeads.length;
     const qualifiedLeads = periodLeads.filter((l) => l.status === 'Qualified').length;
     const convertedLeads = periodLeads.filter((l) => isLeadConvertedRow(l)).length;
-    const wonDeals = wonDealsInPeriod.length;
-    const lostDeals = lostDealsInPeriod.length;
+    const wonDeals = trackerSummary ? trackerSummary.wonLeads : wonDealsInPeriod.length;
+    const lostDeals = trackerSummary ? trackerSummary.lostLeads : lostDealsInPeriod.length;
     const lostDealsRevenue = lostDealsInPeriod.reduce((sum, d) => sum + resolveDealValue(d), 0);
-    const conversionRatePct =
-      totalLeads === 0 ? 0 : Math.round((wonDeals / totalLeads) * 1000) / 10;
+    const conversionRatePct = trackerSummary
+      ? trackerSummary.conversionRate
+      : (totalLeads === 0 ? 0 : Math.round((wonDeals / totalLeads) * 1000) / 10);
 
-    const pipelineRevenue = openDeals.reduce((sum, d) => sum + resolveDealValue(d), 0);
+    const pipelineRevenue = trackerSummary
+      ? trackerSummary.estPipeline
+      : openDeals.reduce((sum, d) => sum + resolveDealValue(d), 0);
+    const totalQuotedValue = trackerSummary ? trackerSummary.totalQuotedValue : 0;
 
     let periodTarget = 0;
     const targetUserIds = new Set<number>();
@@ -332,7 +386,9 @@ export class AdminDashboardService {
       const ownerId = Number(ownerKeyFromDeal(d));
       return Number.isFinite(ownerId) && targetUserIds.has(ownerId);
     });
-    const periodAchieved = wonDealsByTargetUsers.reduce((sum, d) => sum + resolveDealValue(d), 0);
+    const periodAchieved = trackerSummary && trackerSummary.totalWonRevenue > 0
+      ? trackerSummary.totalWonRevenue
+      : wonDealsByTargetUsers.reduce((sum, d) => sum + resolveDealValue(d), 0);
 
     const targetAchievedPct =
       periodTarget > 0
@@ -348,13 +404,14 @@ export class AdminDashboardService {
       lostDealsRevenue,
       conversionRatePct,
       newLeadsInPeriod: totalLeads,
-      activePipelineCount: openDeals.length,
+      activePipelineCount: trackerSummary ? trackerSummary.openLeads : openDeals.length,
       pipelineRevenue,
       periodAchieved,
       periodTarget,
       targetAchievedPct,
       hasTargetsConfigured: overlappingTargets.length > 0 && periodTarget > 0,
       revenueChangePct,
+      totalQuotedValue,
     };
   }
 

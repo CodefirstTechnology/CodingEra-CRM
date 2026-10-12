@@ -9,6 +9,7 @@ export interface LeadTrackerRow {
   leadDate: string | null;
   monthFormatted: string;
   salesExecutive: string;
+  salesExecutiveUserId?: number | null;
   leadSource: string;
   customerName: string;
   contactPerson: string;

@@ -1,11 +1,16 @@
 import { Component, OnInit, signal, computed, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule, ReactiveFormsModule, FormBuilder, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { Subject } from 'rxjs';
-import { debounceTime, distinctUntilChanged } from 'rxjs/operators';
+import { of, Subject } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, take } from 'rxjs/operators';
 import { AuthService } from '../../../core/auth/auth.service';
 import { ROLE_ID_ADMIN } from '../../../core/auth/auth-role.util';
+import { CrmModalComponent } from '../../../core/modal/crm-modal.component';
+import { TasksService } from '../../../core/services/tasks.service';
+import { LeadOwnerOptionsService } from '../../../core/services/leads/lead-owner-options.service';
+import { ToastService } from '../../../core/toast/toast.service';
+import type { TaskRow } from '../../tasks/tasks.component';
 import {
   LeadTrackerService,
   LeadTrackerRow,
@@ -16,7 +21,7 @@ import {
 @Component({
   selector: 'app-lead-tracker',
   standalone: true,
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, ReactiveFormsModule, RouterLink, CrmModalComponent],
   templateUrl: './lead-tracker.component.html',
   styleUrls: ['./lead-tracker.component.scss']
 })
@@ -24,6 +29,10 @@ export class LeadTrackerComponent implements OnInit {
   private readonly trackerService = inject(LeadTrackerService);
   private readonly route = inject(ActivatedRoute);
   private readonly auth = inject(AuthService);
+  private readonly tasksService = inject(TasksService);
+  private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
+  private readonly toast = inject(ToastService);
+  private readonly fb = inject(FormBuilder);
 
   // State Signals
   readonly rows = signal<LeadTrackerRow[]>([]);
@@ -87,6 +96,38 @@ export class LeadTrackerComponent implements OnInit {
     { label: 'Lost', value: 'Lost' }
   ];
 
+  // Schedule Follow-Up Modal State
+  readonly selectedLeadForFollowUp = signal<LeadTrackerRow | null>(null);
+  readonly followUpModalOpen = signal(false);
+  readonly followUpSaving = signal(false);
+
+  readonly followUpForm = this.fb.nonNullable.group({
+    dueDate: ['', Validators.required],
+    assigneeId: ['', Validators.required],
+    message: ['', [Validators.required, Validators.maxLength(1000)]],
+  });
+
+  protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
+
+  protected readonly modalOwnerOptions = computed(() => {
+    const list = [...this.leadOwnerOptions()];
+    const row = this.selectedLeadForFollowUp();
+    if (row && row.salesExecutive) {
+      const execId = row.salesExecutiveUserId ? String(row.salesExecutiveUserId) : '';
+      const exists = list.some(
+        (o) => (execId && o.id === execId) || o.label.toLowerCase() === row.salesExecutive.toLowerCase()
+      );
+      if (!exists && (execId || row.salesExecutive)) {
+        list.unshift({
+          id: execId || '0',
+          label: row.salesExecutive,
+          initials: row.salesExecutive.slice(0, 2).toUpperCase()
+        });
+      }
+    }
+    return list;
+  });
+
   // Debounced search subject
   private readonly searchSubject = new Subject<string>();
 
@@ -101,6 +142,8 @@ export class LeadTrackerComponent implements OnInit {
   });
 
   ngOnInit(): void {
+    this.leadOwnerOpts.load();
+
     const queryExec = this.route.snapshot.queryParams['salesExecutive'];
     if (queryExec) {
       this.filterSalesExec.set(queryExec);
@@ -281,5 +324,93 @@ export class LeadTrackerComponent implements OnInit {
       currency: 'INR',
       maximumFractionDigits: 0
     }).format(val);
+  }
+
+  private defaultFollowUpDate(): string {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    d.setHours(10, 0, 0, 0);
+    const p = (n: number) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+
+  addFollowUp(row: LeadTrackerRow): void {
+    this.selectedLeadForFollowUp.set(row);
+    this.leadOwnerOpts.ensureLoaded().subscribe();
+
+    let defaultOwner = '';
+    if (row.salesExecutiveUserId) {
+      defaultOwner = String(row.salesExecutiveUserId);
+    } else if (row.salesExecutive) {
+      const match = this.leadOwnerOpts.findByLabel(row.salesExecutive);
+      if (match) defaultOwner = match.id;
+    }
+    if (!defaultOwner) {
+      defaultOwner = this.leadOwnerOpts.defaultOwnerId() || (this.auth.user()?.id ?? '');
+    }
+
+    this.followUpForm.reset({
+      dueDate: this.defaultFollowUpDate(),
+      assigneeId: defaultOwner,
+      message: '',
+    });
+    this.followUpForm.markAsUntouched();
+    this.followUpModalOpen.set(true);
+  }
+
+  closeAddFollowUpModal(): void {
+    this.followUpModalOpen.set(false);
+    this.selectedLeadForFollowUp.set(null);
+  }
+
+  submitAddFollowUp(): void {
+    this.followUpForm.markAllAsTouched();
+    if (this.followUpForm.invalid || this.followUpSaving()) return;
+
+    const row = this.selectedLeadForFollowUp();
+    if (!row) return;
+
+    const val = this.followUpForm.getRawValue();
+    const ownerOpt = this.modalOwnerOptions().find((o) => o.id === val.assigneeId)
+      ?? this.leadOwnerOpts.findById(val.assigneeId);
+    const assigneeName = ownerOpt?.label ?? row.salesExecutive ?? 'Lead Owner';
+
+    this.followUpSaving.set(true);
+
+    const taskPayload: Omit<TaskRow, 'id'> = {
+      title: `Follow up: ${row.customerName || row.contactPerson || 'Lead #' + row.leadIdNum}`,
+      dailyImprovement: '',
+      description: val.message.trim(),
+      status: 'Todo',
+      priority: 'Medium',
+      dueDate: val.dueDate,
+      dueDateRaw: val.dueDate,
+      assignedTo: assigneeName,
+      assignedToUserId: val.assigneeId,
+      assignedInitials: ownerOpt?.initials ?? 'FO',
+      lastModified: new Date().toISOString(),
+      relatedLeadId: String(row.leadIdNum),
+      relatedLeadName: row.customerName || row.contactPerson || '',
+    };
+
+    this.tasksService
+      .create(taskPayload)
+      .pipe(
+        take(1),
+        catchError((err) => {
+          console.error('Failed to create follow-up task', err);
+          this.toast.error('Failed to schedule follow-up.');
+          this.followUpSaving.set(false);
+          return of(null);
+        }),
+      )
+      .subscribe((created) => {
+        this.followUpSaving.set(false);
+        if (!created) return;
+
+        this.closeAddFollowUpModal();
+        this.toast.success('Follow-up scheduled successfully.');
+        this.loadData();
+      });
   }
 }

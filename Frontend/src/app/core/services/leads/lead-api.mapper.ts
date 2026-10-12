@@ -419,6 +419,7 @@ export function normalizeLeadApiRecord(raw: unknown): LeadNormalized {
     leadOwnerId: readLeadOwnerFk(r),
     leadOwnerName: readLeadOwnerDisplayName(r),
     leadSource: readLeadSourceFromRaw(r),
+    lostReason: String(r['lostReason'] ?? r['LostReason'] ?? r['lost_reason'] ?? '').trim() || null,
     updatedAt,
     createdAt,
     territoryId,
@@ -492,6 +493,7 @@ export function mapLeadNormalizedToRow(dto: LeadNormalized): LeadRow {
     source: dto.leadSource || undefined,
     leadOwnerId,
     leadSource: resolveLeadSourceForRow(dto),
+    lostReason: dto.lostReason ? dto.lostReason.trim() : undefined,
     sortTimestamp: !Number.isNaN(parsedSort) ? parsedSort : undefined,
     location: dto.location || undefined,
     leadDate: dto.leadDate || undefined,
@@ -565,6 +567,8 @@ export function enrichLeadNormalizedFromPatch(
       patch.leadStatusId !== undefined ? patch.leadStatusId ?? baseline.leadStatusId : baseline.leadStatusId,
     statusName:
       patch.status !== undefined ? String(patch.status).trim() || baseline.statusName : baseline.statusName,
+    lostReason:
+      patch.lostReason !== undefined ? patch.lostReason?.trim() || null : baseline.lostReason,
   };
 }
 
@@ -619,6 +623,7 @@ function normalizedToUpsertDto(n: LeadNormalized, idOverride?: number): LeadUpse
     leadDate: n.leadDate?.trim() || null,
     dealAmount: n.dealAmount,
     createdAt: n.createdAt,
+    lostReason: n.lostReason?.trim() || null,
   };
 }
 
@@ -667,6 +672,10 @@ function rowToNormalized(row: LeadRow, previous?: LeadNormalized): LeadNormalize
     statusName: row.status ?? previous?.statusName ?? 'New',
     requestTypeId: row.requestTypeId ?? previous?.requestTypeId ?? null,
     requestTypeName: row.requestType ?? previous?.requestTypeName ?? '',
+    lostReason:
+      row.lostReason !== undefined
+        ? row.lostReason?.trim() || null
+        : previous?.lostReason?.trim() || null,
     notes:
       composeLeadNotesForApi(
         row.requirement ?? previous?.requirement,
@@ -770,6 +779,10 @@ export function reconcileLeadNormalizedAfterPut(
     out.dealAmount = fromPatch ?? (baseline.dealAmount != null ? baseline.dealAmount : null);
   }
 
+  if (patch.lostReason !== undefined) {
+    out.lostReason = patch.lostReason?.trim() || null;
+  }
+
   return out;
 }
 
@@ -836,6 +849,9 @@ export function applyLeadRowOrgFieldsFromPatch(
   if (patch.organizationId !== undefined) {
     out.organizationId = patch.organizationId;
   }
+  if (patch.lostReason !== undefined) {
+    out.lostReason = patch.lostReason;
+  }
   return out;
 }
 
@@ -850,6 +866,9 @@ export function mergeLeadApiDtoWithRowPatch(
   }
   if (patch.status != null) {
     merged.statusName = patch.status;
+  }
+  if (patch.lostReason !== undefined) {
+    merged.lostReason = patch.lostReason?.trim() || null;
   }
   return normalizedToUpsertDto(merged, previous.id);
 }

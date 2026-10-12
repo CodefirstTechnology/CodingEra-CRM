@@ -134,6 +134,12 @@ export function buildLeadPutJson(dto: LeadUpsertDto, previous: LeadNormalized): 
     body['dealAmount'] = dealAmount;
   }
 
+  if (dto.lostReason !== undefined) {
+    body['lostReason'] = dto.lostReason?.trim() || null;
+  } else if (previous.lostReason) {
+    body['lostReason'] = previous.lostReason.trim();
+  }
+
   return body;
 }
 
@@ -189,6 +195,10 @@ export function stripLeadUpsertForPost(dto: LeadUpsertDto): Record<string, unkno
 
   if (dto.dealAmount != null && Number.isFinite(dto.dealAmount)) {
     body['dealAmount'] = dto.dealAmount;
+  }
+
+  if (dto.lostReason) {
+    body['lostReason'] = dto.lostReason.trim();
   }
 
   return body;

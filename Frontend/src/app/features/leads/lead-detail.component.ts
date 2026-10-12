@@ -341,6 +341,25 @@ export class LeadDetailComponent {
   protected readonly canAssignLeads = computed(() => this.permissions.canAssignLeads());
   protected readonly isAdminViewer = computed(() => this.userScope.isAdminSession());
 
+  // Mandatory Lost Reason Interceptor State (Rule 5)
+  protected readonly lostReasonModalOpen = signal(false);
+  protected readonly lostReasonChoices = [
+    'Budget Constraints',
+    'Competitor Selected',
+    'Product Mismatch',
+    'Customer Unresponsive',
+    'Invalid Inquiry',
+    'Other',
+  ] as const;
+  protected readonly selectedLostReasonChoice = signal<string>('Budget Constraints');
+  protected readonly customLostReasonText = signal<string>('');
+  protected readonly lostReasonError = signal<string | null>(null);
+  protected readonly pendingStatusTransition = signal<{
+    targetStatus: LeadStatus;
+    leadStatusId: number;
+    label: string;
+  } | null>(null);
+
   protected readonly dataForm = this.fb.nonNullable.group({
     organization: [''],
     website: [''],
@@ -354,6 +373,7 @@ export class LeadDetailComponent {
     industry: [''],
     source: [''],
     status: ['New'],
+    lostReason: [''],
     owner: [''],
     requirement: [''],
     notes: [''],
@@ -1125,23 +1145,68 @@ export class LeadDetailComponent {
     });
   }
 
-  protected changeStatusDirectly(targetStatus: 'Qualified' | 'Unqualified'): void {
-    const idn = this.numericId();
-    if (idn == null || this.isLeadDataReadOnly() || this.statusUpdating()) return;
+  protected isTerminalLostStatus(statusName: string, statusId?: number | null): boolean {
+    const s = (statusName || '').trim().toLowerCase();
+    return statusId === 4 || statusId === 6 || s === 'unqualified' || s === 'junk' || s === 'lost';
+  }
 
-    const opt = this.statusSelectOptions().find((o) => o.name.toLowerCase() === targetStatus.toLowerCase());
-    const leadStatusId = opt?.id && opt.id > 0 ? opt.id : resolveLeadStatusIdFromName(targetStatus);
+  protected openLostReasonDialog(targetStatus: LeadStatus, leadStatusId: number, label: string): void {
+    this.pendingStatusTransition.set({ targetStatus, leadStatusId, label });
+    this.selectedLostReasonChoice.set('Budget Constraints');
+    this.customLostReasonText.set('');
+    this.lostReasonError.set(null);
+    this.lostReasonModalOpen.set(true);
+  }
+
+  protected closeLostReasonDialog(): void {
+    this.lostReasonModalOpen.set(false);
+    this.pendingStatusTransition.set(null);
+    this.lostReasonError.set(null);
+    this.dataForm.controls.status.setValue(this.currentStatusFormValue());
+  }
+
+  protected confirmLostReason(): void {
+    const pending = this.pendingStatusTransition();
+    if (!pending) return;
+
+    let reason = this.selectedLostReasonChoice();
+    if (reason === 'Other') {
+      reason = this.customLostReasonText().trim();
+    } else if (this.customLostReasonText().trim()) {
+      reason = `${reason} - ${this.customLostReasonText().trim()}`;
+    }
+
+    if (!reason || !reason.trim()) {
+      this.lostReasonError.set('Please specify a lost reason before proceeding.');
+      return;
+    }
+
+    this.executeStatusChange(pending.targetStatus, pending.leadStatusId, pending.label, reason.trim());
+  }
+
+  protected executeStatusChange(
+    targetStatus: LeadStatus,
+    leadStatusId: number,
+    label: string,
+    lostReason: string | null,
+  ): void {
+    const idn = this.numericId();
+    const row = this.lead();
+    if (idn == null || !row || this.isLeadDataReadOnly() || this.statusUpdating()) return;
 
     this.statusUpdating.set(true);
     this.leadsService
       .update(idn, {
         status: targetStatus,
         leadStatusId: leadStatusId ?? undefined,
+        lostReason: lostReason ?? undefined,
       })
       .pipe(take(1))
       .subscribe({
         next: (updatedLead) => {
           this.statusUpdating.set(false);
+          this.lostReasonModalOpen.set(false);
+          this.pendingStatusTransition.set(null);
           if (updatedLead) {
             this.lead.set(updatedLead);
             this.dataForm.patchValue({
@@ -1150,9 +1215,10 @@ export class LeadDetailComponent {
                 updatedLead.status,
                 this.statusSelectOptions(),
               ),
+              lostReason: updatedLead.lostReason ?? '',
             });
             this.refreshLeadActivities();
-            this.toast.success(`Lead status updated to ${targetStatus}`);
+            this.toast.success(`Lead status updated to ${label}`);
           }
         },
         error: (err: unknown) => {
@@ -1160,6 +1226,21 @@ export class LeadDetailComponent {
           this.toast.error(leadsHttpErrorMessage(err));
         },
       });
+  }
+
+  protected changeStatusDirectly(targetStatus: 'Qualified' | 'Unqualified'): void {
+    const idn = this.numericId();
+    if (idn == null || this.isLeadDataReadOnly() || this.statusUpdating()) return;
+
+    const opt = this.statusSelectOptions().find((o) => o.name.toLowerCase() === targetStatus.toLowerCase());
+    const leadStatusId = opt?.id && opt.id > 0 ? opt.id : (resolveLeadStatusIdFromName(targetStatus) ?? (targetStatus === 'Unqualified' ? 4 : 5));
+
+    if (targetStatus === 'Unqualified' || leadStatusId === 4) {
+      this.openLostReasonDialog('Unqualified', leadStatusId, 'Unqualified');
+      return;
+    }
+
+    this.executeStatusChange('Qualified', leadStatusId, 'Qualified', null);
   }
 
   /** First character for avatar chip (matches initials or assignee display name). */
@@ -1395,35 +1476,12 @@ export class LeadDetailComponent {
     const idn = Number(row.id);
     if (!Number.isFinite(idn) || !isPersistedApiLeadRow(row.id)) return;
 
-    this.statusUpdating.set(true);
-    this.leadsService
-      .update(idn, {
-        status,
-        leadStatusId,
-        updated: 'Just now',
-      })
-      .pipe(take(1))
-      .subscribe({
-        next: (updated) => {
-          this.statusUpdating.set(false);
-          const nextRow: LeadRow = updated ?? {
-            ...row,
-            status,
-            leadStatusId,
-          };
-          this.lead.set(nextRow);
-          this.dataForm.controls.status.setValue(
-            this.masterSelectControlValue(leadStatusId, label, this.statusSelectOptions()),
-          );
-          this.refreshLeadActivities();
-          this.toast.success(`Lead status updated to ${label}.`);
-        },
-        error: (e: unknown) => {
-          this.statusUpdating.set(false);
-          (ev.target as HTMLSelectElement).value = this.currentStatusFormValue();
-          this.toast.error(leadsHttpErrorMessage(e));
-        },
-      });
+    if (this.isTerminalLostStatus(label, leadStatusId)) {
+      this.openLostReasonDialog(status, leadStatusId, label);
+      return;
+    }
+
+    this.executeStatusChange(status, leadStatusId, label, null);
   }
 
   private masterSelectControlValue(
@@ -1491,6 +1549,7 @@ export class LeadDetailComponent {
           this.sourceSelectOptions(),
         ),
         status: this.masterSelectControlValue(row.leadStatusId, row.status, this.statusSelectOptions()),
+        lostReason: row.lostReason ?? '',
         owner: ownerOpt?.id ?? row.leadOwnerId ?? '',
         requirement: resolveLeadRequirementForDisplay(row.requirement, row.notes),
         notes: resolveManualLeadCustomFieldForForm(row.requirement, row.notes),
@@ -1658,6 +1717,16 @@ export class LeadDetailComponent {
       const annualRevenueFormatted =
         parsedAnnualRevenue > 0 ? `₹ ${parsedAnnualRevenue.toLocaleString('en-IN')}` : undefined;
 
+      const targetStatusId =
+        statPick.masterId ?? resolveLeadStatusIdFromName(statPick.label) ?? undefined;
+      const isLost = this.isTerminalLostStatus(statPick.label, targetStatusId);
+      const effectiveLostReason = v.lostReason?.trim() || row.lostReason?.trim();
+      if (isLost && !effectiveLostReason) {
+        this.openLostReasonDialog(coerceLeadStatus(statPick.label), targetStatusId ?? 4, statPick.label);
+        this.dataSaving.set(false);
+        return;
+      }
+
       const payload: Partial<Omit<LeadRow, 'id'>> = {
         name,
         firstName,
@@ -1682,8 +1751,8 @@ export class LeadDetailComponent {
         source: sourceLabel,
         leadSource: sourceLabel,
         status: coerceLeadStatus(statPick.label),
-        leadStatusId:
-          statPick.masterId ?? resolveLeadStatusIdFromName(statPick.label) ?? undefined,
+        leadStatusId: targetStatusId,
+        lostReason: isLost ? effectiveLostReason : null,
         location: v.location.trim() || undefined,
         leadDate: v.leadDate.trim() || todayIsoDateLocal(),
         requirement: v.requirement.trim() || undefined,
