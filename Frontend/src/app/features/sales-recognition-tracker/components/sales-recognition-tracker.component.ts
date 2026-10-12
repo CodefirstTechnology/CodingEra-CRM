@@ -108,14 +108,10 @@ export class SalesRecognitionTrackerComponent implements OnInit {
   loadExecutives(): void {
     this.trackerService.getExecutives().subscribe({
       next: (list) => {
-        if (list && list.length > 0) {
-          this.executives.set(list);
-        } else {
-          this.executives.set(['Sharda Ahire', 'Neha Verma', 'Amit Sharma', 'Pooja Patel']);
-        }
+        this.executives.set(list || []);
       },
       error: () => {
-        this.executives.set(['Sharda Ahire', 'Neha Verma', 'Amit Sharma', 'Pooja Patel']);
+        this.executives.set([]);
       }
     });
   }
@@ -202,6 +198,111 @@ export class SalesRecognitionTrackerComponent implements OnInit {
     row.recognition = calc.recognition;
 
     this.recalculateLocalSummary();
+  }
+
+  onExecutiveSelect(row: DailySalesRecognitionLogRow): void {
+    if (!row.executiveName || !row.executiveName.trim()) {
+      row.dailyActivityScore = null;
+      row.businessResultScore = null;
+      row.overallScore = null;
+      row.recognition = null;
+      row.newLeads = 0;
+      row.customerCalls = 0;
+      row.meetings = 0;
+      row.followUps = 0;
+      row.quotations = 0;
+      row.leadConversions = 0;
+      row.ordersBooked = 0;
+      row.paymentFollowUps = 0;
+      row.reportingPercentage = 100;
+      row.teamSupport = 1;
+      row.leadQualityPercentage = 0;
+      this.recalculateLocalSummary();
+      return;
+    }
+
+    this.autofillRow(row);
+  }
+
+  onDateChange(row: DailySalesRecognitionLogRow): void {
+    if (row.executiveName && row.executiveName.trim()) {
+      this.autofillRow(row);
+    } else {
+      this.onRowChange(row);
+    }
+  }
+
+  autofillRow(row: DailySalesRecognitionLogRow): void {
+    if (!row.executiveName || !row.executiveName.trim() || !row.date) return;
+
+    const execName = row.executiveName.trim();
+    this.trackerService.getAutofillMetrics(row.date, execName).subscribe({
+      next: (data) => {
+        row.newLeads = data.newLeads;
+        row.customerCalls = data.customerCalls;
+        row.meetings = data.meetings;
+        row.followUps = data.followUps;
+        row.quotations = data.quotations;
+        row.leadConversions = data.leadConversions;
+        row.ordersBooked = data.ordersBooked;
+        row.paymentFollowUps = data.paymentFollowUps;
+        row.reportingPercentage = data.reportingPercentage;
+        row.teamSupport = data.teamSupport;
+        row.leadQualityPercentage = data.leadQualityPercentage;
+        if (data.executiveUserId) row.executiveUserId = data.executiveUserId;
+
+        const calc = calculateRowScores(row);
+        row.dailyActivityScore = calc.dailyActivityScore;
+        row.businessResultScore = calc.businessResultScore;
+        row.overallScore = calc.overallScore;
+        row.recognition = calc.recognition;
+        row.isModified = true;
+
+        this.recalculateLocalSummary();
+        this.toast.success(`Calculated and autofilled records for ${execName}.`);
+      },
+      error: (err) => {
+        console.error('Failed to autofill metrics for ' + execName, err);
+        this.onRowChange(row);
+      }
+    });
+  }
+
+  autofillAllExecutivesToday(): void {
+    const todayStr = this.formatDateInput(new Date());
+    const targetExecs = this.executives().filter((e) => e && e.trim());
+
+    targetExecs.forEach((exec) => {
+      let existingRow = this.rows().find(
+        (r) => r.executiveName === exec && r.date === todayStr
+      );
+      if (!existingRow) {
+        existingRow = {
+          id: 0,
+          date: todayStr,
+          executiveName: exec,
+          newLeads: 0,
+          customerCalls: 0,
+          meetings: 0,
+          followUps: 0,
+          quotations: 0,
+          leadConversions: 0,
+          ordersBooked: 0,
+          paymentFollowUps: 0,
+          reportingPercentage: 100,
+          teamSupport: 1,
+          leadQualityPercentage: 0,
+          dailyActivityScore: null,
+          businessResultScore: null,
+          overallScore: null,
+          recognition: null,
+          isNew: true,
+          isModified: true
+        };
+        this.rows.update((list) => [existingRow!, ...list]);
+      }
+      this.autofillRow(existingRow);
+    });
   }
 
   /**
@@ -311,12 +412,11 @@ export class SalesRecognitionTrackerComponent implements OnInit {
   // Adding New Row
   addNewRow(): void {
     const todayStr = this.formatDateInput(new Date());
-    const defaultExec = this.executives().length > 0 ? this.executives()[0] : '';
 
     const newRow: DailySalesRecognitionLogRow = {
       id: 0,
       date: todayStr,
-      executiveName: defaultExec,
+      executiveName: '',
       newLeads: 0,
       customerCalls: 0,
       meetings: 0,
@@ -335,14 +435,6 @@ export class SalesRecognitionTrackerComponent implements OnInit {
       isNew: true,
       isModified: true
     };
-
-    if (defaultExec) {
-      const calc = calculateRowScores(newRow);
-      newRow.dailyActivityScore = calc.dailyActivityScore;
-      newRow.businessResultScore = calc.businessResultScore;
-      newRow.overallScore = calc.overallScore;
-      newRow.recognition = calc.recognition;
-    }
 
     this.rows.update((list) => [newRow, ...list]);
     this.recalculateLocalSummary();

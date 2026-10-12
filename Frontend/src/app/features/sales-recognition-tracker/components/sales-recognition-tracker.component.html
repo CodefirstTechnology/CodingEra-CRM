@@ -345,6 +345,9 @@
         <span class="grid-count">
           Showing <strong>{{ rows().length }}</strong> operational log records
         </span>
+        <button type="button" class="btn btn--outline" (click)="autofillAllExecutivesToday()" title="Calculate and autofill records for all sales executives for today">
+          ⚡ Autofill Today
+        </button>
         <button type="button" class="btn btn--outline" (click)="addNewRow()">
           + Add Row
         </button>
@@ -456,12 +459,12 @@
             <!-- 1. Date -->
             <td class="cell-date">
               <input type="date" class="cell-input cell-input--date" [(ngModel)]="row.date"
-                (ngModelChange)="onRowChange(row)" />
+                (ngModelChange)="onDateChange(row)" />
             </td>
 
             <!-- 2. Executive -->
             <td class="cell-exec">
-              <select class="cell-select" [(ngModel)]="row.executiveName" (ngModelChange)="onRowChange(row)">
+              <select class="cell-select" [(ngModel)]="row.executiveName" (ngModelChange)="onExecutiveSelect(row)">
                 <option value="">— Select Executive —</option>
                 @for (exec of executives(); track exec) {
                 <option [value]="exec">{{ exec }}</option>

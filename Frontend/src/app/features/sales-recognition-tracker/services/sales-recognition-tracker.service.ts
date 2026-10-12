@@ -189,4 +189,11 @@ export class SalesRecognitionTrackerService {
   getExecutives(): Observable<string[]> {
     return this.http.get<string[]>(`${this.baseUrl}/executives`);
   }
+
+  getAutofillMetrics(date: string, executive: string): Observable<DailySalesRecognitionLogRow> {
+    const params = new HttpParams()
+      .set('date', date)
+      .set('executive', executive);
+    return this.http.get<DailySalesRecognitionLogRow>(`${this.baseUrl}/autofill-metrics`, { params });
+  }
 }
