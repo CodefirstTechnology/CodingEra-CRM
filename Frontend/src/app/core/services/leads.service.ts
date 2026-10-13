@@ -292,6 +292,9 @@ export class LeadsService {
                 if (orgName) {
                   body['organizationName'] = orgName;
                 }
+                if (patch.lostReason !== undefined) {
+                  body['lostReason'] = patch.lostReason?.trim() || null;
+                }
                 const reconcileBaseline = enrichLeadNormalizedFromPatch(prevForMerge, patch);
                 return this.leadHttp.put(id, body).pipe(
                   map((norm) => reconcileLeadNormalizedAfterPut(norm, reconcileBaseline, patch)),

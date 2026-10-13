@@ -45,6 +45,13 @@ export const routes: Routes = [
           ),
       },
       {
+        path: 'admin/sales-recognition-tracker',
+        loadComponent: () =>
+          import(
+            './features/sales-recognition-tracker/components/sales-recognition-tracker.component'
+          ).then((m) => m.SalesRecognitionTrackerComponent),
+      },
+      {
         path: 'overdue-followups',
         loadComponent: () =>
           import('./features/overdue-followups/overdue-followups.component').then(

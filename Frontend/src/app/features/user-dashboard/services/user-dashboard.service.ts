@@ -1,6 +1,8 @@
 import { inject, Injectable } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { forkJoin, Observable, of } from 'rxjs';
 import { catchError, map, switchMap } from 'rxjs/operators';
+import type { ExecutiveTrackerSummary } from '../../dashboard/services/admin-dashboard.service';
 import { ActivitiesService } from '../../../core/services/activities.service';
 import type { ActivityRow } from '../../../core/services/activities/activity-api.models';
 import { AuthService } from '../../../core/auth/auth.service';
@@ -52,12 +54,33 @@ import type { QuotationListItem } from '../../../core/services/quotations/quotat
 
 @Injectable({ providedIn: 'root' })
 export class UserDashboardService {
+  private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
   private readonly entityCache = inject(CrmEntityCacheService);
   private readonly scope = inject(UserDataScopeService);
   private readonly activitiesService = inject(ActivitiesService);
   private readonly leadOwnerOpts = inject(LeadOwnerOptionsService);
   private readonly userTargetsApi = inject(UserTargetHttpService);
+
+  getExecutiveTrackerSummary(
+    fromDate?: string,
+    toDate?: string,
+    executiveId?: number,
+  ): Observable<ExecutiveTrackerSummary | null> {
+    let params = new HttpParams();
+    if (fromDate) params = params.set('fromDate', fromDate);
+    if (toDate) params = params.set('toDate', toDate);
+    if (executiveId != null && executiveId > 0) {
+      params = params.set('executiveId', executiveId.toString());
+    }
+
+    return this.http.get<ExecutiveTrackerSummary>('/api/dashboard/executive-tracker-summary', { params }).pipe(
+      catchError((err) => {
+        console.error('Failed to load executive tracker summary in user dashboard', err);
+        return of(null);
+      }),
+    );
+  }
 
   /**
    * Loads dashboard data scoped to the logged-in user and filtered by active date period.
@@ -72,6 +95,13 @@ export class UserDashboardService {
       });
     }
 
+    const periodKey: UserDashboardPeriodKey = filters?.periodKey ?? 'this_month';
+    const customRange = filters?.customRange ?? null;
+    const period = resolveDashboardPeriod(periodKey, new Date(), customRange);
+    const fromDateStr = period.start.toISOString().slice(0, 10);
+    const toDateStr = period.end.toISOString().slice(0, 10);
+    const numericUserId = parseSessionUserId(userId) ?? undefined;
+
     return forkJoin({
       owners: this.leadOwnerOpts.ensureLoaded(),
       leads: this.entityCache.listLeads().pipe(catchError(() => of([] as LeadRow[]))),
@@ -79,8 +109,11 @@ export class UserDashboardService {
       tasks: this.scope.listTasks().pipe(catchError(() => of([] as TaskRow[]))),
       quotations: this.scope.listQuotations().pipe(catchError(() => of([] as QuotationListItem[]))),
       targets: this.userTargetsApi.listTargets(false).pipe(catchError(() => of([] as UserTargetRow[]))),
+      trackerSummary: this.getExecutiveTrackerSummary(fromDateStr, toDateStr, numericUserId).pipe(
+        catchError(() => of(null as ExecutiveTrackerSummary | null)),
+      ),
     }).pipe(
-      switchMap(({ leads, deals, tasks, quotations, targets }) => {
+      switchMap(({ leads, deals, tasks, quotations, targets, trackerSummary }) => {
         const enriched = this.leadOwnerOpts.enrichRows(leads);
 
         const leadIds = new Set(
@@ -106,6 +139,7 @@ export class UserDashboardService {
                   activities,
                   entityNames,
                   filters,
+                  trackerSummary,
                 ),
                 error: null as string | null,
               };
@@ -127,6 +161,7 @@ export class UserDashboardService {
     activities: ActivityRow[],
     entityNames: Map<string, string>,
     filters?: Partial<UserDashboardFilters>,
+    trackerSummary?: ExecutiveTrackerSummary | null,
   ): UserDashboardSnapshot {
     const periodKey: UserDashboardPeriodKey = filters?.periodKey ?? 'this_month';
     const customRange = filters?.customRange ?? null;
@@ -274,14 +309,14 @@ export class UserDashboardService {
         end: period.end,
       },
       kpis: {
-        myLeads: filteredLeads.length,
-        wonDeals: closedWonDeals.length,
-        activeDeals: activeDeals.length,
+        myLeads: trackerSummary ? trackerSummary.totalLeads : filteredLeads.length,
+        wonDeals: trackerSummary ? trackerSummary.wonLeads : closedWonDeals.length,
+        activeDeals: trackerSummary ? trackerSummary.openLeads : activeDeals.length,
         followUpsToday: followUps.filter((f) => f.kind !== 'meeting').length,
         quotations: filteredQuotations.length,
         tasksPending: pendingTasks.length,
         meetingsToday: followUps.filter((f) => f.kind === 'meeting').length,
-        monthlyRevenue: periodRevenue,
+        monthlyRevenue: trackerSummary && trackerSummary.totalWonRevenue > 0 ? trackerSummary.totalWonRevenue : periodRevenue,
       } satisfies UserDashboardKpis,
       targetWidgets,
       assignedLeads: tableRows,
@@ -289,11 +324,11 @@ export class UserDashboardService {
       followUps,
       activities: filteredActivities,
       performance: {
-        conversionPct,
+        conversionPct: trackerSummary ? trackerSummary.conversionRate : conversionPct,
         monthlyClosureRate: closureRate,
         completedTasks: completedTasks.length,
         targetProgressPct,
-        closedDeals: closedWonDeals.length,
+        closedDeals: trackerSummary ? trackerSummary.wonLeads : closedWonDeals.length,
         pendingCalls: pendingTasks.filter((t) => /call/i.test(t.title)).length,
       } satisfies UserDashboardPerformance,
       statusSummary: this.buildStatusSummary(filteredLeads),

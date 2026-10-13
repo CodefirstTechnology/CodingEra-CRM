@@ -63,6 +63,7 @@ export interface LeadNormalized {
   location: string;
   /** ISO date from API (`lead_date` / `leadDate`). */
   leadDate: string;
+  lostReason?: string | null;
 }
 
 /** Body for `POST` / `PUT /api/leads` per Swagger `LeadUpsertDto`. */
@@ -88,6 +89,7 @@ export interface LeadUpsertDto {
   leadDate?: string | null;
   dealAmount?: number | null;
   createdAt?: string | null;
+  lostReason?: string | null;
 }
 
 /** @deprecated Use {@link LeadNormalized} for reads and {@link LeadUpsertDto} for writes. */
