@@ -77,6 +77,8 @@ export interface LeadRow {
   leadSource?: LeadSource;
   /** Used to merge/sort manual + IndiaMART rows (optional on persisted data). */
   sortTimestamp?: number;
+  /** Reason recorded when lead is marked as Unqualified or Junk. */
+  lostReason?: string | null;
   /** True after this lead was converted to a deal (API status and/or local conversion store). */
   isConverted?: boolean;
   /** Deal id created from this lead (`localStorage` until backend exposes FK). */

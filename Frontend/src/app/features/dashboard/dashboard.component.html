@@ -59,6 +59,12 @@
         (click)="refreshDashboard()">
         {{ loading() ? 'Refreshing…' : 'Refresh' }}
       </button>
+      <a routerLink="/admin/sales-recognition-tracker" class="sales-dash__btn sales-dash__btn--primary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; background-color: #1b365d; color: #ffffff; padding: 0 14px; border-radius: 6px; font-weight: 600; font-size: 13px;" title="BUILDRICH Sales Daily Recognition Tracker">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+        </svg>
+        Daily Tracker
+      </a>
       <a routerLink="/admin/lead-tracker" class="sales-dash__btn sales-dash__btn--primary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px; background-color: #3b82f6; color: #ffffff; padding: 0 14px; border-radius: 6px; font-weight: 600; font-size: 13px;">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <path d="M3 3v18h18"/>

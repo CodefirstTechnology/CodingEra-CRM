@@ -52,6 +52,7 @@ export interface AdminDashboardKpis {
   targetAchievedPct: number;
   hasTargetsConfigured: boolean;
   revenueChangePct?: number;
+  totalQuotedValue?: number;
 }
 
 export interface AdminDealDetail {

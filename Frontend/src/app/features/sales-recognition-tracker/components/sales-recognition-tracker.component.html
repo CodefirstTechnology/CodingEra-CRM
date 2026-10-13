@@ -1,0 +1,726 @@
+<div class="tracker-container">
+  <!-- Top Navigation & Global Filter Bar -->
+  <header class="tracker-header">
+    <div class="tracker-header__left">
+      <nav class="tracker-breadcrumb">
+        <a routerLink="/dashboard" class="tracker-breadcrumb__link">Dashboard</a>
+        <span class="tracker-breadcrumb__separator">/</span>
+        <span class="tracker-breadcrumb__current">Daily Recognition Tracker</span>
+      </nav>
+      <div class="tracker-title-row">
+        <h1 class="tracker-title">
+          <span class="tracker-title__brand">BUILDRICH SALES</span>
+          <span class="tracker-title__divider">—</span>
+          <span>DAILY RECOGNITION TRACKER</span>
+        </h1>
+        <span class="tracker-tag">Performance & Activity Matrix</span>
+      </div>
+    </div>
+
+    <div class="tracker-header__right">
+      <!-- Quick Period Presets -->
+      <div class="period-pills">
+        <button type="button" class="period-pill" [class.period-pill--active]="selectedPeriod() === 'today'"
+          (click)="setPeriod('today')">
+          Today
+        </button>
+        <button type="button" class="period-pill" [class.period-pill--active]="selectedPeriod() === 'week'"
+          (click)="setPeriod('week')">
+          This Week
+        </button>
+        <button type="button" class="period-pill" [class.period-pill--active]="selectedPeriod() === 'month'"
+          (click)="setPeriod('month')">
+          This Month
+        </button>
+        <button type="button" class="period-pill" [class.period-pill--active]="selectedPeriod() === 'custom'"
+          (click)="selectedPeriod.set('custom')">
+          Custom
+        </button>
+      </div>
+
+      <!-- Date Inputs -->
+      <div class="date-range-picker">
+        <div class="date-input-group">
+          <label>From</label>
+          <input type="date" class="form-control date-input" [ngModel]="customStartDate()"
+            (ngModelChange)="customStartDate.set($event); onCustomDateChange()" />
+        </div>
+        <div class="date-input-group">
+          <label>To</label>
+          <input type="date" class="form-control date-input" [ngModel]="customEndDate()"
+            (ngModelChange)="customEndDate.set($event); onCustomDateChange()" />
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <button type="button" class="btn btn--refresh" (click)="loadData()" [disabled]="loading()"
+          title="Reload tracker data">
+          <svg class="icon" [class.icon--spin]="loading()" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2">
+            <path d="M23 4v6h-6M1 20v-6h6" />
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+          </svg>
+          <span>Refresh</span>
+        </button>
+
+        <button type="button" class="btn btn--primary" (click)="addNewRow()"
+          title="Add a new daily operational log row">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Add Daily Log</span>
+        </button>
+
+        <button type="button" class="btn btn--success" (click)="saveAllModified()" [disabled]="saving()"
+          title="Save all pending changes">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+            <polyline points="7 3 7 8 15 8"></polyline>
+          </svg>
+          <span>{{ saving() ? 'Saving…' : 'Save All Changes' }}</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  @if (error()) {
+  <div class="alert alert--danger">
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="12" cy="12" r="10"></circle>
+      <line x1="12" y1="8" x2="12" y2="12"></line>
+      <line x1="12" y1="16" x2="12.01" y2="16"></line>
+    </svg>
+    <span>{{ error() }}</span>
+  </div>
+  }
+
+  <!-- ========================================================================= -->
+  <!-- SECTION 1 (TOP): EXECUTIVE RECOGNITION DASHBOARD                          -->
+  <!-- ========================================================================= -->
+  <section class="section section--dashboard">
+    <div class="section__header">
+      <div class="section__title-group">
+        <span class="section__num">01</span>
+        <div>
+          <h2 class="section__title">Executive Recognition Dashboard</h2>
+          <p class="section__subtitle">Team-wide aggregated KPI metrics, recognition benchmarks & performance
+            leaderboard</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="dash-grid">
+      <!-- Left Column: KPI Cards & Recognition Legend -->
+      <div class="dash-grid__left">
+        <!-- 7 Hero KPI Cards Grid -->
+        <div class="kpi-grid">
+          <!-- Total Leads -->
+          <div class="kpi-card">
+            <div class="kpi-card__icon kpi-card__icon--blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                <circle cx="9" cy="7" r="4"></circle>
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+              </svg>
+            </div>
+            <div class="kpi-card__content">
+              <span class="kpi-card__label">Total Leads</span>
+              <span class="kpi-card__value">{{ kpiSummary().totalLeads }}</span>
+              <span class="kpi-card__subtext">SUM(New Leads)</span>
+            </div>
+          </div>
+
+          <!-- Total Meetings -->
+          <div class="kpi-card">
+            <div class="kpi-card__icon kpi-card__icon--indigo">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+            </div>
+            <div class="kpi-card__content">
+              <span class="kpi-card__label">Total Meetings</span>
+              <span class="kpi-card__value">{{ kpiSummary().totalMeetings }}</span>
+              <span class="kpi-card__subtext">SUM(Meetings & Visits)</span>
+            </div>
+          </div>
+
+          <!-- Total Follow-ups -->
+          <div class="kpi-card">
+            <div class="kpi-card__icon kpi-card__icon--teal">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <polyline points="12 6 12 12 16 14"></polyline>
+              </svg>
+            </div>
+            <div class="kpi-card__content">
+              <span class="kpi-card__label">Total Follow-ups</span>
+              <span class="kpi-card__value">{{ kpiSummary().totalFollowUps }}</span>
+              <span class="kpi-card__subtext">SUM(Follow-ups)</span>
+            </div>
+          </div>
+
+          <!-- Total Quotations -->
+          <div class="kpi-card">
+            <div class="kpi-card__icon kpi-card__icon--purple">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                <polyline points="14 2 14 8 20 8"></polyline>
+                <line x1="16" y1="13" x2="8" y2="13"></line>
+                <line x1="16" y1="17" x2="8" y2="17"></line>
+              </svg>
+            </div>
+            <div class="kpi-card__content">
+              <span class="kpi-card__label">Total Quotations</span>
+              <span class="kpi-card__value">{{ kpiSummary().totalQuotations }}</span>
+              <span class="kpi-card__subtext">SUM(Quotations)</span>
+            </div>
+          </div>
+
+          <!-- Total Conversions -->
+          <div class="kpi-card">
+            <div class="kpi-card__icon kpi-card__icon--cyan">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                <polyline points="17 6 23 6 23 12"></polyline>
+              </svg>
+            </div>
+            <div class="kpi-card__content">
+              <span class="kpi-card__label">Total Conversions</span>
+              <span class="kpi-card__value">{{ kpiSummary().totalConversions }}</span>
+              <span class="kpi-card__subtext">SUM(Lead Conversions)</span>
+            </div>
+          </div>
+
+          <!-- Total Orders -->
+          <div class="kpi-card">
+            <div class="kpi-card__icon kpi-card__icon--emerald">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="9" cy="21" r="1"></circle>
+                <circle cx="20" cy="21" r="1"></circle>
+                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+              </svg>
+            </div>
+            <div class="kpi-card__content">
+              <span class="kpi-card__label">Total Orders</span>
+              <span class="kpi-card__value">{{ kpiSummary().totalOrders }}</span>
+              <span class="kpi-card__subtext">SUM(Orders Booked)</span>
+            </div>
+          </div>
+
+          <!-- Team Average Overall Score (Hero Focus) -->
+          <div class="kpi-card kpi-card--hero">
+            <div class="kpi-card__icon kpi-card__icon--gold">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polygon
+                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2">
+                </polygon>
+              </svg>
+            </div>
+            <div class="kpi-card__content">
+              <span class="kpi-card__label">Team Avg Overall Score</span>
+              <div class="kpi-card__score-wrap">
+                <span class="kpi-card__value kpi-card__value--highlight">{{
+                  kpiSummary().teamAverageOverallScore.toFixed(1) }}</span>
+                <span class="kpi-card__scale">/ 100</span>
+              </div>
+              <span class="kpi-card__subtext">70% Activity + 30% Results</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recognition Legend Card -->
+        <div class="legend-card">
+          <div class="legend-card__header">
+            <span class="legend-card__title">Recognition Tier Thresholds</span>
+            <span class="legend-card__tag">Governing Rubric</span>
+          </div>
+          <div class="legend-pills">
+            <div class="legend-pill legend-pill--star">
+              <span class="legend-pill__badge">🏆 Star Performer</span>
+              <span class="legend-pill__score">Score &ge; 90.0</span>
+            </div>
+            <div class="legend-pill legend-pill--excellent">
+              <span class="legend-pill__badge">☀️ Excellent</span>
+              <span class="legend-pill__score">Score 80.0 – 89.9</span>
+            </div>
+            <div class="legend-pill legend-pill--good">
+              <span class="legend-pill__badge">👍 Good</span>
+              <span class="legend-pill__score">Score 70.0 – 79.9</span>
+            </div>
+            <div class="legend-pill legend-pill--improve">
+              <span class="legend-pill__badge">📝 Improve</span>
+              <span class="legend-pill__score">Score &lt; 70.0</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Leaderboard Bar Chart -->
+      <div class="dash-grid__right">
+        <div class="chart-card">
+          <div class="chart-card__header">
+            <div>
+              <h3 class="chart-card__title">Executive Average Overall Score</h3>
+              <p class="chart-card__subtitle">Performance scores compared against the 80.0 "Excellent" target benchmark
+              </p>
+            </div>
+            <div class="chart-card__legend-marker">
+              <span class="benchmark-line-legend"></span>
+              <span>80.0 Target Line</span>
+            </div>
+          </div>
+
+          <div class="chart-card__body">
+            @if (chartSeries().length === 0) {
+            <div class="chart-empty">
+              <p>No executive activity logs found for the selected date range.</p>
+            </div>
+            } @else {
+            <div class="bar-chart-container">
+              <!-- Benchmark 80.0 Line -->
+              <div class="benchmark-guide" style="left: 80%;">
+                <span class="benchmark-guide__label">Target: 80.0</span>
+              </div>
+
+              <!-- Executive Bars -->
+              <div class="bar-list">
+                @for (item of chartSeries(); track item.executive) {
+                <div class="bar-item">
+                  <div class="bar-item__info">
+                    <span class="bar-item__name" [title]="item.executive">{{ item.executive }}</span>
+                    <span class="bar-item__score" [class.bar-item__score--high]="item.avgOverallScore >= 80">
+                      {{ item.avgOverallScore.toFixed(1) }}
+                    </span>
+                  </div>
+                  <div class="bar-item__track">
+                    <div class="bar-item__fill" [class.bar-item__fill--star]="item.avgOverallScore >= 90"
+                      [class.bar-item__fill--excellent]="item.avgOverallScore >= 80 && item.avgOverallScore < 90"
+                      [class.bar-item__fill--good]="item.avgOverallScore >= 70 && item.avgOverallScore < 80"
+                      [class.bar-item__fill--improve]="item.avgOverallScore < 70"
+                      [style.width.%]="Math.min(100, Math.max(0, item.avgOverallScore))"></div>
+                  </div>
+                </div>
+                }
+              </div>
+
+              <!-- X-Axis Scale Labels -->
+              <div class="chart-x-axis">
+                <span>0</span>
+                <span>20</span>
+                <span>40</span>
+                <span>60</span>
+                <span class="text-target">80 (Target)</span>
+                <span>100</span>
+              </div>
+            </div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- SECTION 2 (MIDDLE): DAILY TRACKER (OPERATIONAL LOGGING GRID)              -->
+  <!-- ========================================================================= -->
+  <section class="section section--grid">
+    <div class="section__header">
+      <div class="section__title-group">
+        <span class="section__num">02</span>
+        <div>
+          <h2 class="section__title">Daily Tracker (Operational Logging Grid)</h2>
+          <p class="section__subtitle">Daily operational logging per executive (1 row per executive per working day)
+            with real-time scoring</p>
+        </div>
+      </div>
+
+      <div class="grid-actions">
+        <span class="grid-count">
+          Showing <strong>{{ rows().length }}</strong> operational log records
+        </span>
+        <button type="button" class="btn btn--outline" (click)="autofillAllExecutivesToday()" title="Calculate and autofill records for all sales executives for today">
+          ⚡ Autofill Today
+        </button>
+        <button type="button" class="btn btn--outline" (click)="addNewRow()">
+          + Add Row
+        </button>
+      </div>
+    </div>
+
+    <!-- Interactive Data Grid Container -->
+    <div class="grid-table-wrapper">
+      <table class="ops-table">
+        <thead>
+          <tr class="ops-table__header-group">
+            <th colspan="2" class="th-group th-group--identity">EXECUTIVE IDENTITY</th>
+            <th colspan="11" class="th-group th-group--operations">DAILY OPERATIONAL METRICS (INPUTS)</th>
+            <th colspan="4" class="th-group th-group--scores">REAL-TIME SCORING ENGINE</th>
+            <th class="th-group th-group--actions">ACTIONS</th>
+          </tr>
+          <tr class="ops-table__header-sub">
+            <!-- 1. Date -->
+            <th class="col-date">Date</th>
+            <!-- 2. Executive -->
+            <th class="col-exec">Executive *</th>
+
+            <!-- 3. New Leads -->
+            <th class="col-num" title="Target Benchmark: 5 | Max points: 15">
+              <span>New Leads</span>
+              <span class="th-benchmark">Tgt: 5</span>
+            </th>
+            <!-- 4. Customer Calls -->
+            <th class="col-num" title="Target Benchmark: 20 | Max points: 10">
+              <span>Calls</span>
+              <span class="th-benchmark">Tgt: 20</span>
+            </th>
+            <!-- 5. Meetings / Site Visits -->
+            <th class="col-num" title="Target Benchmark: 3 | Max points: 15">
+              <span>Meetings</span>
+              <span class="th-benchmark">Tgt: 3</span>
+            </th>
+            <!-- 6. Follow-ups -->
+            <th class="col-num" title="Target Benchmark: 10 | Max points: 15">
+              <span>Follow-ups</span>
+              <span class="th-benchmark">Tgt: 10</span>
+            </th>
+            <!-- 7. Quotations -->
+            <th class="col-num" title="Target Benchmark: 5 | Max points: 10">
+              <span>Quotations</span>
+              <span class="th-benchmark">Tgt: 5</span>
+            </th>
+            <!-- 8. Lead Conversions -->
+            <th class="col-num" title="Target Benchmark: 2 | Max points: 10 in Act, 35 in Res">
+              <span>Conversions</span>
+              <span class="th-benchmark">Tgt: 2</span>
+            </th>
+            <!-- 9. Orders Booked -->
+            <th class="col-num" title="Target Benchmark: 1 | Max points in Res: 45">
+              <span>Orders</span>
+              <span class="th-benchmark">Tgt: 1</span>
+            </th>
+            <!-- 10. Payment Follow-ups -->
+            <th class="col-num" title="Target Benchmark: 5 | Max points: 5">
+              <span>Payment F/U</span>
+              <span class="th-benchmark">Tgt: 5</span>
+            </th>
+            <!-- 11. Reporting % -->
+            <th class="col-dropdown" title="100% on-time submission = 5 pts | 0% = 0 pts">
+              <span>Reporting %</span>
+              <span class="th-benchmark">100% / 0%</span>
+            </th>
+            <!-- 12. Team Support -->
+            <th class="col-num" title="Rating 1-5 | Benchmark: 1 | Max points: 5">
+              <span>Support</span>
+              <span class="th-benchmark">1-5 Rating</span>
+            </th>
+            <!-- 13. Lead Quality % -->
+            <th class="col-num" title="0%-100% | Max points in Res: 20">
+              <span>Quality %</span>
+              <span class="th-benchmark">0%-100%</span>
+            </th>
+
+            <!-- Real-Time Automated Calculations -->
+            <th class="col-score" title="Daily Activity Score (70% weight, 0-100 scale)">
+              <span>Activity Score</span>
+              <span class="th-formula">70% Weight</span>
+            </th>
+            <th class="col-score" title="Business Result Score (30% weight, 0-100 scale)">
+              <span>Result Score</span>
+              <span class="th-formula">30% Weight</span>
+            </th>
+            <th class="col-score col-score--overall" title="Overall Score = 70% Activity + 30% Results">
+              <span>Overall Score</span>
+              <span class="th-formula">100 Max</span>
+            </th>
+            <th class="col-badge" title="Recognition Tier">Recognition</th>
+            <th class="col-action">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (rows().length === 0) {
+          <tr>
+            <td colspan="18" class="empty-cell">
+              <div class="empty-state">
+                <p>No operational logs found. Click <strong>+ Add Row</strong> above to begin logging daily activities.
+                </p>
+              </div>
+            </td>
+          </tr>
+          } @else {
+          @for (row of rows(); track row.id || $index) {
+          <tr [class.row--modified]="row.isModified" [class.row--new]="row.isNew">
+            <!-- 1. Date -->
+            <td class="cell-date">
+              <input type="date" class="cell-input cell-input--date" [(ngModel)]="row.date"
+                (ngModelChange)="onDateChange(row)" />
+            </td>
+
+            <!-- 2. Executive -->
+            <td class="cell-exec">
+              <select class="cell-select" [(ngModel)]="row.executiveName" (ngModelChange)="onExecutiveSelect(row)">
+                <option value="">— Select Executive —</option>
+                @for (exec of executives(); track exec) {
+                <option [value]="exec">{{ exec }}</option>
+                }
+              </select>
+            </td>
+
+            <!-- 3. New Leads -->
+            <td>
+              <input type="number" min="0" max="999" class="cell-input cell-input--num" [(ngModel)]="row.newLeads"
+                (ngModelChange)="onRowChange(row)" />
+            </td>
+
+            <!-- 4. Customer Calls -->
+            <td>
+              <input type="number" min="0" max="999" class="cell-input cell-input--num" [(ngModel)]="row.customerCalls"
+                (ngModelChange)="onRowChange(row)" />
+            </td>
+
+            <!-- 5. Meetings / Site Visits -->
+            <td>
+              <input type="number" min="0" max="99" class="cell-input cell-input--num" [(ngModel)]="row.meetings"
+                (ngModelChange)="onRowChange(row)" />
+            </td>
+
+            <!-- 6. Follow-ups -->
+            <td>
+              <input type="number" min="0" max="999" class="cell-input cell-input--num" [(ngModel)]="row.followUps"
+                (ngModelChange)="onRowChange(row)" />
+            </td>
+
+            <!-- 7. Quotations -->
+            <td>
+              <input type="number" min="0" max="99" class="cell-input cell-input--num" [(ngModel)]="row.quotations"
+                (ngModelChange)="onRowChange(row)" />
+            </td>
+
+            <!-- 8. Lead Conversions -->
+            <td>
+              <input type="number" min="0" max="99" class="cell-input cell-input--num" [(ngModel)]="row.leadConversions"
+                (ngModelChange)="onRowChange(row)" />
+            </td>
+
+            <!-- 9. Orders Booked -->
+            <td>
+              <input type="number" min="0" max="99" class="cell-input cell-input--num" [(ngModel)]="row.ordersBooked"
+                (ngModelChange)="onRowChange(row)" />
+            </td>
+
+            <!-- 10. Payment Follow-ups -->
+            <td>
+              <input type="number" min="0" max="99" class="cell-input cell-input--num"
+                [(ngModel)]="row.paymentFollowUps" (ngModelChange)="onRowChange(row)" />
+            </td>
+
+            <!-- 11. Reporting % -->
+            <td>
+              <select class="cell-select cell-select--pct" [(ngModel)]="row.reportingPercentage"
+                (ngModelChange)="onRowChange(row)">
+                <option [ngValue]="100">100% (On-Time)</option>
+                <option [ngValue]="0">0% (Missed/Late)</option>
+              </select>
+            </td>
+
+            <!-- 12. Team Support -->
+            <td>
+              <input type="number" min="1" max="5" class="cell-input cell-input--num" [(ngModel)]="row.teamSupport"
+                (ngModelChange)="onRowChange(row)" />
+            </td>
+
+            <!-- 13. Lead Quality % -->
+            <td>
+              <div class="cell-pct-wrap">
+                <input type="number" min="0" max="100" class="cell-input cell-input--num"
+                  [(ngModel)]="row.leadQualityPercentage" (ngModelChange)="onRowChange(row)" />
+                <span class="pct-symbol">%</span>
+              </div>
+            </td>
+
+            <!-- Real-Time Automated Calculations -->
+            <!-- Row Guard Rule: Blank or unselected executive displays completely empty cells -->
+            <td class="cell-calc">
+              @if (row.dailyActivityScore != null) {
+              <span class="score-pill score-pill--act">{{ row.dailyActivityScore.toFixed(1) }}</span>
+              }
+            </td>
+
+            <td class="cell-calc">
+              @if (row.businessResultScore != null) {
+              <span class="score-pill score-pill--res">{{ row.businessResultScore.toFixed(1) }}</span>
+              }
+            </td>
+
+            <td class="cell-calc cell-calc--overall">
+              @if (row.overallScore != null) {
+              <span class="score-pill score-pill--overall">{{ row.overallScore.toFixed(1) }}</span>
+              }
+            </td>
+
+            <td class="cell-badge">
+              @if (row.recognition) {
+              <span class="badge" [ngClass]="getBadgeClass(row.recognition)">
+                {{ row.recognition }}
+              </span>
+              }
+            </td>
+
+            <!-- Row Action Buttons -->
+            <td class="cell-actions">
+              <div class="row-btn-group">
+                <button type="button" class="btn-row-action btn-row-action--save"
+                  [disabled]="saving() || !row.isModified" (click)="saveRow(row)" title="Save this row">
+                  Save
+                </button>
+                <button type="button" class="btn-row-action btn-row-action--delete" (click)="deleteRow(row, $index)"
+                  title="Delete this row">
+                  ✕
+                </button>
+              </div>
+            </td>
+          </tr>
+          }
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ========================================================================= -->
+  <!-- SECTION 3 (BOTTOM): EXECUTIVE RANKING (LEADERBOARD ROLLUP TABLE)          -->
+  <!-- ========================================================================= -->
+  <section class="section section--ranking">
+    <div class="section__header">
+      <div class="section__title-group">
+        <span class="section__num">03</span>
+        <div>
+          <h2 class="section__title">Executive Ranking (Leaderboard Rollup)</h2>
+          <p class="section__subtitle">Consolidated executive performance summary sorted descending by Average Overall
+            Score</p>
+        </div>
+      </div>
+
+      <div class="ranking-meta">
+        <span class="ranking-pill">Period: <strong>{{ customStartDate() }}</strong> to <strong>{{ customEndDate()
+            }}</strong></span>
+      </div>
+    </div>
+
+    <div class="ranking-table-wrapper">
+      <table class="ranking-table">
+        <thead>
+          <tr>
+            <th class="col-rank">#</th>
+            <th class="sortable" (click)="onSortRanking('executive')">
+              Executive
+              @if (rankingSortField() === 'executive') {
+              <span class="sort-icon">{{ rankingSortAsc() ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th class="text-right sortable" (click)="onSortRanking('avgOverallScore')">
+              Avg Overall Score
+              @if (rankingSortField() === 'avgOverallScore') {
+              <span class="sort-icon">{{ rankingSortAsc() ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th class="text-right sortable" (click)="onSortRanking('totalLeads')">
+              Total Leads
+              @if (rankingSortField() === 'totalLeads') {
+              <span class="sort-icon">{{ rankingSortAsc() ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th class="text-right sortable" (click)="onSortRanking('totalMeetings')">
+              Total Meeting
+              @if (rankingSortField() === 'totalMeetings') {
+              <span class="sort-icon">{{ rankingSortAsc() ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th class="text-right sortable" (click)="onSortRanking('totalFollowUps')">
+              Total Follow-up
+              @if (rankingSortField() === 'totalFollowUps') {
+              <span class="sort-icon">{{ rankingSortAsc() ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th class="text-right sortable" (click)="onSortRanking('totalQuotations')">
+              Total Quotation
+              @if (rankingSortField() === 'totalQuotations') {
+              <span class="sort-icon">{{ rankingSortAsc() ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th class="text-right sortable" (click)="onSortRanking('totalConversions')">
+              Total Conversion
+              @if (rankingSortField() === 'totalConversions') {
+              <span class="sort-icon">{{ rankingSortAsc() ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th class="text-right sortable" (click)="onSortRanking('totalOrders')">
+              Total Orders
+              @if (rankingSortField() === 'totalOrders') {
+              <span class="sort-icon">{{ rankingSortAsc() ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th class="text-right sortable" (click)="onSortRanking('reportingPercentage')">
+              Reporting %
+              @if (rankingSortField() === 'reportingPercentage') {
+              <span class="sort-icon">{{ rankingSortAsc() ? '▲' : '▼' }}</span>
+              }
+            </th>
+            <th class="text-center sortable" (click)="onSortRanking('recognition')">
+              Recognition
+              @if (rankingSortField() === 'recognition') {
+              <span class="sort-icon">{{ rankingSortAsc() ? '▲' : '▼' }}</span>
+              }
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (sortedRankings().length === 0) {
+          <tr>
+            <td colspan="11" class="empty-cell">
+              <div class="empty-state">
+                <p>No executive summary data available for this date range.</p>
+              </div>
+            </td>
+          </tr>
+          } @else {
+          @for (item of sortedRankings(); track item.executive; let idx = $index) {
+          <tr [class.rank-row--top]="idx === 0">
+            <td class="col-rank">
+              <span class="rank-badge" [class.rank-badge--gold]="idx === 0" [class.rank-badge--silver]="idx === 1"
+                [class.rank-badge--bronze]="idx === 2">
+                {{ idx + 1 }}
+              </span>
+            </td>
+            <td class="font-bold text-navy">{{ item.executive }}</td>
+            <td class="text-right">
+              <span class="rank-score-pill" [class.rank-score-pill--high]="item.avgOverallScore >= 80">
+                {{ item.avgOverallScore.toFixed(1) }}
+              </span>
+            </td>
+            <td class="text-right font-medium">{{ item.totalLeads }}</td>
+            <td class="text-right font-medium">{{ item.totalMeetings }}</td>
+            <td class="text-right font-medium">{{ item.totalFollowUps }}</td>
+            <td class="text-right font-medium">{{ item.totalQuotations }}</td>
+            <td class="text-right font-medium">{{ item.totalConversions }}</td>
+            <td class="text-right font-bold text-emerald">{{ item.totalOrders }}</td>
+            <td class="text-right">{{ item.reportingPercentage.toFixed(1) }}%</td>
+            <td class="text-center">
+              <span class="badge" [ngClass]="getBadgeClass(item.recognition)">
+                {{ item.recognition }}
+              </span>
+            </td>
+          </tr>
+          }
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>
