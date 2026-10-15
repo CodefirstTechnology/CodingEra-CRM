@@ -36,6 +36,7 @@ export interface TaskRow {
   description: string;
   status: TaskStatus;
   priority: TaskPriority;
+  taskType?: string;
   dueDate: string;
   dueDateRaw: string;
   assignedTo: string;

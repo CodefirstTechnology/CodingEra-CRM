@@ -29,11 +29,14 @@ export class AdminSlaBreachComponent implements OnInit {
   protected readonly escalations = this.signalR.adminEscalations;
   protected readonly userOverdue = this.signalR.userOverdueList;
 
-  // Show maximum 4 cards on dashboard
-  protected readonly displayedEscalations = computed(() => this.escalations().slice(0, 4));
-  protected readonly displayedUserOverdue = computed(() => this.userOverdue().slice(0, 4));
+  // Show only what fits in 1 single line on the dashboard (3 cards)
+  protected readonly maxCards = 3;
+  protected readonly displayedEscalations = computed(() => this.escalations().slice(0, this.maxCards));
+  protected readonly displayedUserOverdue = computed(() => this.userOverdue().slice(0, this.maxCards));
   protected readonly totalEscalationsCount = computed(() => this.escalations().length);
   protected readonly totalUserOverdueCount = computed(() => this.userOverdue().length);
+  protected readonly remainingEscalationsCount = computed(() => Math.max(0, this.escalations().length - this.maxCards));
+  protected readonly remainingUserOverdueCount = computed(() => Math.max(0, this.userOverdue().length - this.maxCards));
 
   ngOnInit(): void {
     this.hydrateOverdueFollowUps();

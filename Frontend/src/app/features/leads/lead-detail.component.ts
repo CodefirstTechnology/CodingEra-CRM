@@ -997,65 +997,73 @@ export class LeadDetailComponent {
           return;
         }
 
-        // Resolve "Follow-up" status from master data or canonical mapping
+        // Resolve "Follow-up" status from master data
         const followUpOpt = this.statusSelectOptions().find(
           (o) => {
             const n = o.name.toLowerCase().trim();
             return n === 'follow-up' || n === 'follow up' || n === 'followup';
           },
         );
-        const targetStatus = coerceLeadStatus(followUpOpt?.name ?? 'Follow-up');
-        const targetStatusId =
-          followUpOpt?.id && followUpOpt.id > 0
-            ? followUpOpt.id
-            : (resolveLeadStatusIdFromName('Follow-up') ?? undefined);
 
-        this.leadsService
-          .update(idn, {
-            status: targetStatus,
-            leadStatusId: targetStatusId,
-            updated: 'Just now',
-          })
-          .pipe(
-            take(1),
-            catchError(() => of(null)),
-          )
-          .subscribe((updatedLead) => {
-            this.followUpSaving.set(false);
-            this.closeAddFollowUpModal();
-            this.refreshLeadTasks();
-            this.refreshLeadActivities();
+        // Only update lead status if an active "Follow-up" status exists in master data for this environment
+        if (followUpOpt && followUpOpt.id > 0) {
+          const targetStatus = coerceLeadStatus(followUpOpt.name);
+          const targetStatusId = followUpOpt.id;
 
-            if (updatedLead) {
-              const enriched = this.leadOwnerOpts.applyOwnerToRow(updatedLead);
-              this.lead.set(enriched);
-              this.dataForm.patchValue({
-                status: this.masterSelectControlValue(
-                  enriched.leadStatusId,
-                  enriched.status,
-                  this.statusSelectOptions(),
-                ),
-              });
-            } else {
-              const cur = this.lead();
-              if (cur) {
-                const nextRow: LeadRow = {
-                  ...cur,
-                  status: targetStatus,
-                  leadStatusId: targetStatusId,
-                };
-                this.lead.set(nextRow);
+          this.leadsService
+            .update(idn, {
+              status: targetStatus,
+              leadStatusId: targetStatusId,
+              updated: 'Just now',
+            })
+            .pipe(
+              take(1),
+              catchError(() => of(null)),
+            )
+            .subscribe((updatedLead) => {
+              this.followUpSaving.set(false);
+              this.closeAddFollowUpModal();
+              this.refreshLeadTasks();
+              this.refreshLeadActivities();
+
+              if (updatedLead) {
+                const enriched = this.leadOwnerOpts.applyOwnerToRow(updatedLead);
+                this.lead.set(enriched);
                 this.dataForm.patchValue({
                   status: this.masterSelectControlValue(
-                    targetStatusId,
-                    targetStatus,
+                    enriched.leadStatusId,
+                    enriched.status,
                     this.statusSelectOptions(),
                   ),
                 });
+              } else {
+                const cur = this.lead();
+                if (cur) {
+                  const nextRow: LeadRow = {
+                    ...cur,
+                    status: targetStatus,
+                    leadStatusId: targetStatusId,
+                  };
+                  this.lead.set(nextRow);
+                  this.dataForm.patchValue({
+                    status: this.masterSelectControlValue(
+                      targetStatusId,
+                      targetStatus,
+                      this.statusSelectOptions(),
+                    ),
+                  });
+                }
               }
-            }
-            this.toast.success('Follow-up scheduled and lead status moved to Follow-up.');
-          });
+              this.toast.success('Follow-up scheduled and lead status moved to Follow-up.');
+            });
+        } else {
+          // If "Follow-up" status is not defined in this environment, leave existing lead status unchanged
+          this.followUpSaving.set(false);
+          this.closeAddFollowUpModal();
+          this.refreshLeadTasks();
+          this.refreshLeadActivities();
+          this.toast.success('Follow-up scheduled successfully.');
+        }
       });
   }
 

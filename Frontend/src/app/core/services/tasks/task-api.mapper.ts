@@ -103,6 +103,7 @@ export interface TaskUpsertDto {
   taskAssignee?: string | null;
   taskDueDate: string;
   taskPriority?: string | null;
+  taskType?: string | null;
   assigneeUserId?: number | null;
   relatedLeadId?: number | null;
   relatedDealId?: number | null;
@@ -126,6 +127,7 @@ export function mergeTaskRowPatch(
     description: patch.description ?? existing.description,
     status: patch.status ?? existing.status,
     priority: patch.priority ?? existing.priority,
+    taskType: patch.taskType ?? existing.taskType,
     dueDate: patch.dueDate ?? existing.dueDate,
     dueDateRaw: patch.dueDateRaw ?? existing.dueDateRaw,
     assignedTo: patch.assignedTo ?? existing.assignedTo,
@@ -163,6 +165,7 @@ export function taskRowToUpsertDto(data: Omit<TaskRow, 'id'>, taskId?: number): 
       : null,
     taskDueDate: dueLocalOrIsoToIso(data.dueDateRaw),
     taskPriority: data.priority,
+    taskType: data.taskType || undefined,
     assigneeUserId,
     relatedLeadId,
     relatedDealId,
@@ -194,6 +197,7 @@ export function mapTaskApiRecord(raw: unknown): TaskRow {
     ),
     status: coerceStatus(String(r['taskStatus'] ?? r['TaskStatus'] ?? r['status'] ?? '')),
     priority: coercePriority(String(r['taskPriority'] ?? r['TaskPriority'] ?? r['priority'] ?? '')),
+    taskType: String(r['taskType'] ?? r['TaskType'] ?? 'Task'),
     dueDate: dueRaw ? formatLastModified(dueRaw) : '—',
     dueDateRaw: dueRaw,
     assignedTo,
