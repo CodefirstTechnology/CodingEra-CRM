@@ -104,7 +104,22 @@ export class LeadTrackerComponent implements OnInit {
   readonly followUpForm = this.fb.nonNullable.group({
     dueDate: ['', Validators.required],
     assigneeId: ['', Validators.required],
+    type: ['Follow-up'],
     message: ['', [Validators.required, Validators.maxLength(1000)]],
+  });
+
+  // Complete Follow-Up Modal State
+  readonly selectedLeadForComplete = signal<LeadTrackerRow | null>(null);
+  readonly completeModalOpen = signal(false);
+  readonly completeSaving = signal(false);
+
+  readonly completeForm = this.fb.nonNullable.group({
+    outcomeNotes: ['', [Validators.required, Validators.maxLength(1000)]],
+    logAsCallDone: [true],
+    callOutcome: ['Connected'],
+    scheduleNext: [false],
+    nextDueDate: [''],
+    nextMessage: [''],
   });
 
   protected readonly leadOwnerOptions = this.leadOwnerOpts.options;
@@ -352,6 +367,7 @@ export class LeadTrackerComponent implements OnInit {
     this.followUpForm.reset({
       dueDate: this.defaultFollowUpDate(),
       assigneeId: defaultOwner,
+      type: 'Follow-up',
       message: '',
     });
     this.followUpForm.markAsUntouched();
@@ -377,12 +393,18 @@ export class LeadTrackerComponent implements OnInit {
 
     this.followUpSaving.set(true);
 
+    const msgLower = (val.message || '').toLowerCase();
+    const isMeeting = val.type === 'Meeting' || /meet|demo|visit|discussion|presentation/i.test(msgLower);
+    const taskType = isMeeting ? 'Meeting' : (val.type || 'Task');
+    const titlePrefix = isMeeting ? 'Meeting' : 'Follow up';
+
     const taskPayload: Omit<TaskRow, 'id'> = {
-      title: `Follow up: ${row.customerName || row.contactPerson || 'Lead #' + row.leadIdNum}`,
+      title: `${titlePrefix}: ${row.customerName || row.contactPerson || 'Lead #' + row.leadIdNum}`,
       dailyImprovement: '',
       description: val.message.trim(),
       status: 'Todo',
       priority: 'Medium',
+      taskType,
       dueDate: val.dueDate,
       dueDateRaw: val.dueDate,
       assignedTo: assigneeName,
@@ -409,7 +431,77 @@ export class LeadTrackerComponent implements OnInit {
         if (!created) return;
 
         this.closeAddFollowUpModal();
-        this.toast.success('Follow-up scheduled successfully.');
+        this.toast.success(isMeeting ? 'Meeting follow-up scheduled successfully.' : 'Follow-up scheduled successfully.');
+        this.loadData();
+      });
+  }
+
+  openCompleteFollowUp(row: LeadTrackerRow): void {
+    this.selectedLeadForComplete.set(row);
+    this.completeForm.reset({
+      outcomeNotes: '',
+      logAsCallDone: true,
+      callOutcome: 'Connected',
+      scheduleNext: false,
+      nextDueDate: this.defaultFollowUpDate(),
+      nextMessage: '',
+    });
+    this.completeForm.markAsUntouched();
+    this.completeModalOpen.set(true);
+  }
+
+  closeCompleteFollowUpModal(): void {
+    this.completeModalOpen.set(false);
+    this.selectedLeadForComplete.set(null);
+  }
+
+  submitCompleteFollowUp(): void {
+    const row = this.selectedLeadForComplete();
+    if (!row) return;
+
+    const taskId = row.pendingTaskId;
+    if (!taskId || taskId <= 0) {
+      this.toast.error('No active follow-up task found for this lead.');
+      return;
+    }
+
+    this.completeForm.markAllAsTouched();
+    if (this.completeForm.invalid || this.completeSaving()) return;
+
+    const val = this.completeForm.getRawValue();
+    if (val.scheduleNext && (!val.nextDueDate || !val.nextMessage.trim())) {
+      this.toast.error('Please enter the next follow-up date and message.');
+      return;
+    }
+
+    this.completeSaving.set(true);
+
+    this.tasksService
+      .completeFollowUp(taskId, {
+        taskId,
+        discussionNotes: val.outcomeNotes.trim(),
+        logAsCallDone: val.logAsCallDone,
+        callOutcome: val.callOutcome || 'Connected',
+        durationSeconds: 60,
+        scheduleNext: val.scheduleNext,
+        nextDueDate: val.scheduleNext ? val.nextDueDate : undefined,
+        nextMessage: val.scheduleNext ? val.nextMessage.trim() : undefined,
+      })
+      .pipe(
+        take(1),
+        catchError((err) => {
+          console.error('Failed to complete follow-up', err);
+          this.toast.error('Failed to complete follow-up.');
+          this.completeSaving.set(false);
+          return of(null);
+        }),
+      )
+      .subscribe((res) => {
+        this.completeSaving.set(false);
+        if (!res) return;
+
+        this.closeCompleteFollowUpModal();
+        this.toast.success('Follow-up completed! Meeting and lead tracker updated.');
         this.loadData();
       });
   }

@@ -315,21 +315,29 @@
                 <td>{{ row.lastFollowUpDate ? (row.lastFollowUpDate | date:'dd-MMM-yyyy') : 'N/A' }}</td>
                 <td>{{ row.nextFollowUpDate ? (row.nextFollowUpDate | date:'dd-MMM-yyyy') : 'N/A' }}</td>
                 <td class="text-center">
-                  @if (row.followUpStatus === 'No Schedule' || !row.nextFollowUpDate) {
-                    <div class="followup-sla-cell">
-                      <span class="badge" [ngClass]="getFollowUpBadgeClass(row.followUpStatus)">{{ row.followUpStatus }}</span>
+                  <div class="followup-sla-cell">
+                    <span class="badge" [ngClass]="getFollowUpBadgeClass(row.followUpStatus)">{{ row.followUpStatus }}</span>
+                    <div class="flex items-center gap-1">
+                      @if (row.pendingTaskId) {
+                        <button
+                          type="button"
+                          class="btn-complete-followup"
+                          (click)="openCompleteFollowUp(row)"
+                          title="Complete this follow-up and mark meeting/task done"
+                        >
+                          ✓ Mark Done
+                        </button>
+                      }
                       <button
                         type="button"
                         class="btn-add-followup"
                         (click)="addFollowUp(row)"
                         title="Schedule next follow-up task"
                       >
-                        + Add Follow-Up
+                        + Follow-Up
                       </button>
                     </div>
-                  } @else {
-                    <span class="badge" [ngClass]="getFollowUpBadgeClass(row.followUpStatus)">{{ row.followUpStatus }}</span>
-                  }
+                  </div>
                 </td>
                 <td><span class="stage-pill">{{ row.currentStage }}</span></td>
                 <td class="text-center">
@@ -417,6 +425,20 @@
 
     <div>
       <label class="block mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+        Follow-up / Activity Type <span class="text-rose-500">*</span>
+      </label>
+      <select
+        formControlName="type"
+        class="w-full bg-slate-50 dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent transition-all"
+      >
+        <option value="Follow-up">Regular Follow-up</option>
+        <option value="Meeting">Meeting / Demo / Discussion</option>
+        <option value="Call">Call</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="block mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
         Assignee / Owner <span class="text-rose-500">*</span>
       </label>
       <select
@@ -468,6 +490,124 @@
           <span>Saving…</span>
         } @else {
           <span>Schedule Follow-up</span>
+        }
+      </button>
+    </div>
+  </form>
+</app-crm-modal>
+
+<!-- Complete Follow Up Modal -->
+<app-crm-modal
+  [open]="completeModalOpen()"
+  title="Complete Follow-up & Log Meeting / Outcome"
+  size="md"
+  (dismiss)="closeCompleteFollowUpModal()"
+>
+  <form [formGroup]="completeForm" (ngSubmit)="submitCompleteFollowUp()" class="space-y-4">
+    <div>
+      <label class="block mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+        Discussion Outcome / Meeting Notes <span class="text-rose-500">*</span>
+      </label>
+      <textarea
+        rows="4"
+        formControlName="outcomeNotes"
+        placeholder="Enter outcome, minutes of meeting, or follow-up summary..."
+        class="w-full bg-slate-50 dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all resize-none"
+      ></textarea>
+      @if (completeForm.controls.outcomeNotes.touched && completeForm.controls.outcomeNotes.invalid) {
+        <p class="text-xs text-rose-500 mt-1 font-medium">Outcome notes are required.</p>
+      }
+    </div>
+
+    <div class="flex items-center gap-2">
+      <input
+        type="checkbox"
+        id="trackLogAsCallDone"
+        formControlName="logAsCallDone"
+        class="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+      />
+      <label for="trackLogAsCallDone" class="text-xs font-medium text-slate-700 dark:text-slate-300">
+        Log as customer call in daily metrics
+      </label>
+    </div>
+
+    @if (completeForm.controls.logAsCallDone.value) {
+      <div>
+        <label class="block mb-1.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+          Call / Discussion Outcome
+        </label>
+        <select
+          formControlName="callOutcome"
+          class="w-full bg-slate-50 dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+        >
+          <option value="Connected">Connected / Discussed</option>
+          <option value="Meeting Completed">Meeting Completed</option>
+          <option value="Interested">Interested / Positive</option>
+          <option value="Busy">Busy / Callback Requested</option>
+          <option value="Not Answered">Not Answered</option>
+        </select>
+      </div>
+    }
+
+    <div class="flex items-center gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+      <input
+        type="checkbox"
+        id="trackScheduleNext"
+        formControlName="scheduleNext"
+        class="rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+      />
+      <label for="trackScheduleNext" class="text-xs font-medium text-slate-700 dark:text-slate-300">
+        Schedule next follow-up task immediately
+      </label>
+    </div>
+
+    @if (completeForm.controls.scheduleNext.value) {
+      <div class="space-y-3 p-3 bg-slate-50 dark:bg-[#1e293b]/50 rounded-xl border border-slate-200 dark:border-slate-700">
+        <div>
+          <label class="block mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Next Follow-up Due Date & Time <span class="text-rose-500">*</span>
+          </label>
+          <input
+            type="datetime-local"
+            formControlName="nextDueDate"
+            class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+        <div>
+          <label class="block mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+            Next Objective / Message <span class="text-rose-500">*</span>
+          </label>
+          <input
+            type="text"
+            formControlName="nextMessage"
+            placeholder="e.g. Share quotation, follow up on decision..."
+            class="w-full bg-white dark:bg-[#1e293b] border border-slate-300 dark:border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-sky-500"
+          />
+        </div>
+      </div>
+    }
+
+    <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+      <button
+        type="button"
+        (click)="closeCompleteFollowUpModal()"
+        class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+      >
+        Cancel
+      </button>
+      <button
+        type="submit"
+        [disabled]="completeSaving() || completeForm.invalid"
+        class="px-5 py-2 rounded-xl text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
+      >
+        @if (completeSaving()) {
+          <svg class="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" stroke-opacity="0.25" />
+            <path d="M12 2a10 10 0 0 1 10 10" />
+          </svg>
+          <span>Saving…</span>
+        } @else {
+          <span>Complete Follow-up</span>
         }
       </button>
     </div>

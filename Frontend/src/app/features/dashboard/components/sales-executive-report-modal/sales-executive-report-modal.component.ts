@@ -5,7 +5,13 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { CrmModalComponent } from '../../../../core/modal/crm-modal.component';
-import { OrderValueByExecutiveChartComponent } from '../order-value-by-executive-chart/order-value-by-executive-chart.component';
+import {
+  OrderValueByExecutiveChartComponent,
+  PALETTE,
+  getNiceMax,
+  type ExecutiveChartData,
+} from '../order-value-by-executive-chart/order-value-by-executive-chart.component';
+import { formatInrCompact } from '../../../../shared/utils/format-inr.util';
 import type { AdminTeamMemberStats } from '../../models/admin-dashboard.models';
 import type {
   SalesExecutiveReportResponse,
@@ -297,6 +303,59 @@ export class SalesExecutiveReportModalComponent {
     return 'crm-perf-badge--danger';
   }
 
+  protected readonly chartExecutiveData = computed<ExecutiveChartData[]>(() => {
+    const stats = this.reportTeamStats() ?? [];
+    const list = stats
+      .filter((s) => (s.monthlyRevenue || 0) > 0 || (s.dealsClosedWon || 0) > 0)
+      .map((s) => ({
+        userId: s.userId,
+        name: s.name,
+        email: s.email,
+        orderValue: s.monthlyRevenue || 0,
+        dealsCount: s.dealsClosedWon || 0,
+      }));
+
+    list.sort((a, b) => b.orderValue - a.orderValue || b.dealsCount - a.dealsCount);
+
+    const totalVal = list.reduce((sum, item) => sum + item.orderValue, 0);
+    const maxVal = Math.max(...list.map((item) => item.orderValue), 0);
+    const niceMax = getNiceMax(maxVal);
+
+    const topExecutives = list.slice(0, 10);
+    const otherExecutives = list.slice(10);
+    const listToRender = [...topExecutives];
+
+    if (otherExecutives.length > 0) {
+      const otherValue = otherExecutives.reduce((sum, item) => sum + item.orderValue, 0);
+      const otherDeals = otherExecutives.reduce((sum, item) => sum + item.dealsCount, 0);
+      if (otherValue > 0 || otherDeals > 0) {
+        listToRender.push({
+          userId: 'others',
+          name: `Others (${otherExecutives.length})`,
+          email: '',
+          orderValue: otherValue,
+          dealsCount: otherDeals,
+        });
+      }
+    }
+
+    return listToRender.map((exec, idx) => {
+      const pct = totalVal > 0 ? (exec.orderValue / totalVal) * 100 : 0;
+      const roundedPct = Math.round(pct * 10) / 10;
+      const barHeightPct = niceMax > 0 ? Math.min(100, Math.max(0, (exec.orderValue / niceMax) * 100)) : 0;
+      return {
+        ...exec,
+        percentage: roundedPct,
+        color: PALETTE[idx % PALETTE.length],
+        strokeDasharray: '',
+        strokeDashoffset: 0,
+        formattedValue: this.formatINR(exec.orderValue),
+        formattedCompact: formatInrCompact(exec.orderValue),
+        barHeightPct,
+      };
+    });
+  });
+
   protected exportToExcel(): void {
     const list = this.activeExportRows();
     const rows = list.map((r) => ({
@@ -349,6 +408,40 @@ export class SalesExecutiveReportModalComponent {
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Sales Performance');
+
+    // Sheet 2: Order Value by Executive (Chart Metrics & Revenue Distribution)
+    const chartList = this.chartExecutiveData();
+    if (chartList.length > 0) {
+      const chartRows = chartList.map((c) => ({
+        'Sales Executive': c.name,
+        'Closed Won Deals': c.dealsCount,
+        'Order Value (INR)': c.orderValue,
+        'Formatted Value': c.formattedValue,
+        'Revenue Share %': `${c.percentage}%`,
+      }));
+
+      const totalVal = chartList.reduce((acc, c) => acc + c.orderValue, 0);
+      const totalDeals = chartList.reduce((acc, c) => acc + c.dealsCount, 0);
+
+      chartRows.push({
+        'Sales Executive': 'TOTAL CLOSED-WON REVENUE',
+        'Closed Won Deals': totalDeals,
+        'Order Value (INR)': totalVal,
+        'Formatted Value': this.formatINR(totalVal),
+        'Revenue Share %': '100.0%',
+      });
+
+      const wsChart = XLSX.utils.json_to_sheet(chartRows);
+      wsChart['!cols'] = [
+        { wch: 25 },
+        { wch: 18 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 18 },
+      ];
+      XLSX.utils.book_append_sheet(wb, wsChart, 'Order Value by Executive');
+    }
+
     XLSX.writeFile(wb, `${this.getExportFileName()}.xlsx`);
   }
 
@@ -433,7 +526,226 @@ export class SalesExecutiveReportModalComponent {
       headStyles: { fillColor: [30, 41, 59] },
     });
 
+    // Embed visual bar chart matching UI layout
+    const chartImg = this.generateChartImage();
+    if (chartImg) {
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const finalY = (doc as any).lastAutoTable?.finalY ?? 25;
+      const chartW = 269; // 297mm landscape - 28mm margin
+      const chartH = (chartW * 540) / 1100; // ~132mm
+
+      if (finalY + chartH + 15 <= pageHeight) {
+        doc.addImage(chartImg, 'PNG', 14, finalY + 8, chartW, chartH);
+      } else {
+        doc.addPage();
+        doc.setFontSize(14);
+        doc.text(`CodingEra CRM - Sales Executive Performance Report`, 14, 15);
+        doc.setFontSize(9);
+        doc.text(`Period: ${this.startDate()} to ${this.endDate()} | Visual Order Value Distribution`, 14, 21);
+        doc.addImage(chartImg, 'PNG', 14, 26, chartW, chartH);
+      }
+    }
+
     doc.save(`${this.getExportFileName()}.pdf`);
+  }
+
+  private generateChartImage(): string | null {
+    const data = this.chartExecutiveData();
+    if (!data || data.length === 0) return null;
+
+    const totalDeals = data.reduce((sum, d) => sum + d.dealsCount, 0);
+    const maxVal = Math.max(...data.map((d) => d.orderValue), 0);
+    const niceMax = getNiceMax(maxVal);
+
+    const canvas = document.createElement('canvas');
+    const width = 1100;
+    const height = 540;
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+
+    // Background
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+
+    // Card border
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1.5;
+    this.drawRoundedRect(ctx, 10, 10, width - 20, height - 20, 12);
+    ctx.stroke();
+
+    // Card Header Title
+    ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = '#0f172a';
+    ctx.textAlign = 'left';
+    ctx.fillText('Order Value by Executive', 35, 45);
+
+    // Subtitle
+    ctx.font = '13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.fillText('Closed-won revenue distribution per sales executive', 35, 68);
+
+    // Top-right Won Deals Pill Badge
+    const badgeText = `${totalDeals} Won Deal${totalDeals === 1 ? '' : 's'}`;
+    ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    const badgeW = ctx.measureText(badgeText).width + 24;
+    const badgeX = width - 35 - badgeW;
+    const badgeY = 28;
+    ctx.fillStyle = '#eff6ff';
+    this.drawRoundedRect(ctx, badgeX, badgeY, badgeW, 28, 14);
+    ctx.fill();
+    ctx.fillStyle = '#2563eb';
+    ctx.fillText(badgeText, badgeX + 12, badgeY + 18);
+
+    // Left Chart Plot Frame
+    const boxX = 35;
+    const boxY = 90;
+    const boxW = 640;
+    const boxH = 425;
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1;
+    this.drawRoundedRect(ctx, boxX, boxY, boxW, boxH, 8);
+    ctx.stroke();
+
+    // Title inside Plot
+    ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = '#1e293b';
+    ctx.textAlign = 'center';
+    ctx.fillText('Order Value by Executive', boxX + boxW / 2, boxY + 25);
+
+    // Rotated Y-Axis Label
+    ctx.save();
+    ctx.translate(boxX + 25, boxY + boxH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = '#475569';
+    ctx.textAlign = 'center';
+    ctx.fillText('Order Value (₹)', 0, 0);
+    ctx.restore();
+
+    // Plot Canvas Area with Grid Lines
+    const plotLeft = boxX + 60;
+    const plotRight = boxX + boxW - 85;
+    const plotTop = boxY + 50;
+    const plotBottom = boxY + 340;
+    const plotH = plotBottom - plotTop;
+    const plotW = plotRight - plotLeft;
+
+    const gridSteps = 8;
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    for (let i = 0; i <= gridSteps; i++) {
+      const stepVal = Math.round((niceMax / gridSteps) * (gridSteps - i));
+      const lineY = plotTop + (plotH / gridSteps) * i;
+
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      ctx.moveTo(plotLeft, lineY);
+      ctx.lineTo(plotRight, lineY);
+      ctx.stroke();
+
+      // Right y-axis value label
+      ctx.fillStyle = '#475569';
+      const label = formatInrCompact(stepVal);
+      ctx.fillText(label, plotRight + 8, lineY + 4);
+    }
+
+    // X-Axis Baseline
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(plotLeft, plotBottom);
+    ctx.lineTo(plotRight, plotBottom);
+    ctx.stroke();
+
+    // Column Bars
+    const barCount = data.length;
+    const slotW = plotW / barCount;
+    const barW = Math.min(65, slotW * 0.55);
+
+    data.forEach((item, idx) => {
+      const barH = niceMax > 0 ? (item.orderValue / niceMax) * plotH : 0;
+      const barX = plotLeft + slotW * idx + (slotW - barW) / 2;
+      const barY = plotBottom - barH;
+
+      ctx.fillStyle = item.color;
+      ctx.fillRect(barX, barY, barW, barH);
+
+      // Name label below baseline
+      ctx.fillStyle = '#1e293b';
+      ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.textAlign = 'center';
+      const displayName = item.name.length > 12 ? item.name.substring(0, 10) + '...' : item.name;
+      ctx.fillText(displayName, barX + barW / 2, plotBottom + 20);
+    });
+
+    // Sales Executive X-Axis Bottom Label
+    ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    ctx.fillStyle = '#64748b';
+    ctx.textAlign = 'center';
+    ctx.fillText('Sales Executive', plotLeft + plotW / 2, boxY + boxH - 18);
+
+    // Right Legend Area
+    const legendX = 710;
+    const legendYStart = 110;
+
+    data.forEach((item, idx) => {
+      const itemY = legendYStart + idx * 70;
+      if (itemY > height - 60) return;
+
+      // Color Swatch
+      ctx.fillStyle = item.color;
+      this.drawRoundedRect(ctx, legendX, itemY, 14, 14, 3);
+      ctx.fill();
+
+      // Executive Name
+      ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'left';
+      ctx.fillText(item.name, legendX + 24, itemY + 12);
+
+      // Deals Count
+      ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = '#64748b';
+      ctx.fillText(`${item.dealsCount} deal${item.dealsCount === 1 ? '' : 's'}`, legendX + 24, itemY + 30);
+
+      // Order Value (Right Aligned)
+      ctx.font = 'bold 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'right';
+      ctx.fillText(item.formattedValue, width - 45, itemY + 12);
+
+      // Percentage (Right Aligned)
+      ctx.font = 'bold 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+      ctx.fillStyle = item.color;
+      ctx.fillText(`${item.percentage}%`, width - 45, itemY + 30);
+    });
+
+    return canvas.toDataURL('image/png');
+  }
+
+  private drawRoundedRect(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    r: number,
+  ): void {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
   }
 
   private getExportFileName(): string {

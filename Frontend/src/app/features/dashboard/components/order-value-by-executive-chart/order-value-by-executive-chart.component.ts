@@ -20,7 +20,7 @@ export interface ExecutiveChartData {
 
 export type ChartTypeMode = 'bar' | 'pie';
 
-const PALETTE = [
+export const PALETTE = [
   '#3B82F6', // Blue
   '#EF4444', // Red
   '#10B981', // Emerald
@@ -33,7 +33,7 @@ const PALETTE = [
   '#6366F1', // Indigo
 ];
 
-function getNiceMax(maxVal: number): number {
+export function getNiceMax(maxVal: number): number {
   if (maxVal <= 0) return 10000;
   const exp = Math.floor(Math.log10(maxVal));
   const frac = maxVal / Math.pow(10, exp);
