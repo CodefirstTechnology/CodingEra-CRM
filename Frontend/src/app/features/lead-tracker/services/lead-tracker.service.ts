@@ -25,6 +25,7 @@ export interface LeadTrackerRow {
   quotationValue: number;
   lastFollowUpDate: string | null;
   nextFollowUpDate: string | null;
+  pendingTaskId?: number | null;
   followUpStatus: string;
   currentStage: string;
   status: string;

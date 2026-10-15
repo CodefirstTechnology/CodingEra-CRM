@@ -8,9 +8,9 @@
           <p>Overdue follow-ups detected across team members</p>
         </div>
       </div>
-      @if (totalEscalationsCount() > 4) {
+      @if (remainingEscalationsCount() > 0) {
         <button type="button" class="admin-sla-show-more-btn" (click)="navigateToAllOverdue()">
-          Show More ({{ totalEscalationsCount() - 4 }} Remaining) &rarr;
+          Show More ({{ remainingEscalationsCount() }} Remaining) &rarr;
         </button>
       }
     </div>
@@ -51,9 +51,9 @@
           <p>Follow-ups assigned to you requiring immediate action</p>
         </div>
       </div>
-      @if (totalUserOverdueCount() > 4) {
+      @if (remainingUserOverdueCount() > 0) {
         <button type="button" class="admin-sla-show-more-btn" (click)="navigateToAllOverdue()">
-          Show More ({{ totalUserOverdueCount() - 4 }} Remaining) &rarr;
+          Show More ({{ remainingUserOverdueCount() }} Remaining) &rarr;
         </button>
       }
     </div>
