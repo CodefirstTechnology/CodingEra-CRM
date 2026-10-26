@@ -8,6 +8,10 @@ import type { ActivityRow } from '../../../core/services/activities/activity-api
 import { AuthService } from '../../../core/auth/auth.service';
 import { CrmEntityCacheService } from '../../../core/services/crm-entity-cache.service';
 import { UserDataScopeService } from '../../../core/services/user-data-scope.service';
+import {
+  DEAL_STAGE_FULL_PAYMENT_RECEIVED,
+  DEAL_STAGE_MATERIAL_DELIVERED,
+} from '../../../core/services/deals/deal-stage-milestones.constants';
 import { isDealClosed, isDealClosedWon } from '../../../core/services/deals/deal-pipeline.constants';
 import { LeadOwnerOptionsService } from '../../../core/services/leads/lead-owner-options.service';
 import { leadsHttpErrorMessage } from '../../../core/services/leads.service';
@@ -211,9 +215,17 @@ export class UserDashboardService {
       return t && t >= today;
     });
 
-    const activeDeals = filteredDeals.filter((d) => !isDealClosed(d.status));
+    const isQualifyingRevenueDeal = (status: string) => {
+      const s = (status || '').trim().toLowerCase();
+      if (isDealClosedWon(status)) return true;
+      if (s === DEAL_STAGE_MATERIAL_DELIVERED.toLowerCase()) return true;
+      if (s === DEAL_STAGE_FULL_PAYMENT_RECEIVED.toLowerCase()) return true;
+      return false;
+    };
+
+    const activeDeals = filteredDeals.filter((d) => !isDealClosed(d.status) && !isQualifyingRevenueDeal(d.status));
     const closedWonDeals = userDeals.filter((d) => {
-      if (!isDealClosedWon(d.status)) return false;
+      if (!isQualifyingRevenueDeal(d.status)) return false;
       const t = dealRecordDate(d) ?? parseDashboardDate(d.lastModifiedAt || d.lastModified || d.createdAt || d.createdAtAt);
       return t ? this.isDateInPeriod(t, periodStart, periodEnd) : true;
     });
@@ -222,7 +234,7 @@ export class UserDashboardService {
     const completedTasks = filteredTasks.filter((t) => t.status === 'Done');
     const followUps = this.buildFollowUps(allUserTasks, periodStart, periodEnd);
 
-    const periodRevenue = closedWonDeals.reduce((sum, d) => {
+    const calculatedDealRevenue = closedWonDeals.reduce((sum, d) => {
       const val =
         Number.isFinite(d.dealAmount) && d.dealAmount > 0
           ? d.dealAmount
@@ -278,12 +290,16 @@ export class UserDashboardService {
       targetOverlapsPeriod(t, periodStart, periodEnd),
     );
 
-    const periodWonRevenue = periodRevenue;
-
     const targetWidgets: UserTargetWidget[] = overlappingTargets.map((t) => {
       const prop = getProportionalTarget(t, periodStart, periodEnd);
       const targetAmount = Math.round(prop.targetAmount * 100) / 100;
-      const achievedAmount = periodWonRevenue;
+      // Use the backend's accurately computed achieved amount when available from UserTargets API
+      const achievedAmount =
+        Number.isFinite(prop.achievedAmount) && prop.achievedAmount > 0
+          ? Math.round(prop.achievedAmount * 100) / 100
+          : Number.isFinite(t.achievedAmount) && t.achievedAmount > 0
+            ? t.achievedAmount
+            : calculatedDealRevenue;
       const remainingAmount = Math.max(0, targetAmount - achievedAmount);
       const achievementPercent =
         targetAmount > 0 ? Math.min(100, Math.round((achievedAmount / targetAmount) * 1000) / 10) : 0;
@@ -301,6 +317,10 @@ export class UserDashboardService {
       };
     });
 
+    // Determine period revenue: if target widget has achieved amount, align revenue KPI with it
+    const primaryTargetAchieved = targetWidgets.length > 0 ? targetWidgets[0].achievedAmount : 0;
+    const periodRevenue = primaryTargetAchieved > 0 ? primaryTargetAchieved : calculatedDealRevenue;
+
     return {
       period: {
         key: period.key as UserDashboardPeriodKey,
@@ -316,7 +336,12 @@ export class UserDashboardService {
         quotations: filteredQuotations.length,
         tasksPending: pendingTasks.length,
         meetingsToday: followUps.filter((f) => f.kind === 'meeting').length,
-        monthlyRevenue: trackerSummary && trackerSummary.totalWonRevenue > 0 ? trackerSummary.totalWonRevenue : periodRevenue,
+        monthlyRevenue:
+          periodRevenue > 0
+            ? periodRevenue
+            : trackerSummary && trackerSummary.totalWonRevenue > 0
+              ? trackerSummary.totalWonRevenue
+              : calculatedDealRevenue,
       } satisfies UserDashboardKpis,
       targetWidgets,
       assignedLeads: tableRows,
