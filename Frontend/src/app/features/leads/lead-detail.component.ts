@@ -1155,7 +1155,7 @@ export class LeadDetailComponent {
 
   protected isTerminalLostStatus(statusName: string, statusId?: number | null): boolean {
     const s = (statusName || '').trim().toLowerCase();
-    return statusId === 4 || statusId === 6 || s === 'unqualified' || s === 'junk' || s === 'lost';
+    return s === 'unqualified' || s === 'junk' || s === 'lost';
   }
 
   protected openLostReasonDialog(targetStatus: LeadStatus, leadStatusId: number, label: string): void {
