@@ -9,6 +9,7 @@ import type { RoleListItem } from '../../core/auth/permission.models';
 import { CrmModalComponent } from '../../core/modal/crm-modal.component';
 import { SalesExecutiveReportModalComponent } from './components/sales-executive-report-modal/sales-executive-report-modal.component';
 import { MonthlySummaryCardComponent } from './components/monthly-summary-card/monthly-summary-card.component';
+import { SourceSummaryCardComponent } from './components/source-summary-card/source-summary-card.component';
 import { RbacService } from '../../core/services/rbac.service';
 import { formatInrCompact } from '../../shared/utils/format-inr.util';
 import { CrmEntityCacheService } from '../../core/services/crm-entity-cache.service';
@@ -117,13 +118,14 @@ import { AdminSlaBreachComponent } from '../admin-sla-breach/admin-sla-breach.co
 
 @Component({
   selector: 'app-dashboard',
-  imports: [RouterLink, CrmModalComponent, FormsModule, SalesExecutiveReportModalComponent, MonthlySummaryCardComponent, AdminSlaBreachComponent],
+  imports: [RouterLink, CrmModalComponent, FormsModule, SalesExecutiveReportModalComponent, MonthlySummaryCardComponent, SourceSummaryCardComponent, AdminSlaBreachComponent],
   templateUrl: './dashboard.component.html',
   styleUrl: './dashboard.component.scss',
 })
 export class DashboardComponent implements OnDestroy {
   protected readonly reportModalOpen = signal<boolean>(false);
   protected readonly monthlySummaryModalOpen = signal<boolean>(false);
+  protected readonly sourceSummaryModalOpen = signal<boolean>(false);
   private readonly router = inject(Router);
   private readonly dashboardService = inject(AdminDashboardService);
   private readonly entityCache = inject(CrmEntityCacheService);

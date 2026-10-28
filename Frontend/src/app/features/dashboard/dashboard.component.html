@@ -483,6 +483,11 @@
     </aside>
   </div>
 
+  <!-- Lead Source Performance Summary Section -->
+  <section class="sales-dash__source-summary-section" style="margin-top: 1.25rem;">
+    <app-source-summary-card [mode]="'embedded'" />
+  </section>
+
   <!-- Employee Performance Ledger Card -->
   <section class="sales-dash__card sales-dash__card--emp-ledger" aria-labelledby="emp-ledger-heading">
     <div class="sales-dash__emp-head">
@@ -494,11 +499,15 @@
         </p>
       </div>
 
-      <!-- 4 Middle divs space: Monthly Summary button placed in 4th part (red rectangle area) -->
+      <!-- 4 Middle divs space: Monthly Summary & Source Summary buttons -->
       <div class="sales-dash__emp-head-middle">
         <div class="sales-dash__emp-mid-col"></div>
         <div class="sales-dash__emp-mid-col"></div>
-        <div class="sales-dash__emp-mid-col"></div>
+        <div class="sales-dash__emp-mid-col sales-dash__emp-mid-col--summary" style="display: flex; justify-content: flex-end;">
+          <button type="button" class="crm-perf-btn crm-perf-btn--summary" style="background: #0ea5e9; color: #fff; border: 1px solid #0284c7;" (click)="sourceSummaryModalOpen.set(true)">
+            🌐 Source Summary
+          </button>
+        </div>
         <div class="sales-dash__emp-mid-col sales-dash__emp-mid-col--summary">
           <button type="button" class="crm-perf-btn crm-perf-btn--summary" (click)="monthlySummaryModalOpen.set(true)">
             📅 Monthly Summary
@@ -909,6 +918,13 @@
     (dismiss)="monthlySummaryModalOpen.set(false)">
     <div style="padding: 0.5rem 0;">
       <app-monthly-summary-card></app-monthly-summary-card>
+    </div>
+  </app-crm-modal>
+
+  <app-crm-modal [open]="sourceSummaryModalOpen()" title="Lead Source Performance Summary & Trends" size="xl"
+    (dismiss)="sourceSummaryModalOpen.set(false)">
+    <div style="padding: 0.5rem 0;">
+      <app-source-summary-card [mode]="'full'"></app-source-summary-card>
     </div>
   </app-crm-modal>
 </div>

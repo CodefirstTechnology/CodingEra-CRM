@@ -1,0 +1,307 @@
+<article class="src-sum-card" [class.src-sum-card--full]="mode() === 'full'">
+  <header class="src-sum-head">
+    <div class="src-sum-head-info">
+      <div class="src-sum-title-row">
+        <span class="src-sum-icon" aria-hidden="true">🌐</span>
+        <h2 class="src-sum-title">Lead Source Performance Summary</h2>
+      </div>
+      <p class="src-sum-subtitle">
+        Overview of leads generated, converted deals, and revenue across configured master sources
+      </p>
+    </div>
+
+    <!-- Filters Strip -->
+    <div class="src-sum-head-filters">
+      <!-- Source Filter -->
+      <div class="src-sum-filter-group">
+        <label for="src-filter-select" class="src-sum-filter-label">Source:</label>
+        <select
+          id="src-filter-select"
+          class="src-sum-select"
+          [ngModel]="selectedSource()"
+          (ngModelChange)="onSourceChange($event)"
+          [disabled]="loading()"
+        >
+          <option value="All">All Sources</option>
+          @for (s of configuredSources(); track s) {
+            <option [value]="s">{{ s }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- Month Filter -->
+      <div class="src-sum-filter-group">
+        <label for="src-month-select" class="src-sum-filter-label">Month:</label>
+        <select
+          id="src-month-select"
+          class="src-sum-select"
+          [ngModel]="selectedMonth()"
+          (ngModelChange)="onMonthChange($event)"
+          [disabled]="loading()"
+        >
+          @for (m of monthsList; track m.num) {
+            <option [value]="m.num">{{ m.label }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- Year Selector -->
+      <div class="src-sum-filter-group">
+        <label for="src-year-select" class="src-sum-filter-label">Year:</label>
+        <select
+          id="src-year-select"
+          class="src-sum-select"
+          [ngModel]="selectedYear()"
+          (ngModelChange)="onYearChange($event)"
+          [disabled]="loading()"
+        >
+          @for (y of availableYears; track y) {
+            <option [value]="y">{{ y }}</option>
+          }
+        </select>
+      </div>
+
+      <!-- Export Buttons -->
+      <div class="src-sum-exports">
+        <button type="button" class="src-sum-btn src-sum-btn--excel" (click)="exportToExcel()" title="Export to Excel">
+          📊 Excel
+        </button>
+        <button type="button" class="src-sum-btn src-sum-btn--pdf" (click)="exportToPdf()" title="Export to PDF">
+          📄 PDF
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Metric KPI Cards Bar -->
+  <div class="src-sum-kpi-bar">
+    <div class="src-kpi-chip">
+      <span class="src-kpi-chip__label">Total Leads</span>
+      <span class="src-kpi-chip__val">{{ currentTotals().totalLeads }}</span>
+      <span class="src-kpi-chip__sub">{{ configuredSources().length }} Active Sources</span>
+    </div>
+    <div class="src-kpi-chip">
+      <span class="src-kpi-chip__label">Qualified Leads</span>
+      <span class="src-kpi-chip__val text-amber">{{ currentTotals().qualifiedLeads }}</span>
+      <span class="src-kpi-chip__sub">Contacted: {{ currentTotals().contactedLeads }}</span>
+    </div>
+    <div class="src-kpi-chip">
+      <span class="src-kpi-chip__label">Quotations Generated</span>
+      <span class="src-kpi-chip__val text-cyan">{{ currentTotals().quotationsCount }}</span>
+      <span class="src-kpi-chip__sub">{{ formatCompactINR(currentTotals().totalQuotedValue) }} Value</span>
+    </div>
+    <div class="src-kpi-chip">
+      <span class="src-kpi-chip__label">Won Orders</span>
+      <span class="src-kpi-chip__val text-emerald">{{ currentTotals().wonOrdersCount }}</span>
+      <span class="src-kpi-chip__sub">{{ formatCompactINR(currentTotals().totalWonRevenue) }} Revenue</span>
+    </div>
+    <div class="src-kpi-chip">
+      <span class="src-kpi-chip__label">Overall Conversion</span>
+      <span class="src-kpi-chip__val text-indigo">{{ currentTotals().leadToOrderPercentage }}%</span>
+      <span class="src-kpi-chip__sub">Lead → Order Ratio</span>
+    </div>
+  </div>
+
+  <div class="src-sum-body">
+    <!-- Visual Charts Row: Source Distribution & Funnel / Trend -->
+    <div class="src-sum-charts-row">
+      <!-- Source Lead Volume Comparison (Horizontal Bars) -->
+      <div class="src-chart-panel">
+        <div class="src-chart-panel__head">
+          <h3 class="src-chart-panel__title">Leads by Source Share</h3>
+          <span class="src-chart-panel__tag">{{ sourcesList().length }} Sources</span>
+        </div>
+        <div class="src-bars-container">
+          @if (loading()) {
+            @for (sk of [1, 2, 3, 4]; track sk) {
+              <div class="src-bar-row src-bar-row--skel"></div>
+            }
+          } @else if (sourcesList().length === 0) {
+            <div class="src-chart-empty">No source data available for this filter.</div>
+          } @else {
+            @for (s of sourcesList(); track s.sourceName) {
+              <div
+                class="src-bar-row"
+                [class.src-bar-row--active]="activeSourceRow() === s.sourceName"
+                (mouseenter)="activeSourceRow.set(s.sourceName)"
+                (mouseleave)="activeSourceRow.set(null)"
+              >
+                <div class="src-bar-row__info">
+                  <span class="src-bar-dot" [style.background]="getSourceColor(s.sourceName)"></span>
+                  <span class="src-bar-name" [title]="s.sourceName">{{ s.sourceName }}</span>
+                  <span class="src-bar-stats">
+                    <strong>{{ s.totalLeads }}</strong> leads ({{ s.shareOfTotalLeadsPercentage }}%)
+                  </span>
+                </div>
+                <div class="src-bar-track">
+                  <div
+                    class="src-bar-fill"
+                    [style.width.%]="(s.totalLeads / maxLeadCount()) * 100"
+                    [style.background]="getSourceColor(s.sourceName)"
+                  ></div>
+                </div>
+                <div class="src-bar-footer-stats">
+                  <span>Won: <strong>{{ s.wonOrdersCount }}</strong></span>
+                  <span>Rev: <strong>{{ formatCompactINR(s.totalWonRevenue) }}</strong></span>
+                  <span>Conv: <strong>{{ s.conversionRate }}%</strong></span>
+                </div>
+              </div>
+            }
+          }
+        </div>
+      </div>
+
+      <!-- Monthly Trend Comparison (12 Months Bar Chart) -->
+      <div class="src-chart-panel">
+        <div class="src-chart-panel__head">
+          <h3 class="src-chart-panel__title">Monthly Trend ({{ selectedYear() }})</h3>
+          <span class="src-chart-panel__tag">Lead Intake by Month</span>
+        </div>
+        <div class="src-trend-chart-wrap">
+          <div class="src-trend-chart">
+            @for (m of overallMonthlyTrends(); track m.month) {
+              <div
+                class="src-trend-col"
+                [class.src-trend-col--active]="selectedMonth() === m.month"
+                (click)="onMonthChange(selectedMonth() === m.month ? 0 : m.month)"
+                [title]="m.label + ': ' + m.leads + ' leads, ' + m.won + ' won, ' + formatCompactINR(m.rev)"
+              >
+                <div class="src-trend-bar-track">
+                  <div
+                    class="src-trend-bar-fill"
+                    [style.height.%]="(m.leads / maxMonthlyTrendLead()) * 100"
+                    [class.src-trend-bar-fill--has-won]="m.won > 0"
+                  >
+                    @if (m.leads > 0) {
+                      <span class="src-trend-bar-val">{{ m.leads }}</span>
+                    }
+                  </div>
+                </div>
+                <span class="src-trend-label">{{ m.label }}</span>
+                @if (m.won > 0) {
+                  <span class="src-trend-subval">{{ m.won }}w</span>
+                }
+              </div>
+            }
+          </div>
+          <p class="src-trend-hint">Click on any month bar to filter source breakdown table below</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Data Table View -->
+    <div class="src-table-wrap">
+      <table class="src-table">
+        <thead>
+          <tr>
+            <th style="min-width: 140px; text-align: left;">Source Name</th>
+            <th style="min-width: 90px; text-align: right;">Total Leads</th>
+            <th style="min-width: 90px; text-align: right;">Contacted</th>
+            <th style="min-width: 90px; text-align: right;">Qualified</th>
+            <th style="min-width: 95px; text-align: right;">Quotations</th>
+            <th style="min-width: 95px; text-align: right;">Won Orders</th>
+            <th style="min-width: 85px; text-align: right;">Lost Deals</th>
+            <th style="min-width: 130px; text-align: right;">Won Revenue (₹)</th>
+            <th style="min-width: 100px; text-align: center;">Share %</th>
+            <th style="min-width: 105px; text-align: center;">Lead → Quote %</th>
+            <th style="min-width: 105px; text-align: center;">Quote → Won %</th>
+            <th style="min-width: 105px; text-align: center;">Lead → Won %</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          @if (loading()) {
+            @for (sk of [1, 2, 3, 4]; track sk) {
+              <tr>
+                <td colspan="12">
+                  <div class="src-skel-bar"></div>
+                </td>
+              </tr>
+            }
+          } @else if (sourcesList().length === 0) {
+            <tr>
+              <td colspan="12" class="src-empty">
+                No lead records found for source "{{ selectedSource() }}" in {{ selectedYear() }}.
+              </td>
+            </tr>
+          } @else {
+            @for (s of sourcesList(); track s.sourceName) {
+              <tr
+                class="src-table-row"
+                [class.src-table-row--highlight]="activeSourceRow() === s.sourceName"
+                (mouseenter)="activeSourceRow.set(s.sourceName)"
+                (mouseleave)="activeSourceRow.set(null)"
+              >
+                <td style="text-align: left; font-weight: 600;">
+                  <span class="src-table-dot" [style.background]="getSourceColor(s.sourceName)"></span>
+                  {{ s.sourceName }}
+                </td>
+                <td style="text-align: right; font-weight: 700;">{{ s.totalLeads }}</td>
+                <td style="text-align: right;">{{ s.contactedLeads }}</td>
+                <td style="text-align: right; color: #d97706; font-weight: 600;">{{ s.qualifiedLeads }}</td>
+                <td style="text-align: right;">{{ s.quotationsCount }}</td>
+                <td style="text-align: right; color: #10b981; font-weight: 700;">{{ s.wonOrdersCount }}</td>
+                <td style="text-align: right; color: #ef4444;">{{ s.lostCount }}</td>
+                <td style="text-align: right; font-weight: 700; color: var(--dash-heading-text, #0f172a);">
+                  {{ formatINR(s.totalWonRevenue) }}
+                </td>
+                <td style="text-align: center;">
+                  <span class="src-share-pill">{{ s.shareOfTotalLeadsPercentage }}%</span>
+                </td>
+                <td style="text-align: center;">
+                  <span class="src-badge" [ngClass]="getBadgeClass(s.leadToQuotePercentage)">
+                    {{ formatPercent(s.leadToQuotePercentage) }}
+                  </span>
+                </td>
+                <td style="text-align: center;">
+                  <span class="src-badge" [ngClass]="getBadgeClass(s.quoteToOrderPercentage)">
+                    {{ formatPercent(s.quoteToOrderPercentage) }}
+                  </span>
+                </td>
+                <td style="text-align: center;">
+                  <span class="src-badge" [ngClass]="getBadgeClass(s.conversionRate)">
+                    {{ formatPercent(s.conversionRate) }}
+                  </span>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+
+        <!-- Totals Row -->
+        @if (!loading() && sourcesList().length > 0) {
+          <tfoot>
+            <tr class="src-foot-row">
+              <td style="text-align: left; font-weight: 800;">TOTALS</td>
+              <td style="text-align: right; font-weight: 800;">{{ currentTotals().totalLeads }}</td>
+              <td style="text-align: right; font-weight: 800;">{{ currentTotals().contactedLeads }}</td>
+              <td style="text-align: right; font-weight: 800; color: #d97706;">{{ currentTotals().qualifiedLeads }}</td>
+              <td style="text-align: right; font-weight: 800;">{{ currentTotals().quotationsCount }}</td>
+              <td style="text-align: right; font-weight: 800; color: #10b981;">{{ currentTotals().wonOrdersCount }}</td>
+              <td style="text-align: right; font-weight: 800; color: #ef4444;">{{ currentTotals().lostCount }}</td>
+              <td style="text-align: right; font-weight: 800; color: var(--dash-heading-text, #0f172a);">
+                {{ formatINR(currentTotals().totalWonRevenue) }}
+              </td>
+              <td style="text-align: center; font-weight: 800;">100%</td>
+              <td style="text-align: center; font-weight: 800;">
+                <span class="src-badge" [ngClass]="getBadgeClass(currentTotals().leadToQuotePercentage)">
+                  {{ formatPercent(currentTotals().leadToQuotePercentage) }}
+                </span>
+              </td>
+              <td style="text-align: center; font-weight: 800;">
+                <span class="src-badge" [ngClass]="getBadgeClass(currentTotals().quoteToOrderPercentage)">
+                  {{ formatPercent(currentTotals().quoteToOrderPercentage) }}
+                </span>
+              </td>
+              <td style="text-align: center; font-weight: 800;">
+                <span class="src-badge" [ngClass]="getBadgeClass(currentTotals().leadToOrderPercentage)">
+                  {{ formatPercent(currentTotals().leadToOrderPercentage) }}
+                </span>
+              </td>
+            </tr>
+          </tfoot>
+        }
+      </table>
+    </div>
+  </div>
+</article>
